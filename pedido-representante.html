@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TORUN PNEUS · Pedido de Compra</title>
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem("torun_theme_v1");
+    if(t === "light" || t === "dark"){ document.documentElement.setAttribute("data-theme", t); }
+  }catch(e){}
+})();
+</script>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=82">
+<link rel="stylesheet" href="pedido-representante.css?v=9">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen">
+  <form class="login-box" id="formLogin">
+    <img src="assets/logo-light.png" alt="Torun Pneus" class="login-logo">
+    <h1>Pedido de Compra</h1>
+    <div class="sub">Acesso exclusivo para representantes.</div>
+    <div class="login-fields">
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="loginSenha" autocomplete="current-password" required>
+      </div>
+    </div>
+    <div class="login-erro" id="loginErro" style="display:none;"></div>
+    <button type="submit" class="btn primary" id="loginSubmitBtn">Entrar</button>
+  </form>
+</div>
+
+<div class="login-screen" id="loadingScreen" style="display:none;">
+  <div class="loading-box">
+    <img src="assets/logo-dark.png" alt="Torun Pneus" class="login-logo">
+    <div class="loading-spinner"></div>
+    <div class="sub">Carregando...</div>
+  </div>
+</div>
+
+<div id="repShell" style="display:none;">
+  <div class="rep-topbar">
+    <span>Representante: <b id="repNomeVendedor"></b></span>
+    <div class="rep-topbar-right">
+      <div class="theme-toggle" id="themeToggle">
+        <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
+        <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
+        <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
+      </div>
+      <button type="button" class="btn outline" id="btnLogoutRep">Sair</button>
+    </div>
+  </div>
+
+  <div class="rep-tabs">
+    <button type="button" class="rep-tab active" data-reptab="pedido">Novo Pedido</button>
+    <button type="button" class="rep-tab" data-reptab="estoque">Estoque</button>
+    <button type="button" class="rep-tab" data-reptab="catalogo">Catálogo</button>
+    <button type="button" class="rep-tab" data-reptab="entregas">Entregas</button>
+    <button type="button" class="rep-tab" data-reptab="precadastro">Pré-cadastro de Cliente</button>
+    <button type="button" class="rep-tab" data-reptab="acompanhamento">Acompanhamento</button>
+  </div>
+
+  <div class="rep-page rep-tab-content active" id="repTabPedido">
+    <form id="formPedidoRepresentante" class="rep-doc" novalidate>
+
+      <div class="rep-doc-header">
+        <img src="assets/logo-dark.png" alt="Torun Pneus" class="rep-doc-logo">
+        <div class="rep-doc-title">
+          <div class="rep-doc-title-label">PEDIDO DE COMPRA</div>
+          <div class="rep-doc-numero">N° <span id="repNumeroPedido">a gerar</span></div>
+        </div>
+        <div class="rep-doc-data-box">
+          <div class="rep-doc-data-label">DATA DO PEDIDO</div>
+          <div class="rep-doc-data-valor" id="repDataPedido"></div>
+        </div>
+      </div>
+
+      <div class="rep-doc-cliente-box">
+        <div class="rep-cliente-busca">
+          <div class="field">
+            <label>CNPJ/CPF do cliente</label>
+            <input type="text" id="repDocumento" placeholder="Digite o CNPJ ou CPF cadastrado">
+          </div>
+          <button type="button" class="btn primary" id="btnBuscarCliente">Buscar cliente</button>
+        </div>
+        <div class="rep-cliente-erro" id="repClienteErro" style="display:none;"></div>
+
+        <div class="rep-doc-cliente-grid" id="repClienteGrid" style="display:none;">
+          <div class="rep-doc-cliente-info">
+            <div><label>Cliente</label><div class="rep-readonly" id="repClienteNome">—</div></div>
+            <div><label>Razão social</label><div class="rep-readonly" id="repRazaoSocial">—</div></div>
+            <div><label>Endereço de entrega</label><div class="rep-readonly" id="repEndereco">—</div></div>
+            <div><label>Vendedor</label><div class="rep-readonly" id="repVendedorDisplay">—</div></div>
+          </div>
+          <div class="rep-doc-cliente-condicoes">
+            <div class="field"><label>Frete</label><input type="text" id="repFrete" placeholder="Ex.: CIF - FORNECEDOR"></div>
+            <div class="field"><label>Finalidade</label><input type="text" id="repFinalidade" value="INDUSTRIALIZAÇÃO"></div>
+            <div class="field"><label>Condição de pagamento</label><input type="text" id="repCondicaoPagamento" placeholder="Ex.: 1X"></div>
+            <div class="field"><label>Forma de pagamento</label><input type="text" id="repFormaPagamento" placeholder="Ex.: BOLETO PRÓPRIO"></div>
+            <div class="field"><label>Prazo de pagamento</label><input type="text" id="repPrazoPagamento" placeholder="Ex.: À VISTA"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rep-doc-itens-box" id="repItensBox" style="display:none;">
+        <div class="rep-doc-itens-head">
+          <h2>Itens do pedido</h2>
+          <button type="button" class="btn outline" id="btnAddItemRep">+ Adicionar item</button>
+        </div>
+
+        <div class="rep-doc-catalogo-precos">
+          <div class="field">
+            <label>Tabela de preço — Região</label>
+            <select id="repCatalogoRegiao">
+              <option value="">Selecione…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tabela de preço — Condição de pagamento</label>
+            <select id="repCatalogoCondicao">
+              <option value="">Selecione…</option>
+            </select>
+          </div>
+          <div class="note">Escolha a região e a condição de pagamento do catálogo para preencher o valor unitário automaticamente ao selecionar um produto. O valor continua editável.</div>
+        </div>
+        <div class="rep-itens-table-wrap">
+          <table class="rep-itens-table">
+            <thead>
+              <tr>
+                <th>Código / Produto</th>
+                <th>Quantidade</th>
+                <th>Valor unitário (R$)</th>
+                <th>Desconto (%)</th>
+                <th>Valor total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="repItens"></tbody>
+          </table>
+        </div>
+        <div class="rep-doc-total-row">
+          <span>Total do pedido</span>
+          <b id="repTotalGeral">R$ 0,00</b>
+        </div>
+
+        <div class="rep-doc-obs-grid">
+          <div class="field"><label>Observações para o pedido</label><textarea id="repObs" rows="2"></textarea></div>
+          <div class="field"><label>Observações para impressão na NF</label><textarea id="repObsImpressaoNF" rows="2"></textarea></div>
+        </div>
+
+        <label class="rep-reserva-check">
+          <input type="checkbox" id="repMarcarReserva">
+          Marcar como reserva de estoque (gera automaticamente uma reserva no estoque para os itens deste pedido — não afeta faturamento)
+        </label>
+
+        <div class="rep-doc-actions">
+          <button type="submit" class="btn primary" id="btnSalvarPedidoRep">Salvar pedido</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="rep-confirmacao" id="repConfirmacao" style="display:none;">
+      <div class="rep-confirmacao-msg">Pedido nº <b id="repNumeroConfirmado"></b> salvo com sucesso.</div>
+      <div class="rep-confirmacao-reserva" id="repConfirmacaoReserva" style="display:none;">Reserva de estoque criada. Você tem 72h para finalizar este pedido na aba "Acompanhamento" — depois disso a reserva expira automaticamente.</div>
+      <button type="button" class="btn outline" id="btnImprimirPedidoRep">Imprimir / gerar PDF</button>
+      <button type="button" class="btn primary" id="btnNovoPedidoRep">Novo pedido</button>
+    </div>
+  </div>
+
+  <div class="rep-page rep-tab-content" id="repTabEstoque" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Estoque</h2>
+      <div class="note">Saldo disponível por produto (somente leitura).</div>
+      <div class="search-row">
+        <input type="text" id="repEstoqueSearch" placeholder="Buscar por código ou medida…">
+      </div>
+      <div class="rep-itens-table-wrap">
+        <table class="rep-itens-table">
+          <thead><tr><th>Código</th><th>Medida</th><th>Saldo disponível</th></tr></thead>
+          <tbody id="repEstoqueTbody"></tbody>
+        </table>
+      </div>
+      <div class="note" id="repEstoqueEmpty" style="display:none;">Nenhum produto encontrado.</div>
+    </div>
+  </div>
+
+  <div class="rep-page rep-tab-content" id="repTabCatalogo" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Catálogo</h2>
+      <div class="note">Pneus disponíveis em estoque, com especificações técnicas e preço por região e condição de pagamento.</div>
+      <div class="form-row">
+        <div class="field grow">
+          <label>Buscar</label>
+          <input type="text" id="repCatSearch" placeholder="Código, medida ou modelo…">
+        </div>
+        <div class="field">
+          <label>Categoria</label>
+          <select id="repCatFiltroCategoria">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Condição de pagamento</label>
+          <select id="repCatCondicaoView">
+            <option value="">Selecione…</option>
+          </select>
+        </div>
+      </div>
+      <div class="note">Escolha a condição de pagamento pra ver o preço em cada card (À vista por padrão). "Ver todos os prazos" mostra a tabela completa por região.</div>
+    </div>
+
+    <div class="catalogo-grid" id="repCatalogoGrid"></div>
+    <div class="note" id="repCatalogoEmpty" style="display:none;">Nenhum produto em estoque encontrado.</div>
+  </div>
+
+  <div class="rep-page rep-tab-content" id="repTabEntregas" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Entregas</h2>
+      <div class="note">Andamento dos pedidos (somente leitura). Clique numa linha para ver os itens.</div>
+      <div class="search-row">
+        <input type="text" id="repEntregasSearch" placeholder="Buscar por NF, pedido, cliente ou transportadora…">
+        <select id="repEntregasFiltroEtapa">
+          <option value="">Todas as etapas</option>
+          <option value="ENTRADA">Entrada</option>
+          <option value="AUTORIZACAO_GERENCIA">Autorização de Gerência</option>
+          <option value="ANALISE_CREDITO">Análise de Crédito</option>
+          <option value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</option>
+          <option value="VALIDACAO_TRANSPORTE">Validação de Transporte</option>
+          <option value="FATURAMENTO">Faturamento</option>
+          <option value="SEPARACAO">Separação</option>
+          <option value="AGUARDANDO_COLETA">Aguardando Coleta</option>
+          <option value="COLETA">Coletado</option>
+          <option value="RASTREIO">Rastreio</option>
+          <option value="FINALIZADOS">Finalizados</option>
+        </select>
+      </div>
+      <div class="rep-itens-table-wrap">
+        <table class="rep-itens-table">
+          <thead><tr><th>NF / Pedido</th><th>Cliente</th><th>Vendedor</th><th>Etapa</th><th>Data</th><th>Transportadora</th></tr></thead>
+          <tbody id="repEntregasTbody"></tbody>
+        </table>
+      </div>
+      <div class="note" id="repEntregasEmpty" style="display:none;">Nenhum pedido encontrado.</div>
+    </div>
+  </div>
+
+  <div class="rep-page rep-tab-content" id="repTabPreCadastro" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Pré-cadastro de cliente</h2>
+      <div class="note">Envie os dados de um cliente novo — alguém do escritório precisa aprovar antes dele virar um cadastro de verdade.</div>
+      <form id="formPreCadastroCliente">
+        <div class="form-row">
+          <div class="field grow"><label>Nome do cliente</label><input type="text" id="preCadNome" required></div>
+          <div class="field"><label>CNPJ/CPF</label><input type="text" id="preCadDocumento"></div>
+        </div>
+        <div class="form-row">
+          <div class="field grow"><label>Razão social</label><input type="text" id="preCadRazaoSocial"></div>
+          <div class="field"><label>Contato responsável</label><input type="text" id="preCadContato"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Telefone</label><input type="text" id="preCadTelefone"></div>
+          <div class="field grow"><label>E-mail</label><input type="email" id="preCadEmail"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Estado (UF)</label><select id="preCadEstado"></select></div>
+          <div class="field grow"><label>Cidade</label><input type="text" id="preCadCidade"></div>
+          <div class="field grow"><label>Endereço</label><input type="text" id="preCadEndereco"></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Enviar para aprovação</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="rep-section-card">
+      <h2>Meus envios</h2>
+      <div class="note">Clique num envio pra anexar documentos (contrato social, cartão CNPJ, comprovante de endereço, etc.).</div>
+      <div class="rep-itens-table-wrap">
+        <table class="rep-itens-table">
+          <thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Enviado em</th><th>Status</th></tr></thead>
+          <tbody id="repPreCadastrosTbody"></tbody>
+        </table>
+      </div>
+      <div class="note" id="repPreCadastrosEmpty" style="display:none;">Nenhum pré-cadastro enviado ainda.</div>
+    </div>
+
+    <div class="rep-section-card" id="repPreCadAnexosCard" style="display:none;">
+      <h2>Anexos — <span id="repPreCadAnexosTitulo"></span></h2>
+      <div id="repPreCadAnexosList" class="anexos-list"></div>
+      <input type="file" id="repPreCadAnexoInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+      <button type="button" class="btn small outline" id="btnAnexarPreCad" style="margin-top:8px;">+ Anexar arquivo</button>
+    </div>
+  </div>
+
+  <div class="rep-page rep-tab-content" id="repTabAcompanhamento" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Acompanhamento dos meus pedidos</h2>
+      <div class="note">Clique num pedido pra ver os detalhes, anexar arquivo ou finalizar uma reserva.</div>
+      <div id="repAcompanhamentoTabs" class="rep-acomp-tabs"></div>
+      <div class="note" id="repAcompanhamentoEmpty" style="display:none;">Você ainda não fez nenhum pedido.</div>
+      <div id="repAcompanhamentoDetalhe" class="rep-acomp-detalhe"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="repEntregaDetalheOverlay">
+    <div class="modal">
+      <div class="cliente-modal-head">
+        <h3 id="repEntregaDetalheTitulo"></h3>
+        <button type="button" class="btn small outline" id="repEntregaDetalheClose">✕ Fechar</button>
+      </div>
+      <div id="repEntregaDetalheInfo" class="rep-doc-cliente-info" style="margin-bottom:14px;"></div>
+      <div class="rep-itens-table-wrap">
+        <table class="rep-itens-table">
+          <thead><tr><th>Código</th><th>Medida</th><th>Quantidade</th></tr></thead>
+          <tbody id="repEntregaDetalheItens"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="catalogoFotoLightboxOverlay">
+    <div class="catalogo-lightbox">
+      <button type="button" class="catalogo-lightbox-close" id="catalogoFotoLightboxClose">✕</button>
+      <button type="button" class="catalogo-lightbox-nav prev" id="catalogoFotoLightboxPrev" style="display:none;">‹</button>
+      <img id="catalogoFotoLightboxImg" src="" alt="">
+      <button type="button" class="catalogo-lightbox-nav next" id="catalogoFotoLightboxNext" style="display:none;">›</button>
+      <div class="catalogo-lightbox-counter" id="catalogoFotoLightboxCounter" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<div id="printArea" class="print-only"></div>
+<div id="toast"></div>
+
+<script src="pedido-representante.js?v=11"></script>
+</body>
+</html>

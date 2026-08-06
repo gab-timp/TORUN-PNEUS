@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TORUN PNEUS · Painel de Controle</title>
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem("torun_theme_v1");
+    if(t === "light" || t === "dark"){ document.documentElement.setAttribute("data-theme", t); }
+  }catch(e){}
+})();
+</script>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=82">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen">
+  <form class="login-box" id="formLogin">
+    <img src="assets/logo-light.png" alt="Torun Pneus" class="login-logo">
+    <h1>Painel de Controle</h1>
+    <div class="sub">Entre com sua conta para acessar o sistema.</div>
+    <div class="login-fields">
+      <div class="field">
+        <label>E-mail</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="loginSenha" autocomplete="current-password" required>
+      </div>
+    </div>
+    <div class="login-erro" id="loginErro" style="display:none;"></div>
+    <button type="submit" class="btn primary" id="loginSubmitBtn">Entrar</button>
+  </form>
+</div>
+
+<div class="login-screen" id="loadingScreen" style="display:none;">
+  <div class="loading-box">
+    <img src="assets/logo-dark.png" alt="Torun Pneus" class="login-logo">
+    <div class="loading-spinner"></div>
+    <div class="sub">Carregando dados...</div>
+  </div>
+</div>
+
+<div class="shell" id="appShell" style="display:none;">
+
+  <button type="button" class="mobile-topbar-btn" id="mobileMenuBtn" aria-label="Abrir menu">☰</button>
+  <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
+
+  <!-- ============================================================ -->
+  <!-- SIDEBAR                                                       -->
+  <!-- ============================================================ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <img src="assets/logo-dark.png" alt="Torun Pneus" class="brand-logo">
+      <span class="brand-sub">Controle de Estoque</span>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard">
+        <span class="ic">◆</span> Dashboard
+      </button>
+      <button class="nav-item" data-view="estoque">
+        <span class="ic">▣</span> Estoque
+        <span class="nav-badge" id="navBadgeEstoque" style="display:none;"></span>
+      </button>
+      <button class="nav-item" data-view="previsto">
+        <span class="ic">▧</span> Estoque Previsto
+      </button>
+      <button class="nav-item" data-view="movimentacoes">
+        <span class="ic">⇄</span> Movimentações
+      </button>
+      <button class="nav-item" data-view="faturamento">
+        <span class="ic">$</span> Faturamento
+      </button>
+      <button class="nav-item" data-view="clientes">
+        <span class="ic">◎</span> Clientes
+      </button>
+      <button class="nav-item" data-view="produtos">
+        <span class="ic">≡</span> Produtos
+      </button>
+      <button class="nav-item" data-view="catalogo">
+        <span class="ic">◍</span> Catálogo
+      </button>
+      <button class="nav-item" data-view="fretes">
+        <span class="ic">⇉</span> Fretes
+      </button>
+      <button class="nav-item" data-view="entregas">
+        <span class="ic">▷</span> Entregas
+      </button>
+      <button class="nav-item" data-view="relatorios">
+        <span class="ic">▤</span> Relatórios
+      </button>
+      <button class="nav-item" data-view="historico">
+        <span class="ic">▥</span> Histórico
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="theme-toggle" id="themeToggle">
+        <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
+        <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
+        <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
+      </div>
+      <div class="sidebar-user" id="sidebarUser"></div>
+      <div class="viewer-badge">Modo somente leitura</div>
+      <button class="ghost-btn admin-only" id="btnExport">⬇ Exportar backup (JSON)</button>
+      <button class="ghost-btn admin-only" id="btnImport">⬆ Importar backup</button>
+      <button class="ghost-btn admin-only" id="btnReset">↻ Restaurar dados iniciais</button>
+      <button class="ghost-btn" id="btnLogout">⎋ Sair</button>
+    </div>
+  </aside>
+
+  <!-- ============================================================ -->
+  <!-- MAIN                                                          -->
+  <!-- ============================================================ -->
+  <main class="main">
+
+    <!-- ======================= VIEW: DASHBOARD ======================= -->
+    <section id="view-dashboard" class="view active">
+      <div class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="sub">Visão geral gráfica do faturamento, comissão, frete e vendas do período selecionado.</div>
+        </div>
+      </div>
+
+      <div class="card card-collapsible alerta-card collapsed" id="cardAlertaEstoqueBaixo" style="display:none;">
+        <div class="card-head">
+          <h2>Estoque baixo <span class="alerta-badge" id="alertaEstoqueBaixoCount">0</span></h2>
+          <span class="card-toggle">⌄</span>
+        </div>
+        <div class="card-body">
+          <div class="alerta-lista" id="alertaEstoqueBaixoLista"></div>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <select id="dashMesFiltro"></select>
+        <div class="dash-filter-wrap">
+          <button type="button" class="btn small outline" id="btnDashFiltro">☰ Escolher dashboards</button>
+          <div class="dash-filter-panel" id="dashFiltroPanel" style="display:none;">
+            <div class="dash-filter-actions">
+              <button type="button" id="dashFiltroTodos">Selecionar todos</button>
+              <button type="button" id="dashFiltroNenhum">Nenhum</button>
+            </div>
+            <div id="dashFiltroLista"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="dash-card" data-dashcard="pneusEstado">
+          <div class="dash-card-head"><span>Volume de Pneus Vendidos por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="pneusEstado" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartPneusEstado"></canvas></div>
+          <div class="dash-footer" id="footPneusEstado"></div>
+        </div>
+        <div class="dash-card" data-dashcard="pneusMaisVendidos">
+          <div class="dash-card-head"><span>Pneus Mais Vendidos (por Medida)</span><button type="button" class="dash-pdf-btn" data-dashpdf="pneusMaisVendidos" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartPneusMaisVendidos"></canvas></div>
+          <div class="dash-footer" id="footPneusMaisVendidos"></div>
+        </div>
+        <div class="dash-card" data-dashcard="faturamentoRepresentante">
+          <div class="dash-card-head"><span>Faturamento por Representante</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoRepresentante" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartFaturamentoRepresentante"></canvas></div>
+          <div class="dash-footer" id="footFaturamentoRepresentante"></div>
+        </div>
+        <div class="dash-card" data-dashcard="nfTransportadora">
+          <div class="dash-card-head"><span>Quantidade de NFs por Transportadora</span><button type="button" class="dash-pdf-btn" data-dashpdf="nfTransportadora" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap dash-canvas-wrap-donut"><canvas id="chartNFTransportadora"></canvas></div>
+          <div class="dash-footer" id="footNFTransportadora"></div>
+        </div>
+
+        <div class="dash-card" data-dashcard="freteTransportadora">
+          <div class="dash-card-head"><span>Gastos com Frete por Transportadora</span><button type="button" class="dash-pdf-btn" data-dashpdf="freteTransportadora" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartFreteTransportadora"></canvas></div>
+          <div class="dash-footer" id="footFreteTransportadora"></div>
+        </div>
+        <div class="dash-card" data-dashcard="indicadores">
+          <div class="dash-card-head"><span>Indicadores Gerais</span><button type="button" class="dash-pdf-btn" data-dashpdf="indicadores" title="Gerar PDF">📄</button></div>
+          <div class="dash-stat-grid" id="statsIndicadores"></div>
+        </div>
+        <div class="dash-card" data-dashcard="fretePercEstado">
+          <div class="dash-card-head"><span>Percentual Médio de Frete por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="fretePercEstado" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartFretePercEstado"></canvas></div>
+          <div class="dash-footer" id="footFretePercEstado"></div>
+        </div>
+
+        <div class="dash-card" data-dashcard="faturamentoEstado">
+          <div class="dash-card-head"><span>Faturamento por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoEstado" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap dash-canvas-wrap-donut"><canvas id="chartFaturamentoEstado"></canvas></div>
+          <div class="dash-footer" id="footFaturamentoEstado"></div>
+        </div>
+        <div class="dash-card" data-dashcard="faturamentoCliente">
+          <div class="dash-card-head"><span>Faturamento por Cliente</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoCliente" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartFaturamentoCliente"></canvas></div>
+          <div class="dash-footer" id="footFaturamentoCliente"></div>
+        </div>
+        <div class="dash-card" data-dashcard="top5Clientes">
+          <div class="dash-card-head"><span>Top 5 Clientes</span><button type="button" class="dash-pdf-btn" data-dashpdf="top5Clientes" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartTop5Clientes"></canvas></div>
+          <div class="dash-footer" id="footTop5Clientes"></div>
+        </div>
+
+        <div class="dash-card" data-dashcard="comissaoRepresentante">
+          <div class="dash-card-head"><span>Comissão por Representante</span><button type="button" class="dash-pdf-btn" data-dashpdf="comissaoRepresentante" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartComissaoRepresentante"></canvas></div>
+          <div class="dash-footer" id="footComissaoRepresentante"></div>
+        </div>
+        <div class="dash-card dash-card-wide" data-dashcard="formaPagamento">
+          <div class="dash-card-head"><span>Distribuição das Formas de Pagamento</span><button type="button" class="dash-pdf-btn" data-dashpdf="formaPagamento" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartFormaPagamento"></canvas></div>
+          <div class="dash-footer" id="footFormaPagamento"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: ESTOQUE ======================= -->
+    <section id="view-estoque" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Controle de Estoque</h1>
+          <div class="sub">Saldo atual por produto — entradas, saídas (vendas, reservas, transferências e avariados) e disponibilidade.</div>
+        </div>
+      </div>
+
+      <div class="kpis" id="estoqueKpis"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Produtos em estoque</h2>
+          <div class="note">Clique em um produto para ver o histórico de movimentações.</div>
+        </div>
+        <div class="search-row">
+          <input type="text" id="estoqueSearch" placeholder="Buscar por código, medida ou processo…">
+          <select id="estoqueFiltro">
+            <option value="todos">Todos</option>
+            <option value="disponivel">Com saldo disponível</option>
+            <option value="zerado">Saldo zerado</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Medida</th>
+                <th>Processo</th>
+                <th class="num">Entradas</th>
+                <th class="num">Saídas</th>
+                <th class="num">Saldo disponível</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="estoqueTbody"></tbody>
+          </table>
+          <div class="empty-state" id="estoqueEmpty" style="display:none;">Nenhum produto encontrado.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: ESTOQUE PREVISTO ======================= -->
+    <section id="view-previsto" class="view" data-table="previsoes">
+      <div class="page-head">
+        <div>
+          <h1>Estoque Previsto</h1>
+          <div class="sub">Processos de compra em andamento — acompanhe a chegada e liberação de cada processo, por medida.</div>
+        </div>
+      </div>
+
+      <div class="card write-ui">
+        <div class="card-head">
+          <h2 id="prevFormTitle">Novo processo previsto</h2>
+          <div class="note" id="prevEditBanner" style="display:none;">Editando processo · <a href="#" id="prevCancelEdit">cancelar edição</a></div>
+        </div>
+        <form id="formPrevisto">
+          <div class="form-row">
+            <div class="field">
+              <label>Nº do processo</label>
+              <input type="text" id="prevNumeroProcesso" placeholder="Ex: 3070-26" required>
+            </div>
+            <div class="field">
+              <label>Data de chegada (opcional)</label>
+              <input type="date" id="prevDataChegada">
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="prevStatus">
+                <option value="AG DATA DE CHEGADA">AG DATA DE CHEGADA</option>
+                <option value="AG RETIRADA NO PORTO">AG RETIRADA NO PORTO</option>
+                <option value="DTC">DTC</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field" style="margin-bottom:12px;">
+            <label>Medidas do processo</label>
+            <div id="prevItens" class="item-list"></div>
+            <button type="button" class="btn small outline" id="btnAddItemPrevisto" style="margin-top:8px;">+ Adicionar medida</button>
+          </div>
+
+          <div class="form-row">
+            <div class="field grow">
+              <label>Observação (opcional)</label>
+              <input type="text" id="prevObs" placeholder="Ex: fornecedor, navio, contêiner...">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="btnSubmitPrevisto">Adicionar processo</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="search-row">
+        <input type="text" id="prevSearch" placeholder="Buscar por processo ou medida…">
+        <select id="prevFiltroStatus">
+          <option value="todos">Todos os status</option>
+          <option value="AG DATA DE CHEGADA">AG DATA DE CHEGADA</option>
+          <option value="AG RETIRADA NO PORTO">AG RETIRADA NO PORTO</option>
+          <option value="DTC">DTC</option>
+        </select>
+      </div>
+
+      <div class="prev-grid" id="prevGrid"></div>
+      <div class="empty-state" id="prevEmpty" style="display:none;">Nenhum processo previsto cadastrado.</div>
+    </section>
+
+    <!-- ======================= VIEW: MOVIMENTAÇÕES ======================= -->
+    <section id="view-movimentacoes" class="view" data-table="movimentos">
+      <div class="page-head">
+        <div>
+          <h1>Movimentações</h1>
+          <div class="sub">Registre entradas (com nº de NF) e saídas (venda, reserva de pedido, transferência ou avariado), sempre com número de referência.</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card write-ui">
+          <div class="card-head">
+            <h2 id="entFormTitle">Nova entrada</h2>
+            <div class="note" id="entEditBanner" style="display:none;">Editando lançamento · <a href="#" id="entCancelEdit">cancelar edição</a></div>
+          </div>
+          <form id="formEntrada">
+            <div class="form-row">
+              <div class="field">
+                <label>Data</label>
+                <input type="date" id="entData" required>
+              </div>
+              <div class="field">
+                <label>Nº NF de entrada</label>
+                <input type="text" id="entNumero" placeholder="Ex: 4180" required>
+              </div>
+              <div class="field">
+                <label>Nº do pedido (opcional)</label>
+                <input type="text" id="entPedido" placeholder="Ex: 148">
+              </div>
+              <div class="field">
+                <label>Processo (opcional)</label>
+                <input type="text" id="entProcesso" placeholder="Ex: 3061-26">
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:12px;">
+              <label>Medidas (produto + quantidade)</label>
+              <div id="entItens" class="item-list"></div>
+              <button type="button" class="btn small outline" id="btnAddItemEntrada" style="margin-top:8px;">+ Adicionar outra medida</button>
+            </div>
+
+            <div class="form-row">
+              <div class="field grow">
+                <label>Observação (opcional)</label>
+                <input type="text" id="entObs" placeholder="Ex: fornecedor, container...">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="btnSubmitEntrada">Registrar entrada</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card write-ui">
+          <div class="card-head">
+            <h2 id="saiFormTitle">Nova saída</h2>
+            <div class="note" id="saiEditBanner" style="display:none;">Editando lançamento · <a href="#" id="saiCancelEdit">cancelar edição</a></div>
+          </div>
+          <form id="formSaida">
+            <div class="form-row">
+              <div class="field">
+                <label>Tipo de saída</label>
+                <select id="saiTipo" required>
+                  <option value="venda">Venda (NF de venda)</option>
+                  <option value="reserva">Reserva de pedido</option>
+                  <option value="transferencia">Transferência</option>
+                  <option value="avariado">Avariado</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Data</label>
+                <input type="date" id="saiData" required>
+              </div>
+              <div class="field">
+                <label id="saiNumeroLabel">Nº NF de venda</label>
+                <input type="text" id="saiNumero" placeholder="Ex: 4180" required>
+              </div>
+              <div class="field">
+                <label>Nº do pedido (opcional)</label>
+                <input type="text" id="saiPedido" placeholder="Ex: 148">
+              </div>
+              <div class="field">
+                <label>Nº do processo (opcional)</label>
+                <input type="text" id="saiProcesso" placeholder="Ex: 3061-26">
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:12px;">
+              <label>Medidas (produto + quantidade)</label>
+              <div id="saiItens" class="item-list"></div>
+              <button type="button" class="btn small outline" id="btnAddItemSaida" style="margin-top:8px;">+ Adicionar outra medida</button>
+            </div>
+
+            <div class="form-row">
+              <div class="field grow">
+                <label>Observação (opcional)</label>
+                <input type="text" id="saiObs" placeholder="Ex: cliente, transportadora...">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="btnSubmitSaida">Registrar saída</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Histórico de movimentações</h2>
+          <div class="note" id="movCount"></div>
+        </div>
+        <div class="search-row">
+          <input type="text" id="movSearch" placeholder="Buscar por código, medida, NF, pedido ou processo…">
+          <select id="movFiltroTipo">
+            <option value="todos">Todos os tipos</option>
+            <option value="entrada">Entrada</option>
+            <option value="venda">Venda</option>
+            <option value="reserva">Reserva</option>
+            <option value="transferencia">Transferência</option>
+            <option value="avariado">Avariado</option>
+          </select>
+          <input type="date" id="movFiltroDe">
+          <input type="date" id="movFiltroAte">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Produto</th>
+                <th class="num">Quantidade</th>
+                <th>Nº NF/Processo</th>
+                <th>Obs.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="movTbody"></tbody>
+          </table>
+          <div class="empty-state" id="movEmpty" style="display:none;">Nenhuma movimentação registrada ainda.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: PRODUTOS ======================= -->
+    <section id="view-produtos" class="view" data-table="produtos">
+      <div class="page-head">
+        <div>
+          <h1>Produtos</h1>
+          <div class="sub">Cadastro de código de produto e medida.</div>
+        </div>
+      </div>
+
+      <div class="card write-ui">
+        <div class="card-head"><h2>Novo produto</h2></div>
+        <form id="formProduto">
+          <div class="form-row">
+            <div class="field">
+              <label>Código do produto</label>
+              <input type="text" id="prodCodigo" placeholder="Ex: ROYALB000014" required>
+            </div>
+            <div class="field grow">
+              <label>Medida / descrição completa</label>
+              <input type="text" id="prodMedida" placeholder="Ex: 295/80R22.5 154/149M 18PR SL102 - ROYALBLACK" required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Adicionar produto</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Produtos cadastrados</h2>
+          <div class="note" id="prodCount"></div>
+        </div>
+        <div class="search-row">
+          <input type="text" id="prodSearch" placeholder="Buscar por código ou medida…">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Medida</th>
+                <th>Medida (tamanho)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="prodTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: CATALOGO ======================= -->
+    <section id="view-catalogo" class="view" data-table="produtos">
+      <div class="page-head">
+        <div>
+          <h1>Catálogo</h1>
+          <div class="sub">Pneus disponíveis em estoque, com especificações técnicas e preço por região e condição de pagamento.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="form-row">
+          <div class="field grow">
+            <label>Buscar</label>
+            <input type="text" id="catSearch" placeholder="Código, medida ou modelo…">
+          </div>
+          <div class="field">
+            <label>Categoria</label>
+            <select id="catFiltroCategoria">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Condição de pagamento</label>
+            <select id="catCondicao">
+              <option value="">Selecione…</option>
+            </select>
+          </div>
+        </div>
+        <div class="note">Cada card já mostra o preço de todas as regiões para a condição de pagamento escolhida (À vista por padrão). Clique em "Ver prazos" pra abrir a tabela completa com todas as condições.</div>
+      </div>
+
+      <div class="catalogo-grid" id="catalogoGrid"></div>
+      <div class="empty-state" id="catalogoEmpty" style="display:none;">Nenhum produto em estoque encontrado.</div>
+    </section>
+
+    <!-- ======================= VIEW: FRETES ======================= -->
+    <section id="view-fretes" class="view" data-table="fretes">
+      <div class="page-head">
+        <div>
+          <h1>Cotação de Frete</h1>
+          <div class="sub">Compare cotações de transportadoras por NF ou pedido, e marque qual foi contratada.</div>
+        </div>
+      </div>
+
+      <div class="kpis" id="freteKpis"></div>
+
+      <div class="card write-ui">
+        <div class="card-head">
+          <h2 id="freteFormTitle">Nova cotação</h2>
+          <div class="note" id="freteEditBanner" style="display:none;">Editando cotação · <a href="#" id="freteCancelEdit">cancelar edição</a></div>
+        </div>
+        <form id="formFrete">
+          <div class="form-row">
+            <div class="field">
+              <label>Referência (NF ou pedido)</label>
+              <input type="text" id="freteRef" placeholder="Ex: 4999 ou PED. 148" required>
+            </div>
+            <div class="field">
+              <label>CEP</label>
+              <input type="text" id="freteCep" placeholder="Ex: 89880-000" maxlength="9" inputmode="numeric">
+            </div>
+            <div class="field grow">
+              <label>Localidade de entrega</label>
+              <input type="text" id="freteLocalidade" placeholder="Ex: Belo Horizonte/MG">
+            </div>
+            <div class="field">
+              <label>Valor da NF (opcional)</label>
+              <input type="number" id="freteValorNF" min="0" step="0.01" placeholder="Ex: 6548.00">
+            </div>
+            <div class="field">
+              <label>Data</label>
+              <input type="date" id="freteData" required>
+            </div>
+          </div>
+
+          <div class="field" style="margin-bottom:12px;">
+            <label>Transportadoras cotadas</label>
+            <div id="freteItens" class="item-list"></div>
+            <button type="button" class="btn small outline" id="btnAddItemFrete" style="margin-top:8px;">+ Adicionar transportadora</button>
+          </div>
+
+          <div class="form-row">
+            <div class="field grow">
+              <label>Observação (opcional)</label>
+              <input type="text" id="freteObs" placeholder="Ex: coleta, prazo de entrega...">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="btnSubmitFrete">Registrar cotação</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Cotações registradas</h2>
+          <div class="note" id="freteCount"></div>
+        </div>
+        <div class="search-row">
+          <input type="text" id="freteSearch" placeholder="Buscar por referência, localidade ou transportadora…">
+        </div>
+        <div id="freteList"></div>
+        <div class="empty-state" id="freteEmpty" style="display:none;">Nenhuma cotação registrada ainda.</div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: ENTREGAS (KANBAN) ======================= -->
+    <section id="view-entregas" class="view" data-table="entregas">
+      <div class="page-head">
+        <div>
+          <h1>Entregas</h1>
+          <div class="sub">Fluxo do pedido, da entrada até a finalização — arraste os cards entre as etapas.</div>
+        </div>
+        <button type="button" class="btn primary write-ui" id="btnNovoPedido">+ Novo pedido</button>
+      </div>
+
+      <div class="search-row">
+        <input type="text" id="entregaSearch" placeholder="Buscar por NF, pedido, cliente ou transportadora…">
+      </div>
+
+      <div class="kanban-board" id="kanbanBoard">
+        <div class="kanban-col" data-etapa="ENTRADA">
+          <div class="kanban-col-head"><span>Entrada</span><span class="kanban-count" id="countENTRADA">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="ENTRADA" id="colENTRADA"></div>
+        </div>
+        <div class="kanban-col" data-etapa="AUTORIZACAO_GERENCIA">
+          <div class="kanban-col-head"><span>Autorização de Gerência</span><span class="kanban-count" id="countAUTORIZACAO_GERENCIA">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="AUTORIZACAO_GERENCIA" id="colAUTORIZACAO_GERENCIA"></div>
+        </div>
+        <div class="kanban-col" data-etapa="ANALISE_CREDITO">
+          <div class="kanban-col-head"><span>Análise de Crédito</span><span class="kanban-count" id="countANALISE_CREDITO">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="ANALISE_CREDITO" id="colANALISE_CREDITO"></div>
+        </div>
+        <div class="kanban-col" data-etapa="AGUARDANDO_PAGAMENTO">
+          <div class="kanban-col-head"><span>Aguardando Pagamento</span><span class="kanban-count" id="countAGUARDANDO_PAGAMENTO">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="AGUARDANDO_PAGAMENTO" id="colAGUARDANDO_PAGAMENTO"></div>
+        </div>
+        <div class="kanban-col" data-etapa="VALIDACAO_TRANSPORTE">
+          <div class="kanban-col-head"><span>Validação de Transporte</span><span class="kanban-count" id="countVALIDACAO_TRANSPORTE">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="VALIDACAO_TRANSPORTE" id="colVALIDACAO_TRANSPORTE"></div>
+        </div>
+        <div class="kanban-col" data-etapa="FATURAMENTO">
+          <div class="kanban-col-head"><span>Faturamento</span><span class="kanban-count" id="countFATURAMENTO">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="FATURAMENTO" id="colFATURAMENTO"></div>
+        </div>
+        <div class="kanban-col" data-etapa="SEPARACAO">
+          <div class="kanban-col-head"><span>Separação</span><span class="kanban-count" id="countSEPARACAO">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="SEPARACAO" id="colSEPARACAO"></div>
+        </div>
+        <div class="kanban-col" data-etapa="AGUARDANDO_COLETA">
+          <div class="kanban-col-head"><span>Aguardando Coleta</span><span class="kanban-count" id="countAGUARDANDO_COLETA">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="AGUARDANDO_COLETA" id="colAGUARDANDO_COLETA"></div>
+        </div>
+        <div class="kanban-col" data-etapa="COLETA">
+          <div class="kanban-col-head"><span>Coletado</span><span class="kanban-count" id="countCOLETA">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="COLETA" id="colCOLETA"></div>
+        </div>
+        <div class="kanban-col" data-etapa="RASTREIO">
+          <div class="kanban-col-head"><span>Rastreio</span><span class="kanban-count" id="countRASTREIO">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="RASTREIO" id="colRASTREIO"></div>
+        </div>
+        <div class="kanban-col" data-etapa="FINALIZADOS">
+          <div class="kanban-col-head"><span>Finalizados</span><span class="kanban-count" id="countFINALIZADOS">0</span><span class="kanban-col-toggle">⌄</span></div>
+          <div class="kanban-cards" data-etapa="FINALIZADOS" id="colFINALIZADOS"></div>
+        </div>
+      </div>
+      <div class="empty-state" id="entregaEmpty" style="display:none;">Nenhum pedido cadastrado ainda.</div>
+    </section>
+
+    <!-- ======================= VIEW: FATURAMENTO ======================= -->
+    <section id="view-faturamento" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Faturamento</h1>
+          <div class="sub">Vendas, comissão, frete e faturamento por vendedor, estado, transportadora e cliente.</div>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <select id="fatMesFiltro"></select>
+      </div>
+
+      <div class="kpis" id="fatKpis"></div>
+
+      <div class="card write-ui" data-table="vendas">
+        <div class="card-head">
+          <h2 id="venFormTitle">Nova venda</h2>
+          <div class="note" id="venEditBanner" style="display:none;">Editando venda · <a href="#" id="venCancelEdit">cancelar edição</a></div>
+        </div>
+        <form id="formVenda">
+          <div class="form-row">
+            <div class="field">
+              <label>Data</label>
+              <input type="date" id="venData" required>
+            </div>
+            <div class="field">
+              <label>Nº do pedido (opcional)</label>
+              <input type="text" id="venPedido" placeholder="Ex: 148">
+            </div>
+            <div class="field">
+              <label>Nº NF de venda</label>
+              <input type="text" id="venNF" placeholder="Ex: 4217" required>
+            </div>
+            <div class="field grow">
+              <label>Cliente</label>
+              <input type="text" id="venCliente" list="listCliente" placeholder="Digite o nome do cliente" autocomplete="off" required>
+              <datalist id="listCliente"></datalist>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label>Quantidade de pneus</label>
+              <input type="number" id="venQtd" min="1" step="1" required>
+            </div>
+            <div class="field">
+              <label>Valor da venda (R$)</label>
+              <input type="number" id="venValor" min="0" step="0.01" required>
+            </div>
+            <div class="field">
+              <label>Forma de pagamento</label>
+              <select id="venFormaPagamento">
+                <option value="">Selecione...</option>
+                <option value="PIX">PIX</option>
+                <option value="CARTÃO">CARTÃO</option>
+                <option value="BOLETO PRÓPRIO">BOLETO PRÓPRIO</option>
+                <option value="BOLETO TRADEMASTER">BOLETO TRADEMASTER</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Vendedor</label>
+              <input type="text" id="venVendedor" list="listVendedor" placeholder="Ex: Rogério" required>
+              <datalist id="listVendedor"></datalist>
+            </div>
+            <div class="field">
+              <label>Comissão (%, opcional)</label>
+              <input type="number" id="venComissaoPct" min="0" step="0.01" placeholder="Ex: 2,5">
+            </div>
+            <div class="field">
+              <label>Comissão calculada</label>
+              <input type="text" id="venComissaoCalc" value="R$ 0,00" disabled>
+            </div>
+          </div>
+          <div class="form-row" id="rowParcelas" style="display:none;">
+            <div class="field">
+              <label>Qtd. de parcelas</label>
+              <input type="text" id="venParcelas" placeholder="Ex: 3x">
+            </div>
+          </div>
+          <div class="form-row" id="rowTrademaster" style="display:none;">
+            <div class="field">
+              <label>Valor recebido (R$)</label>
+              <input type="number" id="venValorRecebido" min="0" step="0.01" placeholder="Ex: 950,00">
+            </div>
+            <div class="field">
+              <label>Diferença (venda − recebido)</label>
+              <input type="text" id="venDiferencaCalc" value="R$ 0,00 (0%)" disabled>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field" style="flex:0 0 auto;">
+              <label>&nbsp;</label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
+                <input type="checkbox" id="venClienteRetira" style="width:auto;">
+                Cliente retira (sem frete)
+              </label>
+            </div>
+            <div class="field">
+              <label>Transportadora</label>
+              <input type="text" id="venTransportadora" list="listTransportadora" placeholder="Ex: LR Transportes">
+              <datalist id="listTransportadora"></datalist>
+            </div>
+            <div class="field">
+              <label>Valor do frete (R$)</label>
+              <input type="number" id="venValorFrete" min="0" step="0.01" placeholder="0,00">
+            </div>
+            <div class="field grow">
+              <label>Observação (opcional)</label>
+              <input type="text" id="venObs" placeholder="Ex: prazo, condição especial...">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="btnSubmitVenda">Registrar venda</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card" data-table="vendas">
+        <div class="card-head">
+          <h2>Vendas registradas</h2>
+          <div class="note" id="venCount"></div>
+        </div>
+        <div class="search-row">
+          <input type="text" id="venSearch" placeholder="Buscar por cliente, NF, pedido ou vendedor…">
+          <select id="venFiltroVendedor">
+            <option value="">Todos os vendedores</option>
+          </select>
+          <select id="venFiltroFormaPagamento">
+            <option value="">Todas as formas de pagamento</option>
+            <option value="PIX">PIX</option>
+            <option value="CARTÃO">CARTÃO</option>
+            <option value="BOLETO PRÓPRIO">BOLETO PRÓPRIO</option>
+            <option value="BOLETO TRADEMASTER">BOLETO TRADEMASTER</option>
+          </select>
+          <input type="date" id="venFiltroDe">
+          <input type="date" id="venFiltroAte">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>NF / Pedido</th>
+                <th>Vendedor</th>
+                <th class="num">Pneus</th>
+                <th class="num">Valor</th>
+                <th class="num">Comissão</th>
+                <th>Transportadora</th>
+                <th>Obs.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="venTbody"></tbody>
+          </table>
+          <div class="empty-state" id="venEmpty" style="display:none;">Nenhuma venda registrada ainda.</div>
+        </div>
+        <div class="form-actions" id="venMostrarMaisWrap" style="display:none; justify-content:center;">
+          <button type="button" class="btn outline" id="btnVenMostrarMais"></button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card card-collapsible">
+          <div class="card-head"><h2>Faturamento e comissão por vendedor</h2><span class="card-toggle">⌄</span></div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Vendedor</th><th class="num">Faturamento</th><th class="num">Comissão</th></tr></thead>
+                <tbody id="fatVendedorTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card card-collapsible">
+          <div class="card-head"><h2>Faturamento e frete por estado</h2><span class="card-toggle">⌄</span></div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Estado</th><th class="num">Faturamento</th><th class="num">Pneus</th><th class="num">Frete médio</th></tr></thead>
+                <tbody id="fatEstadoTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card card-collapsible">
+          <div class="card-head"><h2>Frete por transportadora</h2><span class="card-toggle">⌄</span></div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Transportadora</th><th class="num">Nº de vendas</th><th class="num">Custo de frete</th></tr></thead>
+                <tbody id="fatTransportadoraTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card card-collapsible">
+          <div class="card-head"><h2>Formas de pagamento</h2><span class="card-toggle">⌄</span></div>
+          <div class="card-body">
+            <div class="rank-list" id="fatFormaPagList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-collapsible">
+        <div class="card-head">
+          <h2>Faturamento por cliente</h2>
+          <div class="note">Os 5 primeiros (destacados) são os maiores clientes do período selecionado.</div>
+          <span class="card-toggle">⌄</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Cliente</th><th>Estado</th><th class="num">Faturamento</th><th class="num">Pneus</th></tr></thead>
+              <tbody id="fatClienteTbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="fatClienteEmpty" style="display:none;">Nenhuma venda registrada ainda.</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ======================= VIEW: CLIENTES ======================= -->
+    <section id="view-clientes" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Clientes</h1>
+          <div class="sub">Cadastro de clientes usados nas vendas e nos pedidos de entrega.</div>
+        </div>
+      </div>
+
+      <div class="card write-ui" data-table="clientes">
+        <div class="card-head"><h2>Novo cliente</h2></div>
+        <form id="formCliente">
+          <div class="form-row">
+            <div class="field grow">
+              <label>Nome do cliente</label>
+              <input type="text" id="cliNome" placeholder="Ex: Truck Center Transportes" required>
+            </div>
+            <div class="field">
+              <label>CNPJ/CPF (opcional)</label>
+              <input type="text" id="cliDocumento" placeholder="Ex: 00.000.000/0001-00">
+            </div>
+            <div class="field">
+              <label>Contato responsável (opcional)</label>
+              <input type="text" id="cliContato" placeholder="Ex: João da Silva">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field grow">
+              <label>Razão social (opcional)</label>
+              <input type="text" id="cliRazaoSocial" placeholder="Ex: Truck Center Transportes LTDA">
+            </div>
+            <div class="field">
+              <label>Telefone (opcional)</label>
+              <input type="text" id="cliTelefone" placeholder="Ex: (47) 99999-9999">
+            </div>
+            <div class="field grow">
+              <label>E-mail (opcional)</label>
+              <input type="email" id="cliEmail" placeholder="Ex: contato@cliente.com.br">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label>Estado (UF)</label>
+              <select id="cliEstado" required></select>
+            </div>
+            <div class="field grow">
+              <label>Cidade (opcional)</label>
+              <input type="text" id="cliCidade" placeholder="Ex: Timbó">
+            </div>
+            <div class="field grow">
+              <label>Endereço (opcional)</label>
+              <input type="text" id="cliEndereco" placeholder="Ex: Rua das Palmeiras, 123 - Centro">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Adicionar cliente</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card write-ui" data-table="clientes" id="cardPreCadastros" style="display:none;">
+        <div class="card-head">
+          <h2>Pré-cadastros de representantes</h2>
+          <div class="note" id="preCadCount"></div>
+        </div>
+        <div class="note" style="margin-bottom:10px;">Cadastros enviados por representantes, aguardando aprovação.</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Cidade/UF</th><th>Enviado por</th><th>Data</th><th></th></tr></thead>
+            <tbody id="preCadTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-table="clientes">
+        <div class="card-head">
+          <h2>Clientes cadastrados</h2>
+          <div class="note" id="cliCount"></div>
+        </div>
+        <div class="note" style="margin-bottom:10px;">Clique no nome de um cliente para ver o perfil completo. Marque 2 ou mais cadastros duplicados (mesmo CNPJ, nomes diferentes) para mesclá-los.</div>
+        <div class="search-row">
+          <input type="text" id="cliSearch" placeholder="Buscar por nome, estado ou cidade…">
+          <button type="button" class="btn outline write-ui" id="btnMesclarClientes" style="display:none;">🔗 Mesclar selecionados (<span id="cliSelecionadosCount">0</span>)</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th class="write-ui"></th><th>Nome</th><th>Estado</th><th>Cidade</th><th>Tags</th><th></th></tr></thead>
+            <tbody id="cliTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: RELATÓRIOS ======================= -->
+    <section id="view-relatorios" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Relatórios</h1>
+          <div class="sub">Gere relatórios em PDF ou Excel a partir dos dados atuais.</div>
+        </div>
+      </div>
+
+      <div class="report-grid">
+        <div class="card report-card" data-report="faturamento">
+          <div class="card-head"><h2>Faturamento</h2></div>
+          <div class="note">Vendas, comissões, frete e faturamento por vendedor, estado e cliente.</div>
+          <div class="form-row report-daterange">
+            <div class="field">
+              <label>De</label>
+              <input type="date" class="report-de">
+            </div>
+            <div class="field">
+              <label>Até</label>
+              <input type="date" class="report-ate">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
+          </div>
+        </div>
+
+        <div class="card report-card" data-report="estoque">
+          <div class="card-head"><h2>Estoque atual</h2></div>
+          <div class="note">Saldo por produto — entradas, saídas e disponibilidade, na data de hoje.</div>
+          <div class="form-row">
+            <div class="field">
+              <label>Produtos a incluir</label>
+              <select class="report-filtro">
+                <option value="todos">Todos</option>
+                <option value="disponivel">Só com saldo disponível</option>
+                <option value="zerado">Só com saldo zerado</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
+          </div>
+        </div>
+
+        <div class="card report-card" data-report="movimentacoes">
+          <div class="card-head"><h2>Movimentações</h2></div>
+          <div class="note">Entradas e saídas detalhadas, com NF, pedido, produto e quantidade.</div>
+          <div class="form-row report-daterange">
+            <div class="field">
+              <label>De</label>
+              <input type="date" class="report-de">
+            </div>
+            <div class="field">
+              <label>Até</label>
+              <input type="date" class="report-ate">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
+          </div>
+        </div>
+
+        <div class="card report-card" data-report="previsto">
+          <div class="card-head"><h2>Estoque previsto</h2></div>
+          <div class="note">Processos em andamento — medidas, status e data de chegada.</div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: HISTÓRICO ======================= -->
+    <section id="view-historico" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Histórico de Alterações</h1>
+          <div class="sub">Edições e exclusões feitas por cada usuário, com o motivo informado.</div>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <input type="text" id="logSearch" placeholder="Buscar por descrição, motivo ou usuário…">
+        <select id="logFiltroTabela">
+          <option value="todos">Todas as tabelas</option>
+          <option value="movimentos">Movimentações</option>
+          <option value="produtos">Produtos</option>
+          <option value="fretes">Fretes</option>
+          <option value="clientes">Clientes</option>
+          <option value="vendas">Vendas</option>
+          <option value="previsoes">Estoque previsto</option>
+          <option value="entregas">Entregas</option>
+        </select>
+        <select id="logFiltroAcao">
+          <option value="todos">Edição e exclusão</option>
+          <option value="edicao">Só edições</option>
+          <option value="exclusao">Só exclusões</option>
+        </select>
+        <select id="logFiltroUsuario">
+          <option value="todos">Todos os usuários</option>
+        </select>
+        <select id="logFiltroMotivo">
+          <option value="todos">Todos os motivos</option>
+        </select>
+      </div>
+      <div class="search-row">
+        <div class="field">
+          <label>De</label>
+          <input type="date" id="logDe">
+        </div>
+        <div class="field">
+          <label>Até</label>
+          <input type="date" id="logAte">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Usuário</th>
+                <th>Tabela</th>
+                <th>Ação</th>
+                <th>Descrição</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody id="logTbody"></tbody>
+          </table>
+          <div class="empty-state" id="logEmpty" style="display:none;">Nenhum registro encontrado.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="reportPrintArea" class="print-only"></div>
+
+<div id="toast"></div>
+<div id="estoqueBaixoAlerts" class="estoque-baixo-alerts"></div>
+
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal">
+    <h3 id="confirmTitle">Confirmar ação</h3>
+    <p id="confirmText"></p>
+    <div class="form-actions">
+      <button class="btn outline" id="confirmCancel">Cancelar</button>
+      <button class="btn primary" id="confirmOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="motivoOverlay">
+  <div class="modal">
+    <h3 id="motivoTitle">Informe o motivo</h3>
+    <p id="motivoText"></p>
+    <div class="field">
+      <label>Sugestões (opcional)</label>
+      <select id="motivoSugestoes">
+        <option value="">Selecione uma sugestão...</option>
+        <optgroup label="Comerciais">
+          <option>Cliente desistiu da compra.</option>
+          <option>Cliente encontrou melhor preço.</option>
+          <option>Negociação não concluída.</option>
+          <option>Condição de pagamento não aprovada.</option>
+          <option>Alteração de preço.</option>
+          <option>Solicitação do representante/vendedor.</option>
+          <option>Compra adiada.</option>
+          <option>Alteração do pedido (será emitido novo pedido).</option>
+        </optgroup>
+        <optgroup label="Estoque">
+          <option>Falta de estoque.</option>
+          <option>Produto indisponível.</option>
+          <option>Divergência de estoque.</option>
+          <option>Produto descontinuado.</option>
+        </optgroup>
+        <optgroup label="Financeiro">
+          <option>Crédito reprovado.</option>
+          <option>Cliente inadimplente.</option>
+          <option>Limite de crédito insuficiente.</option>
+          <option>Pagamento não realizado.</option>
+        </optgroup>
+        <optgroup label="Cadastro/Pedido">
+          <option>Pedido lançado em duplicidade.</option>
+          <option>Erro no cadastro do pedido.</option>
+          <option>Erro de preço.</option>
+          <option>Erro de condição comercial.</option>
+          <option>Erro de produto ou quantidade.</option>
+          <option>Erro de cadastro do cliente.</option>
+        </optgroup>
+        <optgroup label="Logística">
+          <option>Frete inviável.</option>
+          <option>Prazo de entrega incompatível.</option>
+          <option>Transportadora indisponível.</option>
+          <option>Endereço incorreto.</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="field">
+      <label>Motivo</label>
+      <textarea id="motivoInput" rows="3" placeholder="Ex: correção de quantidade, NF duplicada, erro de digitação..."></textarea>
+    </div>
+    <div class="motivo-erro" id="motivoErro" style="display:none;">Informe o motivo para continuar.</div>
+    <div class="form-actions">
+      <button class="btn outline" id="motivoCancel">Cancelar</button>
+      <button class="btn primary" id="motivoOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pedidoModalOverlay" data-table="entregas">
+  <div class="modal pedido-modal">
+    <h3 id="pedidoModalTitle">Novo pedido</h3>
+    <form id="formPedido">
+      <div class="form-row">
+        <div class="field">
+          <label>Nº NF</label>
+          <input type="text" id="pedNF" placeholder="Ex: 4194">
+        </div>
+        <div class="field">
+          <label>Nº do pedido</label>
+          <input type="text" id="pedNumero" placeholder="Ex: 148">
+        </div>
+        <div class="field">
+          <label>Data do pedido</label>
+          <input type="date" id="pedData">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field grow">
+          <label>Cliente</label>
+          <input type="text" id="pedCliente" list="listCliente" placeholder="Digite o nome do cliente" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Vendedor</label>
+          <input type="text" id="pedVendedor" list="listVendedor" placeholder="Ex: Rogério">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field grow">
+          <label>Destino</label>
+          <input type="text" id="pedDestino" placeholder="Ex: Sete Lagoas/MG">
+        </div>
+        <div class="field">
+          <label>Transportadora</label>
+          <input type="text" id="pedTransportadora" list="listTransportadora" placeholder="Ex: Pajuçara">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:12px;">
+        <label>Medidas do pedido</label>
+        <div id="pedItens" class="item-list"></div>
+        <button type="button" class="btn small outline" id="btnAddItemPedido" style="margin-top:8px;">+ Adicionar medida</button>
+        <div id="pedItensTotal" class="ped-itens-total" style="display:none;"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label>Etapa</label>
+          <select id="pedEtapa">
+            <option value="ENTRADA">Entrada</option>
+            <option value="AUTORIZACAO_GERENCIA">Autorização de Gerência</option>
+            <option value="ANALISE_CREDITO">Análise de Crédito</option>
+            <option value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</option>
+            <option value="VALIDACAO_TRANSPORTE">Validação de Transporte</option>
+            <option value="FATURAMENTO">Faturamento</option>
+            <option value="SEPARACAO">Separação</option>
+            <option value="AGUARDANDO_COLETA">Aguardando Coleta</option>
+            <option value="COLETA">Coletado</option>
+            <option value="RASTREIO">Rastreio</option>
+            <option value="FINALIZADOS">Finalizados</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Previsão de entrega</label>
+          <input type="date" id="pedDataPrevista">
+        </div>
+        <div class="field">
+          <label>Data de entrega real</label>
+          <input type="date" id="pedDataEntrega">
+        </div>
+        <div class="field">
+          <label>CTE</label>
+          <button type="button" class="cte-tag write-ui" id="pedCteToggle" data-recebido="false">CTE aguardando</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field grow">
+          <label>Observação (opcional)</label>
+          <input type="text" id="pedObs" placeholder="Ex: cliente pediu para atrasar coleta...">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field" id="pedFormaPagamentoBox">
+           <label>Forma de pagamento (opcional)</label>
+            <input type="text" id="pedFormaPagamento" class="write-ui" placeholder="Ex: BOLETO PRÓPRIO">
+              </div>
+        <div class="field">
+          <label>Condição de pagamento (opcional)</label>
+          <input type="text" id="pedCondicaoPagamento" class="write-ui" placeholder="Ex: 3X">
+        </div>
+        <div class="field">
+          <label>Prazo de pagamento (opcional)</label>
+          <input type="text" id="pedPrazoPagamento" class="write-ui" placeholder="Ex: 30/60/90">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:12px;">
+        <label>Anexos</label>
+        <div id="pedAnexosHint" class="muted" style="font-size:12px;">Salve o pedido antes de anexar arquivos.</div>
+        <div id="pedAnexosList" class="anexos-list"></div>
+        <input type="file" id="pedAnexoInput" class="write-ui" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+        <button type="button" class="btn small outline write-ui" id="btnAnexarArquivo" style="margin-top:8px;">+ Anexar arquivo</button>
+      </div>
+
+      <div class="form-actions pedido-modal-actions">
+        <button type="button" class="btn danger write-ui" id="btnExcluirPedido" style="display:none;">Excluir</button>
+        <div class="pedido-modal-actions-right">
+          <button type="button" class="btn outline" id="pedidoModalCancel">Cancelar</button>
+          <button type="submit" class="btn primary write-ui">Salvar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="clienteModalOverlay">
+  <div class="modal cliente-modal">
+    <div class="cliente-modal-head">
+      <h3 id="clienteModalNome"></h3>
+      <div class="cliente-modal-head-actions">
+        <button type="button" class="btn small outline write-ui" id="btnEditarCliente">✎ Editar dados</button>
+        <button type="button" class="btn small outline" id="clienteModalClose">✕ Fechar</button>
+      </div>
+    </div>
+    <div class="cliente-modal-info" id="clienteModalInfo"></div>
+
+    <form class="cliente-modal-edit-form write-ui" id="formEditarCliente" style="display:none;">
+      <div class="form-row">
+        <div class="field grow">
+          <label>Nome do cliente</label>
+          <input type="text" id="clienteEditNome" required>
+        </div>
+        <div class="field">
+          <label>CNPJ/CPF</label>
+          <input type="text" id="clienteEditDocumento" placeholder="Ex: 00.000.000/0001-00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field grow">
+          <label>Razão social</label>
+          <input type="text" id="clienteEditRazaoSocial">
+        </div>
+        <div class="field">
+          <label>Contato responsável</label>
+          <input type="text" id="clienteEditContato">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Telefone</label>
+          <input type="text" id="clienteEditTelefone">
+        </div>
+        <div class="field grow">
+          <label>E-mail</label>
+          <input type="email" id="clienteEditEmail">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Estado (UF)</label>
+          <select id="clienteEditEstado"></select>
+        </div>
+        <div class="field grow">
+          <label>Cidade</label>
+          <input type="text" id="clienteEditCidade">
+        </div>
+        <div class="field grow">
+          <label>Endereço</label>
+          <input type="text" id="clienteEditEndereco">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="btnCancelarEdicaoCliente">Cancelar</button>
+        <button type="submit" class="btn primary">Salvar alterações</button>
+      </div>
+    </form>
+
+    <div class="cliente-tags-row" id="clienteModalTags"></div>
+    <div class="cliente-tags-add write-ui">
+      <input type="text" id="clienteNovaTag" list="listTagsSugeridas" placeholder="Adicionar tag (Ex: VIP)" maxlength="24">
+      <datalist id="listTagsSugeridas">
+        <option value="VIP">
+        <option value="Atacado">
+        <option value="Varejo">
+        <option value="Inadimplente">
+        <option value="Prioritário">
+        <option value="Novo">
+      </datalist>
+      <button type="button" class="btn small outline" id="btnAdicionarTag">+ Tag</button>
+    </div>
+
+    <div class="kpis" id="clienteModalKpis"></div>
+
+    <div class="cliente-modal-section">
+      <h4>Notas e observações</h4>
+      <div class="cliente-nota-add write-ui">
+        <textarea id="clienteNovaNota" rows="2" placeholder="Escreva uma observação sobre este cliente..."></textarea>
+        <button type="button" class="btn small primary" id="btnAdicionarNota" style="align-self:flex-end;">Adicionar nota</button>
+      </div>
+      <div id="clienteModalNotas" class="cliente-notas-list"></div>
+    </div>
+
+    <div class="cliente-modal-section">
+      <h4>Histórico de vendas</h4>
+      <div class="table-wrap" style="max-height:220px; overflow-y:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>NF</th>
+              <th class="num">Pneus</th>
+              <th class="num">Valor</th>
+              <th>Forma pgto</th>
+              <th>Vendedor</th>
+            </tr>
+          </thead>
+          <tbody id="clienteModalVendasTbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="cliente-modal-section">
+      <h4>Pedidos em Entregas</h4>
+      <div id="clienteModalEntregasList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="mesclarClientesModalOverlay">
+  <div class="modal">
+    <div class="cliente-modal-head">
+      <h3>Mesclar clientes duplicados</h3>
+      <button type="button" class="btn small outline" id="mesclarClientesModalClose">✕ Fechar</button>
+    </div>
+    <div class="note" style="margin-bottom:12px;">Escolha qual cadastro deve continuar como principal. Os dados dos outros (CNPJ, telefone, endereço, tags, notas etc.) serão aproveitados para completar o que estiver em branco no principal. As vendas e pedidos dos cadastros removidos passam a apontar para o principal, e os cadastros duplicados são excluídos.</div>
+    <div id="mesclarClientesLista" class="mesclar-clientes-lista"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="mesclarClientesCancelar">Cancelar</button>
+      <button type="button" class="btn danger" id="mesclarClientesConfirmar">Confirmar mesclagem</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="catalogoModalOverlay">
+  <div class="modal catalogo-modal">
+    <div class="cliente-modal-head">
+      <h3 id="catalogoModalTitulo"></h3>
+      <div class="cliente-modal-head-actions">
+        <button type="button" class="btn small outline write-ui" id="btnEditarCatalogo">✎ Editar especificações</button>
+        <button type="button" class="btn small outline" id="catalogoModalClose">✕ Fechar</button>
+      </div>
+    </div>
+
+    <div class="catalogo-modal-foto-row">
+      <div class="catalogo-foto-slot">
+        <div class="catalogo-foto-preview" id="catalogoModalFotoPreview1"></div>
+        <div class="catalogo-foto-actions write-ui">
+          <button type="button" class="btn small outline" id="btnCatalogoFoto1">⬆ Enviar/trocar</button>
+          <button type="button" class="btn small outline danger" id="btnCatalogoRemoverFoto1" style="display:none;">Remover</button>
+          <input type="file" id="catalogoFotoInput1" accept="image/*" style="display:none;">
+        </div>
+      </div>
+      <div class="catalogo-foto-slot">
+        <div class="catalogo-foto-preview" id="catalogoModalFotoPreview2"></div>
+        <div class="catalogo-foto-actions write-ui">
+          <button type="button" class="btn small outline" id="btnCatalogoFoto2">⬆ Enviar/trocar</button>
+          <button type="button" class="btn small outline danger" id="btnCatalogoRemoverFoto2" style="display:none;">Remover</button>
+          <input type="file" id="catalogoFotoInput2" accept="image/*" style="display:none;">
+        </div>
+      </div>
+    </div>
+
+    <div class="catalogo-modal-info" id="catalogoModalInfo"></div>
+
+    <form class="catalogo-modal-edit-form write-ui" id="formEditarCatalogo" style="display:none;">
+      <div class="form-row">
+        <div class="field grow">
+          <label>Medida / descrição completa</label>
+          <input type="text" id="catEditMedida" required>
+        </div>
+        <div class="field">
+          <label>Categoria</label>
+          <input type="text" id="catEditCategoria" placeholder="Ex: DIRECIONAL">
+        </div>
+        <div class="field grow">
+          <label>Modelo</label>
+          <input type="text" id="catEditModelo">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>IC/IV</label>
+          <input type="text" id="catEditIcIv">
+        </div>
+        <div class="field">
+          <label>PR</label>
+          <input type="text" id="catEditPr">
+        </div>
+        <div class="field">
+          <label>Cintas</label>
+          <input type="text" id="catEditCintas">
+        </div>
+        <div class="field">
+          <label>Cap. carga</label>
+          <input type="text" id="catEditCapCarga">
+        </div>
+        <div class="field">
+          <label>PSI</label>
+          <input type="text" id="catEditPsi">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Sulco (mm)</label>
+          <input type="text" id="catEditSulco">
+        </div>
+        <div class="field">
+          <label>Larg. banda (mm)</label>
+          <input type="text" id="catEditLargBanda">
+        </div>
+        <div class="field">
+          <label>Peso (kg)</label>
+          <input type="text" id="catEditPeso">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="btnCancelarEdicaoCatalogo">Cancelar</button>
+        <button type="submit" class="btn primary">Salvar alterações</button>
+      </div>
+    </form>
+
+    <div class="catalogo-modal-section">
+      <h4>Preços por região e condição de pagamento</h4>
+      <div id="catalogoModalPrecoWrap" style="max-height:280px; overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="catalogoFotoLightboxOverlay">
+  <div class="catalogo-lightbox">
+    <button type="button" class="catalogo-lightbox-close" id="catalogoFotoLightboxClose">✕</button>
+    <button type="button" class="catalogo-lightbox-nav prev" id="catalogoFotoLightboxPrev" style="display:none;">‹</button>
+    <img id="catalogoFotoLightboxImg" src="" alt="">
+    <button type="button" class="catalogo-lightbox-nav next" id="catalogoFotoLightboxNext" style="display:none;">›</button>
+    <div class="catalogo-lightbox-counter" id="catalogoFotoLightboxCounter" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="processoModalOverlay">
+  <div class="modal">
+    <h3 id="processoModalTitle"></h3>
+    <div class="processo-modal-total" id="processoModalTotal"></div>
+    <div class="processo-modal-list" id="processoModalList"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="processoModalClose">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="chartModalOverlay">
+  <div class="modal chart-modal">
+    <div class="chart-modal-head">
+      <h3 id="chartModalTitle"></h3>
+      <button class="btn small outline" id="chartModalClose">✕ Fechar</button>
+    </div>
+    <div class="chart-modal-canvas-wrap"><canvas id="chartModalCanvas"></canvas></div>
+    <div class="dash-footer" id="chartModalFooter" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<script src="seed.js?v=61"></script>
+<script src="app.js?v=94"></script>
+</body>
+</html>
