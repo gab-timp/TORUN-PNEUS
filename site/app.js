@@ -9,6 +9,7 @@ let currentUser = null;
 let currentUserRole = "editor";
 let currentUserVisibleViews = null;
 let currentUserIsAdmin = false;
+let currentUserPodeAutorizarGerencia = false;
 let currentUserEditableTables = null;
 let currentUserKanbanColapsadas = [];
 
@@ -224,7 +225,7 @@ async function loadState() {
     fetchComRetry(() => sb.from("vendas").select("*").order("data")),
     fetchComRetry(() => sb.from("previsoes").select("*")),
     fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
-    fetchComRetry(() => sb.from("user_roles").select("role, visible_views, is_admin, editable_tables").eq("user_id", currentUser.id).maybeSingle()),
+    fetchComRetry(() => sb.from("user_roles").select("role, visible_views, is_admin, editable_tables, pode_autorizar_gerencia").eq("user_id", currentUser.id).maybeSingle()),
     fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas").eq("user_id", currentUser.id).maybeSingle()),
     fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at"))
   ]);
@@ -247,6 +248,7 @@ async function loadState() {
   currentUserRole = (roleRes.data && roleRes.data.role) || "editor";
   currentUserVisibleViews = (roleRes.data && roleRes.data.visible_views) || null;
   currentUserIsAdmin = !!(roleRes.data && roleRes.data.is_admin);
+  currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
   currentUserEditableTables = (roleRes.data && roleRes.data.editable_tables) || null;
   currentUserKanbanColapsadas = (prefRes.data && prefRes.data.kanban_colunas_recolhidas) || [];
   document.body.classList.toggle("is-viewer", currentUserRole === "viewer");
@@ -1761,6 +1763,10 @@ function renderEntregas() {
   });
 }
 
+function podeTirarDeAutorizacaoGerencia() {
+  return currentUserIsAdmin || currentUserPodeAutorizarGerencia;
+}
+
 function initKanbanDrag() {
   ETAPAS_PEDIDO.forEach(etapa => {
     const col = document.getElementById("col" + etapa);
@@ -1775,6 +1781,11 @@ function initKanbanDrag() {
         if (novaEtapa === antigaEtapa) return;
         const alvo = state.entregas.find(x => x.id === id);
         if (!alvo) return;
+        if (antigaEtapa === "AUTORIZACAO_GERENCIA" && !podeTirarDeAutorizacaoGerencia()) {
+          toast("Só um usuário autorizado pode tirar um pedido de Autorização de Gerência.");
+          renderEntregas();
+          return;
+        }
         if (novaEtapa === "FINALIZADOS") {
           const faltando = pedidoCamposFaltando(alvo);
           if (faltando.length > 0) {
@@ -2118,6 +2129,10 @@ function initEntregas() {
 
     if (editingPedidoId) {
       const alvo = state.entregas.find(x => x.id === editingPedidoId);
+      if (alvo && alvo.etapa === "AUTORIZACAO_GERENCIA" && dados.etapa !== "AUTORIZACAO_GERENCIA" && !podeTirarDeAutorizacaoGerencia()) {
+        toast("Só um usuário autorizado pode tirar um pedido de Autorização de Gerência.");
+        return;
+      }
       const { conflict, error, row } = await updateWithConflictCheck(
         "entregas", editingPedidoId, editingPedidoUpdatedAt, entregaToRow({ id: editingPedidoId, ...dados })
       );
