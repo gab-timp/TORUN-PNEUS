@@ -159,16 +159,10 @@
           <div class="field"><label>Observações para impressão na NF</label><textarea id="repObsImpressaoNF" rows="2"></textarea></div>
         </div>
 
-        <label class="rep-reserva-check">
-          <input type="checkbox" id="repMarcarReserva">
-          Marcar como reserva de estoque (gera automaticamente uma reserva no estoque para os itens deste pedido — não afeta faturamento)
-        </label>
-
         <div class="rep-doc-actions">
-          <button type="button" class="btn outline" id="btnGerarPropostaRep">Gerar proposta (pré-venda)</button>
-          <button type="submit" class="btn primary" id="btnSalvarPedidoRep">Salvar pedido</button>
+          <button type="submit" class="btn primary" id="btnGerarPropostaRep">Gerar proposta</button>
         </div>
-        <div class="note">"Gerar proposta" cria uma pré-venda pra mostrar/enviar ao cliente — não reserva estoque nem entra no faturamento. Quando o cliente confirmar, é só arrastar o card de "Pré-venda" pra "Entrada" na aba Entregas.</div>
+        <div class="note">Todo pedido do representante gera uma proposta (pré-venda) — não reserva estoque nem entra no faturamento. Quando o cliente confirmar, o escritório arrasta o card de "Pré-venda" pra "Entrada" na aba Entregas.</div>
       </div>
     </form>
 
@@ -346,6 +340,6 @@
 <div id="printArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=12"></script>
+<script src="pedido-representante.js?v=13"></script>
 </body>
 </html>

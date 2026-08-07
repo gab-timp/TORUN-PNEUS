@@ -601,13 +601,11 @@ function initForm() {
 
   document.getElementById("formPedidoRepresentante").addEventListener("submit", (e) => {
     e.preventDefault();
-    salvarPedidoRep("pedido");
+    salvarPedidoRep();
   });
-  document.getElementById("btnGerarPropostaRep").addEventListener("click", () => salvarPedidoRep("proposta"));
 }
 
-async function salvarPedidoRep(modo) {
-  const isProposta = modo === "proposta";
+async function salvarPedidoRep() {
   if (!clienteAtual) {
     toast("Busque um cliente antes de salvar.");
     return;
@@ -633,21 +631,14 @@ async function salvarPedidoRep(modo) {
     toast("Adicione ao menos um item ao pedido.");
     return;
   }
-  // pré-venda nunca reserva estoque, mesmo que a caixa esteja marcada
-  const marcarReserva = !isProposta && document.getElementById("repMarcarReserva").checked;
-
-  const btnSalvar = document.getElementById("btnSalvarPedidoRep");
   const btnProposta = document.getElementById("btnGerarPropostaRep");
-  btnSalvar.disabled = true;
   btnProposta.disabled = true;
-  const btnAtivo = isProposta ? btnProposta : btnSalvar;
-  const labelOriginal = btnAtivo.textContent;
-  btnAtivo.textContent = "Salvando...";
+  const labelOriginal = btnProposta.textContent;
+  btnProposta.textContent = "Salvando...";
 
   const resetBotoes = () => {
-    btnSalvar.disabled = false;
     btnProposta.disabled = false;
-    btnAtivo.textContent = labelOriginal;
+    btnProposta.textContent = labelOriginal;
   };
 
   const { data: numeroData, error: numeroError } = await sb.rpc("proximo_numero_pedido_representante");
@@ -675,13 +666,13 @@ async function salvarPedidoRep(modo) {
     obs: document.getElementById("repObs").value.trim() || null,
     obs_impressao_nf: document.getElementById("repObsImpressaoNF").value.trim() || null,
     itens,
-    etapa: isProposta ? "PRE_VENDA" : "ENTRADA",
+    etapa: "PRE_VENDA",
     cte_status: "aguardando",
     origem: "representante",
     created_by: currentUser.id,
-    reserva: marcarReserva,
-    reserva_status: marcarReserva ? "pendente" : null,
-    reserva_expira_em: marcarReserva ? new Date(Date.now() + 72 * 3600 * 1000).toISOString() : null
+    reserva: false,
+    reserva_status: null,
+    reserva_expira_em: null
   };
 
   const { error: insertError } = await sb.from("entregas").insert(payload).select();
@@ -691,32 +682,15 @@ async function salvarPedidoRep(modo) {
     return;
   }
 
-  if (marcarReserva) {
-    for (const it of itens) {
-      const movPayload = {
-        id: uid("mov"), data: todayISO(), tipo: "reserva", codigo: it.codigo, quantidade: it.quantidade,
-        numero: numeroFormatado, pedido: numeroFormatado, processo: null,
-        obs: `Reserva automática — Pedido de Compra do representante ${currentUserNome}, cliente ${clienteAtual.nome}`,
-        created_by: currentUser.id, entrega_id: payload.id
-      };
-      const { error: movError } = await sb.from("movimentos").insert(movPayload);
-      if (movError) {
-        toast(`Pedido salvo, mas houve erro ao reservar o item ${it.codigo}: ${movError.message}. Avise o escritório.`);
-      } else {
-        movimentos.push(movPayload);
-      }
-    }
-  }
-
   resetBotoes();
 
   ultimoPedidoSalvo = payload;
-  document.getElementById("repTipoConfirmado").textContent = isProposta ? "Proposta" : "Pedido";
+  document.getElementById("repTipoConfirmado").textContent = "Proposta";
   document.getElementById("repNumeroConfirmado").textContent = numeroFormatado;
   document.getElementById("repNumeroPedido").textContent = numeroFormatado;
   document.getElementById("formPedidoRepresentante").style.display = "none";
   document.getElementById("repConfirmacao").style.display = "flex";
-  document.getElementById("repConfirmacaoReserva").style.display = marcarReserva ? "block" : "none";
+  document.getElementById("repConfirmacaoReserva").style.display = "none";
   renderRepEstoque();
   entregas.unshift(payload);
   renderRepEntregas();
