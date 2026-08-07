@@ -672,7 +672,9 @@ async function salvarPedidoRep() {
     created_by: currentUser.id,
     reserva: false,
     reserva_status: null,
-    reserva_expira_em: null
+    reserva_expira_em: null,
+    tabela_preco_regiao: document.getElementById("repCatalogoRegiao").value || null,
+    tabela_preco_condicao: document.getElementById("repCatalogoCondicao").value || null
   };
 
   const { error: insertError } = await sb.from("entregas").insert(payload).select();
@@ -1000,6 +1002,16 @@ function renderDetalheAcompanhamento(pedido) {
     `;
   }).join("");
 
+  let confirmarVendaHtml = "";
+  if (pedido.etapa === "PRE_VENDA") {
+    confirmarVendaHtml = `
+      <div class="rep-acomp-reserva-aviso">
+        <span>Esta é uma proposta — ainda não é um pedido em processamento.</span>
+        <button type="button" class="btn primary" id="btnConfirmarVendaRep">Confirmar venda</button>
+      </div>
+    `;
+  }
+
   let reservaHtml = "";
   if (pedido.reserva_status === "pendente") {
     const expiraEm = new Date(pedido.reserva_expira_em);
@@ -1021,6 +1033,7 @@ function renderDetalheAcompanhamento(pedido) {
       <div><label>Data</label><div class="rep-readonly">${formatDateBR(pedido.data)}</div></div>
       <div><label>Transportadora</label><div class="rep-readonly">${escapeHtml(pedido.transportadora || "—")}</div></div>
     </div>
+    ${confirmarVendaHtml}
     ${reservaHtml}
     <div class="rep-itens-table-wrap">
       <table class="rep-itens-table">
@@ -1036,6 +1049,9 @@ function renderDetalheAcompanhamento(pedido) {
     </div>
   `;
 
+  if (pedido.etapa === "PRE_VENDA") {
+    document.getElementById("btnConfirmarVendaRep").addEventListener("click", () => confirmarVendaRep(pedido.id));
+  }
   if (pedido.reserva_status === "pendente") {
     document.getElementById("btnFinalizarReserva").addEventListener("click", () => finalizarReservaRep(pedido.id));
   }
@@ -1046,6 +1062,18 @@ function renderDetalheAcompanhamento(pedido) {
     if (file) await uploadAnexoAcompanhamento(file, pedido.id);
   });
   renderAnexosAcompanhamento(pedido);
+}
+
+async function confirmarVendaRep(id) {
+  const ok = window.confirm('Confirmar essa proposta como venda? O pedido vai avançar para a etapa "Entrada" e o escritório vai dar sequência ao processo.');
+  if (!ok) return;
+  const { error } = await sb.from("entregas").update({ etapa: "ENTRADA" }).eq("id", id);
+  if (error) { toast("Erro ao confirmar venda: " + error.message); return; }
+  const pedido = entregas.find(e => e.id === id);
+  if (pedido) pedido.etapa = "ENTRADA";
+  toast("Venda confirmada — pedido avançou para Entrada.");
+  renderAcompanhamento();
+  renderRepEntregas();
 }
 
 async function finalizarReservaRep(id) {

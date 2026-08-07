@@ -154,7 +154,8 @@ function entregaToRow(e) {
     razao_social: e.razaoSocial || null, documento_cliente: e.documentoCliente || null, condicao_frete: e.condicaoFrete || null,
     finalidade: e.finalidade || null, condicao_pagamento: e.condicaoPagamento || null, forma_pagamento: e.formaPagamento || null,
     prazo_pagamento: e.prazoPagamento || null, obs_impressao_nf: e.obsImpressaoNF || null, origem: e.origem || "interno",
-    reserva: !!e.reserva, reserva_status: e.reservaStatus || null, reserva_expira_em: e.reservaExpiraEm || null
+    reserva: !!e.reserva, reserva_status: e.reservaStatus || null, reserva_expira_em: e.reservaExpiraEm || null,
+    tabela_preco_regiao: e.tabelaPrecoRegiao || null, tabela_preco_condicao: e.tabelaPrecoCondicao || null
   };
 }
 function entregaFromRow(r) {
@@ -167,7 +168,8 @@ function entregaFromRow(r) {
     razaoSocial: r.razao_social || "", documentoCliente: r.documento_cliente || "", condicaoFrete: r.condicao_frete || "",
     finalidade: r.finalidade || "", condicaoPagamento: r.condicao_pagamento || "", formaPagamento: r.forma_pagamento || "",
     prazoPagamento: r.prazo_pagamento || "", obsImpressaoNF: r.obs_impressao_nf || "", origem: r.origem || "interno",
-    reserva: !!r.reserva, reservaStatus: r.reserva_status || null, reservaExpiraEm: r.reserva_expira_em || null
+    reserva: !!r.reserva, reservaStatus: r.reserva_status || null, reservaExpiraEm: r.reserva_expira_em || null,
+    tabelaPrecoRegiao: r.tabela_preco_regiao || "", tabelaPrecoCondicao: r.tabela_preco_condicao || ""
   };
 }
 
@@ -1737,9 +1739,11 @@ function renderEntregas() {
           <div class="kanban-card-cliente">${escapeHtml(e.cliente || "(sem cliente)")}</div>
           ${e.itens && e.itens.length ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
           ${temValores ? `<div class="kanban-card-total">Total: <b>${formatMoney(totalPedido)}</b></div>` : ""}
+          ${e.destino ? `<div class="kanban-card-endereco">📍 ${escapeHtml(e.destino)}</div>` : ""}
           <div class="kanban-card-meta">
             ${e.reserva ? `<span class="kanban-card-tag reserva">RESERVA</span>` : ""}
             ${e.origem === "representante" ? `<span class="kanban-card-tag representante">Pedido do representante</span>` : ""}
+            ${(e.tabelaPrecoRegiao || e.tabelaPrecoCondicao) ? `<span class="kanban-card-tag">${escapeHtml([e.tabelaPrecoRegiao, e.tabelaPrecoCondicao].filter(Boolean).join(" · "))}</span>` : ""}
             ${e.transportadora ? `<span class="kanban-card-tag">${escapeHtml(e.transportadora)}</span>` : ""}
             ${e.formaPagamento ? `<span class="kanban-card-tag">${escapeHtml(e.formaPagamento)}</span>` : ""}
             ${e.dataPrevista ? `<span class="kanban-card-tag">Prev. ${formatDateBR(e.dataPrevista)}</span>` : ""}
