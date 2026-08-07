@@ -27,7 +27,7 @@ const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT", "SC REVENDA"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
 
 const ETAPA_LABEL = {
-  ENTRADA: "Entrada", AUTORIZACAO_GERENCIA: "Autorização de Gerência", ANALISE_CREDITO: "Análise de Crédito",
+  PRE_VENDA: "Pré-venda", ENTRADA: "Entrada", AUTORIZACAO_GERENCIA: "Autorização de Gerência", ANALISE_CREDITO: "Análise de Crédito",
   AGUARDANDO_PAGAMENTO: "Aguardando Pagamento", VALIDACAO_TRANSPORTE: "Validação de Transporte",
   FATURAMENTO: "Faturamento", SEPARACAO: "Separação",
   AGUARDANDO_COLETA: "Aguardando Coleta", COLETA: "Coletado", RASTREIO: "Rastreio", FINALIZADOS: "Finalizados",
@@ -504,6 +504,7 @@ function recalcularTotais() {
 /* ---------------- impressão ---------------- */
 
 function buildPedidoPrintHtml(pedido) {
+  const isProposta = pedido.etapa === "PRE_VENDA";
   const itensHtml = pedido.itens.map(it => {
     const prod = produtos.find(p => p.codigo === it.codigo);
     return `
@@ -523,9 +524,10 @@ function buildPedidoPrintHtml(pedido) {
     <div class="print-pedido">
       <div class="print-pedido-header">
         <img src="assets/logo-dark.png" class="print-pedido-logo" alt="Torun Pneus">
-        <div class="print-pedido-title">PEDIDO DE COMPRA<div class="print-pedido-numero">N° ${escapeHtml(pedido.numero_pedido)}</div></div>
-        <div class="print-pedido-data-box">DATA DO PEDIDO<div class="valor">${formatDateBR(pedido.data)}</div></div>
+        <div class="print-pedido-title">${isProposta ? "PROPOSTA COMERCIAL" : "PEDIDO DE COMPRA"}<div class="print-pedido-numero">N° ${escapeHtml(pedido.numero_pedido)}</div></div>
+        <div class="print-pedido-data-box">${isProposta ? "DATA DA PROPOSTA" : "DATA DO PEDIDO"}<div class="valor">${formatDateBR(pedido.data)}</div></div>
       </div>
+      ${isProposta ? `<div class="print-pedido-obs" style="margin-top:0;margin-bottom:14px;"><b>Esta é uma proposta comercial, sujeita a confirmação — não representa um pedido em processamento.</b></div>` : ""}
       <div class="print-pedido-info">
         <div><b>Cliente:</b> ${escapeHtml(pedido.cliente || "—")}</div>
         <div><b>Razão social:</b> ${escapeHtml(pedido.razao_social || "—")}</div>
@@ -597,114 +599,129 @@ function initForm() {
     window.print();
   });
 
-  document.getElementById("formPedidoRepresentante").addEventListener("submit", async (e) => {
+  document.getElementById("formPedidoRepresentante").addEventListener("submit", (e) => {
     e.preventDefault();
-    if (!clienteAtual) {
-      toast("Busque um cliente antes de salvar.");
-      return;
-    }
-    const rows = Array.from(document.querySelectorAll("#repItens tr"));
-    const itens = [];
-    for (const tr of rows) {
-      const codigo = tr.querySelector(".rep-item-produto").value;
-      const qtdRaw = tr.querySelector(".rep-item-qtd").value;
-      const valorRaw = tr.querySelector(".rep-item-valor").value;
-      const desconto = parseFloat(tr.querySelector(".rep-item-desconto").value) || 0;
-      if (!codigo && !qtdRaw && !valorRaw) continue;
-      const qtd = parseFloat(qtdRaw);
-      const valorUnit = parseFloat(valorRaw);
-      if (!codigo || !qtd || qtd <= 0 || !(valorUnit >= 0)) {
-        toast("Preencha produto, quantidade e valor unitário em todos os itens.");
-        return;
-      }
-      const valorTotal = qtd * valorUnit * (1 - desconto / 100);
-      itens.push({ codigo, quantidade: qtd, valorUnitario: valorUnit, desconto, valorTotal });
-    }
-    if (!itens.length) {
-      toast("Adicione ao menos um item ao pedido.");
-      return;
-    }
-    const marcarReserva = document.getElementById("repMarcarReserva").checked;
-
-    const btnSalvar = document.getElementById("btnSalvarPedidoRep");
-    btnSalvar.disabled = true;
-    btnSalvar.textContent = "Salvando...";
-
-    const { data: numeroData, error: numeroError } = await sb.rpc("proximo_numero_pedido_representante");
-    if (numeroError) {
-      toast("Erro ao gerar número do pedido: " + numeroError.message);
-      btnSalvar.disabled = false;
-      btnSalvar.textContent = "Salvar pedido";
-      return;
-    }
-    const numeroFormatado = String(numeroData).padStart(6, "0");
-
-    const payload = {
-      id: uid("ped"),
-      numero_pedido: numeroFormatado,
-      data: todayISO(),
-      vendedor: currentUserNome,
-      cliente: clienteAtual.nome,
-      razao_social: clienteAtual.razao_social || null,
-      documento_cliente: clienteAtual.documento || null,
-      destino: clienteAtual.endereco || null,
-      condicao_frete: document.getElementById("repFrete").value.trim() || null,
-      finalidade: document.getElementById("repFinalidade").value.trim() || null,
-      condicao_pagamento: document.getElementById("repCondicaoPagamento").value.trim() || null,
-      forma_pagamento: document.getElementById("repFormaPagamento").value.trim() || null,
-      prazo_pagamento: document.getElementById("repPrazoPagamento").value.trim() || null,
-      obs: document.getElementById("repObs").value.trim() || null,
-      obs_impressao_nf: document.getElementById("repObsImpressaoNF").value.trim() || null,
-      itens,
-      etapa: "ENTRADA",
-      cte_status: "aguardando",
-      origem: "representante",
-      created_by: currentUser.id,
-      reserva: marcarReserva,
-      reserva_status: marcarReserva ? "pendente" : null,
-      reserva_expira_em: marcarReserva ? new Date(Date.now() + 72 * 3600 * 1000).toISOString() : null
-    };
-
-    const { error: insertError } = await sb.from("entregas").insert(payload).select();
-    if (insertError) {
-      btnSalvar.disabled = false;
-      btnSalvar.textContent = "Salvar pedido";
-      toast("Erro ao salvar pedido: " + insertError.message);
-      return;
-    }
-
-    if (marcarReserva) {
-      for (const it of itens) {
-        const movPayload = {
-          id: uid("mov"), data: todayISO(), tipo: "reserva", codigo: it.codigo, quantidade: it.quantidade,
-          numero: numeroFormatado, pedido: numeroFormatado, processo: null,
-          obs: `Reserva automática — Pedido de Compra do representante ${currentUserNome}, cliente ${clienteAtual.nome}`,
-          created_by: currentUser.id, entrega_id: payload.id
-        };
-        const { error: movError } = await sb.from("movimentos").insert(movPayload);
-        if (movError) {
-          toast(`Pedido salvo, mas houve erro ao reservar o item ${it.codigo}: ${movError.message}. Avise o escritório.`);
-        } else {
-          movimentos.push(movPayload);
-        }
-      }
-    }
-
-    btnSalvar.disabled = false;
-    btnSalvar.textContent = "Salvar pedido";
-
-    ultimoPedidoSalvo = payload;
-    document.getElementById("repNumeroConfirmado").textContent = numeroFormatado;
-    document.getElementById("repNumeroPedido").textContent = numeroFormatado;
-    document.getElementById("formPedidoRepresentante").style.display = "none";
-    document.getElementById("repConfirmacao").style.display = "flex";
-    document.getElementById("repConfirmacaoReserva").style.display = marcarReserva ? "block" : "none";
-    renderRepEstoque();
-    entregas.unshift(payload);
-    renderRepEntregas();
-    acompanhamentoSelecionadoId = payload.id;
-    renderAcompanhamento();
+    salvarPedidoRep("pedido");
   });
+  document.getElementById("btnGerarPropostaRep").addEventListener("click", () => salvarPedidoRep("proposta"));
+}
+
+async function salvarPedidoRep(modo) {
+  const isProposta = modo === "proposta";
+  if (!clienteAtual) {
+    toast("Busque um cliente antes de salvar.");
+    return;
+  }
+  const rows = Array.from(document.querySelectorAll("#repItens tr"));
+  const itens = [];
+  for (const tr of rows) {
+    const codigo = tr.querySelector(".rep-item-produto").value;
+    const qtdRaw = tr.querySelector(".rep-item-qtd").value;
+    const valorRaw = tr.querySelector(".rep-item-valor").value;
+    const desconto = parseFloat(tr.querySelector(".rep-item-desconto").value) || 0;
+    if (!codigo && !qtdRaw && !valorRaw) continue;
+    const qtd = parseFloat(qtdRaw);
+    const valorUnit = parseFloat(valorRaw);
+    if (!codigo || !qtd || qtd <= 0 || !(valorUnit >= 0)) {
+      toast("Preencha produto, quantidade e valor unitário em todos os itens.");
+      return;
+    }
+    const valorTotal = qtd * valorUnit * (1 - desconto / 100);
+    itens.push({ codigo, quantidade: qtd, valorUnitario: valorUnit, desconto, valorTotal });
+  }
+  if (!itens.length) {
+    toast("Adicione ao menos um item ao pedido.");
+    return;
+  }
+  // pré-venda nunca reserva estoque, mesmo que a caixa esteja marcada
+  const marcarReserva = !isProposta && document.getElementById("repMarcarReserva").checked;
+
+  const btnSalvar = document.getElementById("btnSalvarPedidoRep");
+  const btnProposta = document.getElementById("btnGerarPropostaRep");
+  btnSalvar.disabled = true;
+  btnProposta.disabled = true;
+  const btnAtivo = isProposta ? btnProposta : btnSalvar;
+  const labelOriginal = btnAtivo.textContent;
+  btnAtivo.textContent = "Salvando...";
+
+  const resetBotoes = () => {
+    btnSalvar.disabled = false;
+    btnProposta.disabled = false;
+    btnAtivo.textContent = labelOriginal;
+  };
+
+  const { data: numeroData, error: numeroError } = await sb.rpc("proximo_numero_pedido_representante");
+  if (numeroError) {
+    toast("Erro ao gerar número: " + numeroError.message);
+    resetBotoes();
+    return;
+  }
+  const numeroFormatado = String(numeroData).padStart(6, "0");
+
+  const payload = {
+    id: uid("ped"),
+    numero_pedido: numeroFormatado,
+    data: todayISO(),
+    vendedor: currentUserNome,
+    cliente: clienteAtual.nome,
+    razao_social: clienteAtual.razao_social || null,
+    documento_cliente: clienteAtual.documento || null,
+    destino: clienteAtual.endereco || null,
+    condicao_frete: document.getElementById("repFrete").value.trim() || null,
+    finalidade: document.getElementById("repFinalidade").value.trim() || null,
+    condicao_pagamento: document.getElementById("repCondicaoPagamento").value.trim() || null,
+    forma_pagamento: document.getElementById("repFormaPagamento").value.trim() || null,
+    prazo_pagamento: document.getElementById("repPrazoPagamento").value.trim() || null,
+    obs: document.getElementById("repObs").value.trim() || null,
+    obs_impressao_nf: document.getElementById("repObsImpressaoNF").value.trim() || null,
+    itens,
+    etapa: isProposta ? "PRE_VENDA" : "ENTRADA",
+    cte_status: "aguardando",
+    origem: "representante",
+    created_by: currentUser.id,
+    reserva: marcarReserva,
+    reserva_status: marcarReserva ? "pendente" : null,
+    reserva_expira_em: marcarReserva ? new Date(Date.now() + 72 * 3600 * 1000).toISOString() : null
+  };
+
+  const { error: insertError } = await sb.from("entregas").insert(payload).select();
+  if (insertError) {
+    resetBotoes();
+    toast("Erro ao salvar: " + insertError.message);
+    return;
+  }
+
+  if (marcarReserva) {
+    for (const it of itens) {
+      const movPayload = {
+        id: uid("mov"), data: todayISO(), tipo: "reserva", codigo: it.codigo, quantidade: it.quantidade,
+        numero: numeroFormatado, pedido: numeroFormatado, processo: null,
+        obs: `Reserva automática — Pedido de Compra do representante ${currentUserNome}, cliente ${clienteAtual.nome}`,
+        created_by: currentUser.id, entrega_id: payload.id
+      };
+      const { error: movError } = await sb.from("movimentos").insert(movPayload);
+      if (movError) {
+        toast(`Pedido salvo, mas houve erro ao reservar o item ${it.codigo}: ${movError.message}. Avise o escritório.`);
+      } else {
+        movimentos.push(movPayload);
+      }
+    }
+  }
+
+  resetBotoes();
+
+  ultimoPedidoSalvo = payload;
+  document.getElementById("repTipoConfirmado").textContent = isProposta ? "Proposta" : "Pedido";
+  document.getElementById("repNumeroConfirmado").textContent = numeroFormatado;
+  document.getElementById("repNumeroPedido").textContent = numeroFormatado;
+  document.getElementById("formPedidoRepresentante").style.display = "none";
+  document.getElementById("repConfirmacao").style.display = "flex";
+  document.getElementById("repConfirmacaoReserva").style.display = marcarReserva ? "block" : "none";
+  renderRepEstoque();
+  entregas.unshift(payload);
+  renderRepEntregas();
+  acompanhamentoSelecionadoId = payload.id;
+  renderAcompanhamento();
 }
 
 /* ---------------- abas ---------------- */

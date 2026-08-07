@@ -172,7 +172,7 @@ function entregaFromRow(r) {
 }
 
 const ETAPA_LABEL = {
-  ENTRADA: "Entrada", AUTORIZACAO_GERENCIA: "Autorização de Gerência", ANALISE_CREDITO: "Análise de Crédito",
+  PRE_VENDA: "Pré-venda", ENTRADA: "Entrada", AUTORIZACAO_GERENCIA: "Autorização de Gerência", ANALISE_CREDITO: "Análise de Crédito",
   AGUARDANDO_PAGAMENTO: "Aguardando Pagamento", VALIDACAO_TRANSPORTE: "Validação de Transporte",
   FATURAMENTO: "Faturamento", SEPARACAO: "Separação",
   AGUARDANDO_COLETA: "Aguardando Coleta", COLETA: "Coletado", RASTREIO: "Rastreio", FINALIZADOS: "Finalizados",
@@ -1678,7 +1678,7 @@ function resetFreteItens() {
 /* ---------------- render: ENTREGAS (KANBAN) ---------------- */
 
 const ETAPAS_PEDIDO = [
-  "ENTRADA", "AUTORIZACAO_GERENCIA", "ANALISE_CREDITO", "AGUARDANDO_PAGAMENTO", "VALIDACAO_TRANSPORTE",
+  "PRE_VENDA", "ENTRADA", "AUTORIZACAO_GERENCIA", "ANALISE_CREDITO", "AGUARDANDO_PAGAMENTO", "VALIDACAO_TRANSPORTE",
   "FATURAMENTO", "SEPARACAO", "AGUARDANDO_COLETA", "COLETA", "RASTREIO", "FINALIZADOS"
 ];
 let editingPedidoId = null;

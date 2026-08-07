@@ -1162,6 +1162,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .anexo-tamanho{color:var(--ink-soft); font-size:10.5px; flex:0 0 auto;}
 
 /* ---------------- kanban ---------------- */
+.kanban-col[data-etapa="PRE_VENDA"]{ --col-accent:#78716C; --col-deep:#44403C; --col-pale:#EFECEA; }
 .kanban-col[data-etapa="ENTRADA"]{ --col-accent:#2F80ED; --col-deep:#1D4FA8; --col-pale:#E4EEFD; }
 .kanban-col[data-etapa="AUTORIZACAO_GERENCIA"]{ --col-accent:#9B51E0; --col-deep:#6B2FA6; --col-pale:#F1E7FB; }
 .kanban-col[data-etapa="ANALISE_CREDITO"]{ --col-accent:#6366F1; --col-deep:#4338CA; --col-pale:#E7E7FE; }

@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=82">
+<link rel="stylesheet" href="styles.css?v=83">
 <link rel="stylesheet" href="pedido-representante.css?v=9">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -165,13 +165,15 @@
         </label>
 
         <div class="rep-doc-actions">
+          <button type="button" class="btn outline" id="btnGerarPropostaRep">Gerar proposta (pré-venda)</button>
           <button type="submit" class="btn primary" id="btnSalvarPedidoRep">Salvar pedido</button>
         </div>
+        <div class="note">"Gerar proposta" cria uma pré-venda pra mostrar/enviar ao cliente — não reserva estoque nem entra no faturamento. Quando o cliente confirmar, é só arrastar o card de "Pré-venda" pra "Entrada" na aba Entregas.</div>
       </div>
     </form>
 
     <div class="rep-confirmacao" id="repConfirmacao" style="display:none;">
-      <div class="rep-confirmacao-msg">Pedido nº <b id="repNumeroConfirmado"></b> salvo com sucesso.</div>
+      <div class="rep-confirmacao-msg"><span id="repTipoConfirmado">Pedido</span> nº <b id="repNumeroConfirmado"></b> salvo com sucesso.</div>
       <div class="rep-confirmacao-reserva" id="repConfirmacaoReserva" style="display:none;">Reserva de estoque criada. Você tem 72h para finalizar este pedido na aba "Acompanhamento" — depois disso a reserva expira automaticamente.</div>
       <button type="button" class="btn outline" id="btnImprimirPedidoRep">Imprimir / gerar PDF</button>
       <button type="button" class="btn primary" id="btnNovoPedidoRep">Novo pedido</button>
@@ -232,6 +234,7 @@
         <input type="text" id="repEntregasSearch" placeholder="Buscar por NF, pedido, cliente ou transportadora…">
         <select id="repEntregasFiltroEtapa">
           <option value="">Todas as etapas</option>
+          <option value="PRE_VENDA">Pré-venda</option>
           <option value="ENTRADA">Entrada</option>
           <option value="AUTORIZACAO_GERENCIA">Autorização de Gerência</option>
           <option value="ANALISE_CREDITO">Análise de Crédito</option>
@@ -343,6 +346,6 @@
 <div id="printArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=11"></script>
+<script src="pedido-representante.js?v=12"></script>
 </body>
 </html>
