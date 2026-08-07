@@ -1852,6 +1852,19 @@ function podeTirarDeAutorizacaoGerencia() {
   return currentUserIsAdmin || currentUserPodeAutorizarGerencia;
 }
 
+// Cobre dois casos: (1) tirar o pedido de "Autorização de Gerência" pra qualquer outra etapa,
+// e (2) pular a etapa inteira -- ir direto de antes dela (Pré-venda/Entrada) pra depois
+// (Análise de Crédito em diante) sem passar por ela.
+function movimentoExigeAutorizacaoGerencia(etapaOrigem, etapaDestino) {
+  if (etapaOrigem === etapaDestino) return false;
+  if (etapaOrigem === "AUTORIZACAO_GERENCIA") return true;
+  const idxAG = ETAPAS_PEDIDO.indexOf("AUTORIZACAO_GERENCIA");
+  const idxOrigem = ETAPAS_PEDIDO.indexOf(etapaOrigem);
+  const idxDestino = ETAPAS_PEDIDO.indexOf(etapaDestino);
+  if (idxAG === -1 || idxOrigem === -1 || idxDestino === -1) return false;
+  return idxOrigem < idxAG && idxDestino > idxAG;
+}
+
 function initKanbanDrag() {
   ETAPAS_PEDIDO.forEach(etapa => {
     const col = document.getElementById("col" + etapa);
@@ -1866,8 +1879,8 @@ function initKanbanDrag() {
         if (novaEtapa === antigaEtapa) return;
         const alvo = state.entregas.find(x => x.id === id);
         if (!alvo) return;
-        if (antigaEtapa === "AUTORIZACAO_GERENCIA" && !podeTirarDeAutorizacaoGerencia()) {
-          toast("Só um usuário autorizado pode tirar um pedido de Autorização de Gerência.");
+        if (movimentoExigeAutorizacaoGerencia(antigaEtapa, novaEtapa) && !podeTirarDeAutorizacaoGerencia()) {
+          toast("Só um usuário autorizado pode mover esse pedido pra depois de Autorização de Gerência.");
           renderEntregas();
           return;
         }
@@ -2214,8 +2227,8 @@ function initEntregas() {
 
     if (editingPedidoId) {
       const alvo = state.entregas.find(x => x.id === editingPedidoId);
-      if (alvo && alvo.etapa === "AUTORIZACAO_GERENCIA" && dados.etapa !== "AUTORIZACAO_GERENCIA" && !podeTirarDeAutorizacaoGerencia()) {
-        toast("Só um usuário autorizado pode tirar um pedido de Autorização de Gerência.");
+      if (alvo && movimentoExigeAutorizacaoGerencia(alvo.etapa, dados.etapa) && !podeTirarDeAutorizacaoGerencia()) {
+        toast("Só um usuário autorizado pode mover esse pedido pra depois de Autorização de Gerência.");
         return;
       }
       const { conflict, error, row } = await updateWithConflictCheck(
