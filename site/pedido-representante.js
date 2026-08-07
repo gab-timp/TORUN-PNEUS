@@ -504,50 +504,60 @@ function recalcularTotais() {
 /* ---------------- impressão ---------------- */
 
 function buildPedidoPrintHtml(pedido) {
-  const isProposta = pedido.etapa === "PRE_VENDA";
   const itensHtml = pedido.itens.map(it => {
     const prod = produtos.find(p => p.codigo === it.codigo);
+    const specParts = prod ? [prod.categoria, prod.pr ? prod.pr + "PR" : "", prod.capCarga ? "carga " + prod.capCarga : ""].filter(Boolean) : [];
     return `
       <tr>
-        <td>${escapeHtml(it.codigo)}</td>
-        <td>${escapeHtml(prod ? prod.medida : "")}</td>
-        <td class="num">${fmt(it.quantidade)}</td>
-        <td class="num">${formatMoney(it.valorUnitario)}</td>
-        <td class="num">${it.desconto ? it.desconto + "%" : "—"}</td>
-        <td class="num">${formatMoney(it.valorTotal)}</td>
+        <td>
+          ${escapeHtml(prod ? prod.medida : it.codigo)}
+          ${specParts.length ? `<div class="ficha-spec">${escapeHtml(specParts.join(" · "))}</div>` : ""}
+        </td>
+        <td class="num mono">${fmt(it.quantidade)}</td>
+        <td class="num mono">${formatMoney(it.valorUnitario)}</td>
+        <td class="num mono">${formatMoney(it.valorTotal)}</td>
       </tr>
     `;
   }).join("");
   const total = pedido.itens.reduce((a, it) => a + it.valorTotal, 0);
+  const dataEmissao = new Date(pedido.data + "T00:00:00");
+  const dataValidade = new Date(dataEmissao.getTime() + 14 * 24 * 3600 * 1000);
+  const validadeStr = formatDateBR(dataValidade.toISOString().slice(0, 10));
+  const contatoVendedor = [pedido.vendedor, (currentUser && currentUser.email) || null].filter(Boolean).join(" — ");
+  const tabelaPreco = [pedido.tabela_preco_regiao, pedido.tabela_preco_condicao].filter(Boolean).join(" · ");
 
   return `
-    <div class="print-pedido">
-      <div class="print-pedido-header">
-        <img src="assets/logo-dark.png" class="print-pedido-logo" alt="Torun Pneus">
-        <div class="print-pedido-title">${isProposta ? "PROPOSTA COMERCIAL" : "PEDIDO DE COMPRA"}<div class="print-pedido-numero">N° ${escapeHtml(pedido.numero_pedido)}</div></div>
-        <div class="print-pedido-data-box">${isProposta ? "DATA DA PROPOSTA" : "DATA DO PEDIDO"}<div class="valor">${formatDateBR(pedido.data)}</div></div>
+    <div class="ficha-proposta">
+      <div class="ficha-top">
+        <div class="ficha-brand">TORUN <span>PNEUS</span></div>
+        <div class="ficha-meta">PROPOSTA <b>Nº ${escapeHtml(pedido.numero_pedido)}</b><br>Emitida ${formatDateBR(pedido.data)} · Válida até <b>${validadeStr}</b></div>
       </div>
-      ${isProposta ? `<div class="print-pedido-obs" style="margin-top:0;margin-bottom:14px;"><b>Esta é uma proposta comercial, sujeita a confirmação — não representa um pedido em processamento.</b></div>` : ""}
-      <div class="print-pedido-info">
-        <div><b>Cliente:</b> ${escapeHtml(pedido.cliente || "—")}</div>
-        <div><b>Razão social:</b> ${escapeHtml(pedido.razao_social || "—")}</div>
-        <div><b>CNPJ/CPF:</b> ${escapeHtml(pedido.documento_cliente || "—")}</div>
-        <div><b>Vendedor:</b> ${escapeHtml(pedido.vendedor || "—")}</div>
-        <div><b>Endereço entrega:</b> ${escapeHtml(pedido.destino || "—")}</div>
-        <div><b>Frete:</b> ${escapeHtml(pedido.condicao_frete || "—")}</div>
-        <div><b>Finalidade:</b> ${escapeHtml(pedido.finalidade || "—")}</div>
-        <div><b>Condição pagamento:</b> ${escapeHtml(pedido.condicao_pagamento || "—")}</div>
-        <div><b>Forma pagamento:</b> ${escapeHtml(pedido.forma_pagamento || "—")}</div>
-        <div><b>Prazo pagamento:</b> ${escapeHtml(pedido.prazo_pagamento || "—")}</div>
+      <div class="ficha-section-title">Dados do cliente</div>
+      <div class="ficha-info">
+        <div><b>Cliente</b>${escapeHtml(pedido.cliente || "—")}</div>
+        <div><b>CNPJ/CPF</b>${escapeHtml(pedido.documento_cliente || "—")}</div>
+        <div><b>Endereço de entrega</b>${escapeHtml(pedido.destino || "—")}</div>
+        <div><b>Condição de frete</b>${escapeHtml(pedido.condicao_frete || "—")}</div>
       </div>
-      <table class="print-pedido-table">
-        <thead><tr><th>Código</th><th>Produto</th><th>Quantidade</th><th>Valor unitário</th><th>Desc.</th><th>Valor total</th></tr></thead>
+      <table class="ficha-table">
+        <thead><tr><th>Item</th><th>Qtd.</th><th>Vl. unitário</th><th>Total</th></tr></thead>
         <tbody>${itensHtml}</tbody>
       </table>
-      <div class="print-pedido-total"><span>Total</span><span>${formatMoney(total)}</span></div>
+      <div class="ficha-foot">
+        <div class="ficha-terms">
+          <div class="ficha-term"><span>Pagamento</span><b>${escapeHtml(pedido.condicao_pagamento || "—")}</b></div>
+          <div class="ficha-term"><span>Forma</span><b>${escapeHtml(pedido.forma_pagamento || "—")}</b></div>
+          ${tabelaPreco ? `<div class="ficha-term"><span>Tabela</span><b>${escapeHtml(tabelaPreco)}</b></div>` : ""}
+        </div>
+        <div class="ficha-total">${formatMoney(total)}</div>
+      </div>
+      <div class="ficha-bottom">
+        <span>${escapeHtml(contatoVendedor || "—")}</span>
+        <span>Proposta sujeita a confirmação de estoque</span>
+      </div>
       ${(pedido.obs || pedido.obs_impressao_nf) ? `
-        <div class="print-pedido-obs">
-          ${pedido.obs ? `<div><b>Observações do pedido:</b> ${escapeHtml(pedido.obs)}</div>` : ""}
+        <div class="ficha-obs">
+          ${pedido.obs ? `<div><b>Observações:</b> ${escapeHtml(pedido.obs)}</div>` : ""}
           ${pedido.obs_impressao_nf ? `<div><b>Observações para impressão na NF:</b> ${escapeHtml(pedido.obs_impressao_nf)}</div>` : ""}
         </div>
       ` : ""}
