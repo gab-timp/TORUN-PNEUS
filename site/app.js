@@ -4512,7 +4512,9 @@ function subscribeRealtime() {
     });
   });
   channel.subscribe((status) => {
-    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+    if (status === "SUBSCRIBED") {
+      console.log("Realtime conectado — atualizações automáticas ativas.");
+    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
       console.error("Realtime desconectado:", status, "— tentando reconectar em 5s.");
       realtimeReconnectTimer = setTimeout(subscribeRealtime, 5000);
     }
