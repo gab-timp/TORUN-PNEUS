@@ -1099,6 +1099,21 @@ function buildPrecoMatrixHtml(codigo) {
   </table></div>`;
 }
 
+function buildPrecoMatrixEditHtml(codigo) {
+  const precos = getPrecosDoProduto(codigo);
+  const linhas = CATALOGO_CONDICOES.map(cond => {
+    const cells = CATALOGO_REGIOES.map(r => {
+      const p = precos.find(x => x.regiao === r && x.condicaoPagamento === cond);
+      return `<td><input type="number" step="0.01" min="0" class="catalogo-preco-input" data-regiao="${escapeAttr(r)}" data-condicao="${escapeAttr(cond)}" value="${p ? p.preco : ""}" placeholder="—"></td>`;
+    }).join("");
+    return `<tr><td class="mono">${escapeHtml(cond)}</td>${cells}</tr>`;
+  }).join("");
+  return `<div class="table-wrap"><table class="catalogo-preco-table catalogo-preco-table-edit">
+    <thead><tr><th>Condição</th>${CATALOGO_REGIOES.map(r => `<th>${escapeHtml(r)}</th>`).join("")}</tr></thead>
+    <tbody>${linhas}</tbody>
+  </table></div>`;
+}
+
 function renderCatalogo() {
   populateCatalogoFiltroCategoria();
   populateCatalogoCondicao();
@@ -1255,6 +1270,9 @@ function openCatalogoModal(codigo) {
   document.getElementById("catEditPeso").value = p.pesoKg || "";
 
   renderCatalogoModalPrecos(codigo);
+  document.getElementById("formEditarPrecosCatalogo").style.display = "none";
+  document.getElementById("catalogoModalPrecoWrap").style.display = "";
+  document.getElementById("btnEditarPrecosCatalogo").style.display = "";
 
   document.getElementById("catalogoModalOverlay").classList.add("show");
 }
@@ -1263,6 +1281,9 @@ function closeCatalogoModal() {
   document.getElementById("catalogoModalOverlay").classList.remove("show");
   document.getElementById("formEditarCatalogo").style.display = "none";
   document.getElementById("catalogoModalInfo").style.display = "";
+  document.getElementById("formEditarPrecosCatalogo").style.display = "none";
+  document.getElementById("catalogoModalPrecoWrap").style.display = "";
+  document.getElementById("btnEditarPrecosCatalogo").style.display = "";
   catalogoEditingCodigo = null;
 }
 
@@ -1303,6 +1324,57 @@ function closeCatalogoFotoLightbox() {
   document.getElementById("catalogoFotoLightboxOverlay").classList.remove("show");
   document.getElementById("catalogoFotoLightboxImg").src = "";
   catalogoLightboxUrls = [];
+}
+
+async function salvarPrecosCatalogo(e) {
+  e.preventDefault();
+  if (!catalogoEditingCodigo) return;
+  const codigo = catalogoEditingCodigo;
+  const existentes = getPrecosDoProduto(codigo);
+  const inputs = Array.from(document.querySelectorAll("#catalogoModalPrecoEditWrap .catalogo-preco-input"));
+
+  const upserts = [];
+  const remocoes = [];
+  for (const inp of inputs) {
+    const regiao = inp.dataset.regiao;
+    const condicao = inp.dataset.condicao;
+    const existente = existentes.find(x => x.regiao === regiao && x.condicaoPagamento === condicao);
+    const raw = inp.value.trim();
+    if (raw === "") {
+      if (existente) remocoes.push(existente.id);
+      continue;
+    }
+    const valor = parseFloat(raw.replace(",", "."));
+    if (!(valor >= 0)) { toast(`Preço inválido em ${regiao} / ${condicao}.`); return; }
+    upserts.push({ codigo, regiao, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
+  }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  const labelOriginal = btn.textContent;
+  btn.textContent = "Salvando...";
+
+  if (upserts.length) {
+    const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,condicao_pagamento" });
+    if (error) { toast("Erro ao salvar preços: " + error.message); btn.disabled = false; btn.textContent = labelOriginal; return; }
+  }
+  if (remocoes.length) {
+    const { error } = await sb.from("produtos_precos").delete().in("id", remocoes);
+    if (error) { toast("Erro ao remover preço: " + error.message); btn.disabled = false; btn.textContent = labelOriginal; return; }
+  }
+
+  const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+  state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
+
+  btn.disabled = false;
+  btn.textContent = labelOriginal;
+  await registrarLog("produtos_precos", codigo, "edicao", "Ação automática", `Preços atualizados: ${codigo}`);
+  toast("Preços atualizados.");
+  document.getElementById("formEditarPrecosCatalogo").style.display = "none";
+  document.getElementById("catalogoModalPrecoWrap").style.display = "";
+  document.getElementById("btnEditarPrecosCatalogo").style.display = "";
+  renderCatalogoModalPrecos(codigo);
+  renderCatalogo();
 }
 
 async function salvarEdicaoCatalogo(e) {
@@ -1412,6 +1484,19 @@ function initCatalogo() {
     document.getElementById("catalogoModalInfo").style.display = "";
   });
   document.getElementById("formEditarCatalogo").addEventListener("submit", salvarEdicaoCatalogo);
+
+  document.getElementById("btnEditarPrecosCatalogo").addEventListener("click", () => {
+    document.getElementById("catalogoModalPrecoEditWrap").innerHTML = buildPrecoMatrixEditHtml(catalogoEditingCodigo);
+    document.getElementById("catalogoModalPrecoWrap").style.display = "none";
+    document.getElementById("btnEditarPrecosCatalogo").style.display = "none";
+    document.getElementById("formEditarPrecosCatalogo").style.display = "";
+  });
+  document.getElementById("btnCancelarEdicaoPrecos").addEventListener("click", () => {
+    document.getElementById("formEditarPrecosCatalogo").style.display = "none";
+    document.getElementById("catalogoModalPrecoWrap").style.display = "";
+    document.getElementById("btnEditarPrecosCatalogo").style.display = "";
+  });
+  document.getElementById("formEditarPrecosCatalogo").addEventListener("submit", salvarPrecosCatalogo);
 
   [1, 2].forEach(slot => {
     document.getElementById(`btnCatalogoFoto${slot}`).addEventListener("click", () => {

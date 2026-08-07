@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=84">
+<link rel="stylesheet" href="styles.css?v=85">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1575,8 +1575,19 @@
     </form>
 
     <div class="catalogo-modal-section">
-      <h4>Preços por região e condição de pagamento</h4>
+      <div class="catalogo-modal-section-head">
+        <h4>Preços por região e condição de pagamento</h4>
+        <button type="button" class="btn small outline write-ui" id="btnEditarPrecosCatalogo">Editar preços</button>
+      </div>
       <div id="catalogoModalPrecoWrap" style="max-height:280px; overflow-y:auto;"></div>
+      <form id="formEditarPrecosCatalogo" class="write-ui" style="display:none;">
+        <div id="catalogoModalPrecoEditWrap" style="max-height:280px; overflow-y:auto;"></div>
+        <div class="note">Deixe em branco pra remover o preço daquela condição/região.</div>
+        <div class="form-actions">
+          <button type="button" class="btn outline" id="btnCancelarEdicaoPrecos">Cancelar</button>
+          <button type="submit" class="btn primary">Salvar preços</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -1614,6 +1625,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=98"></script>
+<script src="app.js?v=99"></script>
 </body>
 </html>
