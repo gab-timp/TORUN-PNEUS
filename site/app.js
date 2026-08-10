@@ -565,6 +565,7 @@ function setView(view) {
   if (view === "faturamento") { renderClienteSelect(); renderFaturamentoDatalists(); renderFaturamento(); renderVendas(); }
   if (view === "clientes") renderClientes();
   if (view === "historico") renderHistorico();
+  if (view === "relatorios") renderRelatorioCodigoSelects();
 }
 
 /* ---------------- render: ESTOQUE ---------------- */
@@ -828,6 +829,15 @@ function produtoOptionsHTML() {
     .sort((a, b) => a.codigo.localeCompare(b.codigo))
     .map(p => `<option value="${escapeAttr(p.codigo)}">${escapeHtml(p.codigo)} — ${escapeHtml(p.medida)}</option>`)
     .join("");
+}
+
+function renderRelatorioCodigoSelects() {
+  const opts = `<option value="">Todos os produtos</option>` + produtoOptionsHTML();
+  document.querySelectorAll(".report-codigo").forEach(sel => {
+    const prev = sel.value;
+    sel.innerHTML = opts;
+    if (prev) sel.value = prev;
+  });
 }
 
 function renderProdutoSelects() {
@@ -4250,10 +4260,11 @@ const REPORT_DEFS = {
   estoque: {
     title: "Relatório de Estoque Atual",
     hasDateRange: false,
-    build(de, ate, filtro) {
+    build(de, ate, filtro, codigo) {
       let produtos = listEstoque().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
       if (filtro === "disponivel") produtos = produtos.filter(p => p.saldo > 0);
       if (filtro === "zerado") produtos = produtos.filter(p => p.saldo <= 0);
+      if (codigo) produtos = produtos.filter(p => p.codigo === codigo);
       const columns = [
         { key: "codigo", label: "Código" },
         { key: "medida", label: "Medida" },
@@ -4266,6 +4277,7 @@ const REPORT_DEFS = {
       const filtroLabel = filtro === "disponivel" ? "Só com saldo disponível" : filtro === "zerado" ? "Só com saldo zerado" : "Todos";
       const summaryLines = [
         { label: "Filtro aplicado", value: filtroLabel },
+        ...(codigo ? [{ label: "Código do produto", value: codigo }] : []),
         { label: "Produtos incluídos", value: fmt(produtos.length) },
         { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
       ];
@@ -4275,8 +4287,9 @@ const REPORT_DEFS = {
   movimentacoes: {
     title: "Relatório de Movimentações",
     hasDateRange: true,
-    build(de, ate) {
-      const movs = filtrarPorPeriodo(state.movimentos, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
+    build(de, ate, filtro, codigo) {
+      let movs = filtrarPorPeriodo(state.movimentos, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
+      if (codigo) movs = movs.filter(m => m.codigo === codigo);
       const columns = [
         { key: "data", label: "Data" },
         { key: "tipo", label: "Tipo" },
@@ -4297,6 +4310,7 @@ const REPORT_DEFS = {
       const totalEntradas = movs.filter(m => m.tipo === "entrada").reduce((a, m) => a + m.quantidade, 0);
       const totalSaidas = movs.filter(m => m.tipo !== "entrada").reduce((a, m) => a + m.quantidade, 0);
       const summaryLines = [
+        ...(codigo ? [{ label: "Código do produto", value: codigo }] : []),
         { label: "Movimentações no período", value: fmt(movs.length) },
         { label: "Total de entradas", value: fmt(totalEntradas) + " un." },
         { label: "Total de saídas", value: fmt(totalSaidas) + " un.", total: true }
@@ -4374,16 +4388,16 @@ function buildReportPrintHtml(def, de, ate, data) {
   `;
 }
 
-function gerarRelatorioPDF(reportKey, de, ate, filtro) {
+function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo) {
   const def = REPORT_DEFS[reportKey];
-  const data = def.build(de, ate, filtro);
+  const data = def.build(de, ate, filtro, codigo);
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
   window.print();
 }
 
-function gerarRelatorioExcel(reportKey, de, ate, filtro) {
+function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo) {
   const def = REPORT_DEFS[reportKey];
-  const { columns, rows } = def.build(de, ate, filtro);
+  const { columns, rows } = def.build(de, ate, filtro, codigo);
   const wsData = [columns.map(c => c.label)].concat(rows.map(r => columns.map(c => r[c.key] ?? "")));
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
@@ -4397,11 +4411,12 @@ function initRelatorios() {
     const deInput = card.querySelector(".report-de");
     const ateInput = card.querySelector(".report-ate");
     const filtroInput = card.querySelector(".report-filtro");
+    const codigoInput = card.querySelector(".report-codigo");
     card.querySelector(".report-btn-pdf").addEventListener("click", () => {
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigoInput ? codigoInput.value : null);
     });
     card.querySelector(".report-btn-excel").addEventListener("click", () => {
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigoInput ? codigoInput.value : null);
     });
   });
 }
