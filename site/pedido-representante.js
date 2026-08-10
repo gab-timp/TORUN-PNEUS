@@ -23,8 +23,11 @@ const UF_LIST = [
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ];
 
-const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT", "SC REVENDA"];
+const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
+const TIPO_CLIENTE_OPCOES = ["REVENDA", "FROTA", "CONSUMO", "CONSUMO_DIFAL"];
+const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota", CONSUMO: "Consumo", CONSUMO_DIFAL: "Consumo com DIFAL" };
+const UF_PARA_REGIAO = { SC: "SC/RS", RS: "SC/RS", PR: "PR", MG: "MG", MT: "MT" };
 
 const ETAPA_LABEL = {
   PRE_VENDA: "Pré-venda", ENTRADA: "Entrada", AUTORIZACAO_GERENCIA: "Autorização de Gerência", ANALISE_CREDITO: "Análise de Crédito",
@@ -158,7 +161,7 @@ async function afterLogin() {
 
   const [produtosRes, precosRes, movimentosRes, entregasRes, preCadastrosRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, foto_path, foto_path_2").order("codigo"),
-    sb.from("produtos_precos").select("codigo, regiao, condicao_pagamento, preco"),
+    sb.from("produtos_precos").select("codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
     sb.from("movimentos").select("codigo, tipo, quantidade"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false })
@@ -177,6 +180,9 @@ async function afterLogin() {
   document.getElementById("preCadEstado").innerHTML = UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
   document.getElementById("repCatalogoRegiao").innerHTML = `<option value="">Selecione…</option>` + CATALOGO_REGIOES.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
   document.getElementById("repCatalogoCondicao").innerHTML = `<option value="">Selecione…</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  const tipoClienteOpcoesHtml = `<option value="">Selecione…</option>` + TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  document.getElementById("repCatalogoTipoCliente").innerHTML = tipoClienteOpcoesHtml;
+  document.getElementById("preCadTipoCliente").innerHTML = tipoClienteOpcoesHtml;
 
   document.getElementById("loadingScreen").style.display = "none";
   document.getElementById("repShell").style.display = "block";
@@ -212,7 +218,7 @@ async function buscarClienteRep() {
   }
 
   const { data, error } = await sb.from("clientes")
-    .select("nome, razao_social, documento, endereco, estado, cidade");
+    .select("nome, razao_social, documento, endereco, estado, cidade, tipo_cliente");
 
   if (error) {
     erroEl.textContent = "Erro ao consultar cliente. Tente novamente.";
@@ -234,6 +240,12 @@ async function buscarClienteRep() {
   document.getElementById("repVendedorDisplay").textContent = currentUserNome;
   document.getElementById("repClienteGrid").style.display = "flex";
   document.getElementById("repItensBox").style.display = "block";
+
+  document.getElementById("repCatalogoRegiao").value = UF_PARA_REGIAO[encontrado.estado] || "";
+  document.getElementById("repCatalogoTipoCliente").value = encontrado.tipo_cliente || "";
+  document.querySelectorAll("#repItens tr").forEach(tr => {
+    preencherValorSugerido(tr, tr.querySelector(".rep-item-produto").value);
+  });
 
   if (!document.querySelectorAll("#repItens tr").length) {
     document.getElementById("repItens").appendChild(createItemRowRep());
@@ -277,11 +289,14 @@ function createItemRowRep() {
 
 function preencherValorSugerido(tr, codigo) {
   const regiao = document.getElementById("repCatalogoRegiao").value;
+  const tipoCliente = document.getElementById("repCatalogoTipoCliente").value;
   const condicao = document.getElementById("repCatalogoCondicao").value;
-  if (!codigo || !regiao || !condicao) return;
-  const preco = produtosPrecos.find(p => p.codigo === codigo && p.regiao === regiao && p.condicao_pagamento === condicao);
-  if (!preco) return;
-  tr.querySelector(".rep-item-valor").value = Number(preco.preco).toFixed(2);
+  if (!codigo || !regiao || !tipoCliente || !condicao) return;
+  const preco = produtosPrecos.find(p =>
+    p.codigo === codigo && p.regiao === regiao && p.tipo_cliente === tipoCliente && p.condicao_pagamento === condicao);
+  // sem preço cadastrado pra essa combinação, limpa o campo — nunca deixa um valor
+  // de uma combinação anterior (regiao/tipo/condição diferente) parecer que é o certo
+  tr.querySelector(".rep-item-valor").value = preco ? Number(preco.preco).toFixed(2) : "";
   recalcularTotais();
 }
 
@@ -301,8 +316,8 @@ function fotoProdutoUrlRep(path) {
   return data ? data.publicUrl : null;
 }
 
-function getPrecoProdutoRep(codigo, regiao, condicao) {
-  const p = produtosPrecos.find(x => x.codigo === codigo && x.regiao === regiao && x.condicao_pagamento === condicao);
+function getPrecoProdutoRep(codigo, regiao, tipoCliente, condicao) {
+  const p = produtosPrecos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipo_cliente === tipoCliente && x.condicao_pagamento === condicao);
   return p ? Number(p.preco) : null;
 }
 
@@ -317,12 +332,18 @@ function populateRepCatalogoFiltros() {
   if (selCondicao.options.length <= 1) {
     selCondicao.innerHTML = `<option value="">Selecione…</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   }
+
+  const selTipo = document.getElementById("repCatTipoClienteView");
+  if (selTipo.options.length === 0) {
+    selTipo.innerHTML = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+    selTipo.value = "CONSUMO";
+  }
 }
 
-function buildPrecoMatrixHtmlRep(codigo) {
-  const precos = produtosPrecos.filter(p => p.codigo === codigo);
+function buildPrecoMatrixHtmlRep(codigo, tipoCliente) {
+  const precos = produtosPrecos.filter(p => p.codigo === codigo && p.tipo_cliente === tipoCliente);
   if (precos.length === 0) {
-    return `<div class="note">Nenhum preço cadastrado para este produto ainda.</div>`;
+    return `<div class="note">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
   }
   const linhas = CATALOGO_CONDICOES.map(cond => {
     const cells = CATALOGO_REGIOES.map(r => precos.find(x => x.regiao === r && x.condicao_pagamento === cond));
@@ -342,6 +363,7 @@ function renderRepCatalogo() {
   const categoria = document.getElementById("repCatFiltroCategoria").value;
   const condicao = document.getElementById("repCatCondicaoView").value;
   const condicaoAtual = condicao || "A VISTA";
+  const tipoClienteAtual = document.getElementById("repCatTipoClienteView").value || "CONSUMO";
 
   let rows = produtos.filter(p => computeSaldoProduto(p.codigo) > 0);
   if (search) {
@@ -375,7 +397,7 @@ function renderRepCatalogo() {
     const temAlgumSpec = specs.some(([, v]) => v);
 
     const precoPorRegiao = CATALOGO_REGIOES.map(r => {
-      const preco = getPrecoProdutoRep(p.codigo, r, condicaoAtual);
+      const preco = getPrecoProdutoRep(p.codigo, r, tipoClienteAtual, condicaoAtual);
       return `<div class="catalogo-prazo-row">
         <span>${escapeHtml(r)}</span>
         <span class="mono">${preco !== null ? formatMoney(preco) : "—"}</span>
@@ -402,14 +424,14 @@ function renderRepCatalogo() {
         ` : ""}
 
         <div class="catalogo-card-divider"></div>
-        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(condicaoAtual)}</div>
+        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} · ${escapeHtml(condicaoAtual)}</div>
         <div class="catalogo-prazos-lista aberto">
           ${precoPorRegiao}
         </div>
 
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
-          ${aberto ? buildPrecoMatrixHtmlRep(p.codigo) : ""}
+          ${aberto ? buildPrecoMatrixHtmlRep(p.codigo, tipoClienteAtual) : ""}
         </div>
       </div>
     `;
@@ -479,6 +501,7 @@ function initRepCatalogo() {
   document.getElementById("repCatSearch").addEventListener("input", renderRepCatalogo);
   document.getElementById("repCatFiltroCategoria").addEventListener("change", renderRepCatalogo);
   document.getElementById("repCatCondicaoView").addEventListener("change", renderRepCatalogo);
+  document.getElementById("repCatTipoClienteView").addEventListener("change", renderRepCatalogo);
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);
   document.getElementById("catalogoFotoLightboxOverlay").addEventListener("click", (e) => {
@@ -524,7 +547,7 @@ function buildPedidoPrintHtml(pedido) {
   const dataValidade = new Date(dataEmissao.getTime() + 14 * 24 * 3600 * 1000);
   const validadeStr = formatDateBR(dataValidade.toISOString().slice(0, 10));
   const contatoVendedor = [pedido.vendedor, (currentUser && currentUser.email) || null].filter(Boolean).join(" — ");
-  const tabelaPreco = [pedido.tabela_preco_regiao, pedido.tabela_preco_condicao].filter(Boolean).join(" · ");
+  const tabelaPreco = [pedido.tabela_preco_regiao, TIPO_CLIENTE_LABEL[pedido.tabela_preco_tipo_cliente] || null, pedido.tabela_preco_condicao].filter(Boolean).join(" · ");
 
   return `
     <div class="ficha-proposta">
@@ -595,7 +618,7 @@ function initForm() {
     document.getElementById("repItens").appendChild(createItemRowRep());
     updateRemoveVisibilityRep();
   });
-  ["repCatalogoRegiao", "repCatalogoCondicao"].forEach(id => {
+  ["repCatalogoRegiao", "repCatalogoTipoCliente", "repCatalogoCondicao"].forEach(id => {
     document.getElementById(id).addEventListener("change", () => {
       document.querySelectorAll("#repItens tr").forEach(tr => {
         preencherValorSugerido(tr, tr.querySelector(".rep-item-produto").value);
@@ -684,6 +707,7 @@ async function salvarPedidoRep() {
     reserva_status: null,
     reserva_expira_em: null,
     tabela_preco_regiao: document.getElementById("repCatalogoRegiao").value || null,
+    tabela_preco_tipo_cliente: document.getElementById("repCatalogoTipoCliente").value || null,
     tabela_preco_condicao: document.getElementById("repCatalogoCondicao").value || null
   };
 
@@ -855,6 +879,7 @@ function initPreCadastroForm() {
       estado: document.getElementById("preCadEstado").value || null,
       cidade: document.getElementById("preCadCidade").value.trim() || null,
       endereco: document.getElementById("preCadEndereco").value.trim() || null,
+      tipo_cliente: document.getElementById("preCadTipoCliente").value || null,
       status: "pendente",
       created_by: currentUser.id,
       enviado_por: currentUserNome

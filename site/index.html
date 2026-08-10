@@ -552,13 +552,17 @@
             </select>
           </div>
           <div class="field">
+            <label>Tipo de cliente</label>
+            <select id="catTipoCliente"></select>
+          </div>
+          <div class="field">
             <label>Condição de pagamento</label>
             <select id="catCondicao">
               <option value="">Selecione…</option>
             </select>
           </div>
         </div>
-        <div class="note">Cada card já mostra o preço de todas as regiões para a condição de pagamento escolhida (À vista por padrão). Clique em "Ver prazos" pra abrir a tabela completa com todas as condições.</div>
+        <div class="note">Cada card já mostra o preço de todas as regiões para o tipo de cliente e condição de pagamento escolhidos (Consumo à vista por padrão). Clique em "Ver prazos" pra abrir a tabela completa com todas as condições.</div>
       </div>
 
       <div class="catalogo-grid" id="catalogoGrid"></div>
@@ -983,6 +987,12 @@
               <input type="text" id="cliEndereco" placeholder="Ex: Rua das Palmeiras, 123 - Centro">
             </div>
           </div>
+          <div class="form-row">
+            <div class="field">
+              <label>Tipo de cliente</label>
+              <select id="cliTipoCliente" required></select>
+            </div>
+          </div>
           <div class="form-actions">
             <button type="submit" class="btn primary">Adicionar cliente</button>
           </div>
@@ -997,7 +1007,7 @@
         <div class="note" style="margin-bottom:10px;">Cadastros enviados por representantes, aguardando aprovação.</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Cidade/UF</th><th>Enviado por</th><th>Data</th><th></th></tr></thead>
+            <thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Cidade/UF</th><th>Tipo</th><th>Enviado por</th><th>Data</th><th></th></tr></thead>
             <tbody id="preCadTbody"></tbody>
           </table>
         </div>
@@ -1015,7 +1025,7 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th class="write-ui"></th><th>Nome</th><th>Estado</th><th>Cidade</th><th>Tags</th><th></th></tr></thead>
+            <thead><tr><th class="write-ui"></th><th>Nome</th><th>Estado</th><th>Cidade</th><th>Tipo</th><th>Tags</th><th></th></tr></thead>
             <tbody id="cliTbody"></tbody>
           </table>
         </div>
@@ -1415,6 +1425,12 @@
           <input type="text" id="clienteEditEndereco">
         </div>
       </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Tipo de cliente</label>
+          <select id="clienteEditTipoCliente"></select>
+        </div>
+      </div>
       <div class="form-actions">
         <button type="button" class="btn outline" id="btnCancelarEdicaoCliente">Cancelar</button>
         <button type="submit" class="btn primary">Salvar alterações</button>
@@ -1577,7 +1593,10 @@
     <div class="catalogo-modal-section">
       <div class="catalogo-modal-section-head">
         <h4>Preços por região e condição de pagamento</h4>
-        <button type="button" class="btn small outline write-ui" id="btnEditarPrecosCatalogo">Editar preços</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select id="catalogoModalTipoCliente" style="font-size:12px;"></select>
+          <button type="button" class="btn small outline write-ui" id="btnEditarPrecosCatalogo">Editar preços</button>
+        </div>
       </div>
       <div id="catalogoModalPrecoWrap" style="max-height:280px; overflow-y:auto;"></div>
       <form id="formEditarPrecosCatalogo" class="write-ui" style="display:none;">
@@ -1625,6 +1644,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=100"></script>
+<script src="app.js?v=101"></script>
 </body>
 </html>

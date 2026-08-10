@@ -127,12 +127,18 @@
             </select>
           </div>
           <div class="field">
+            <label>Tipo de cliente</label>
+            <select id="repCatalogoTipoCliente">
+              <option value="">Selecione…</option>
+            </select>
+          </div>
+          <div class="field">
             <label>Tabela de preço — Condição de pagamento</label>
             <select id="repCatalogoCondicao">
               <option value="">Selecione…</option>
             </select>
           </div>
-          <div class="note">Escolha a região e a condição de pagamento do catálogo para preencher o valor unitário automaticamente ao selecionar um produto. O valor continua editável.</div>
+          <div class="note">Região e tipo de cliente vêm preenchidos automaticamente pelo cadastro do cliente (continuam editáveis) — escolha a condição de pagamento pra completar o preenchimento do valor unitário ao selecionar um produto. O valor continua editável.</div>
         </div>
         <div class="rep-itens-table-wrap">
           <table class="rep-itens-table">
@@ -207,13 +213,17 @@
           </select>
         </div>
         <div class="field">
+          <label>Tipo de cliente</label>
+          <select id="repCatTipoClienteView"></select>
+        </div>
+        <div class="field">
           <label>Condição de pagamento</label>
           <select id="repCatCondicaoView">
             <option value="">Selecione…</option>
           </select>
         </div>
       </div>
-      <div class="note">Escolha a condição de pagamento pra ver o preço em cada card (À vista por padrão). "Ver todos os prazos" mostra a tabela completa por região.</div>
+      <div class="note">Escolha o tipo de cliente e a condição de pagamento pra ver o preço em cada card (Consumo à vista por padrão). "Ver todos os prazos" mostra a tabela completa por região.</div>
     </div>
 
     <div class="catalogo-grid" id="repCatalogoGrid"></div>
@@ -273,6 +283,9 @@
           <div class="field"><label>Estado (UF)</label><select id="preCadEstado"></select></div>
           <div class="field grow"><label>Cidade</label><input type="text" id="preCadCidade"></div>
           <div class="field grow"><label>Endereço</label><input type="text" id="preCadEndereco"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Tipo de cliente</label><select id="preCadTipoCliente" required></select></div>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn primary">Enviar para aprovação</button>
@@ -340,6 +353,6 @@
 <div id="printArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=15"></script>
+<script src="pedido-representante.js?v=16"></script>
 </body>
 </html>

@@ -97,7 +97,7 @@ function clienteToRow(c) {
     nome: c.nome, estado: c.estado || null, cidade: c.cidade || null,
     documento: c.documento || null, telefone: c.telefone || null, email: c.email || null,
     endereco: c.endereco || null, contato: c.contato || null, razao_social: c.razaoSocial || null,
-    tags: c.tags || [], notas: c.notas || []
+    tags: c.tags || [], notas: c.notas || [], tipo_cliente: c.tipoCliente || null
   };
 }
 function clienteFromRow(r) {
@@ -105,7 +105,7 @@ function clienteFromRow(r) {
     nome: r.nome, estado: r.estado || "", cidade: r.cidade || "",
     documento: r.documento || "", telefone: r.telefone || "", email: r.email || "",
     endereco: r.endereco || "", contato: r.contato || "", razaoSocial: r.razao_social || "",
-    tags: r.tags || [], notas: r.notas || [], createdAt: r.created_at
+    tags: r.tags || [], notas: r.notas || [], createdAt: r.created_at, tipoCliente: r.tipo_cliente || ""
   };
 }
 
@@ -156,7 +156,8 @@ function entregaToRow(e) {
     finalidade: e.finalidade || null, condicao_pagamento: e.condicaoPagamento || null, forma_pagamento: e.formaPagamento || null,
     prazo_pagamento: e.prazoPagamento || null, obs_impressao_nf: e.obsImpressaoNF || null, origem: e.origem || "interno",
     reserva: !!e.reserva, reserva_status: e.reservaStatus || null, reserva_expira_em: e.reservaExpiraEm || null,
-    tabela_preco_regiao: e.tabelaPrecoRegiao || null, tabela_preco_condicao: e.tabelaPrecoCondicao || null
+    tabela_preco_regiao: e.tabelaPrecoRegiao || null, tabela_preco_condicao: e.tabelaPrecoCondicao || null,
+    tabela_preco_tipo_cliente: e.tabelaPrecoTipoCliente || null
   };
 }
 function entregaFromRow(r) {
@@ -170,7 +171,8 @@ function entregaFromRow(r) {
     finalidade: r.finalidade || "", condicaoPagamento: r.condicao_pagamento || "", formaPagamento: r.forma_pagamento || "",
     prazoPagamento: r.prazo_pagamento || "", obsImpressaoNF: r.obs_impressao_nf || "", origem: r.origem || "interno",
     reserva: !!r.reserva, reservaStatus: r.reserva_status || null, reservaExpiraEm: r.reserva_expira_em || null,
-    tabelaPrecoRegiao: r.tabela_preco_regiao || "", tabelaPrecoCondicao: r.tabela_preco_condicao || ""
+    tabelaPrecoRegiao: r.tabela_preco_regiao || "", tabelaPrecoCondicao: r.tabela_preco_condicao || "",
+    tabelaPrecoTipoCliente: r.tabela_preco_tipo_cliente || ""
   };
 }
 
@@ -195,7 +197,7 @@ function produtoFromRow(r) {
   };
 }
 function precoFromRow(r) {
-  return { id: r.id, codigo: r.codigo, regiao: r.regiao, condicaoPagamento: r.condicao_pagamento, preco: Number(r.preco) };
+  return { id: r.id, codigo: r.codigo, regiao: r.regiao, tipoCliente: r.tipo_cliente, condicaoPagamento: r.condicao_pagamento, preco: Number(r.preco) };
 }
 function movimentoFromRow(r) {
   return {
@@ -285,16 +287,18 @@ function getProduto(codigo) {
 /* ---------------- catálogo: preços por região e condição ---------------- */
 
 const CATALOGO_BUCKET = "produtos-fotos";
-const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT", "SC REVENDA"];
+const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
+const TIPO_CLIENTE_OPCOES = ["REVENDA", "FROTA", "CONSUMO", "CONSUMO_DIFAL"];
+const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota", CONSUMO: "Consumo", CONSUMO_DIFAL: "Consumo com DIFAL" };
 
-function getPrecoProduto(codigo, regiao, condicaoPagamento) {
-  const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.condicaoPagamento === condicaoPagamento);
+function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
+  const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipoCliente && x.condicaoPagamento === condicaoPagamento);
   return p ? p.preco : null;
 }
 
-function getPrecosDoProduto(codigo) {
-  return state.produtos_precos.filter(p => p.codigo === codigo);
+function getPrecosDoProduto(codigo, tipoCliente) {
+  return state.produtos_precos.filter(p => p.codigo === codigo && (!tipoCliente || p.tipoCliente === tipoCliente));
 }
 
 function fotoProdutoUrl(fotoPath) {
@@ -1083,10 +1087,20 @@ function populateCatalogoCondicao() {
   }
 }
 
-function buildPrecoMatrixHtml(codigo) {
-  const precos = getPrecosDoProduto(codigo);
+function populateCatalogoTipoCliente() {
+  const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente")].forEach(sel => {
+    if (sel && sel.options.length === 0) {
+      sel.innerHTML = opcoesHtml;
+      sel.value = "CONSUMO";
+    }
+  });
+}
+
+function buildPrecoMatrixHtml(codigo, tipoCliente) {
+  const precos = getPrecosDoProduto(codigo, tipoCliente);
   if (precos.length === 0) {
-    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto ainda.</div>`;
+    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
   }
   const linhas = CATALOGO_CONDICOES.map(cond => {
     const cells = CATALOGO_REGIOES.map(r => precos.find(x => x.regiao === r && x.condicaoPagamento === cond));
@@ -1099,8 +1113,8 @@ function buildPrecoMatrixHtml(codigo) {
   </table></div>`;
 }
 
-function buildPrecoMatrixEditHtml(codigo) {
-  const precos = getPrecosDoProduto(codigo);
+function buildPrecoMatrixEditHtml(codigo, tipoCliente) {
+  const precos = getPrecosDoProduto(codigo, tipoCliente);
   const linhas = CATALOGO_CONDICOES.map(cond => {
     const cells = CATALOGO_REGIOES.map(r => {
       const p = precos.find(x => x.regiao === r && x.condicaoPagamento === cond);
@@ -1117,10 +1131,12 @@ function buildPrecoMatrixEditHtml(codigo) {
 function renderCatalogo() {
   populateCatalogoFiltroCategoria();
   populateCatalogoCondicao();
+  populateCatalogoTipoCliente();
 
   const search = (document.getElementById("catSearch").value || "").trim().toLowerCase();
   const categoria = document.getElementById("catFiltroCategoria").value;
   const condicao = document.getElementById("catCondicao").value;
+  const tipoCliente = document.getElementById("catTipoCliente").value || "CONSUMO";
 
   let rows = state.produtos.filter(p => computeProdutoTotais(p.codigo).saldo > 0);
   if (search) {
@@ -1156,7 +1172,7 @@ function renderCatalogo() {
     const temAlgumSpec = specs.some(([, v]) => v);
 
     const precoPorRegiao = CATALOGO_REGIOES.map(r => {
-      const preco = getPrecoProduto(p.codigo, r, condicaoAtual);
+      const preco = getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual);
       return `<div class="catalogo-prazo-row">
         <span>${escapeHtml(r)}</span>
         <span class="mono">${preco !== null ? formatMoney(preco) : "—"}</span>
@@ -1184,14 +1200,14 @@ function renderCatalogo() {
         ` : ""}
 
         <div class="catalogo-card-divider"></div>
-        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(condicaoAtual)}</div>
+        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}</div>
         <div class="catalogo-prazos-lista aberto">
           ${precoPorRegiao}
         </div>
 
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-toggleprazos="${escapeAttr(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" data-prazoslista="${escapeAttr(p.codigo)}" style="display:${aberto ? "" : "none"};">
-          ${aberto ? buildPrecoMatrixHtml(p.codigo) : ""}
+          ${aberto ? buildPrecoMatrixHtml(p.codigo, tipoCliente) : ""}
         </div>
       </div>
     `;
@@ -1224,7 +1240,8 @@ function renderCatalogo() {
 }
 
 function renderCatalogoModalPrecos(codigo) {
-  document.getElementById("catalogoModalPrecoWrap").innerHTML = buildPrecoMatrixHtml(codigo);
+  const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
+  document.getElementById("catalogoModalPrecoWrap").innerHTML = buildPrecoMatrixHtml(codigo, tipoCliente);
 }
 
 function openCatalogoModal(codigo) {
@@ -1269,6 +1286,7 @@ function openCatalogoModal(codigo) {
   document.getElementById("catEditLargBanda").value = p.largBandaMm || "";
   document.getElementById("catEditPeso").value = p.pesoKg || "";
 
+  populateCatalogoTipoCliente();
   renderCatalogoModalPrecos(codigo);
   document.getElementById("formEditarPrecosCatalogo").style.display = "none";
   document.getElementById("catalogoModalPrecoWrap").style.display = "";
@@ -1330,7 +1348,8 @@ async function salvarPrecosCatalogo(e) {
   e.preventDefault();
   if (!catalogoEditingCodigo) return;
   const codigo = catalogoEditingCodigo;
-  const existentes = getPrecosDoProduto(codigo);
+  const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
+  const existentes = getPrecosDoProduto(codigo, tipoCliente);
   const inputs = Array.from(document.querySelectorAll("#catalogoModalPrecoEditWrap .catalogo-preco-input"));
 
   const upserts = [];
@@ -1346,7 +1365,7 @@ async function salvarPrecosCatalogo(e) {
     }
     const valor = parseFloat(raw.replace(",", "."));
     if (!(valor >= 0)) { toast(`Preço inválido em ${regiao} / ${condicao}.`); return; }
-    upserts.push({ codigo, regiao, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
+    upserts.push({ codigo, regiao, tipo_cliente: tipoCliente, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
   }
 
   const btn = e.target.querySelector('button[type="submit"]');
@@ -1355,7 +1374,7 @@ async function salvarPrecosCatalogo(e) {
   btn.textContent = "Salvando...";
 
   if (upserts.length) {
-    const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,condicao_pagamento" });
+    const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
     if (error) { toast("Erro ao salvar preços: " + error.message); btn.disabled = false; btn.textContent = labelOriginal; return; }
   }
   if (remocoes.length) {
@@ -1462,6 +1481,7 @@ function initCatalogo() {
   document.getElementById("catSearch").addEventListener("input", renderCatalogo);
   document.getElementById("catFiltroCategoria").addEventListener("change", renderCatalogo);
   document.getElementById("catCondicao").addEventListener("change", renderCatalogo);
+  document.getElementById("catTipoCliente").addEventListener("change", renderCatalogo);
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);
   document.getElementById("catalogoFotoLightboxOverlay").addEventListener("click", (e) => {
@@ -1486,7 +1506,8 @@ function initCatalogo() {
   document.getElementById("formEditarCatalogo").addEventListener("submit", salvarEdicaoCatalogo);
 
   document.getElementById("btnEditarPrecosCatalogo").addEventListener("click", () => {
-    document.getElementById("catalogoModalPrecoEditWrap").innerHTML = buildPrecoMatrixEditHtml(catalogoEditingCodigo);
+    const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
+    document.getElementById("catalogoModalPrecoEditWrap").innerHTML = buildPrecoMatrixEditHtml(catalogoEditingCodigo, tipoCliente);
     document.getElementById("catalogoModalPrecoWrap").style.display = "none";
     document.getElementById("btnEditarPrecosCatalogo").style.display = "none";
     document.getElementById("formEditarPrecosCatalogo").style.display = "";
@@ -1497,6 +1518,14 @@ function initCatalogo() {
     document.getElementById("btnEditarPrecosCatalogo").style.display = "";
   });
   document.getElementById("formEditarPrecosCatalogo").addEventListener("submit", salvarPrecosCatalogo);
+  document.getElementById("catalogoModalTipoCliente").addEventListener("change", () => {
+    if (!catalogoEditingCodigo) return;
+    renderCatalogoModalPrecos(catalogoEditingCodigo);
+    if (document.getElementById("formEditarPrecosCatalogo").style.display !== "none") {
+      const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
+      document.getElementById("catalogoModalPrecoEditWrap").innerHTML = buildPrecoMatrixEditHtml(catalogoEditingCodigo, tipoCliente);
+    }
+  });
 
   [1, 2].forEach(slot => {
     document.getElementById(`btnCatalogoFoto${slot}`).addEventListener("click", () => {
@@ -1830,7 +1859,7 @@ function renderEntregas() {
           <div class="kanban-card-meta">
             ${e.reserva ? `<span class="kanban-card-tag reserva">RESERVA</span>` : ""}
             ${e.origem === "representante" ? `<span class="kanban-card-tag representante">Pedido do representante</span>` : ""}
-            ${(e.tabelaPrecoRegiao || e.tabelaPrecoCondicao) ? `<span class="kanban-card-tag">${escapeHtml([e.tabelaPrecoRegiao, e.tabelaPrecoCondicao].filter(Boolean).join(" · "))}</span>` : ""}
+            ${(e.tabelaPrecoRegiao || e.tabelaPrecoTipoCliente || e.tabelaPrecoCondicao) ? `<span class="kanban-card-tag">${escapeHtml([e.tabelaPrecoRegiao, TIPO_CLIENTE_LABEL[e.tabelaPrecoTipoCliente] || null, e.tabelaPrecoCondicao].filter(Boolean).join(" · "))}</span>` : ""}
             ${e.transportadora ? `<span class="kanban-card-tag">${escapeHtml(e.transportadora)}</span>` : ""}
             ${e.formaPagamento ? `<span class="kanban-card-tag">${escapeHtml(e.formaPagamento)}</span>` : ""}
             ${e.dataPrevista ? `<span class="kanban-card-tag">Prev. ${formatDateBR(e.dataPrevista)}</span>` : ""}
@@ -2301,6 +2330,12 @@ function populateEstadoSelect() {
   const opts = UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
   document.getElementById("cliEstado").innerHTML = opts;
   document.getElementById("clienteEditEstado").innerHTML = opts;
+}
+
+function populateTipoClienteSelects() {
+  const opts = `<option value="">Selecione…</option>` + TIPO_CLIENTE_OPCOES.map(t => `<option value="${t}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  document.getElementById("cliTipoCliente").innerHTML = opts;
+  document.getElementById("clienteEditTipoCliente").innerHTML = opts;
 }
 
 function renderClienteSelect() {
@@ -2961,6 +2996,7 @@ function renderClientes() {
       <td class="cliente-nome-click" data-clientenome="${escapeAttr(c.nome)}">${escapeHtml(c.nome)}</td>
       <td class="mono">${escapeHtml(c.estado || "—")}</td>
       <td>${escapeHtml(c.cidade || "—")}</td>
+      <td>${escapeHtml(TIPO_CLIENTE_LABEL[c.tipoCliente] || "—")}</td>
       <td>
         <div class="cliente-tags-list-compact">
           ${(c.tags || []).map(t => `<span class="cliente-tag-pill">${escapeHtml(t)}</span>`).join("") || "—"}
@@ -3025,6 +3061,7 @@ function renderPreCadastrosClientes() {
       <td>${escapeHtml(p.nome)}</td>
       <td class="mono">${escapeHtml(p.documento || "—")}</td>
       <td>${escapeHtml([p.cidade, p.estado].filter(Boolean).join(" / ") || "—")}</td>
+      <td>${escapeHtml(TIPO_CLIENTE_LABEL[p.tipo_cliente] || "—")}</td>
       <td>${escapeHtml(p.enviado_por || "—")}</td>
       <td class="mono">${formatDateBR((p.created_at || "").slice(0, 10))}</td>
       <td>
@@ -3059,7 +3096,8 @@ async function aprovarPreCadastro(id) {
   const novoCliente = {
     nome: p.nome, estado: p.estado || "", cidade: p.cidade || "",
     documento: p.documento || "", razaoSocial: p.razao_social || "",
-    telefone: p.telefone || "", email: p.email || "", endereco: p.endereco || "", contato: p.contato || ""
+    telefone: p.telefone || "", email: p.email || "", endereco: p.endereco || "", contato: p.contato || "",
+    tipoCliente: p.tipo_cliente || null
   };
   const { data: inserido, error: errInsert } = await sb.from("clientes").insert(clienteToRow(novoCliente)).select();
   if (errInsert) { toast("Erro ao aprovar: " + errInsert.message); return; }
@@ -3094,7 +3132,7 @@ function abrirMesclarClientesModal() {
   const nomes = Array.from(clientesSelecionadosParaMesclar);
   if (nomes.length < 2) return;
 
-  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "contato", "estado", "cidade"];
+  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "contato", "estado", "cidade", "tipoCliente"];
   const itens = nomes.map(nome => {
     const c = getCliente(nome);
     const vendasCount = state.vendas.filter(v => v.cliente === nome).length;
@@ -3143,7 +3181,7 @@ async function confirmarMesclagemClientes() {
   const survivor = getCliente(survivorNome);
   const grupo = [survivor, ...outros.map(getCliente)];
 
-  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "contato", "estado", "cidade"];
+  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "contato", "estado", "cidade", "tipoCliente"];
   const camposMesclados = {};
   CAMPOS_MESCLAGEM.forEach(f => {
     camposMesclados[f] = survivor[f] || (grupo.find(c => c[f]) || {})[f] || "";
@@ -3164,6 +3202,7 @@ async function confirmarMesclagemClientes() {
     contato: camposMesclados.contato || null,
     estado: camposMesclados.estado || null,
     cidade: camposMesclados.cidade || null,
+    tipo_cliente: camposMesclados.tipoCliente || null,
     tags: tagsMescladas,
     notas: notasMescladas
   };
@@ -3316,7 +3355,7 @@ function openClienteModal(nome) {
   document.getElementById("clienteModalInfo").innerHTML = [
     ["Documento", c.documento], ["Razão social", c.razaoSocial], ["Telefone", c.telefone], ["E-mail", c.email],
     ["Endereço", c.endereco], ["Cidade/UF", [c.cidade, c.estado].filter(Boolean).join(" / ")],
-    ["Contato responsável", c.contato]
+    ["Contato responsável", c.contato], ["Tipo de cliente", TIPO_CLIENTE_LABEL[c.tipoCliente] || c.tipoCliente]
   ].map(([lbl, val]) => `<div><div class="lbl">${lbl}</div><div class="val">${escapeHtml(val || "—")}</div></div>`).join("");
 
   document.getElementById("clienteModalKpis").innerHTML = [
@@ -3371,6 +3410,7 @@ function abrirEdicaoCliente() {
   document.getElementById("clienteEditEstado").value = c.estado || "";
   document.getElementById("clienteEditCidade").value = c.cidade || "";
   document.getElementById("clienteEditEndereco").value = c.endereco || "";
+  document.getElementById("clienteEditTipoCliente").value = c.tipoCliente || "";
   document.getElementById("clienteModalInfo").style.display = "none";
   document.getElementById("formEditarCliente").style.display = "block";
 }
@@ -3401,7 +3441,8 @@ async function salvarEdicaoCliente() {
     email: document.getElementById("clienteEditEmail").value.trim(),
     estado: document.getElementById("clienteEditEstado").value,
     cidade: document.getElementById("clienteEditCidade").value.trim(),
-    endereco: document.getElementById("clienteEditEndereco").value.trim()
+    endereco: document.getElementById("clienteEditEndereco").value.trim(),
+    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null
   };
 
   const { error } = await sb.from("clientes").update(dados).eq("nome", nomeOriginal);
@@ -3430,6 +3471,7 @@ async function salvarEdicaoCliente() {
   c.estado = dados.estado;
   c.cidade = dados.cidade;
   c.endereco = dados.endereco;
+  c.tipoCliente = dados.tipo_cliente || "";
 
   await registrarLog("clientes", novoNome, "edicao", "Ação automática",
     `Cadastro do cliente atualizado${renomeou ? ` (renomeado de "${nomeOriginal}")` : ""}`);
@@ -3618,6 +3660,7 @@ function initForms() {
   document.getElementById("saiData").value = todayISO();
   document.getElementById("venData").value = todayISO();
   populateEstadoSelect();
+  populateTipoClienteSelects();
 
   document.getElementById("btnAddItemPrevisto").addEventListener("click", () => {
     document.getElementById("prevItens").appendChild(createItemRow("prevItens"));
@@ -4145,7 +4188,8 @@ function initForms() {
       telefone: document.getElementById("cliTelefone").value.trim(),
       email: document.getElementById("cliEmail").value.trim(),
       endereco: document.getElementById("cliEndereco").value.trim(),
-      contato: document.getElementById("cliContato").value.trim()
+      contato: document.getElementById("cliContato").value.trim(),
+      tipoCliente: document.getElementById("cliTipoCliente").value || null
     };
     const { data: inserido, error } = await sb.from("clientes").insert(clienteToRow(novoCliente)).select();
     if (error) { toast("Erro ao adicionar cliente: " + error.message); return; }
