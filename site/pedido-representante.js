@@ -17,6 +17,9 @@ let clienteAtual = null;
 let ultimoPedidoSalvo = null;
 let itemRowSeq = 0;
 let toastTimer;
+let currentUserTema = null;
+let currentUserNotifMudancaEtapa = true;
+let propostaValidadeDias = 14;
 
 const UF_LIST = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
@@ -97,8 +100,106 @@ function initThemeToggle() {
       const choice = btn.dataset.themeChoice;
       localStorage.setItem(THEME_KEY, choice);
       applyThemeChoice(choice);
+      currentUserTema = choice;
+      if (currentUser) {
+        sb.from("user_preferences").upsert({ user_id: currentUser.id, tema: choice }, { onConflict: "user_id" })
+          .then(({ error }) => { if (error) console.error("Erro ao salvar tema:", error); });
+      }
     });
   });
+}
+
+/* ---------------- minhas configurações ---------------- */
+
+function abrirMinhasConfiguracoesModal() {
+  document.getElementById("minhasConfigNome").value = currentUserNome || "";
+  document.getElementById("minhasConfigNotifEtapa").checked = currentUserNotifMudancaEtapa;
+  document.getElementById("minhasConfigOverlay").classList.add("show");
+}
+
+function closeMinhasConfiguracoesModal() {
+  document.getElementById("minhasConfigOverlay").classList.remove("show");
+}
+
+async function salvarNomeExibicao() {
+  const novoNome = document.getElementById("minhasConfigNome").value.trim();
+  if (!novoNome) { toast("O nome não pode ficar em branco."); return; }
+  const { error } = await sb.rpc("atualizar_meu_nome", { novo_nome: novoNome });
+  if (error) { toast("Erro ao salvar nome: " + error.message); return; }
+  currentUserNome = novoNome;
+  document.getElementById("repNomeVendedor").textContent = currentUserNome;
+  toast("Nome atualizado.");
+}
+
+async function salvarNotificacaoEtapaPreferencia(checked) {
+  currentUserNotifMudancaEtapa = checked;
+  const { error } = await sb.from("user_preferences").upsert(
+    { user_id: currentUser.id, notif_mudanca_etapa: checked }, { onConflict: "user_id" }
+  );
+  if (error) toast("Erro ao salvar preferência: " + error.message);
+}
+
+function initMinhasConfiguracoes() {
+  document.getElementById("repNomeVendedor").addEventListener("click", abrirMinhasConfiguracoesModal);
+  document.getElementById("minhasConfigCancelar").addEventListener("click", closeMinhasConfiguracoesModal);
+  document.getElementById("minhasConfigOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "minhasConfigOverlay") closeMinhasConfiguracoesModal();
+  });
+  document.getElementById("minhasConfigSalvar").addEventListener("click", async () => {
+    await salvarNomeExibicao();
+    await salvarNotificacaoEtapaPreferencia(document.getElementById("minhasConfigNotifEtapa").checked);
+    closeMinhasConfiguracoesModal();
+  });
+}
+
+/* ---------------- aviso: minha proposta mudou de etapa (só popup, sem card fixo) ---------------- */
+/* Essa tela não tem realtime, então a comparação usa o que ficou salvo no navegador
+   da última vez que o representante abriu o sistema — assim o aviso aparece quando
+   ele volta e algum pedido dele avançou de etapa desde a última visita. */
+
+const ETAPAS_CONHECIDAS_KEY = "torun_etapas_conhecidas_v1";
+
+function carregarEtapasConhecidas() {
+  try {
+    return new Map(Object.entries(JSON.parse(localStorage.getItem(ETAPAS_CONHECIDAS_KEY)) || {}));
+  } catch (e) {
+    return new Map();
+  }
+}
+
+function salvarEtapasConhecidas(mapa) {
+  localStorage.setItem(ETAPAS_CONHECIDAS_KEY, JSON.stringify(Object.fromEntries(mapa)));
+}
+
+function mostrarAlertaMudancaEtapaPopup(pedido) {
+  const container = document.getElementById("propostaAlerts");
+  if (!container) return;
+  const el = document.createElement("div");
+  el.className = "proposta-alert-item";
+  el.innerHTML = `
+    <div class="titulo">
+      <span>Pedido atualizado</span>
+      <button type="button" class="fechar">✕</button>
+    </div>
+    <div>Nº ${escapeHtml(pedido.numero_pedido || "—")} agora está em "${escapeHtml(ETAPA_LABEL[pedido.etapa] || pedido.etapa)}"</div>
+  `;
+  container.appendChild(el);
+  el.querySelector(".fechar").addEventListener("click", () => el.remove());
+  setTimeout(() => el.remove(), 8000);
+}
+
+function atualizarAlertaMudancaEtapa() {
+  const meusPedidos = entregas.filter(e => e.created_by === currentUser.id);
+  const anteriores = carregarEtapasConhecidas();
+  if (anteriores.size > 0 && currentUserNotifMudancaEtapa) {
+    meusPedidos.forEach(p => {
+      const etapaAnterior = anteriores.get(p.id);
+      if (etapaAnterior !== undefined && etapaAnterior !== p.etapa) {
+        mostrarAlertaMudancaEtapaPopup(p);
+      }
+    });
+  }
+  salvarEtapasConhecidas(new Map(meusPedidos.map(p => [p.id, p.etapa])));
 }
 
 /* ---------------- boot / auth ---------------- */
@@ -159,12 +260,14 @@ async function afterLogin() {
   currentUserNome = roleData.nome || currentUser.email;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
 
-  const [produtosRes, precosRes, movimentosRes, entregasRes, preCadastrosRes] = await Promise.all([
+  const [produtosRes, precosRes, movimentosRes, entregasRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, foto_path, foto_path_2").order("codigo"),
     sb.from("produtos_precos").select("codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
     sb.from("movimentos").select("codigo, tipo, quantidade"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
-    sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false })
+    sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
+    sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
+    sb.from("configuracoes_site").select("proposta_validade_dias").maybeSingle()
   ]);
   if (produtosRes.error) toast("Erro ao carregar produtos.");
   if (precosRes.error) toast("Erro ao carregar tabela de preços.");
@@ -175,6 +278,14 @@ async function afterLogin() {
   movimentos = movimentosRes.data || [];
   entregas = entregasRes.data || [];
   meusPreCadastros = preCadastrosRes.data || [];
+  currentUserTema = (prefRes.data && prefRes.data.tema) || null;
+  currentUserNotifMudancaEtapa = prefRes.data ? prefRes.data.notif_mudanca_etapa !== false : true;
+  propostaValidadeDias = (configRes.data && configRes.data.proposta_validade_dias) || 14;
+  if (currentUserTema && localStorage.getItem(THEME_KEY) !== currentUserTema) {
+    localStorage.setItem(THEME_KEY, currentUserTema);
+    applyThemeChoice(currentUserTema);
+  }
+  atualizarAlertaMudancaEtapa();
 
   document.getElementById("repDataPedido").textContent = formatDateBR(todayISO());
   document.getElementById("preCadEstado").innerHTML = UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
@@ -193,6 +304,7 @@ async function afterLogin() {
   initRepEntregas();
   initPreCadastroForm();
   initThemeToggle();
+  initMinhasConfiguracoes();
   renderRepEstoque();
   renderRepCatalogo();
   renderRepEntregas();
@@ -544,7 +656,7 @@ function buildPedidoPrintHtml(pedido) {
   }).join("");
   const total = pedido.itens.reduce((a, it) => a + it.valorTotal, 0);
   const dataEmissao = new Date(pedido.data + "T00:00:00");
-  const dataValidade = new Date(dataEmissao.getTime() + 14 * 24 * 3600 * 1000);
+  const dataValidade = new Date(dataEmissao.getTime() + propostaValidadeDias * 24 * 3600 * 1000);
   const validadeStr = formatDateBR(dataValidade.toISOString().slice(0, 10));
   const contatoVendedor = [pedido.vendedor, (currentUser && currentUser.email) || null].filter(Boolean).join(" — ");
   const tabelaPreco = [pedido.tabela_preco_regiao, TIPO_CLIENTE_LABEL[pedido.tabela_preco_tipo_cliente] || null, pedido.tabela_preco_condicao].filter(Boolean).join(" · ");

@@ -94,7 +94,9 @@ input,select,textarea{font-family:inherit;}
   color:rgba(255,255,255,.55);
   padding:0 2px 4px;
   word-break:break-all;
+  background:none; border:none; text-align:left; width:100%; cursor:pointer; font-family:inherit;
 }
+.sidebar-user:hover{ color:rgba(255,255,255,.85); text-decoration:underline; }
 .viewer-badge{
   display:none;
   font-size:10.5px;
@@ -208,6 +210,12 @@ body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display
 }
 .nav-item.active{background:var(--orange); color:var(--black);}
 .nav-item.active .ic{opacity:1;}
+
+/* .nav-item define display:flex, o que venceria .admin-only{display:none} por ordem
+   no arquivo (mesma especificidade, .nav-item vem depois) -- regra própria com as
+   duas classes juntas pra garantir prioridade, independente da ordem. */
+.nav-item.admin-only{display:none;}
+body.is-admin .nav-item.admin-only{display:flex;}
 
 .sidebar-foot{
   margin-top:auto;
@@ -612,6 +620,21 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .estoque-baixo-alert-item .fechar{cursor:pointer; background:none; border:none; color:var(--ink-soft); font-size:13px; line-height:1; padding:0;}
 .estoque-baixo-alert-item .fechar:hover{color:var(--orange-deep);}
+
+.proposta-alerts{bottom:260px;}
+.proposta-alert-item{
+  background:var(--surface); border:1px solid #2F80ED; border-left:4px solid #2F80ED;
+  border-radius:9px; padding:11px 13px; box-shadow:0 8px 24px rgba(0,0,0,.2);
+  font-size:12.5px; color:var(--ink);
+  animation:estoqueBaixoIn .2s ease;
+}
+.proposta-alert-item .titulo{
+  font-weight:800; color:#1D4FA8; margin-bottom:3px;
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+}
+.proposta-alert-item .fechar{cursor:pointer; background:none; border:none; color:var(--ink-soft); font-size:13px; line-height:1; padding:0;}
+.proposta-alert-item .fechar:hover{color:#1D4FA8;}
 @keyframes estoqueBaixoIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
 
 /* ---------------- responsive ---------------- */

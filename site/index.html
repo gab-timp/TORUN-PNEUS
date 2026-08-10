@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=85">
+<link rel="stylesheet" href="styles.css?v=87">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -103,6 +103,9 @@
       <button class="nav-item" data-view="historico">
         <span class="ic">▥</span> Histórico
       </button>
+      <button class="nav-item admin-only" data-view="administracao">
+        <span class="ic">⚙</span> Administração
+      </button>
     </nav>
 
     <div class="sidebar-foot">
@@ -111,7 +114,7 @@
         <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
       </div>
-      <div class="sidebar-user" id="sidebarUser"></div>
+      <button type="button" class="sidebar-user" id="sidebarUser" title="Minhas configurações"></button>
       <div class="viewer-badge">Modo somente leitura</div>
       <button class="ghost-btn admin-only" id="btnExport">⬇ Exportar backup (JSON)</button>
       <button class="ghost-btn admin-only" id="btnImport">⬆ Importar backup</button>
@@ -1202,6 +1205,51 @@
       </div>
     </section>
 
+    <section id="view-administracao" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Administração</h1>
+          <div class="sub">Configurações do site e gerenciamento dos usuários — visível só pra administradores.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Configurações do site</h2></div>
+        <div class="form-row">
+          <div class="field">
+            <label>Limite de estoque baixo (unidades)</label>
+            <input type="number" id="configEstoqueBaixoLimite" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Validade da proposta (dias)</label>
+            <input type="number" id="configPropostaValidadeDias" min="1" step="1">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn primary" id="btnSalvarConfigSite">Salvar configurações</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Usuários</h2></div>
+        <div class="note">Edite o papel, permissões e telas visíveis de quem já tem login. Criar um login novo continua sendo feito pelo Supabase.</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Papel</th>
+                <th>Admin</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="adminUsuariosTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -1209,6 +1257,68 @@
 
 <div id="toast"></div>
 <div id="estoqueBaixoAlerts" class="estoque-baixo-alerts"></div>
+<div id="propostaAlerts" class="estoque-baixo-alerts proposta-alerts"></div>
+
+<div class="modal-overlay" id="minhasConfigOverlay">
+  <div class="modal">
+    <h3>Minhas configurações</h3>
+    <div class="field">
+      <label>Tema</label>
+      <div class="theme-toggle">
+        <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
+        <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
+        <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Nome de exibição</label>
+      <input type="text" id="minhasConfigNome" maxlength="120">
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="minhasConfigNotifProposta"> Avisar quando chegar uma nova proposta de representante</label>
+    </div>
+    <div class="form-actions">
+      <button class="btn outline" id="minhasConfigCancelar">Fechar</button>
+      <button class="btn primary" id="minhasConfigSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="usuarioEditModalOverlay">
+  <div class="modal">
+    <h3>Editar usuário</h3>
+    <div class="field">
+      <label>E-mail</label>
+      <div class="mono" id="usuarioEditEmail" style="padding:8px 0;"></div>
+    </div>
+    <div class="field">
+      <label>Nome</label>
+      <input type="text" id="usuarioEditNome">
+    </div>
+    <div class="field">
+      <label>Papel</label>
+      <select id="usuarioEditRole">
+        <option value="editor">Editor</option>
+        <option value="viewer">Somente leitura</option>
+        <option value="representante">Representante</option>
+      </select>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="usuarioEditIsAdmin"> Administrador</label>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="usuarioEditPodeAutorizar"> Pode tirar pedidos de "Autorização de Gerência"</label>
+    </div>
+    <div class="field">
+      <label>Telas visíveis (todas marcadas = sem restrição)</label>
+      <div id="usuarioEditVisibleViewsLista" style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px;"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn outline" id="usuarioEditCancelar">Cancelar</button>
+      <button class="btn primary" id="usuarioEditSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="confirmOverlay">
   <div class="modal">
@@ -1672,6 +1782,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=103"></script>
+<script src="app.js?v=104"></script>
 </body>
 </html>

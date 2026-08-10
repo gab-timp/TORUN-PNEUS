@@ -12,6 +12,10 @@ let currentUserIsAdmin = false;
 let currentUserPodeAutorizarGerencia = false;
 let currentUserEditableTables = null;
 let currentUserKanbanColapsadas = [];
+let currentUserNome = "";
+let currentUserTema = null;
+let currentUserNotifNovaProposta = true;
+let configuracoesSite = null;
 
 const TIPO_LABEL = {
   entrada: "Entrada",
@@ -218,20 +222,26 @@ async function fetchComRetry(builderFn, tentativas = 3, delayMs = 800) {
 }
 
 async function loadState() {
-  const results = await Promise.all([
-    fetchComRetry(() => sb.from("produtos").select("*").order("codigo")),
-    fetchComRetry(() => sb.from("produtos_precos").select("*")),
-    fetchComRetry(() => sb.from("movimentos").select("*").order("data")),
-    fetchComRetry(() => sb.from("fretes").select("*").order("data")),
-    fetchComRetry(() => sb.from("clientes").select("*").order("nome")),
-    fetchComRetry(() => sb.from("vendas").select("*").order("data")),
-    fetchComRetry(() => sb.from("previsoes").select("*")),
-    fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
-    fetchComRetry(() => sb.from("user_roles").select("role, visible_views, is_admin, editable_tables, pode_autorizar_gerencia").eq("user_id", currentUser.id).maybeSingle()),
-    fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas").eq("user_id", currentUser.id).maybeSingle()),
-    fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at"))
+  const [results, configRes] = await Promise.all([
+    Promise.all([
+      fetchComRetry(() => sb.from("produtos").select("*").order("codigo")),
+      fetchComRetry(() => sb.from("produtos_precos").select("*")),
+      fetchComRetry(() => sb.from("movimentos").select("*").order("data")),
+      fetchComRetry(() => sb.from("fretes").select("*").order("data")),
+      fetchComRetry(() => sb.from("clientes").select("*").order("nome")),
+      fetchComRetry(() => sb.from("vendas").select("*").order("data")),
+      fetchComRetry(() => sb.from("previsoes").select("*")),
+      fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
+      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at"))
+    ]),
+    fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
   ]);
   const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, roleRes, prefRes, preCadRes] = results;
+  if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
+  configuracoesSite = configRes.data || null;
+  ESTOQUE_BAIXO_LIMITE = (configuracoesSite && configuracoesSite.estoque_baixo_limite) || 20;
   const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes"];
   let falhaCritica = false;
   results.forEach((r, i) => {
@@ -252,7 +262,10 @@ async function loadState() {
   currentUserIsAdmin = !!(roleRes.data && roleRes.data.is_admin);
   currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
   currentUserEditableTables = (roleRes.data && roleRes.data.editable_tables) || null;
+  currentUserNome = (roleRes.data && roleRes.data.nome) || currentUser.email;
   currentUserKanbanColapsadas = (prefRes.data && prefRes.data.kanban_colunas_recolhidas) || [];
+  currentUserTema = (prefRes.data && prefRes.data.tema) || null;
+  currentUserNotifNovaProposta = prefRes.data ? prefRes.data.notif_nova_proposta !== false : true;
   document.body.classList.toggle("is-viewer", currentUserRole === "viewer");
   document.body.classList.toggle("is-admin", currentUserIsAdmin);
   if (currentUserEditableTables) {
@@ -261,6 +274,12 @@ async function loadState() {
     document.body.removeAttribute("data-editable-tables");
   }
   applyViewRestrictions();
+  const sidebarUserEl = document.getElementById("sidebarUser");
+  if (sidebarUserEl) sidebarUserEl.textContent = currentUserNome;
+  if (currentUserTema && localStorage.getItem(THEME_KEY) !== currentUserTema) {
+    localStorage.setItem(THEME_KEY, currentUserTema);
+    applyThemeChoice(currentUserTema);
+  }
 
   state = {
     produtos: (produtosRes.data || []).map(produtoFromRow),
@@ -275,6 +294,7 @@ async function loadState() {
   };
 
   atualizarAlertaEstoqueBaixo();
+  atualizarAlertaNovaProposta();
   renderPreCadastrosClientes();
 }
 
@@ -388,7 +408,7 @@ function listEstoque() {
   }));
 }
 
-const ESTOQUE_BAIXO_LIMITE = 20;
+let ESTOQUE_BAIXO_LIMITE = 20;
 
 function getProdutosEstoqueBaixo() {
   return listEstoque()
@@ -450,6 +470,37 @@ function atualizarAlertaEstoqueBaixo() {
       <span class="saldo ${p.saldo <= 0 ? "saldo-zero" : "saldo-baixo"}">${fmt(p.saldo)} un.</span>
     </div>
   `).join("");
+}
+
+/* ---------------- aviso: nova proposta de representante (só popup, sem card fixo) ---------------- */
+
+let idsPropostasConhecidos = null;
+
+function mostrarAlertaNovaPropostaPopup(p) {
+  const container = document.getElementById("propostaAlerts");
+  if (!container) return;
+  const el = document.createElement("div");
+  el.className = "proposta-alert-item";
+  el.innerHTML = `
+    <div class="titulo">
+      <span>Nova proposta</span>
+      <button type="button" class="fechar">✕</button>
+    </div>
+    <div>${escapeHtml(p.cliente || "—")} — ${escapeHtml(p.vendedor || "—")}${p.numeroPedido ? ` · Nº ${escapeHtml(p.numeroPedido)}` : ""}</div>
+  `;
+  container.appendChild(el);
+  el.querySelector(".fechar").addEventListener("click", () => el.remove());
+  setTimeout(() => el.remove(), 8000);
+}
+
+function atualizarAlertaNovaProposta() {
+  const propostas = state.entregas.filter(e => e.origem === "representante" && e.etapa === "PRE_VENDA");
+  if (idsPropostasConhecidos !== null && currentUserNotifNovaProposta) {
+    propostas.forEach(p => {
+      if (!idsPropostasConhecidos.has(p.id)) mostrarAlertaNovaPropostaPopup(p);
+    });
+  }
+  idsPropostasConhecidos = new Set(propostas.map(p => p.id));
 }
 
 /* ---------------- toast / modal ---------------- */
@@ -566,6 +617,7 @@ function setView(view) {
   if (view === "clientes") renderClientes();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
+  if (view === "administracao") renderAdministracao();
 }
 
 /* ---------------- render: ESTOQUE ---------------- */
@@ -4850,6 +4902,8 @@ async function init() {
   initMobileMenu();
   initCollapsibleCards();
   initKanbanColumnsCollapse();
+  initMinhasConfiguracoes();
+  initAdministracao();
 
   setView(primeiraViewPermitida());
 }
@@ -4877,8 +4931,168 @@ function initThemeToggle() {
       const choice = btn.dataset.themeChoice;
       localStorage.setItem(THEME_KEY, choice);
       applyThemeChoice(choice);
+      currentUserTema = choice;
+      if (currentUser) {
+        sb.from("user_preferences").upsert({ user_id: currentUser.id, tema: choice }, { onConflict: "user_id" })
+          .then(({ error }) => { if (error) console.error("Erro ao salvar tema:", error); });
+      }
     });
   });
+}
+
+/* ---------------- minhas configurações ---------------- */
+
+function abrirMinhasConfiguracoesModal() {
+  document.getElementById("minhasConfigNome").value = currentUserNome || "";
+  document.getElementById("minhasConfigNotifProposta").checked = currentUserNotifNovaProposta;
+  document.getElementById("minhasConfigOverlay").classList.add("show");
+}
+
+function closeMinhasConfiguracoesModal() {
+  document.getElementById("minhasConfigOverlay").classList.remove("show");
+}
+
+async function salvarNomeExibicao() {
+  const novoNome = document.getElementById("minhasConfigNome").value.trim();
+  if (!novoNome) { toast("O nome não pode ficar em branco."); return; }
+  const { error } = await sb.rpc("atualizar_meu_nome", { novo_nome: novoNome });
+  if (error) { toast("Erro ao salvar nome: " + error.message); return; }
+  currentUserNome = novoNome;
+  const sidebarUserEl = document.getElementById("sidebarUser");
+  if (sidebarUserEl) sidebarUserEl.textContent = currentUserNome;
+  toast("Nome atualizado.");
+}
+
+async function salvarNotificacaoPreferencia(checked) {
+  currentUserNotifNovaProposta = checked;
+  const { error } = await sb.from("user_preferences").upsert(
+    { user_id: currentUser.id, notif_nova_proposta: checked }, { onConflict: "user_id" }
+  );
+  if (error) toast("Erro ao salvar preferência: " + error.message);
+}
+
+function initMinhasConfiguracoes() {
+  document.getElementById("sidebarUser").addEventListener("click", abrirMinhasConfiguracoesModal);
+  document.getElementById("minhasConfigCancelar").addEventListener("click", closeMinhasConfiguracoesModal);
+  document.getElementById("minhasConfigOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "minhasConfigOverlay") closeMinhasConfiguracoesModal();
+  });
+  document.getElementById("minhasConfigSalvar").addEventListener("click", async () => {
+    await salvarNomeExibicao();
+    await salvarNotificacaoPreferencia(document.getElementById("minhasConfigNotifProposta").checked);
+    closeMinhasConfiguracoesModal();
+  });
+}
+
+/* ---------------- administração (admin) ---------------- */
+
+const ADMIN_VIEW_DEFS = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "estoque", label: "Estoque" },
+  { key: "previsto", label: "Estoque Previsto" },
+  { key: "movimentacoes", label: "Movimentações" },
+  { key: "faturamento", label: "Faturamento" },
+  { key: "clientes", label: "Clientes" },
+  { key: "produtos", label: "Produtos" },
+  { key: "catalogo", label: "Catálogo" },
+  { key: "fretes", label: "Fretes" },
+  { key: "entregas", label: "Entregas" },
+  { key: "relatorios", label: "Relatórios" },
+  { key: "historico", label: "Histórico" }
+];
+const ADMIN_ROLE_LABEL = { editor: "Editor", viewer: "Somente leitura", representante: "Representante" };
+
+let adminUsuarios = [];
+let adminEditingUserId = null;
+
+async function renderAdministracao() {
+  if (configuracoesSite) {
+    document.getElementById("configEstoqueBaixoLimite").value = configuracoesSite.estoque_baixo_limite;
+    document.getElementById("configPropostaValidadeDias").value = configuracoesSite.proposta_validade_dias;
+  }
+  const { data, error } = await sb.from("user_roles").select("*").order("email");
+  if (error) { toast("Erro ao carregar usuários: " + error.message); return; }
+  adminUsuarios = data || [];
+  renderAdminUsuariosTable();
+}
+
+function renderAdminUsuariosTable() {
+  document.getElementById("adminUsuariosTbody").innerHTML = adminUsuarios.map(u => `
+    <tr>
+      <td>${escapeHtml(u.nome || "—")}</td>
+      <td class="mono">${escapeHtml(u.email || "—")}</td>
+      <td>${escapeHtml(ADMIN_ROLE_LABEL[u.role] || u.role || "—")}</td>
+      <td>${u.is_admin ? "Sim" : "—"}</td>
+      <td><button type="button" class="btn small outline" data-editaruser="${escapeAttr(u.user_id)}">Editar</button></td>
+    </tr>
+  `).join("");
+  document.querySelectorAll("[data-editaruser]").forEach(btn => {
+    btn.addEventListener("click", () => abrirUsuarioEditModal(btn.dataset.editaruser));
+  });
+}
+
+function abrirUsuarioEditModal(userId) {
+  const u = adminUsuarios.find(x => x.user_id === userId);
+  if (!u) return;
+  adminEditingUserId = userId;
+  document.getElementById("usuarioEditNome").value = u.nome || "";
+  document.getElementById("usuarioEditEmail").textContent = u.email || "—";
+  document.getElementById("usuarioEditRole").value = u.role || "editor";
+  document.getElementById("usuarioEditIsAdmin").checked = !!u.is_admin;
+  document.getElementById("usuarioEditPodeAutorizar").checked = !!u.pode_autorizar_gerencia;
+  const visibleViews = u.visible_views || null;
+  document.getElementById("usuarioEditVisibleViewsLista").innerHTML = ADMIN_VIEW_DEFS.map(v => `
+    <label class="dash-filter-item">
+      <input type="checkbox" data-viewkey="${escapeAttr(v.key)}" ${(!visibleViews || visibleViews.includes(v.key)) ? "checked" : ""}>
+      ${escapeHtml(v.label)}
+    </label>
+  `).join("");
+  document.getElementById("usuarioEditModalOverlay").classList.add("show");
+}
+
+function closeUsuarioEditModal() {
+  document.getElementById("usuarioEditModalOverlay").classList.remove("show");
+  adminEditingUserId = null;
+}
+
+async function salvarUsuarioEdit() {
+  if (!adminEditingUserId) return;
+  const nome = document.getElementById("usuarioEditNome").value.trim();
+  const role = document.getElementById("usuarioEditRole").value;
+  const isAdmin = document.getElementById("usuarioEditIsAdmin").checked;
+  const podeAutorizar = document.getElementById("usuarioEditPodeAutorizar").checked;
+  const checkboxes = Array.from(document.querySelectorAll("#usuarioEditVisibleViewsLista input"));
+  const marcados = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.viewkey);
+  const visibleViews = marcados.length === checkboxes.length ? null : marcados; // todos marcados = sem restrição
+  const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, visible_views: visibleViews };
+  const { error } = await sb.from("user_roles").update(payload).eq("user_id", adminEditingUserId);
+  if (error) { toast("Erro ao salvar usuário: " + error.message); return; }
+  const u = adminUsuarios.find(x => x.user_id === adminEditingUserId);
+  if (u) Object.assign(u, payload);
+  renderAdminUsuariosTable();
+  closeUsuarioEditModal();
+  toast("Usuário atualizado.");
+}
+
+async function salvarConfiguracoesSite() {
+  const limite = parseInt(document.getElementById("configEstoqueBaixoLimite").value, 10);
+  const validade = parseInt(document.getElementById("configPropostaValidadeDias").value, 10);
+  if (!(limite >= 0) || !(validade >= 1)) { toast("Valores inválidos."); return; }
+  const { error } = await sb.from("configuracoes_site").update({ estoque_baixo_limite: limite, proposta_validade_dias: validade }).eq("id", true);
+  if (error) { toast("Erro ao salvar configurações: " + error.message); return; }
+  configuracoesSite = { ...configuracoesSite, estoque_baixo_limite: limite, proposta_validade_dias: validade };
+  ESTOQUE_BAIXO_LIMITE = limite;
+  atualizarAlertaEstoqueBaixo();
+  toast("Configurações do site atualizadas.");
+}
+
+function initAdministracao() {
+  document.getElementById("btnSalvarConfigSite").addEventListener("click", salvarConfiguracoesSite);
+  document.getElementById("usuarioEditCancelar").addEventListener("click", closeUsuarioEditModal);
+  document.getElementById("usuarioEditModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "usuarioEditModalOverlay") closeUsuarioEditModal();
+  });
+  document.getElementById("usuarioEditSalvar").addEventListener("click", salvarUsuarioEdit);
 }
 
 /* ---------------- menu mobile (gaveta lateral) ---------------- */

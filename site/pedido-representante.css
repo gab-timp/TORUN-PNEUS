@@ -39,6 +39,8 @@
   padding:12px 20px; gap:10px 16px;
 }
 .rep-topbar b{color:var(--orange);}
+.rep-nome-clicavel{cursor:pointer;}
+.rep-nome-clicavel:hover{text-decoration:underline;}
 .rep-topbar .btn.outline{color:var(--white); border-color:rgba(255,255,255,.4);}
 .rep-topbar .btn.outline:hover{border-color:var(--white);}
 .rep-topbar > span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
