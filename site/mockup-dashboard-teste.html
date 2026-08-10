@@ -1,0 +1,594 @@
+<meta charset="UTF-8" />
+<title>TORUN · Conceito de Painel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    color-scheme: light;
+    --black:#15130F;
+    --orange:#FF6A13;
+    --orange-deep:#C64F0C;
+    --orange-pale:#FFE7D6;
+    --ink:#1B1815;
+    --ink-soft:#726C61;
+    --surface:#FFFFFF;
+    --paper:#F6F3ED;
+    --paper-2:#EFEAE0;
+    --line:#E7E1D5;
+    --line-strong:#D9D2C2;
+    --shadow: 0 1px 2px rgba(21,19,15,.04), 0 10px 28px -16px rgba(21,19,15,.16);
+
+    --status-good:#22C55E;
+    --status-good-bg:#E7F8ED;
+    --status-warn:#EF4444;
+    --status-warn-bg:#FDEAEA;
+    --status-neutral:#726C61;
+    --status-neutral-bg:#EFEAE0;
+
+    /* faixas de categoria validadas (dataviz) — ordem fixa, sem reordenar */
+    --cat-blue:#2a78d6;
+    --cat-orange:#eb6834;
+    --cat-aqua:#1baf7a;
+    --cat-gray:#ABA495;
+
+    --tile-1:#FFE7D6; --tile-1-ink:#C64F0C;
+    --tile-2:#FFF3D6; --tile-2-ink:#B4820A;
+    --tile-3:#DFF3E6; --tile-3-ink:#1E8A4C;
+    --tile-4:#E7E3F5; --tile-4-ink:#5B4FB8;
+
+    --font-ui: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num: 'SF Mono', 'Cascadia Code', 'Space Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --black:#0E0C09;
+      --orange:#FF7A2B;
+      --orange-deep:#FF9755;
+      --orange-pale:#3A2416;
+      --ink:#F3EEE4;
+      --ink-soft:#B6AF9E;
+      --surface:#211D17;
+      --paper:#17140F;
+      --paper-2:#241F17;
+      --line:#332C20;
+      --line-strong:#443B2B;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 32px -16px rgba(0,0,0,.55);
+      --status-good:#3ADB74; --status-good-bg:#173222;
+      --status-warn:#FF6B6B; --status-warn-bg:#3A1B1B;
+      --status-neutral:#B6AF9E; --status-neutral-bg:#2A251C;
+      --cat-blue:#3987e5; --cat-orange:#d95926; --cat-aqua:#199e70; --cat-gray:#7A7364;
+      --tile-1:#3A2416; --tile-1-ink:#FFA96B;
+      --tile-2:#332911; --tile-2-ink:#F0C24B;
+      --tile-3:#132A1C; --tile-3-ink:#5FDA92;
+      --tile-4:#241F3A; --tile-4-ink:#B0A6F2;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --black:#0E0C09; --orange:#FF7A2B; --orange-deep:#FF9755; --orange-pale:#3A2416;
+    --ink:#F3EEE4; --ink-soft:#B6AF9E; --surface:#211D17; --paper:#17140F; --paper-2:#241F17;
+    --line:#332C20; --line-strong:#443B2B;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 32px -16px rgba(0,0,0,.55);
+    --status-good:#3ADB74; --status-good-bg:#173222; --status-warn:#FF6B6B; --status-warn-bg:#3A1B1B;
+    --status-neutral:#B6AF9E; --status-neutral-bg:#2A251C;
+    --cat-blue:#3987e5; --cat-orange:#d95926; --cat-aqua:#199e70; --cat-gray:#7A7364;
+    --tile-1:#3A2416; --tile-1-ink:#FFA96B; --tile-2:#332911; --tile-2-ink:#F0C24B;
+    --tile-3:#132A1C; --tile-3-ink:#5FDA92; --tile-4:#241F3A; --tile-4-ink:#B0A6F2;
+  }
+  :root[data-theme="light"]{
+    color-scheme: light;
+    --black:#15130F; --orange:#FF6A13; --orange-deep:#C64F0C; --orange-pale:#FFE7D6;
+    --ink:#1B1815; --ink-soft:#726C61; --surface:#FFFFFF; --paper:#F6F3ED; --paper-2:#EFEAE0;
+    --line:#E7E1D5; --line-strong:#D9D2C2;
+    --shadow: 0 1px 2px rgba(21,19,15,.04), 0 10px 28px -16px rgba(21,19,15,.16);
+    --status-good:#22C55E; --status-good-bg:#E7F8ED; --status-warn:#EF4444; --status-warn-bg:#FDEAEA;
+    --status-neutral:#726C61; --status-neutral-bg:#EFEAE0;
+    --cat-blue:#2a78d6; --cat-orange:#eb6834; --cat-aqua:#1baf7a; --cat-gray:#ABA495;
+    --tile-1:#FFE7D6; --tile-1-ink:#C64F0C; --tile-2:#FFF3D6; --tile-2-ink:#B4820A;
+    --tile-3:#DFF3E6; --tile-3-ink:#1E8A4C; --tile-4:#E7E3F5; --tile-4-ink:#5B4FB8;
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-ui); -webkit-font-smoothing:antialiased;}
+  .tabular{font-variant-numeric:tabular-nums;}
+  svg{display:block;}
+
+  .top-note{
+    max-width:1360px; margin:0 auto; padding:16px 24px 0;
+    font-size:12.5px; color:var(--ink-soft);
+  }
+  .top-note b{color:var(--ink);}
+
+  .shell{
+    max-width:1360px; margin:0 auto; padding:16px 24px 48px;
+    display:grid; grid-template-columns:250px 1fr; gap:20px;
+    align-items:start;
+  }
+
+  /* ---------------- sidebar (branca, item ativo em pílula) ---------------- */
+  .sidebar{
+    background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:20px 14px 18px;
+    display:flex; flex-direction:column; gap:20px;
+    position:sticky; top:16px;
+    min-height:calc(100vh - 32px);
+    box-shadow:var(--shadow);
+  }
+  .brand{display:flex; align-items:center; gap:10px; padding:2px 8px;}
+  .brand-mark{
+    width:34px; height:34px; border-radius:10px; background:var(--orange);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; color:#fff; font-size:16px; flex:0 0 auto;
+  }
+  .brand-name{font-weight:800; color:var(--ink); font-size:14.5px; letter-spacing:.01em;}
+  .brand-sub{font-size:10px; color:var(--ink-soft); letter-spacing:.06em; text-transform:uppercase;}
+
+  .nav-group{display:flex; flex-direction:column; gap:2px;}
+  .nav-label{
+    font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-soft); opacity:.7; padding:10px 12px 6px;
+  }
+  .nav-item{
+    display:flex; align-items:center; gap:11px; padding:9px 12px;
+    border-radius:11px; color:var(--ink-soft); text-decoration:none;
+    font-size:13px; font-weight:600; cursor:pointer; border:none; background:none;
+    width:100%; text-align:left; font-family:inherit;
+  }
+  .nav-item .ic{width:17px; height:17px; flex:0 0 auto; opacity:.8;}
+  .nav-item:hover{color:var(--ink); background:var(--paper);}
+  .nav-item.active{
+    background:var(--orange); color:#fff;
+    box-shadow:0 8px 18px -8px rgba(255,106,19,.6);
+  }
+  .nav-item.active .ic{opacity:1;}
+  .nav-item .badge{
+    margin-left:auto; background:var(--paper-2); color:var(--ink-soft);
+    font-size:10px; font-weight:800; padding:1px 6px; border-radius:20px;
+  }
+  .nav-item.active .badge{background:rgba(255,255,255,.24); color:#fff;}
+
+  .sidebar-foot{margin-top:auto; display:flex; flex-direction:column; gap:10px;}
+  .sidebar-divider{height:1px; background:var(--line); margin:4px 2px;}
+  .help-card{
+    background:linear-gradient(155deg, var(--black), #2A241B);
+    border-radius:16px; padding:16px; color:#fff; text-align:left;
+  }
+  .help-card .ic{width:22px; height:22px; color:var(--orange); margin-bottom:8px;}
+  .help-card b{display:block; font-size:12.5px; margin-bottom:2px;}
+  .help-card span{display:block; font-size:11px; color:rgba(255,255,255,.55); line-height:1.4; margin-bottom:10px;}
+  .help-card button{
+    width:100%; background:var(--orange); color:#fff; border:none; border-radius:9px;
+    padding:8px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit;
+  }
+  .logout-item{color:var(--ink-soft);}
+
+  /* ---------------- main / topbar ---------------- */
+  .main{display:flex; flex-direction:column; gap:18px; min-width:0;}
+  .topbar{display:flex; align-items:center; gap:14px;}
+  .page-head h1{font-size:19px; font-weight:800; margin:0; letter-spacing:-.01em;}
+  .page-head p{margin:2px 0 0; font-size:12.5px; color:var(--ink-soft);}
+  .search{
+    flex:1; display:flex; align-items:center; gap:9px; max-width:420px;
+    background:var(--surface); border:1px solid var(--line); border-radius:13px;
+    padding:10px 14px; box-shadow:var(--shadow);
+  }
+  .search .ic{width:16px; height:16px; color:var(--ink-soft); flex:0 0 auto;}
+  .search input{border:none; outline:none; background:none; font-family:inherit; font-size:13px; color:var(--ink); width:100%;}
+  .search input::placeholder{color:var(--ink-soft);}
+  .topbar-spacer{flex:1;}
+  .bell-btn{
+    position:relative; width:40px; height:40px; border-radius:12px; flex:0 0 auto;
+    background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .bell-btn .ic{width:17px; height:17px; color:var(--ink);}
+  .bell-dot{position:absolute; top:9px; right:10px; width:7px; height:7px; border-radius:50%; background:var(--orange); border:2px solid var(--surface);}
+  .profile{
+    display:flex; align-items:center; gap:9px; padding:6px 12px 6px 6px;
+    background:var(--surface); border:1px solid var(--line); border-radius:13px;
+    box-shadow:var(--shadow); cursor:pointer; flex:0 0 auto;
+  }
+  .avatar{
+    width:30px; height:30px; border-radius:9px; flex:0 0 auto;
+    background:linear-gradient(155deg, var(--orange), var(--orange-deep));
+    color:#fff; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center;
+  }
+  .profile-name{font-size:12.5px; font-weight:700; line-height:1.25;}
+  .profile-role{font-size:10.5px; color:var(--ink-soft); line-height:1.25;}
+  .profile .ic{width:13px; height:13px; color:var(--ink-soft); margin-left:2px;}
+
+  /* ---------------- cards ---------------- */
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:18px;
+    padding:18px 18px 16px; box-shadow:var(--shadow);
+  }
+  .card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:14px;}
+  .card-head h2{font-size:14px; font-weight:800; margin:0;}
+  .card-head p{margin:2px 0 0; font-size:11.5px; color:var(--ink-soft);}
+  .card-menu{
+    width:26px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--paper);
+    display:flex; align-items:center; justify-content:center; color:var(--ink-soft); cursor:pointer; flex:0 0 auto;
+  }
+  .card-menu .ic{width:13px; height:13px;}
+  .export-btn{
+    display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:var(--paper);
+    border-radius:9px; padding:7px 12px; font-size:12px; font-weight:700; color:var(--ink); cursor:pointer; font-family:inherit;
+  }
+  .export-btn .ic{width:12px; height:12px;}
+
+  .row-2{display:grid; grid-template-columns:1.7fr 1fr; gap:16px; align-items:stretch;}
+  .row-3{display:grid; grid-template-columns:1.25fr 1fr 1fr; gap:16px; align-items:stretch;}
+  @media (max-width:1180px){ .row-3{grid-template-columns:1fr;} .row-2{grid-template-columns:1fr;} }
+
+  /* stat tiles */
+  .tiles{display:grid; grid-template-columns:repeat(4,1fr); gap:12px;}
+  .tile{border-radius:14px; padding:14px; background:var(--paper);}
+  .tile-ic{width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:22px;}
+  .tile-ic .ic{width:16px; height:16px;}
+  .tile-value{font-family:var(--font-num); font-size:19px; font-weight:700;}
+  .tile-label{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+  .tile-delta{font-size:10.5px; font-weight:800; margin-top:7px;}
+  .tile-delta.up{color:var(--status-good);}
+  .tile-delta.down{color:var(--status-warn);}
+  @media (max-width:760px){ .tiles{grid-template-columns:repeat(2,1fr);} }
+
+  /* legend comum */
+  .chart-legend{display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);}
+  .chart-legend .li{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink-soft); font-weight:700;}
+  .chart-legend .sw{width:9px; height:9px; border-radius:3px; flex:0 0 auto;}
+  .chart-legend .sw.line{border-radius:2px; height:3px; width:14px;}
+
+  /* eixo x comum */
+  .x-axis{display:flex; margin-top:6px;}
+  .x-axis span{flex:1; text-align:center; font-size:10px; color:var(--ink-soft); font-weight:700;}
+
+  /* grouped bars */
+  .gbars{display:flex; align-items:flex-end; gap:14px; height:150px;}
+  .gbar-grp{flex:1; display:flex; align-items:flex-end; justify-content:center; gap:4px; height:100%;}
+  .gbar{width:9px; border-radius:4px 4px 2px 2px;}
+  .gbar.s1{background:var(--cat-blue);}
+  .gbar.s2{background:var(--cat-orange);}
+
+  /* top products */
+  .plist{display:flex; flex-direction:column; gap:14px;}
+  .prow{display:flex; align-items:center; gap:12px;}
+  .prow .pi{width:12px; color:var(--ink-soft); font-size:11px; font-weight:800;}
+  .prow .pn{flex:0 0 128px; font-size:12.5px; font-weight:700;}
+  .prow .pn span{display:block; font-size:10.5px; color:var(--ink-soft); font-weight:600;}
+  .ptrack{flex:1; height:6px; border-radius:4px; background:var(--paper-2); overflow:hidden;}
+  .pfill{height:100%; border-radius:4px; background:var(--orange);}
+  .ppct{
+    flex:0 0 auto; font-family:var(--font-num); font-size:11px; font-weight:800;
+    background:var(--orange-pale); color:var(--orange-deep); border-radius:20px; padding:3px 9px;
+  }
+
+  /* ranked list (estados) */
+  .rlist{display:flex; flex-direction:column; gap:12px;}
+  .rrow{display:flex; align-items:center; gap:10px;}
+  .ruf{
+    width:30px; height:30px; border-radius:9px; background:var(--paper); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; color:var(--ink); flex:0 0 auto;
+  }
+  .rtrack{flex:1; height:6px; border-radius:4px; background:var(--paper-2); overflow:hidden;}
+  .rfill{height:100%; border-radius:4px; background:var(--cat-blue);}
+  .rval{flex:0 0 auto; font-family:var(--font-num); font-size:11.5px; font-weight:700; color:var(--ink-soft); width:32px; text-align:right;}
+
+  /* transportadoras */
+  .tbars{display:flex; flex-direction:column; gap:11px;}
+  .tbar-row{display:flex; align-items:center; gap:10px;}
+  .tbar-name{flex:0 0 118px; font-size:12px; font-weight:700;}
+  .tbar-track{flex:1; height:16px; border-radius:6px; background:var(--paper-2); overflow:hidden; display:flex; align-items:center;}
+  .tbar-fill{height:100%; border-radius:6px; background:var(--cat-aqua);}
+  .tbar-val{flex:0 0 auto; font-family:var(--font-num); font-size:11px; font-weight:700; color:var(--ink-soft); width:60px; text-align:right;}
+
+  @media (max-width:980px){
+    .shell{grid-template-columns:1fr;}
+    .sidebar{position:static; min-height:0;}
+  }
+  @media (max-width:560px){
+    .shell{padding:12px 12px 32px;}
+    .topbar{flex-wrap:wrap;}
+    .profile-name, .profile-role{display:none;}
+    .search{max-width:none;}
+  }
+</style>
+
+<!-- ícones -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <g id="i-box" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 6.5 10 3l7 3.5-7 3.5-7-3.5Z"/><path d="M3 6.5V14l7 3.5 7-3.5V6.5"/><path d="M10 10v7.5"/>
+    </g>
+    <g id="i-tag" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 3h5.5A1.5 1.5 0 0 1 18 4.5V10L10 18l-7-7L11 3Z"/><circle cx="13.3" cy="6.7" r="1.1"/>
+    </g>
+    <g id="i-swap" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 6h11.5M14.5 6 11.5 3M14.5 6 11.5 9"/><path d="M17 14H5.5M5.5 14 8.5 11M5.5 14 8.5 17"/>
+    </g>
+    <g id="i-truck" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.5 5.5h8V14h-8z"/><path d="M10.5 8h3.3L16 10.4V14h-5.5z"/><circle cx="6" cy="15.3" r="1.4"/><circle cx="13.5" cy="15.3" r="1.4"/>
+    </g>
+    <g id="i-users" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="7.2" cy="6.5" r="2.6"/><path d="M2.3 16c.6-3 2.4-4.6 4.9-4.6s4.3 1.6 4.9 4.6"/>
+      <circle cx="14" cy="7.3" r="2"/><path d="M13 11.6c2 .1 3.3 1.6 3.8 3.9"/>
+    </g>
+    <g id="i-trend" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.5 15 7.3 9.8l3.2 3 5-6"/><path d="M12.4 6h3.1v3.1"/>
+    </g>
+    <g id="i-calendar" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2.5" y="4" width="15" height="13.5" rx="2.4"/><path d="M2.5 8h15M6 2.3v3.2M14 2.3v3.2"/><path d="M6.3 11.3h1.6M9.2 11.3h1.6M12.1 11.3h1.6"/>
+    </g>
+    <g id="i-package" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 6.5 10 3l7 3.5-7 3.5-7-3.5Z"/><path d="M3 6.5V14l7 3.5 7-3.5V6.5"/><path d="m6.2 8.2 7.6-3.8"/>
+    </g>
+    <g id="i-report" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="2.5" width="14" height="15" rx="2"/><path d="M6.5 12v2.5M10 9v5.5M13.5 6.5v8"/>
+    </g>
+    <g id="i-history" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.3 10a6.7 6.7 0 1 0 2-4.8"/><path d="M2.6 3.6v3.6h3.6"/><path d="M10 6.6V10l2.6 1.6"/>
+    </g>
+    <g id="i-clipboard" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4.3" y="3.6" width="11.4" height="14" rx="2"/><rect x="7.2" y="2" width="5.6" height="3.2" rx="1"/><path d="M7 9.5h6M7 12.6h6M7 15.7h3.6"/>
+    </g>
+    <g id="i-settings">
+      <line x1="3" y1="6" x2="17" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="12" cy="6" r="1.9" fill="currentColor"/>
+      <line x1="3" y1="10.3" x2="17" y2="10.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="7" cy="10.3" r="1.9" fill="currentColor"/>
+      <line x1="3" y1="14.6" x2="17" y2="14.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="13.5" cy="14.6" r="1.9" fill="currentColor"/>
+    </g>
+    <g id="i-search" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="8.7" cy="8.7" r="5.4"/><path d="m17 17-4.3-4.3"/>
+    </g>
+    <g id="i-bell" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 2.5c-3 0-4.4 2.3-4.4 5.4 0 4.4-1.6 5-1.6 5.6 0 .5.5.9 1 .9h10c.5 0 1-.4 1-.9 0-.6-1.6-1.2-1.6-5.6 0-3.1-1.4-5.4-4.4-5.4Z"/>
+      <path d="M8.2 16.6a1.9 1.9 0 0 0 3.6 0"/>
+    </g>
+    <g id="i-chevron" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7.5 5 5 5-5"/></g>
+    <g id="i-download" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9.5M6 9l4 4 4-4"/><path d="M3.5 15.5h13"/></g>
+    <g id="i-dots" stroke="currentColor" stroke-width="2" fill="currentColor" stroke-linecap="round">
+      <circle cx="4.5" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="15.5" cy="10" r="1"/>
+    </g>
+    <g id="i-help" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="10" cy="10" r="7.2"/><path d="M7.7 7.6a2.3 2.3 0 1 1 3.2 2.1c-.8.4-1 .8-1 1.6"/><circle cx="10" cy="14" r=".15" fill="currentColor" stroke-width="1.4"/>
+    </g>
+    <g id="i-alert" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 3.2 2.5 16h15L10 3.2Z"/><path d="M10 8.3v3.4"/><circle cx="10" cy="14" r=".15" fill="currentColor" stroke-width="1.4"/>
+    </g>
+    <g id="i-userplus" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="8" cy="7" r="3"/><path d="M2.3 16.5c.6-3.4 2.6-5.2 5.7-5.2s5.1 1.8 5.7 5.2"/><path d="M15.5 5.5v4.4M13.3 7.7h4.4"/>
+    </g>
+  </defs>
+</svg>
+
+<p class="top-note">Conceito visual pra conversarmos — <b>nada foi alterado no painel real</b>. Layout agora inspirado no segundo print que você mandou, adaptado pra identidade e pros dados da TORUN. Os números seguem de exemplo até você me passar o resultado das consultas.</p>
+
+<div class="shell">
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">T</div>
+      <div>
+        <div class="brand-name">TORUN PNEUS</div>
+        <div class="brand-sub">Painel de controle</div>
+      </div>
+    </div>
+
+    <nav class="nav-group">
+      <div class="nav-label">Estoque</div>
+      <button class="nav-item active"><svg class="ic"><use href="#i-box"/></svg> Estoque</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-tag"/></svg> Produtos</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-swap"/></svg> Movimentações</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-truck"/></svg> Fretes</button>
+    </nav>
+
+    <nav class="nav-group">
+      <div class="nav-label">Comercial</div>
+      <button class="nav-item"><svg class="ic"><use href="#i-users"/></svg> Clientes</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-trend"/></svg> Vendas</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-calendar"/></svg> Previsões</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-package"/></svg> Entregas <span class="badge">3</span></button>
+    </nav>
+
+    <nav class="nav-group">
+      <div class="nav-label">Gestão</div>
+      <button class="nav-item"><svg class="ic"><use href="#i-report"/></svg> Relatórios</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-history"/></svg> Histórico</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-clipboard"/></svg> Pré-cadastros</button>
+      <button class="nav-item"><svg class="ic"><use href="#i-settings"/></svg> Administração</button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="sidebar-divider"></div>
+      <div class="help-card">
+        <svg class="ic"><use href="#i-help"/></svg>
+        <b>Precisa de ajuda?</b>
+        <span>Tire dúvidas sobre estoque, propostas e pedidos.</span>
+        <button>Central de ajuda</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+    <div class="topbar">
+      <div class="page-head">
+        <h1>Dashboard</h1>
+        <p>Segunda-feira, 10 de agosto de 2026</p>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="search">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input type="text" placeholder="Buscar produto, cliente ou pedido…" />
+      </div>
+      <button class="bell-btn"><svg class="ic"><use href="#i-bell"/></svg><span class="bell-dot"></span></button>
+      <div class="profile">
+        <div class="avatar">ML</div>
+        <div>
+          <div class="profile-name">Marcos Lima</div>
+          <div class="profile-role">Administrador</div>
+        </div>
+        <svg class="ic"><use href="#i-chevron"/></svg>
+      </div>
+    </div>
+
+    <!-- ---- linha 1: estoque hoje + movimentação por tipo ---- -->
+    <div class="row-2">
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Estoque hoje</h2><p>Resumo do dia</p></div>
+          <button class="export-btn"><svg class="ic"><use href="#i-download"/></svg> Exportar</button>
+        </div>
+        <div class="tiles">
+          <div class="tile">
+            <div class="tile-ic" style="background:var(--tile-1); color:var(--tile-1-ink);"><svg class="ic"><use href="#i-box"/></svg></div>
+            <div class="tile-value tabular">3.180</div>
+            <div class="tile-label">Estoque total (un)</div>
+            <div class="tile-delta up">▲ 4% vs. ontem</div>
+          </div>
+          <div class="tile">
+            <div class="tile-ic" style="background:var(--tile-2); color:var(--tile-2-ink);"><svg class="ic"><use href="#i-swap"/></svg></div>
+            <div class="tile-value tabular">18</div>
+            <div class="tile-label">Movimentações hoje</div>
+            <div class="tile-delta up">▲ 12% vs. ontem</div>
+          </div>
+          <div class="tile">
+            <div class="tile-ic" style="background:var(--tile-3); color:var(--tile-3-ink);"><svg class="ic"><use href="#i-alert"/></svg></div>
+            <div class="tile-value tabular">6</div>
+            <div class="tile-label">Produtos c/ saldo baixo</div>
+            <div class="tile-delta up">▼ 2 vs. semana passada</div>
+          </div>
+          <div class="tile">
+            <div class="tile-ic" style="background:var(--tile-4); color:var(--tile-4-ink);"><svg class="ic"><use href="#i-userplus"/></svg></div>
+            <div class="tile-value tabular">5</div>
+            <div class="tile-label">Novos clientes (mês)</div>
+            <div class="tile-delta up">▲ 1 vs. mês passado</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Movimentação por tipo</h2><p>2026, por mês</p></div>
+          <button class="card-menu"><svg class="ic"><use href="#i-dots"/></svg></button>
+        </div>
+        <svg viewBox="0 0 300 150" style="width:100%; height:150px; overflow:visible;">
+          <line x1="0" y1="18" x2="300" y2="18" stroke="var(--line)" stroke-width="1"/>
+          <line x1="0" y1="66" x2="300" y2="66" stroke="var(--line)" stroke-width="1"/>
+          <line x1="0" y1="114" x2="300" y2="114" stroke="var(--line)" stroke-width="1"/>
+          <polyline points="0,96 43,88 86,70 129,78 172,56 215,64 258,40 300,50" fill="none" stroke="var(--cat-blue)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="0,120 43,110 86,116 129,96 172,100 215,80 258,86 300,66" fill="none" stroke="var(--cat-orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="0,134 43,130 86,124 129,128 172,112 215,118 258,104 300,110" fill="none" stroke="var(--cat-aqua)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="258" cy="40" r="4" fill="var(--surface)" stroke="var(--cat-blue)" stroke-width="2.2"/>
+        </svg>
+        <div class="x-axis"><span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span><span>Mai</span><span>Jun</span><span>Jul</span><span>Ago</span></div>
+        <div class="chart-legend">
+          <span class="li"><span class="sw line" style="background:var(--cat-blue)"></span>Entrada</span>
+          <span class="li"><span class="sw line" style="background:var(--cat-orange)"></span>Venda</span>
+          <span class="li"><span class="sw line" style="background:var(--cat-aqua)"></span>Outras saídas</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- ---- linha 2: 3 cards iguais ---- -->
+    <div class="row-3">
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Movimentação por dia da semana</h2><p>Média das últimas 4 semanas</p></div>
+        </div>
+        <div class="gbars">
+          <div class="gbar-grp"><div class="gbar s1" style="height:58%"></div><div class="gbar s2" style="height:38%"></div></div>
+          <div class="gbar-grp"><div class="gbar s1" style="height:72%"></div><div class="gbar s2" style="height:50%"></div></div>
+          <div class="gbar-grp"><div class="gbar s1" style="height:64%"></div><div class="gbar s2" style="height:74%"></div></div>
+          <div class="gbar-grp"><div class="gbar s1" style="height:80%"></div><div class="gbar s2" style="height:56%"></div></div>
+          <div class="gbar-grp"><div class="gbar s1" style="height:90%"></div><div class="gbar s2" style="height:68%"></div></div>
+          <div class="gbar-grp"><div class="gbar s1" style="height:44%"></div><div class="gbar s2" style="height:30%"></div></div>
+          <div class="gbar-grp"><div class="gbar s1" style="height:20%"></div><div class="gbar s2" style="height:14%"></div></div>
+        </div>
+        <div class="x-axis"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div>
+        <div class="chart-legend">
+          <span class="li"><span class="sw" style="background:var(--cat-blue)"></span>Entradas</span>
+          <span class="li"><span class="sw" style="background:var(--cat-orange)"></span>Saídas</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Ritmo de saída</h2><p>Acumulado por semana</p></div>
+        </div>
+        <svg viewBox="0 0 220 130" style="width:100%; height:130px; overflow:visible;">
+          <defs>
+            <linearGradient id="fillMes" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--cat-aqua)" stop-opacity=".28"/>
+              <stop offset="100%" stop-color="var(--cat-aqua)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="14" x2="220" y2="14" stroke="var(--line)" stroke-width="1"/>
+          <line x1="0" y1="60" x2="220" y2="60" stroke="var(--line)" stroke-width="1"/>
+          <line x1="0" y1="106" x2="220" y2="106" stroke="var(--line)" stroke-width="1"/>
+          <polygon points="0,90 73,70 146,74 220,44 220,106 0,106" fill="url(#fillMes)"/>
+          <polyline points="0,90 73,70 146,74 220,44" fill="none" stroke="var(--cat-aqua)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="0,98 73,86 146,92 220,72" fill="none" stroke="var(--cat-blue)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 5"/>
+        </svg>
+        <div class="x-axis"><span>Sem 1</span><span>Sem 2</span><span>Sem 3</span><span>Sem 4</span></div>
+        <div class="chart-legend">
+          <span class="li"><span class="sw line" style="background:var(--cat-blue)"></span>Mês passado <b class="tabular" style="color:var(--ink); margin-left:2px;">890 un</b></span>
+          <span class="li"><span class="sw line" style="background:var(--cat-aqua)"></span>Este mês <b class="tabular" style="color:var(--ink); margin-left:2px;">1.240 un</b></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Comissão por representante</h2><p>Mês atual</p></div>
+        </div>
+        <div class="tbars">
+          <div class="tbar-row"><span class="tbar-name">Carlos</span><div class="tbar-track"><div class="tbar-fill" style="width:88%; background:var(--orange);"></div></div><span class="tbar-val tabular">R$ 4.120</span></div>
+          <div class="tbar-row"><span class="tbar-name">Fernanda</span><div class="tbar-track"><div class="tbar-fill" style="width:74%; background:var(--orange);"></div></div><span class="tbar-val tabular">R$ 3.460</span></div>
+          <div class="tbar-row"><span class="tbar-name">Rodrigo</span><div class="tbar-track"><div class="tbar-fill" style="width:52%; background:var(--orange);"></div></div><span class="tbar-val tabular">R$ 2.380</span></div>
+          <div class="tbar-row"><span class="tbar-name">Juliana</span><div class="tbar-track"><div class="tbar-fill" style="width:41%; background:var(--orange);"></div></div><span class="tbar-val tabular">R$ 1.910</span></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ---- linha 3: produtos + estados + transportadoras ---- -->
+    <div class="row-3">
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Produtos mais movimentados</h2><p>Últimos 30 dias</p></div>
+          <button class="card-menu"><svg class="ic"><use href="#i-dots"/></svg></button>
+        </div>
+        <div class="plist">
+          <div class="prow"><span class="pi">01</span><span class="pn">175/65 R14<span>Passeio</span></span><div class="ptrack"><div class="pfill" style="width:78%"></div></div><span class="ppct">28%</span></div>
+          <div class="prow"><span class="pi">02</span><span class="pn">195/60 R15<span>Passeio</span></span><div class="ptrack"><div class="pfill" style="width:62%"></div></div><span class="ppct">22%</span></div>
+          <div class="prow"><span class="pi">03</span><span class="pn">205/55 R16<span>Passeio</span></span><div class="ptrack"><div class="pfill" style="width:50%"></div></div><span class="ppct">18%</span></div>
+          <div class="prow"><span class="pi">04</span><span class="pn">215/75 R17,5<span>Caminhão</span></span><div class="ptrack"><div class="pfill" style="width:35%"></div></div><span class="ppct">13%</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Clientes por estado</h2><p>Base ativa</p></div>
+        </div>
+        <div class="rlist">
+          <div class="rrow"><span class="ruf">SP</span><div class="rtrack"><div class="rfill" style="width:100%"></div></div><span class="rval">34%</span></div>
+          <div class="rrow"><span class="ruf">PR</span><div class="rtrack"><div class="rfill" style="width:65%; background:var(--cat-orange);"></div></div><span class="rval">22%</span></div>
+          <div class="rrow"><span class="ruf">SC</span><div class="rtrack"><div class="rfill" style="width:53%; background:var(--cat-aqua);"></div></div><span class="rval">18%</span></div>
+          <div class="rrow"><span class="ruf">RS</span><div class="rtrack"><div class="rfill" style="width:41%; background:var(--cat-gray);"></div></div><span class="rval">14%</span></div>
+          <div class="rrow"><span class="ruf">Out.</span><div class="rtrack"><div class="rfill" style="width:35%; background:var(--cat-gray);"></div></div><span class="rval">12%</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Fretes por transportadora</h2><p>NFs no mês</p></div>
+        </div>
+        <div class="tbars">
+          <div class="tbar-row"><span class="tbar-name">Translog Sul</span><div class="tbar-track"><div class="tbar-fill" style="width:90%"></div></div><span class="tbar-val tabular">64 NFs</span></div>
+          <div class="tbar-row"><span class="tbar-name">Rodocarga Express</span><div class="tbar-track"><div class="tbar-fill" style="width:66%"></div></div><span class="tbar-val tabular">47 NFs</span></div>
+          <div class="tbar-row"><span class="tbar-name">ViaFreight</span><div class="tbar-track"><div class="tbar-fill" style="width:44%"></div></div><span class="tbar-val tabular">31 NFs</span></div>
+          <div class="tbar-row"><span class="tbar-name">Norte Transportes</span><div class="tbar-track"><div class="tbar-fill" style="width:26%"></div></div><span class="tbar-val tabular">18 NFs</span></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
