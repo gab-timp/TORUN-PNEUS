@@ -15,6 +15,13 @@
 
 alter table produtos_precos add column if not exists tipo_cliente text;
 
+-- Tira a trava de duplicidade ANTIGA primeiro (codigo, regiao, condicao_pagamento) --
+-- senão o UPDATE abaixo (que muda "SC REVENDA" pra "SC/RS") esbarra nela, já que
+-- nesse momento ainda não existe o tipo_cliente pra diferenciar as duas linhas.
+-- O nome abaixo é o que o Postgres gera automaticamente pra um "unique(...)"
+-- declarado inline no create table original (catalogo_setup_agosto2026.sql).
+alter table produtos_precos drop constraint if exists produtos_precos_codigo_regiao_condicao_pagamento_key;
+
 update produtos_precos set regiao = 'SC/RS', tipo_cliente = 'REVENDA' where regiao = 'SC REVENDA';
 update produtos_precos set tipo_cliente = 'CONSUMO' where tipo_cliente is null;
 
@@ -24,11 +31,8 @@ alter table produtos_precos add constraint produtos_precos_tipo_cliente_check ch
   tipo_cliente in ('REVENDA', 'FROTA', 'CONSUMO', 'CONSUMO_DIFAL')
 );
 
--- Troca a trava de duplicidade: antes (codigo, regiao, condicao_pagamento),
--- agora precisa incluir tipo_cliente. O nome abaixo é o que o Postgres gera
--- automaticamente pra um "unique(...)" declarado inline no create table original
--- (catalogo_setup_agosto2026.sql).
-alter table produtos_precos drop constraint if exists produtos_precos_codigo_regiao_condicao_pagamento_key;
+-- Agora sim, a trava nova com as 4 colunas.
+alter table produtos_precos drop constraint if exists produtos_precos_codigo_regiao_tipo_condicao_key;
 alter table produtos_precos add constraint produtos_precos_codigo_regiao_tipo_condicao_key
   unique (codigo, regiao, tipo_cliente, condicao_pagamento);
 
