@@ -623,18 +623,18 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 
 .proposta-alerts{bottom:260px;}
 .proposta-alert-item{
-  background:var(--surface); border:1px solid #2F80ED; border-left:4px solid #2F80ED;
+  background:var(--surface); border:1px solid var(--orange); border-left:4px solid var(--orange);
   border-radius:9px; padding:11px 13px; box-shadow:0 8px 24px rgba(0,0,0,.2);
   font-size:12.5px; color:var(--ink);
   animation:estoqueBaixoIn .2s ease;
 }
 .proposta-alert-item .titulo{
-  font-weight:800; color:#1D4FA8; margin-bottom:3px;
+  font-weight:800; color:var(--orange-deep); margin-bottom:3px;
   display:flex; justify-content:space-between; align-items:center; gap:8px;
   font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
 }
 .proposta-alert-item .fechar{cursor:pointer; background:none; border:none; color:var(--ink-soft); font-size:13px; line-height:1; padding:0;}
-.proposta-alert-item .fechar:hover{color:#1D4FA8;}
+.proposta-alert-item .fechar:hover{color:var(--orange-deep);}
 @keyframes estoqueBaixoIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
 
 /* ---------------- responsive ---------------- */
