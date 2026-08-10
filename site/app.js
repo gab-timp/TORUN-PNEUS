@@ -565,7 +565,7 @@ function setView(view) {
   if (view === "faturamento") { renderClienteSelect(); renderFaturamentoDatalists(); renderFaturamento(); renderVendas(); }
   if (view === "clientes") renderClientes();
   if (view === "historico") renderHistorico();
-  if (view === "relatorios") renderRelatorioCodigoSelects();
+  if (view === "relatorios") renderRelatorioCodigoListas();
 }
 
 /* ---------------- render: ESTOQUE ---------------- */
@@ -831,12 +831,66 @@ function produtoOptionsHTML() {
     .join("");
 }
 
-function renderRelatorioCodigoSelects() {
-  const opts = `<option value="">Todos os produtos</option>` + produtoOptionsHTML();
-  document.querySelectorAll(".report-codigo").forEach(sel => {
-    const prev = sel.value;
-    sel.innerHTML = opts;
-    if (prev) sel.value = prev;
+function relatorioCodigoCards() {
+  return Array.from(document.querySelectorAll(".report-card")).filter(c => c.querySelector(".report-codigo-lista"));
+}
+
+function relatorioCodigosSelecionados(card) {
+  return Array.from(card.querySelectorAll(".report-codigo-lista input")).filter(cb => cb.checked).map(cb => cb.dataset.codigo);
+}
+
+function atualizarBotaoCodigoRelatorio(card) {
+  const checkboxes = card.querySelectorAll(".report-codigo-lista input");
+  const total = checkboxes.length;
+  const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
+  const btn = card.querySelector(".report-codigo-btn");
+  if (total === 0 || marcados === total) btn.textContent = "☰ Todos os produtos";
+  else if (marcados === 0) btn.textContent = "☰ Nenhum produto selecionado";
+  else btn.textContent = `☰ ${marcados} produto${marcados > 1 ? "s" : ""} selecionado${marcados > 1 ? "s" : ""}`;
+}
+
+function renderRelatorioCodigoListas() {
+  relatorioCodigoCards().forEach(card => {
+    const lista = card.querySelector(".report-codigo-lista");
+    const jaTinhaItens = lista.children.length > 0;
+    const anterior = jaTinhaItens ? new Set(relatorioCodigosSelecionados(card)) : null;
+    lista.innerHTML = state.produtos.slice().sort((a, b) => a.codigo.localeCompare(b.codigo)).map(p => `
+      <label class="dash-filter-item">
+        <input type="checkbox" data-codigo="${escapeAttr(p.codigo)}" ${(!jaTinhaItens || anterior.has(p.codigo)) ? "checked" : ""}>
+        ${escapeHtml(p.codigo)} — ${escapeHtml(p.medida)}
+      </label>
+    `).join("");
+    atualizarBotaoCodigoRelatorio(card);
+  });
+}
+
+function initRelatorioCodigoFiltros() {
+  relatorioCodigoCards().forEach(card => {
+    const btn = card.querySelector(".report-codigo-btn");
+    const panel = card.querySelector(".report-codigo-panel");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const abrir = panel.style.display === "none";
+      document.querySelectorAll(".report-codigo-panel").forEach(p => { p.style.display = "none"; });
+      panel.style.display = abrir ? "block" : "none";
+    });
+    card.querySelector(".report-codigo-lista").addEventListener("change", (e) => {
+      if (!e.target.matches("[data-codigo]")) return;
+      atualizarBotaoCodigoRelatorio(card);
+    });
+    card.querySelector(".report-codigo-todos").addEventListener("click", () => {
+      card.querySelectorAll(".report-codigo-lista input").forEach(cb => { cb.checked = true; });
+      atualizarBotaoCodigoRelatorio(card);
+    });
+    card.querySelector(".report-codigo-nenhum").addEventListener("click", () => {
+      card.querySelectorAll(".report-codigo-lista input").forEach(cb => { cb.checked = false; });
+      atualizarBotaoCodigoRelatorio(card);
+    });
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".report-codigo-wrap")) {
+      document.querySelectorAll(".report-codigo-panel").forEach(p => { p.style.display = "none"; });
+    }
   });
 }
 
@@ -4221,6 +4275,15 @@ function filtrarPorPeriodo(lista, de, ate) {
   });
 }
 
+function codigosResumo(codigos) {
+  if (!Array.isArray(codigos)) return null;
+  const total = state.produtos.length;
+  if (codigos.length === total) return null; // todos selecionados = sem filtro, não precisa aparecer no resumo
+  if (codigos.length === 0) return "Nenhum produto selecionado";
+  if (codigos.length <= 6) return codigos.join(", ");
+  return `${codigos.length} produtos selecionados`;
+}
+
 const REPORT_DEFS = {
   faturamento: {
     title: "Relatório de Faturamento",
@@ -4260,11 +4323,11 @@ const REPORT_DEFS = {
   estoque: {
     title: "Relatório de Estoque Atual",
     hasDateRange: false,
-    build(de, ate, filtro, codigo) {
+    build(de, ate, filtro, codigos) {
       let produtos = listEstoque().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
       if (filtro === "disponivel") produtos = produtos.filter(p => p.saldo > 0);
       if (filtro === "zerado") produtos = produtos.filter(p => p.saldo <= 0);
-      if (codigo) produtos = produtos.filter(p => p.codigo === codigo);
+      if (Array.isArray(codigos)) produtos = produtos.filter(p => codigos.includes(p.codigo));
       const columns = [
         { key: "codigo", label: "Código" },
         { key: "medida", label: "Medida" },
@@ -4277,7 +4340,7 @@ const REPORT_DEFS = {
       const filtroLabel = filtro === "disponivel" ? "Só com saldo disponível" : filtro === "zerado" ? "Só com saldo zerado" : "Todos";
       const summaryLines = [
         { label: "Filtro aplicado", value: filtroLabel },
-        ...(codigo ? [{ label: "Código do produto", value: codigo }] : []),
+        ...(codigosResumo(codigos) ? [{ label: "Códigos incluídos", value: codigosResumo(codigos) }] : []),
         { label: "Produtos incluídos", value: fmt(produtos.length) },
         { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
       ];
@@ -4287,9 +4350,9 @@ const REPORT_DEFS = {
   movimentacoes: {
     title: "Relatório de Movimentações",
     hasDateRange: true,
-    build(de, ate, filtro, codigo) {
+    build(de, ate, filtro, codigos) {
       let movs = filtrarPorPeriodo(state.movimentos, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
-      if (codigo) movs = movs.filter(m => m.codigo === codigo);
+      if (Array.isArray(codigos)) movs = movs.filter(m => codigos.includes(m.codigo));
       const columns = [
         { key: "data", label: "Data" },
         { key: "tipo", label: "Tipo" },
@@ -4310,7 +4373,7 @@ const REPORT_DEFS = {
       const totalEntradas = movs.filter(m => m.tipo === "entrada").reduce((a, m) => a + m.quantidade, 0);
       const totalSaidas = movs.filter(m => m.tipo !== "entrada").reduce((a, m) => a + m.quantidade, 0);
       const summaryLines = [
-        ...(codigo ? [{ label: "Código do produto", value: codigo }] : []),
+        ...(codigosResumo(codigos) ? [{ label: "Códigos incluídos", value: codigosResumo(codigos) }] : []),
         { label: "Movimentações no período", value: fmt(movs.length) },
         { label: "Total de entradas", value: fmt(totalEntradas) + " un." },
         { label: "Total de saídas", value: fmt(totalSaidas) + " un.", total: true }
@@ -4411,14 +4474,17 @@ function initRelatorios() {
     const deInput = card.querySelector(".report-de");
     const ateInput = card.querySelector(".report-ate");
     const filtroInput = card.querySelector(".report-filtro");
-    const codigoInput = card.querySelector(".report-codigo");
+    const temCodigos = !!card.querySelector(".report-codigo-lista");
     card.querySelector(".report-btn-pdf").addEventListener("click", () => {
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigoInput ? codigoInput.value : null);
+      const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos);
     });
     card.querySelector(".report-btn-excel").addEventListener("click", () => {
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigoInput ? codigoInput.value : null);
+      const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos);
     });
   });
+  initRelatorioCodigoFiltros();
 }
 
 function capturarGraficoParaImpressao(chart) {

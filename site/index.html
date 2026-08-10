@@ -1075,9 +1075,16 @@
             </div>
             <div class="field grow">
               <label>Código do produto (opcional)</label>
-              <select class="report-codigo">
-                <option value="">Todos os produtos</option>
-              </select>
+              <div class="dash-filter-wrap report-codigo-wrap">
+                <button type="button" class="btn small outline report-codigo-btn">☰ Todos os produtos</button>
+                <div class="dash-filter-panel report-codigo-panel" style="display:none;">
+                  <div class="dash-filter-actions">
+                    <button type="button" class="report-codigo-todos">Selecionar todos</button>
+                    <button type="button" class="report-codigo-nenhum">Nenhum</button>
+                  </div>
+                  <div class="report-codigo-lista"></div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="form-actions">
@@ -1102,9 +1109,16 @@
           <div class="form-row">
             <div class="field grow">
               <label>Código do produto (opcional)</label>
-              <select class="report-codigo">
-                <option value="">Todos os produtos</option>
-              </select>
+              <div class="dash-filter-wrap report-codigo-wrap">
+                <button type="button" class="btn small outline report-codigo-btn">☰ Todos os produtos</button>
+                <div class="dash-filter-panel report-codigo-panel" style="display:none;">
+                  <div class="dash-filter-actions">
+                    <button type="button" class="report-codigo-todos">Selecionar todos</button>
+                    <button type="button" class="report-codigo-nenhum">Nenhum</button>
+                  </div>
+                  <div class="report-codigo-lista"></div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="form-actions">
@@ -1658,6 +1672,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=102"></script>
+<script src="app.js?v=103"></script>
 </body>
 </html>
