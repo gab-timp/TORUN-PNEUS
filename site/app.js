@@ -2413,6 +2413,29 @@ function initCollapsibleCards() {
   });
 }
 
+const NAV_GRUPOS_KEY = "torun_nav_grupos_recolhidos_v1";
+function initNavGroups() {
+  let recolhidos = [];
+  try { recolhidos = JSON.parse(localStorage.getItem(NAV_GRUPOS_KEY)) || []; } catch (e) { recolhidos = []; }
+  document.querySelectorAll(".nav-group").forEach(grupo => {
+    if (recolhidos.includes(grupo.dataset.group)) grupo.classList.add("collapsed");
+  });
+  document.querySelectorAll(".nav-label").forEach(label => {
+    label.addEventListener("click", () => {
+      const grupo = label.closest(".nav-group");
+      grupo.classList.toggle("collapsed");
+      let atuais = [];
+      try { atuais = JSON.parse(localStorage.getItem(NAV_GRUPOS_KEY)) || []; } catch (e) { atuais = []; }
+      if (grupo.classList.contains("collapsed")) {
+        if (!atuais.includes(grupo.dataset.group)) atuais.push(grupo.dataset.group);
+      } else {
+        atuais = atuais.filter(g => g !== grupo.dataset.group);
+      }
+      localStorage.setItem(NAV_GRUPOS_KEY, JSON.stringify(atuais));
+    });
+  });
+}
+
 function initKanbanColumnsCollapse() {
   document.querySelectorAll(".kanban-col").forEach(col => {
     if (currentUserKanbanColapsadas.includes(col.dataset.etapa)) {
@@ -4915,6 +4938,7 @@ async function init() {
   initMobileMenu();
   initCollapsibleCards();
   initKanbanColumnsCollapse();
+  initNavGroups();
   initMinhasConfiguracoes();
   initAdministracao();
   const btnCentralAjuda = document.getElementById("btnCentralAjuda");

@@ -188,6 +188,15 @@ body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display
 .nav{display:flex;flex-direction:column;gap:4px;}
 .nav-group{display:flex;flex-direction:column;gap:2px;}
 .nav-label{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  width:100%;
+  background:none;
+  border:none;
+  cursor:pointer;
+  font-family:inherit;
   font-size:10.5px;
   font-weight:700;
   text-transform:uppercase;
@@ -195,6 +204,13 @@ body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display
   color:rgba(255,255,255,.32);
   padding:12px 12px 6px;
 }
+.nav-label:hover{color:rgba(255,255,255,.55);}
+.nav-label-chevron{width:11px; height:11px; flex:0 0 auto; transition:transform .15s ease;}
+.nav-group.collapsed .nav-label-chevron{transform:rotate(-90deg);}
+/* precisa de mais especificidade que "body.is-admin .nav-item.admin-only{display:flex}"
+   (styles.css acima) -- senão, com o grupo Gestão recolhido, o item Administração
+   (quando admin) venceria o recolhimento e ficaria visível mesmo assim. */
+.sidebar .nav-group.collapsed .nav-item{display:none;}
 .nav-item{
   display:flex;
   align-items:center;

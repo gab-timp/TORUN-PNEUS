@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=91">
+<link rel="stylesheet" href="styles.css?v=92">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -133,8 +133,8 @@
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
       </button>
 
-      <div class="nav-group">
-        <div class="nav-label">Estoque</div>
+      <div class="nav-group" data-group="estoque">
+        <button type="button" class="nav-label">Estoque <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
         <button class="nav-item" data-view="estoque">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-box"/></svg> Estoque
           <span class="nav-badge" id="navBadgeEstoque" style="display:none;"></span>
@@ -153,8 +153,8 @@
         </button>
       </div>
 
-      <div class="nav-group">
-        <div class="nav-label">Comercial</div>
+      <div class="nav-group" data-group="comercial">
+        <button type="button" class="nav-label">Comercial <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
         <button class="nav-item" data-view="faturamento">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg> Faturamento
         </button>
@@ -169,8 +169,8 @@
         </button>
       </div>
 
-      <div class="nav-group">
-        <div class="nav-label">Gestão</div>
+      <div class="nav-group" data-group="gestao">
+        <button type="button" class="nav-label">Gestão <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
         <button class="nav-item" data-view="relatorios">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatórios
         </button>
@@ -1880,6 +1880,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=106"></script>
+<script src="app.js?v=107"></script>
 </body>
 </html>
