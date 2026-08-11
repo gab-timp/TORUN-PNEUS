@@ -4917,6 +4917,8 @@ async function init() {
   initKanbanColumnsCollapse();
   initMinhasConfiguracoes();
   initAdministracao();
+  const btnCentralAjuda = document.getElementById("btnCentralAjuda");
+  if (btnCentralAjuda) btnCentralAjuda.addEventListener("click", () => toast("Central de ajuda ainda não está disponível — fale com o time por enquanto."));
 
   setView(primeiraViewPermitida());
 }
