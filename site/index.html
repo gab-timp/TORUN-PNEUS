@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=90">
+<link rel="stylesheet" href="styles.css?v=91">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -130,55 +130,55 @@
 
     <nav class="nav">
       <button class="nav-item active" data-view="dashboard">
-        <svg class="ic"><use href="#i-dashboard"/></svg> Dashboard
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
       </button>
 
       <div class="nav-group">
         <div class="nav-label">Estoque</div>
         <button class="nav-item" data-view="estoque">
-          <svg class="ic"><use href="#i-box"/></svg> Estoque
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-box"/></svg> Estoque
           <span class="nav-badge" id="navBadgeEstoque" style="display:none;"></span>
         </button>
         <button class="nav-item" data-view="previsto">
-          <svg class="ic"><use href="#i-calendar"/></svg> Estoque Previsto
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-calendar"/></svg> Estoque Previsto
         </button>
         <button class="nav-item" data-view="movimentacoes">
-          <svg class="ic"><use href="#i-swap"/></svg> Movimentações
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-swap"/></svg> Movimentações
         </button>
         <button class="nav-item" data-view="produtos">
-          <svg class="ic"><use href="#i-tag"/></svg> Produtos
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-tag"/></svg> Produtos
         </button>
         <button class="nav-item" data-view="catalogo">
-          <svg class="ic"><use href="#i-image"/></svg> Catálogo
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg> Catálogo
         </button>
       </div>
 
       <div class="nav-group">
         <div class="nav-label">Comercial</div>
         <button class="nav-item" data-view="faturamento">
-          <svg class="ic"><use href="#i-invoice"/></svg> Faturamento
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg> Faturamento
         </button>
         <button class="nav-item" data-view="clientes">
-          <svg class="ic"><use href="#i-users"/></svg> Clientes
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
         </button>
         <button class="nav-item" data-view="fretes">
-          <svg class="ic"><use href="#i-truck"/></svg> Fretes
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Fretes
         </button>
         <button class="nav-item" data-view="entregas">
-          <svg class="ic"><use href="#i-package"/></svg> Entregas
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg> Entregas
         </button>
       </div>
 
       <div class="nav-group">
         <div class="nav-label">Gestão</div>
         <button class="nav-item" data-view="relatorios">
-          <svg class="ic"><use href="#i-report"/></svg> Relatórios
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatórios
         </button>
         <button class="nav-item" data-view="historico">
-          <svg class="ic"><use href="#i-history"/></svg> Histórico
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-history"/></svg> Histórico
         </button>
         <button class="nav-item admin-only" data-view="administracao">
-          <svg class="ic"><use href="#i-settings"/></svg> Administração
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-settings"/></svg> Administração
         </button>
       </div>
     </nav>
@@ -196,7 +196,7 @@
       <button class="ghost-btn" id="btnLogout">⎋ Sair</button>
       <div class="sidebar-divider"></div>
       <div class="help-card">
-        <svg class="ic"><use href="#i-help"/></svg>
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-help"/></svg>
         <b>Precisa de ajuda?</b>
         <span>Tire dúvidas sobre estoque, propostas e pedidos.</span>
         <button type="button" id="btnCentralAjuda">Central de ajuda</button>
@@ -211,18 +211,18 @@
 
     <div class="topbar">
       <div class="topbar-search">
-        <svg class="ic"><use href="#i-search"/></svg>
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-search"/></svg>
         <input type="text" id="topbarSearch" placeholder="Buscar produto, cliente ou pedido…">
       </div>
       <div class="topbar-spacer"></div>
-      <div class="bell-btn" aria-hidden="true"><svg class="ic"><use href="#i-bell"/></svg><span class="bell-dot"></span></div>
+      <div class="bell-btn" aria-hidden="true"><svg class="ic" viewBox="0 0 20 20"><use href="#i-bell"/></svg><span class="bell-dot"></span></div>
       <button type="button" class="profile" id="sidebarUser" title="Minhas configurações">
         <span class="avatar" id="sidebarUserAvatar"></span>
         <span class="profile-text">
           <span class="profile-name" id="sidebarUserName"></span>
           <span class="profile-role" id="sidebarUserRole"></span>
         </span>
-        <svg class="ic profile-chevron"><use href="#i-chevron"/></svg>
+        <svg class="ic profile-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg>
       </button>
     </div>
 

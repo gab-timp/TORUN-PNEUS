@@ -237,11 +237,15 @@ body.is-admin .nav-item.admin-only{display:flex;}
   flex-direction:column;
   gap:8px;
 }
+/* .theme-toggle/.theme-opt aparecem em dois contextos: na sidebar (sempre escura)
+   e dentro do modal "Minhas configurações" (segue o tema, claro ou escuro) --
+   por isso a regra base é theme-aware, e a sidebar tem sua própria sobrescrita
+   (mais específica via .sidebar) pra continuar legível no fundo sempre preto. */
 .theme-toggle{
   display:flex;
   gap:4px;
   padding:4px;
-  background:rgba(255,255,255,.06);
+  background:var(--paper-2);
   border-radius:8px;
   margin-bottom:4px;
 }
@@ -249,7 +253,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
   flex:1;
   background:transparent;
   border:none;
-  color:rgba(255,255,255,.6);
+  color:var(--ink-soft);
   padding:7px 0;
   border-radius:6px;
   cursor:pointer;
@@ -257,8 +261,12 @@ body.is-admin .nav-item.admin-only{display:flex;}
   line-height:1;
   transition:background .12s ease, color .12s ease;
 }
-.theme-opt:hover{color:var(--white);}
+.theme-opt:hover{color:var(--ink);}
 .theme-opt.active{background:var(--orange); color:var(--white);}
+
+.sidebar .theme-toggle{background:rgba(255,255,255,.06);}
+.sidebar .theme-opt{color:rgba(255,255,255,.6);}
+.sidebar .theme-opt:hover{color:var(--white);}
 .ghost-btn{
   background:transparent;
   border:1px solid rgba(255,255,255,.22);
