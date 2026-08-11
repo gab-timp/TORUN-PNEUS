@@ -1196,11 +1196,12 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   position:relative;
   background:var(--surface);
   border:1px solid var(--line);
-  border-radius:12px;
+  border-radius:16px;
+  box-shadow:var(--shadow-card);
   padding:16px;
-  transition:border-color .15s ease;
+  transition:border-color .15s ease, box-shadow .15s ease;
 }
-.catalogo-card:hover{border-color:var(--orange);}
+.catalogo-card:hover{border-color:var(--orange); box-shadow:var(--shadow-modal);}
 .catalogo-card-editbtn{
   position:absolute; top:12px; right:12px;
   width:26px; height:26px; border-radius:7px;
@@ -1247,6 +1248,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .catalogo-lightbox-close{
   position:absolute; top:-14px; right:-14px; width:32px; height:32px; border-radius:50%;
   background:var(--surface); border:1px solid var(--line); color:var(--ink); cursor:pointer; font-size:14px;
+  box-shadow:var(--shadow-card);
   display:flex; align-items:center; justify-content:center;
 }
 .catalogo-lightbox-close:hover{border-color:var(--orange); color:var(--orange-deep);}
@@ -1254,6 +1256,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   position:absolute; top:50%; transform:translateY(-50%);
   width:40px; height:40px; border-radius:50%;
   background:var(--surface); border:1px solid var(--line); color:var(--ink); cursor:pointer; font-size:22px;
+  box-shadow:var(--shadow-card);
   display:flex; align-items:center; justify-content:center; line-height:1;
 }
 .catalogo-lightbox-nav:hover{border-color:var(--orange); color:var(--orange-deep);}
