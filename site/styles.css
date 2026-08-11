@@ -13,6 +13,15 @@
   --orange-deep:#C64F0C;
   --orange-pale:#FFE7D6;
   --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 10px 24px -14px rgba(0,0,0,.14);
+  --shadow-modal: 0 20px 60px -20px rgba(0,0,0,.35);
+  --danger:#B91C1C;
+  --danger-deep:#8C1010;
+  --danger-pale:#FDE6E6;
+  --danger-border:#EF4444;
+  --status-good:#15803D;
+  --status-good-deep:#0E5C29;
+  --status-good-pale:#DFF3E6;
+  --status-good-border:#22C55E;
 }
 
 /* modo escuro: aplica quando o sistema pede e o usuario nao escolheu "claro",
@@ -552,6 +561,7 @@ tr.frete-row-contratada td{background:var(--orange-pale); color:var(--orange-dee
 tr.frete-row-contratada .btn.outline{color:var(--orange-deep); border-color:var(--orange-deep);}
 tr.frete-row-contratada .btn.outline:hover{color:var(--orange); border-color:var(--orange);}
 
+/* ---------------- buttons ---------------- */
 .btn{
   background:var(--black);
   color:var(--white);
@@ -569,8 +579,8 @@ tr.frete-row-contratada .btn.outline:hover{color:var(--orange); border-color:var
 .btn.outline{background:transparent; color:var(--ink); border:1px solid var(--line-strong);}
 .btn.outline:hover{border-color:var(--orange); color:var(--orange-deep);}
 .btn.small{padding:5px 10px;font-size:11px;border-radius:6px;}
-.btn.danger{background:var(--surface); color:var(--ink); border:1px solid var(--line);}
-.btn.danger:hover{border-color:var(--orange); color:var(--orange-deep);}
+.btn.danger{background:var(--danger-pale); color:var(--danger); border:1px solid var(--danger-border);}
+.btn.danger:hover{background:var(--danger); border-color:var(--danger); color:var(--white);}
 
 /* ---------------- tables ---------------- */
 .table-wrap{overflow-x:auto;}
@@ -582,12 +592,12 @@ thead th{
   letter-spacing:.06em;
   color:var(--ink-soft);
   font-weight:700;
-  padding:9px 10px;
-  border-bottom:2px solid var(--line-strong);
+  padding:11px 12px;
+  border-bottom:1px solid var(--line-strong);
   white-space:nowrap;
 }
 tbody td{
-  padding:10px 10px;
+  padding:12px 12px;
   border-bottom:1px solid var(--line);
   vertical-align:middle;
 }
@@ -606,16 +616,13 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   letter-spacing:.04em;
   white-space:nowrap;
 }
-.badge.entrada{background:#111; color:#fff;}
-.badge.venda{background:var(--orange); color:#111;}
+.badge.entrada{background:var(--black); color:var(--white);}
+.badge.venda{background:var(--orange); color:var(--black);}
 .badge.reserva{background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange);}
 .badge.transferencia{background:var(--paper-2); color:var(--ink); border:1px solid var(--line-strong);}
-.badge.avariado{background:#111; color:var(--orange);}
+.badge.avariado{background:var(--black); color:var(--orange);}
 .badge.log-edicao{background:var(--paper-2); color:var(--ink); border:1px solid var(--line-strong);}
 .badge.log-exclusao{background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange);}
-.badge.st-aguardando-coleta{background:var(--paper-2); color:var(--ink-soft); border:1px solid var(--line-strong);}
-.badge.st-transito{background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange);}
-.badge.st-entregue{background:#111; color:#4ADE80;}
 
 .saldo-zero{color:var(--orange-deep); font-weight:800;}
 .saldo-baixo{color:var(--orange);}
@@ -629,6 +636,9 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   border:1px solid var(--line); border-radius:7px; padding:8px 11px; font-size:13px; background:var(--surface); color:var(--ink);
 }
 .search-row input[type=text]{min-width:220px;}
+.search-row input:focus, .search-row select:focus{
+  border-color:var(--orange); outline:none; box-shadow:0 0 0 3px var(--orange-pale);
+}
 
 .empty-state{
   text-align:center; padding:40px 20px; color:var(--ink-soft); font-size:13px;
@@ -771,8 +781,9 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 #confirmOverlay{z-index:80;}
 .modal-overlay.show{display:flex;}
 .modal{
-  background:var(--surface); border-radius:12px; padding:22px; max-width:480px; width:100%;
+  background:var(--surface); border-radius:16px; padding:22px; max-width:480px; width:100%;
   border-top:4px solid var(--orange);
+  box-shadow:var(--shadow-modal);
   color:var(--ink);
 }
 .modal h3{font-size:15px; margin-bottom:10px;}
