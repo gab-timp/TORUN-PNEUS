@@ -551,7 +551,8 @@ body.is-admin .nav-item.admin-only{display:flex;}
 /* ---------------- fretes ---------------- */
 .frete-group{
   border:1px solid var(--line);
-  border-radius:10px;
+  border-radius:14px;
+  box-shadow:var(--shadow-card);
   padding:14px 16px;
   margin-bottom:12px;
 }
