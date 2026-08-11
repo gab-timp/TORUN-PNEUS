@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=97">
+<link rel="stylesheet" href="styles.css?v=98">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1360,6 +1360,33 @@
 <div class="modal-overlay" id="minhasConfigOverlay">
   <div class="modal">
     <h3>Minhas configurações</h3>
+
+    <div class="field">
+      <label>Foto de perfil</label>
+      <div class="minhasconfig-avatar-row">
+        <div class="minhasconfig-avatar-preview" id="minhasConfigAvatarPreview"></div>
+        <div class="minhasconfig-avatar-actions">
+          <button type="button" class="btn small outline" id="btnMinhasConfigAvatar">⬆ Alterar foto</button>
+          <input type="file" id="minhasConfigAvatarInput" accept="image/*" style="display:none;">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Nome de exibição</label>
+      <input type="text" id="minhasConfigNome" maxlength="120">
+    </div>
+
+    <div class="field">
+      <label>E-mail</label>
+      <div class="mono" id="minhasConfigEmail" style="padding:8px 0;"></div>
+    </div>
+
+    <div class="field">
+      <label>Telefone de contato</label>
+      <input type="text" id="minhasConfigTelefone" maxlength="30" placeholder="(00) 00000-0000">
+    </div>
+
     <div class="field">
       <label>Tema</label>
       <div class="theme-toggle">
@@ -1368,13 +1395,20 @@
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
       </div>
     </div>
+
     <div class="field">
-      <label>Nome de exibição</label>
-      <input type="text" id="minhasConfigNome" maxlength="120">
+      <label>Tamanho da letra</label>
+      <div class="fontsize-toggle">
+        <button type="button" class="fontsize-opt" data-fontsize-choice="pequeno" title="Letra pequena">A-</button>
+        <button type="button" class="fontsize-opt" data-fontsize-choice="medio" title="Letra média">A</button>
+        <button type="button" class="fontsize-opt" data-fontsize-choice="grande" title="Letra grande">A+</button>
+      </div>
     </div>
+
     <div class="field">
       <label><input type="checkbox" id="minhasConfigNotifProposta"> Avisar quando chegar uma nova proposta de representante</label>
     </div>
+
     <div class="form-actions">
       <button class="btn outline" id="minhasConfigCancelar">Fechar</button>
       <button class="btn primary" id="minhasConfigSalvar">Salvar</button>
@@ -1880,6 +1914,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=107"></script>
+<script src="app.js?v=108"></script>
 </body>
 </html>

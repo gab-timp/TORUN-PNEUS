@@ -47,6 +47,13 @@
   --line-strong:#D8D8D8;
 }
 
+/* tamanho da letra: escala visual via zoom (o CSS do site inteiro é em px,
+   não rem -- reescrever tudo seria um refactor grande demais só pra isso).
+   Aplicado no body; o atributo só é setado dentro de init(), que já roda
+   depois de showApp() esconder a tela de login, então login nunca é afetado. */
+html[data-font-size="pequeno"] body{zoom:0.9;}
+html[data-font-size="grande"] body{zoom:1.15;}
+
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
@@ -280,6 +287,34 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .theme-opt:hover{color:var(--ink);}
 .theme-opt.active{background:var(--orange); color:var(--white);}
 
+/* classe própria, não reaproveita .theme-toggle/.theme-opt: initThemeToggle()
+   faz querySelectorAll(".theme-opt") assumindo que todo elemento com essa
+   classe tem data-theme-choice -- se o seletor de tamanho de letra usasse a
+   mesma classe, o clique nele ia disparar o listener de tema errado. */
+.fontsize-toggle{
+  display:flex;
+  gap:4px;
+  padding:4px;
+  background:var(--paper-2);
+  border-radius:8px;
+  margin-bottom:4px;
+}
+.fontsize-opt{
+  flex:1;
+  background:transparent;
+  border:none;
+  color:var(--ink-soft);
+  padding:7px 0;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:700;
+  line-height:1;
+  transition:background .12s ease, color .12s ease;
+}
+.fontsize-opt:hover{color:var(--ink);}
+.fontsize-opt.active{background:var(--orange); color:var(--white);}
+
 .sidebar .theme-toggle{background:rgba(255,255,255,.06);}
 .sidebar .theme-opt{color:rgba(255,255,255,.6);}
 .sidebar .theme-opt:hover{color:var(--white);}
@@ -367,7 +402,9 @@ body.is-admin .nav-item.admin-only{display:flex;}
   background:linear-gradient(155deg, var(--orange), var(--orange-deep));
   color:var(--white); font-weight:800; font-size:12px;
   display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
 }
+.avatar img{width:100%; height:100%; object-fit:cover; border-radius:inherit;}
 .profile-text{display:flex; flex-direction:column; text-align:left; line-height:1.25;}
 .profile-name{font-size:12.5px; font-weight:700; color:var(--ink);}
 .profile-role{font-size:10.5px; color:var(--ink-soft);}
@@ -484,6 +521,17 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .field input[type="checkbox"]{width:auto;padding:0;border:none;background:none;box-shadow:none;}
 .field input[type="checkbox"]:focus{box-shadow:none;}
 .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;}
+
+.minhasconfig-avatar-row{display:flex; gap:14px; align-items:center;}
+.minhasconfig-avatar-preview{
+  width:72px; height:72px; border-radius:50%; overflow:hidden; flex:0 0 auto;
+  background:linear-gradient(155deg, var(--orange), var(--orange-deep));
+  color:var(--white); font-weight:800; font-size:22px;
+  display:flex; align-items:center; justify-content:center;
+}
+.minhasconfig-avatar-preview img{width:100%; height:100%; object-fit:cover;}
+.minhasconfig-avatar-actions{display:flex; flex-direction:column; gap:6px;}
+#minhasConfigOverlay .modal{max-height:88vh; overflow-y:auto;}
 
 .item-list{display:flex;flex-direction:column;gap:8px;}
 .item-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}

@@ -15,6 +15,11 @@ let currentUserKanbanColapsadas = [];
 let currentUserNome = "";
 let currentUserTema = null;
 let currentUserNotifNovaProposta = true;
+let currentUserTelefone = "";
+let currentUserAvatarPath = null;
+let currentUserTamanhoLetra = null;
+const AVATAR_BUCKET = "avatares-usuarios";
+const FONT_SIZE_KEY = "torun_font_size_v1";
 let configuracoesSite = null;
 
 const TIPO_LABEL = {
@@ -232,8 +237,8 @@ async function loadState() {
       fetchComRetry(() => sb.from("vendas").select("*").order("data")),
       fetchComRetry(() => sb.from("previsoes").select("*")),
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
-      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia").eq("user_id", currentUser.id).maybeSingle()),
-      fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, tamanho_letra").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at"))
     ]),
     fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
@@ -263,9 +268,12 @@ async function loadState() {
   currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
   currentUserEditableTables = (roleRes.data && roleRes.data.editable_tables) || null;
   currentUserNome = (roleRes.data && roleRes.data.nome) || currentUser.email;
+  currentUserTelefone = (roleRes.data && roleRes.data.telefone) || "";
+  currentUserAvatarPath = (roleRes.data && roleRes.data.avatar_path) || null;
   currentUserKanbanColapsadas = (prefRes.data && prefRes.data.kanban_colunas_recolhidas) || [];
   currentUserTema = (prefRes.data && prefRes.data.tema) || null;
   currentUserNotifNovaProposta = prefRes.data ? prefRes.data.notif_nova_proposta !== false : true;
+  currentUserTamanhoLetra = (prefRes.data && prefRes.data.tamanho_letra) || null;
   document.body.classList.toggle("is-viewer", currentUserRole === "viewer");
   document.body.classList.toggle("is-admin", currentUserIsAdmin);
   if (currentUserEditableTables) {
@@ -278,6 +286,10 @@ async function loadState() {
   if (currentUserTema && localStorage.getItem(THEME_KEY) !== currentUserTema) {
     localStorage.setItem(THEME_KEY, currentUserTema);
     applyThemeChoice(currentUserTema);
+  }
+  if (currentUserTamanhoLetra && localStorage.getItem(FONT_SIZE_KEY) !== currentUserTamanhoLetra) {
+    localStorage.setItem(FONT_SIZE_KEY, currentUserTamanhoLetra);
+    applyFontSizeChoice(currentUserTamanhoLetra);
   }
 
   state = {
@@ -323,6 +335,12 @@ function getPrecosDoProduto(codigo, tipoCliente) {
 function fotoProdutoUrl(fotoPath) {
   if (!fotoPath) return null;
   const { data } = sb.storage.from(CATALOGO_BUCKET).getPublicUrl(fotoPath);
+  return data ? data.publicUrl : null;
+}
+
+function fotoAvatarUsuarioUrl(avatarPath) {
+  if (!avatarPath) return null;
+  const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(avatarPath);
   return data ? data.publicUrl : null;
 }
 
@@ -4935,6 +4953,7 @@ async function init() {
   initEntregas();
   initCatalogo();
   initThemeToggle();
+  initFontSizeToggle();
   initMobileMenu();
   initCollapsibleCards();
   initKanbanColumnsCollapse();
@@ -4982,6 +5001,34 @@ function initThemeToggle() {
   });
 }
 
+function applyFontSizeChoice(choice) {
+  if (choice === "pequeno" || choice === "grande") {
+    document.documentElement.setAttribute("data-font-size", choice);
+  } else {
+    document.documentElement.removeAttribute("data-font-size");
+  }
+  document.querySelectorAll(".fontsize-opt").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.fontsizeChoice === choice);
+  });
+}
+
+function initFontSizeToggle() {
+  const salvo = localStorage.getItem(FONT_SIZE_KEY) || "medio";
+  applyFontSizeChoice(salvo);
+  document.querySelectorAll(".fontsize-opt").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const choice = btn.dataset.fontsizeChoice;
+      localStorage.setItem(FONT_SIZE_KEY, choice);
+      applyFontSizeChoice(choice);
+      currentUserTamanhoLetra = choice;
+      if (currentUser) {
+        sb.from("user_preferences").upsert({ user_id: currentUser.id, tamanho_letra: choice }, { onConflict: "user_id" })
+          .then(({ error }) => { if (error) console.error("Erro ao salvar tamanho da letra:", error); });
+      }
+    });
+  });
+}
+
 /* ---------------- minhas configurações ---------------- */
 
 function computeUserInitials(nome) {
@@ -5004,12 +5051,27 @@ function updateSidebarUserChip() {
       : currentUserRole === "representante" ? "Representante"
       : "Editor";
   }
-  if (avatarEl) avatarEl.textContent = computeUserInitials(nome);
+  if (avatarEl) {
+    const url = fotoAvatarUsuarioUrl(currentUserAvatarPath);
+    avatarEl.innerHTML = url ? `<img src="${escapeAttr(url)}" alt="">` : "";
+    if (!url) avatarEl.textContent = computeUserInitials(nome);
+  }
+}
+
+function renderMinhasConfigAvatarPreview() {
+  const el = document.getElementById("minhasConfigAvatarPreview");
+  if (!el) return;
+  const url = fotoAvatarUsuarioUrl(currentUserAvatarPath);
+  el.innerHTML = url ? `<img src="${escapeAttr(url)}" alt="">` : "";
+  if (!url) el.textContent = computeUserInitials(currentUserNome || (currentUser && currentUser.email) || "");
 }
 
 function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNome").value = currentUserNome || "";
+  document.getElementById("minhasConfigTelefone").value = currentUserTelefone || "";
+  document.getElementById("minhasConfigEmail").textContent = (currentUser && currentUser.email) || "";
   document.getElementById("minhasConfigNotifProposta").checked = currentUserNotifNovaProposta;
+  renderMinhasConfigAvatarPreview();
   document.getElementById("minhasConfigOverlay").classList.add("show");
 }
 
@@ -5017,14 +5079,16 @@ function closeMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigOverlay").classList.remove("show");
 }
 
-async function salvarNomeExibicao() {
+async function salvarPerfil() {
   const novoNome = document.getElementById("minhasConfigNome").value.trim();
+  const novoTelefone = document.getElementById("minhasConfigTelefone").value.trim();
   if (!novoNome) { toast("O nome não pode ficar em branco."); return; }
-  const { error } = await sb.rpc("atualizar_meu_nome", { novo_nome: novoNome });
-  if (error) { toast("Erro ao salvar nome: " + error.message); return; }
+  const { error } = await sb.rpc("atualizar_meu_perfil", { novo_nome: novoNome, novo_telefone: novoTelefone || null });
+  if (error) { toast("Erro ao salvar perfil: " + error.message); return; }
   currentUserNome = novoNome;
+  currentUserTelefone = novoTelefone;
   updateSidebarUserChip();
-  toast("Nome atualizado.");
+  toast("Perfil atualizado.");
 }
 
 async function salvarNotificacaoPreferencia(checked) {
@@ -5035,14 +5099,38 @@ async function salvarNotificacaoPreferencia(checked) {
   if (error) toast("Erro ao salvar preferência: " + error.message);
 }
 
+async function uploadAvatar(file) {
+  if (!currentUser) return;
+  if (file.size > 5 * 1024 * 1024) { toast("Imagem muito grande (máx. 5 MB)."); return; }
+  const pathAntigo = currentUserAvatarPath;
+  const path = `${currentUser.id}/${Date.now()}-${sanitizarNomeArquivo(file.name)}`;
+  const { error: uploadError } = await sb.storage.from(AVATAR_BUCKET).upload(path, file);
+  if (uploadError) { toast("Erro ao enviar foto: " + uploadError.message); return; }
+  const { error } = await sb.rpc("atualizar_meu_avatar", { novo_avatar_path: path });
+  if (error) { toast("Erro ao salvar foto: " + error.message); return; }
+  currentUserAvatarPath = path;
+  if (pathAntigo) await sb.storage.from(AVATAR_BUCKET).remove([pathAntigo]);
+  renderMinhasConfigAvatarPreview();
+  updateSidebarUserChip();
+  toast("Foto de perfil atualizada.");
+}
+
 function initMinhasConfiguracoes() {
   document.getElementById("sidebarUser").addEventListener("click", abrirMinhasConfiguracoesModal);
   document.getElementById("minhasConfigCancelar").addEventListener("click", closeMinhasConfiguracoesModal);
   document.getElementById("minhasConfigOverlay").addEventListener("click", (e) => {
     if (e.target.id === "minhasConfigOverlay") closeMinhasConfiguracoesModal();
   });
+  document.getElementById("btnMinhasConfigAvatar").addEventListener("click", () => {
+    document.getElementById("minhasConfigAvatarInput").click();
+  });
+  document.getElementById("minhasConfigAvatarInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (file) await uploadAvatar(file);
+  });
   document.getElementById("minhasConfigSalvar").addEventListener("click", async () => {
-    await salvarNomeExibicao();
+    await salvarPerfil();
     await salvarNotificacaoPreferencia(document.getElementById("minhasConfigNotifProposta").checked);
     closeMinhasConfiguracoesModal();
   });
