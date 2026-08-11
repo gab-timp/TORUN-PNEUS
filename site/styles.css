@@ -1125,6 +1125,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .processo-modal-row:last-child{border-bottom:none;}
 .processo-modal-row .val{font-family:'Space Mono',monospace;font-weight:700;}
 
+/* ---------------- clientes ---------------- */
 .cliente-modal{max-width:720px; max-height:88vh; overflow-y:auto;}
 .cliente-modal-head{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:6px;}
 .cliente-modal-head h3{font-size:18px;}
@@ -1132,12 +1133,62 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .cliente-modal-edit-form{margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--line);}
 .cliente-modal-info{
   display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; margin:14px 0;
-  padding:14px; background:var(--paper); border-radius:10px; font-size:13px;
+  padding:14px; background:var(--paper); border-radius:12px; font-size:13px;
 }
 .cliente-modal-info .lbl{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700;}
 .cliente-modal-info .val{margin-top:2px; font-weight:600;}
 .cliente-modal-section{margin-top:18px;}
 .cliente-modal-section h4{font-size:13px; font-weight:800; margin-bottom:8px;}
+
+.mesclar-clientes-lista{display:flex; flex-direction:column; gap:10px; max-height:50vh; overflow-y:auto;}
+.mesclar-cliente-item{
+  display:flex; gap:12px; align-items:flex-start;
+  border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+}
+.mesclar-cliente-item input[type="radio"]{margin-top:3px;}
+.mesclar-cliente-item .nome{font-weight:800; font-size:14px;}
+.mesclar-cliente-item .detalhes{font-size:12px; color:var(--ink-soft); margin-top:3px; display:flex; flex-wrap:wrap; gap:4px 14px;}
+.mesclar-cliente-item .detalhes b{color:var(--ink);}
+.cliente-entrega-row{
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  padding:8px 10px; border:1px solid var(--line); border-radius:9px; margin-bottom:6px; font-size:12.5px;
+}
+.cliente-nome-click{cursor:pointer; text-decoration:underline; text-decoration-color:transparent; transition:color .12s ease;}
+.cliente-nome-click:hover{color:var(--orange-deep); text-decoration-color:currentColor;}
+
+.cliente-tags-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+.cliente-tags-row:empty{margin-top:0;}
+.cliente-tag-pill{
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--paper-2); border:1px solid var(--line-strong); border-radius:20px;
+  padding:3px 6px 3px 10px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
+}
+.cliente-tag-pill button{
+  background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:13px; line-height:1; padding:0 2px;
+}
+.cliente-tag-pill button:hover{color:var(--orange-deep);}
+.cliente-tags-add{display:flex; gap:8px; margin:10px 0 4px;}
+.cliente-tags-add input{
+  flex:1; border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:12.5px;
+  background:var(--surface); color:var(--ink);
+}
+.cliente-tags-list-compact{display:flex; flex-wrap:wrap; gap:4px;}
+.cliente-tags-list-compact .cliente-tag-pill{padding:2px 7px; font-size:9.5px;}
+
+.cliente-nota-add{display:flex; gap:8px; margin-bottom:10px; align-items:flex-end;}
+.cliente-nota-add textarea{
+  flex:1; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:12.5px;
+  background:var(--surface); color:var(--ink); resize:vertical; font-family:inherit;
+}
+.cliente-notas-list{display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;}
+.cliente-nota-item{border:1px solid var(--line); border-radius:10px; padding:9px 11px; font-size:12.5px; background:var(--paper);}
+.cliente-nota-item-head{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;}
+.cliente-nota-item-meta{font-size:10.5px; color:var(--ink-soft);}
+.cliente-nota-item-texto{white-space:pre-wrap;}
+.cliente-nota-item button{
+  background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:12px; flex:0 0 auto;
+}
+.cliente-nota-item button:hover{color:var(--orange-deep);}
 
 /* ---------------- catálogo ---------------- */
 .catalogo-grid{
@@ -1239,56 +1290,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .catalogo-modal-section-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;}
 .catalogo-modal-section-head h4{margin-bottom:0;}
 .catalogo-preco-table-edit input{width:84px; padding:5px 7px; border:1px solid var(--line-strong); border-radius:6px; background:var(--surface); color:var(--ink); font-size:12px;}
-
-.mesclar-clientes-lista{display:flex; flex-direction:column; gap:10px; max-height:50vh; overflow-y:auto;}
-.mesclar-cliente-item{
-  display:flex; gap:12px; align-items:flex-start;
-  border:1px solid var(--line); border-radius:10px; padding:12px 14px;
-}
-.mesclar-cliente-item input[type="radio"]{margin-top:3px;}
-.mesclar-cliente-item .nome{font-weight:800; font-size:14px;}
-.mesclar-cliente-item .detalhes{font-size:12px; color:var(--ink-soft); margin-top:3px; display:flex; flex-wrap:wrap; gap:4px 14px;}
-.mesclar-cliente-item .detalhes b{color:var(--ink);}
-.cliente-entrega-row{
-  display:flex; justify-content:space-between; align-items:center; gap:10px;
-  padding:8px 10px; border:1px solid var(--line); border-radius:7px; margin-bottom:6px; font-size:12.5px;
-}
-.cliente-nome-click{cursor:pointer; text-decoration:underline; text-decoration-color:transparent; transition:color .12s ease;}
-.cliente-nome-click:hover{color:var(--orange-deep); text-decoration-color:currentColor;}
-
-.cliente-tags-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
-.cliente-tags-row:empty{margin-top:0;}
-.cliente-tag-pill{
-  display:inline-flex; align-items:center; gap:5px;
-  background:var(--paper-2); border:1px solid var(--line-strong); border-radius:20px;
-  padding:3px 6px 3px 10px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em;
-}
-.cliente-tag-pill button{
-  background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:13px; line-height:1; padding:0 2px;
-}
-.cliente-tag-pill button:hover{color:var(--orange-deep);}
-.cliente-tags-add{display:flex; gap:8px; margin:10px 0 4px;}
-.cliente-tags-add input{
-  flex:1; border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:12.5px;
-  background:var(--surface); color:var(--ink);
-}
-.cliente-tags-list-compact{display:flex; flex-wrap:wrap; gap:4px;}
-.cliente-tags-list-compact .cliente-tag-pill{padding:2px 7px; font-size:9.5px;}
-
-.cliente-nota-add{display:flex; gap:8px; margin-bottom:10px; align-items:flex-end;}
-.cliente-nota-add textarea{
-  flex:1; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:12.5px;
-  background:var(--surface); color:var(--ink); resize:vertical; font-family:inherit;
-}
-.cliente-notas-list{display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;}
-.cliente-nota-item{border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:12.5px; background:var(--paper);}
-.cliente-nota-item-head{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;}
-.cliente-nota-item-meta{font-size:10.5px; color:var(--ink-soft);}
-.cliente-nota-item-texto{white-space:pre-wrap;}
-.cliente-nota-item button{
-  background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:12px; flex:0 0 auto;
-}
-.cliente-nota-item button:hover{color:var(--orange-deep);}
 
 /* ---------------- pedido modal ---------------- */
 .pedido-modal{
