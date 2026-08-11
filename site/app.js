@@ -274,8 +274,7 @@ async function loadState() {
     document.body.removeAttribute("data-editable-tables");
   }
   applyViewRestrictions();
-  const sidebarUserEl = document.getElementById("sidebarUser");
-  if (sidebarUserEl) sidebarUserEl.textContent = currentUserNome;
+  updateSidebarUserChip();
   if (currentUserTema && localStorage.getItem(THEME_KEY) !== currentUserTema) {
     localStorage.setItem(THEME_KEY, currentUserTema);
     applyThemeChoice(currentUserTema);
@@ -2599,11 +2598,24 @@ const DASH_COLORS = {
   bar: "#FF6A13",
   grid: "rgba(255,255,255,.08)",
   text: "rgba(255,255,255,.75)",
-  textStrong: "#FFFFFF"
+  textStrong: "#FFFFFF",
+  cardBg: "#000000"
 };
 // paleta categórica validada (CVD-safe, ordem fixa) para gráficos donut — nunca ciclar
 const DASH_CATEGORICAL = ["#EA580C", "#2563EB", "#059669", "#B45309", "#DB2777", "#7C3AED", "#DC2626", "#0D9488"];
-const DASH_OUTROS_COLOR = "rgba(255,255,255,.25)";
+let DASH_OUTROS_COLOR = "rgba(255,255,255,.25)";
+
+// .dash-card deixou de ser sempre preto (agora segue o tema) -- essas cores do Chart.js
+// precisam acompanhar, senão texto/grade do gráfico ficam ilegíveis no modo claro.
+function refreshDashColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const read = (nome, fallback) => (cs.getPropertyValue(nome) || "").trim() || fallback;
+  DASH_COLORS.grid = read("--line", DASH_COLORS.grid);
+  DASH_COLORS.text = read("--ink-soft", DASH_COLORS.text);
+  DASH_COLORS.textStrong = read("--ink", DASH_COLORS.textStrong);
+  DASH_COLORS.cardBg = read("--surface", DASH_COLORS.cardBg);
+  DASH_OUTROS_COLOR = read("--line-strong", DASH_OUTROS_COLOR);
+}
 
 function foldTopN(labels, data, n = 7, outrosLabel = "Outros") {
   if (labels.length <= n) return { labels, data };
@@ -2630,7 +2642,7 @@ function dashDonutConfig(labels, data, { valueIsMoney = true, abbreviate = true 
   const colors = labels.map((l, i) => l === "Outros" && i === labels.length - 1 ? DASH_OUTROS_COLOR : DASH_CATEGORICAL[i % DASH_CATEGORICAL.length]);
   return {
     type: "doughnut",
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: "#000000", borderWidth: 2 }] },
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: DASH_COLORS.cardBg, borderWidth: 2 }] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -2737,6 +2749,7 @@ function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, 
 }
 
 function renderDashboard() {
+  refreshDashColors();
   atualizarAlertaEstoqueBaixo();
   applyDashVisibility();
   populateMesFiltro("dashMesFiltro");
@@ -4932,6 +4945,9 @@ function initThemeToggle() {
       localStorage.setItem(THEME_KEY, choice);
       applyThemeChoice(choice);
       currentUserTema = choice;
+      if (document.getElementById("view-dashboard").classList.contains("active")) {
+        renderDashboard();
+      }
       if (currentUser) {
         sb.from("user_preferences").upsert({ user_id: currentUser.id, tema: choice }, { onConflict: "user_id" })
           .then(({ error }) => { if (error) console.error("Erro ao salvar tema:", error); });
@@ -4941,6 +4957,29 @@ function initThemeToggle() {
 }
 
 /* ---------------- minhas configurações ---------------- */
+
+function computeUserInitials(nome) {
+  if (!nome) return "?";
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return "?";
+}
+
+function updateSidebarUserChip() {
+  const nome = currentUserNome || (currentUser && currentUser.email) || "";
+  const nameEl = document.getElementById("sidebarUserName");
+  const roleEl = document.getElementById("sidebarUserRole");
+  const avatarEl = document.getElementById("sidebarUserAvatar");
+  if (nameEl) nameEl.textContent = nome;
+  if (roleEl) {
+    roleEl.textContent = currentUserIsAdmin ? "Administrador"
+      : currentUserRole === "viewer" ? "Somente leitura"
+      : currentUserRole === "representante" ? "Representante"
+      : "Editor";
+  }
+  if (avatarEl) avatarEl.textContent = computeUserInitials(nome);
+}
 
 function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNome").value = currentUserNome || "";
@@ -4958,8 +4997,7 @@ async function salvarNomeExibicao() {
   const { error } = await sb.rpc("atualizar_meu_nome", { novo_nome: novoNome });
   if (error) { toast("Erro ao salvar nome: " + error.message); return; }
   currentUserNome = novoNome;
-  const sidebarUserEl = document.getElementById("sidebarUser");
-  if (sidebarUserEl) sidebarUserEl.textContent = currentUserNome;
+  updateSidebarUserChip();
   toast("Nome atualizado.");
 }
 
@@ -5131,7 +5169,7 @@ async function showApp() {
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appShell").style.display = "none";
   document.getElementById("loadingScreen").style.display = "flex";
-  document.getElementById("sidebarUser").textContent = currentUser ? currentUser.email : "";
+  updateSidebarUserChip();
   if (!appInitialized) {
     appInitialized = true;
     await init();

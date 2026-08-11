@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=87">
+<link rel="stylesheet" href="styles.css?v=88">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -61,7 +61,8 @@
   <!-- ============================================================ -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <img src="assets/logo-dark.png" alt="Torun Pneus" class="brand-logo">
+      <img src="assets/logo-light.png" alt="Torun Pneus" class="brand-logo brand-logo-light">
+      <img src="assets/logo-dark.png" alt="Torun Pneus" class="brand-logo brand-logo-dark">
       <span class="brand-sub">Controle de Estoque</span>
     </div>
 
@@ -69,43 +70,55 @@
       <button class="nav-item active" data-view="dashboard">
         <span class="ic">◆</span> Dashboard
       </button>
-      <button class="nav-item" data-view="estoque">
-        <span class="ic">▣</span> Estoque
-        <span class="nav-badge" id="navBadgeEstoque" style="display:none;"></span>
-      </button>
-      <button class="nav-item" data-view="previsto">
-        <span class="ic">▧</span> Estoque Previsto
-      </button>
-      <button class="nav-item" data-view="movimentacoes">
-        <span class="ic">⇄</span> Movimentações
-      </button>
-      <button class="nav-item" data-view="faturamento">
-        <span class="ic">$</span> Faturamento
-      </button>
-      <button class="nav-item" data-view="clientes">
-        <span class="ic">◎</span> Clientes
-      </button>
-      <button class="nav-item" data-view="produtos">
-        <span class="ic">≡</span> Produtos
-      </button>
-      <button class="nav-item" data-view="catalogo">
-        <span class="ic">◍</span> Catálogo
-      </button>
-      <button class="nav-item" data-view="fretes">
-        <span class="ic">⇉</span> Fretes
-      </button>
-      <button class="nav-item" data-view="entregas">
-        <span class="ic">▷</span> Entregas
-      </button>
-      <button class="nav-item" data-view="relatorios">
-        <span class="ic">▤</span> Relatórios
-      </button>
-      <button class="nav-item" data-view="historico">
-        <span class="ic">▥</span> Histórico
-      </button>
-      <button class="nav-item admin-only" data-view="administracao">
-        <span class="ic">⚙</span> Administração
-      </button>
+
+      <div class="nav-group">
+        <div class="nav-label">Estoque</div>
+        <button class="nav-item" data-view="estoque">
+          <span class="ic">▣</span> Estoque
+          <span class="nav-badge" id="navBadgeEstoque" style="display:none;"></span>
+        </button>
+        <button class="nav-item" data-view="previsto">
+          <span class="ic">▧</span> Estoque Previsto
+        </button>
+        <button class="nav-item" data-view="movimentacoes">
+          <span class="ic">⇄</span> Movimentações
+        </button>
+        <button class="nav-item" data-view="produtos">
+          <span class="ic">≡</span> Produtos
+        </button>
+        <button class="nav-item" data-view="catalogo">
+          <span class="ic">◍</span> Catálogo
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Comercial</div>
+        <button class="nav-item" data-view="faturamento">
+          <span class="ic">$</span> Faturamento
+        </button>
+        <button class="nav-item" data-view="clientes">
+          <span class="ic">◎</span> Clientes
+        </button>
+        <button class="nav-item" data-view="fretes">
+          <span class="ic">⇉</span> Fretes
+        </button>
+        <button class="nav-item" data-view="entregas">
+          <span class="ic">▷</span> Entregas
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">Gestão</div>
+        <button class="nav-item" data-view="relatorios">
+          <span class="ic">▤</span> Relatórios
+        </button>
+        <button class="nav-item" data-view="historico">
+          <span class="ic">▥</span> Histórico
+        </button>
+        <button class="nav-item admin-only" data-view="administracao">
+          <span class="ic">⚙</span> Administração
+        </button>
+      </div>
     </nav>
 
     <div class="sidebar-foot">
@@ -114,7 +127,6 @@
         <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
       </div>
-      <button type="button" class="sidebar-user" id="sidebarUser" title="Minhas configurações"></button>
       <div class="viewer-badge">Modo somente leitura</div>
       <button class="ghost-btn admin-only" id="btnExport">⬇ Exportar backup (JSON)</button>
       <button class="ghost-btn admin-only" id="btnImport">⬆ Importar backup</button>
@@ -127,6 +139,23 @@
   <!-- MAIN                                                          -->
   <!-- ============================================================ -->
   <main class="main">
+
+    <div class="topbar">
+      <div class="topbar-search">
+        <span class="ic">⌕</span>
+        <input type="text" id="topbarSearch" placeholder="Buscar produto, cliente ou pedido…">
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="bell-btn" aria-hidden="true">🔔<span class="bell-dot"></span></div>
+      <button type="button" class="profile" id="sidebarUser" title="Minhas configurações">
+        <span class="avatar" id="sidebarUserAvatar"></span>
+        <span class="profile-text">
+          <span class="profile-name" id="sidebarUserName"></span>
+          <span class="profile-role" id="sidebarUserRole"></span>
+        </span>
+        <span class="profile-chevron">⌄</span>
+      </button>
+    </div>
 
     <!-- ======================= VIEW: DASHBOARD ======================= -->
     <section id="view-dashboard" class="view active">
@@ -1782,6 +1811,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=104"></script>
+<script src="app.js?v=105"></script>
 </body>
 </html>
