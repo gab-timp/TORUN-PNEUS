@@ -648,10 +648,10 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .badge.log-edicao{background:var(--paper-2); color:var(--ink); border:1px solid var(--line-strong);}
 .badge.log-exclusao{background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange);}
 
-.saldo-zero{color:var(--orange-deep); font-weight:800;}
+.saldo-zero{color:var(--danger); font-weight:800;}
 .saldo-baixo{color:var(--orange);}
 .pill-empty{
-  background:var(--black); color:var(--orange); font-size:9.5px; font-weight:800;
+  background:var(--danger-pale); color:var(--danger); font-size:9.5px; font-weight:800;
   padding:2px 7px; border-radius:10px; margin-left:6px; text-transform:uppercase;
 }
 
