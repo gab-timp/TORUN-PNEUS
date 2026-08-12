@@ -2700,7 +2700,17 @@ function getVendasFiltradas() {
 
 function getMovimentosVendaFiltradosPor(selectId) {
   const mes = document.getElementById(selectId).value;
-  const vendas = state.movimentos.filter(m => m.tipo === "venda");
+  const vendas = state.movimentos.filter(m => {
+    if (m.tipo !== "venda") return false;
+    // Venda automática de um pedido que foi cancelado depois: o estorno lança uma
+    // entrada nova (pra manter histórico), não apaga a venda original -- então
+    // sem essa checagem ela continuaria contando aqui mesmo revertida.
+    if (m.entregaId) {
+      const pedido = state.entregas.find(e => e.id === m.entregaId);
+      if (pedido && pedido.cancelado) return false;
+    }
+    return true;
+  });
   if (!mes || mes === "todos") return vendas;
   return vendas.filter(m => (m.data || "").slice(0, 7) === mes);
 }
