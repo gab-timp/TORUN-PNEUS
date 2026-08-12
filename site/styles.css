@@ -503,10 +503,23 @@ body.is-admin .nav-item.admin-only{display:flex;}
 @media (max-width:900px){.grid-2{grid-template-columns:1fr;}}
 
 /* ---------------- estoque ---------------- */
-.estoque-layout{display:grid; grid-template-columns:1.7fr 1fr; gap:18px; align-items:start;}
+.estoque-layout{
+  display:grid;
+  grid-template-columns:1fr 8px var(--estoque-side-width, 340px);
+  gap:14px;
+  align-items:stretch;
+}
 .estoque-layout > *{min-width:0;}
-@media (max-width:900px){.estoque-layout{grid-template-columns:1fr;}}
-.estoque-side{display:flex; flex-direction:column; gap:18px;}
+.estoque-resize-handle{
+  width:8px; border-radius:4px; background:var(--line); cursor:col-resize;
+  transition:background .12s ease;
+}
+.estoque-resize-handle:hover, .estoque-resize-handle.dragging{background:var(--orange);}
+@media (max-width:900px){
+  .estoque-layout{grid-template-columns:1fr;}
+  .estoque-resize-handle{display:none;}
+}
+.estoque-side{display:flex; flex-direction:column; gap:18px; min-width:220px;}
 
 .saldo-cell{display:flex; align-items:center; justify-content:flex-end; gap:8px; min-width:190px;}
 .saldo-bar{position:relative; width:52px; height:6px; border-radius:3px; background:var(--paper-2); overflow:hidden; flex:0 0 auto;}

@@ -725,6 +725,50 @@ function renderEstoqueSaldoBaixoLista() {
   `).join("");
 }
 
+const ESTOQUE_SIDE_WIDTH_KEY = "torun_estoque_side_width_v1";
+const ESTOQUE_SIDE_WIDTH_MIN = 240;
+const ESTOQUE_SIDE_WIDTH_MAX = 560;
+
+function initEstoqueResize() {
+  const layout = document.querySelector(".estoque-layout");
+  const handle = document.getElementById("estoqueResizeHandle");
+  if (!layout || !handle) return;
+
+  const salvo = parseInt(localStorage.getItem(ESTOQUE_SIDE_WIDTH_KEY), 10);
+  if (salvo && salvo >= ESTOQUE_SIDE_WIDTH_MIN && salvo <= ESTOQUE_SIDE_WIDTH_MAX) {
+    layout.style.setProperty("--estoque-side-width", salvo + "px");
+  }
+
+  let arrastando = false;
+
+  handle.addEventListener("mousedown", (e) => {
+    arrastando = true;
+    handle.classList.add("dragging");
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!arrastando) return;
+    const rect = layout.getBoundingClientRect();
+    let largura = rect.right - e.clientX;
+    largura = Math.max(ESTOQUE_SIDE_WIDTH_MIN, Math.min(ESTOQUE_SIDE_WIDTH_MAX, largura));
+    layout.style.setProperty("--estoque-side-width", largura + "px");
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!arrastando) return;
+    arrastando = false;
+    handle.classList.remove("dragging");
+    document.body.style.userSelect = "";
+    const largura = layout.style.getPropertyValue("--estoque-side-width");
+    if (largura) {
+      localStorage.setItem(ESTOQUE_SIDE_WIDTH_KEY, parseInt(largura, 10));
+    }
+    if (dashCharts["chartEstoqueMedida"]) dashCharts["chartEstoqueMedida"].resize();
+  });
+}
+
 function renderEstoque() {
   renderEstoqueKpis();
   renderEstoqueDonutMedida();
@@ -5018,6 +5062,7 @@ async function init() {
   initCatalogo();
   initThemeToggle();
   initFontSizeToggle();
+  initEstoqueResize();
   initMobileMenu();
   initCollapsibleCards();
   initKanbanColumnsCollapse();
