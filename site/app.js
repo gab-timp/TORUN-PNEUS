@@ -181,7 +181,9 @@ function entregaFromRow(r) {
     prazoPagamento: r.prazo_pagamento || "", obsImpressaoNF: r.obs_impressao_nf || "", origem: r.origem || "interno",
     reserva: !!r.reserva, reservaStatus: r.reserva_status || null, reservaExpiraEm: r.reserva_expira_em || null,
     tabelaPrecoRegiao: r.tabela_preco_regiao || "", tabelaPrecoCondicao: r.tabela_preco_condicao || "",
-    tabelaPrecoTipoCliente: r.tabela_preco_tipo_cliente || ""
+    tabelaPrecoTipoCliente: r.tabela_preco_tipo_cliente || "",
+    cancelado: !!r.cancelado, canceladoMotivo: r.cancelado_motivo || "",
+    canceladoEm: r.cancelado_em || null, canceladoPor: r.cancelado_por || null
   };
 }
 
@@ -212,6 +214,7 @@ function movimentoFromRow(r) {
   return {
     id: r.id, data: r.data, tipo: r.tipo, codigo: r.codigo, quantidade: Number(r.quantidade),
     numero: r.numero || "", pedido: r.pedido || "", processo: r.processo || "", obs: r.obs || "",
+    entregaId: r.entrega_id || null,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -2061,7 +2064,7 @@ function pedidoCamposFaltando(p) {
 
 function renderEntregas() {
   const search = (document.getElementById("entregaSearch").value || "").trim().toLowerCase();
-  let rows = state.entregas.filter(e => e.reservaStatus !== "pendente" && e.reservaStatus !== "estornada");
+  let rows = state.entregas.filter(e => e.reservaStatus !== "pendente" && e.reservaStatus !== "estornada" && !e.cancelado);
   if (search) {
     rows = rows.filter(e => [e.numeroNF, e.numeroPedido, e.cliente, e.transportadora].join(" ").toLowerCase().includes(search));
   }
@@ -2247,7 +2250,8 @@ function openPedidoModal(id) {
     document.getElementById("pedCondicaoPagamento").value = e.condicaoPagamento || "";
     document.getElementById("pedPrazoPagamento").value = e.prazoPagamento || "";
 
-    document.getElementById("btnExcluirPedido").style.display = "inline-block";
+    document.getElementById("btnExcluirPedido").style.display = e.etapa === "PRE_VENDA" ? "inline-block" : "none";
+    document.getElementById("btnCancelarPedido").style.display = (e.etapa !== "PRE_VENDA" && !e.cancelado) ? "inline-block" : "none";
   } else {
     editingPedidoUpdatedAt = null;
     document.getElementById("pedidoModalTitle").textContent = "Novo pedido";
@@ -2260,6 +2264,7 @@ function openPedidoModal(id) {
     editingPedidoCteStatus = "aguardando";
     renderCteToggle();
     document.getElementById("btnExcluirPedido").style.display = "none";
+    document.getElementById("btnCancelarPedido").style.display = "none";
   }
 
   renderAnexosPedido();
@@ -2453,6 +2458,28 @@ function initEntregas() {
     closePedidoModal();
     renderEntregas();
     toast("Pedido excluído.");
+  });
+
+  document.getElementById("btnCancelarPedido").addEventListener("click", async () => {
+    if (!editingPedidoId) return;
+    const alvo = state.entregas.find(x => x.id === editingPedidoId);
+    const motivo = await motivoModal(
+      "Cancelar pedido?",
+      "O pedido sai do quadro Kanban mas fica salvo para consulta. Se o estoque já tinha sido baixado, ele será estornado automaticamente. Informe o motivo do cancelamento."
+    );
+    if (!motivo) return;
+    const { error } = await sb.from("entregas").update({
+      cancelado: true, cancelado_motivo: motivo,
+      cancelado_em: new Date().toISOString(),
+      cancelado_por: currentUser ? currentUser.id : null
+    }).eq("id", editingPedidoId);
+    if (error) { toast("Erro ao cancelar: " + error.message); return; }
+    if (alvo) { alvo.cancelado = true; alvo.canceladoMotivo = motivo; }
+    await registrarLog("entregas", editingPedidoId, "edicao", motivo,
+      `Pedido cancelado: ${alvo ? (alvo.numeroNF || alvo.numeroPedido || "—") : editingPedidoId}${alvo && alvo.cliente ? " · " + alvo.cliente : ""}`);
+    closePedidoModal();
+    renderEntregas();
+    toast("Pedido cancelado.");
   });
 
   document.getElementById("formPedido").addEventListener("submit", async (e) => {
