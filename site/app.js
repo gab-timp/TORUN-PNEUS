@@ -166,7 +166,7 @@ function entregaToRow(e) {
     prazo_pagamento: e.prazoPagamento || null, obs_impressao_nf: e.obsImpressaoNF || null, origem: e.origem || "interno",
     reserva: !!e.reserva, reserva_status: e.reservaStatus || null, reserva_expira_em: e.reservaExpiraEm || null,
     tabela_preco_regiao: e.tabelaPrecoRegiao || null, tabela_preco_condicao: e.tabelaPrecoCondicao || null,
-    tabela_preco_tipo_cliente: e.tabelaPrecoTipoCliente || null
+    tabela_preco_tipo_cliente: e.tabelaPrecoTipoCliente || null, processo: e.processo || null
   };
 }
 function entregaFromRow(r) {
@@ -183,7 +183,8 @@ function entregaFromRow(r) {
     tabelaPrecoRegiao: r.tabela_preco_regiao || "", tabelaPrecoCondicao: r.tabela_preco_condicao || "",
     tabelaPrecoTipoCliente: r.tabela_preco_tipo_cliente || "",
     cancelado: !!r.cancelado, canceladoMotivo: r.cancelado_motivo || "",
-    canceladoEm: r.cancelado_em || null, canceladoPor: r.cancelado_por || null
+    canceladoEm: r.cancelado_em || null, canceladoPor: r.cancelado_por || null,
+    processo: r.processo || ""
   };
 }
 
@@ -2213,6 +2214,7 @@ function openPedidoModal(id) {
     document.getElementById("pedVendedor").value = e.vendedor || "";
     document.getElementById("pedDestino").value = e.destino || "";
     document.getElementById("pedTransportadora").value = e.transportadora || "";
+    document.getElementById("pedProcesso").value = e.processo || "";
     document.getElementById("pedEtapa").value = e.etapa;
     document.getElementById("pedDataPrevista").value = e.dataPrevista || "";
     document.getElementById("pedDataEntrega").value = e.dataEntrega || "";
@@ -2504,6 +2506,7 @@ function initEntregas() {
       destino: document.getElementById("pedDestino").value.trim(),
       transportadora: document.getElementById("pedTransportadora").value.trim(),
       itens,
+      processo: document.getElementById("pedProcesso").value.trim(),
       etapa: document.getElementById("pedEtapa").value,
       dataPrevista: document.getElementById("pedDataPrevista").value || null,
       dataEntrega: document.getElementById("pedDataEntrega").value || null,
