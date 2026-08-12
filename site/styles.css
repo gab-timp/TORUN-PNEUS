@@ -22,6 +22,9 @@
   --status-good-deep:#0E5C29;
   --status-good-pale:#DFF3E6;
   --status-good-border:#22C55E;
+  --warning:#B45309;
+  --warning-pale:#FEF3C7;
+  --warning-border:#F59E0B;
 }
 
 /* modo escuro: aplica quando o sistema pede e o usuario nao escolheu "claro",
@@ -509,6 +512,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .saldo-bar{position:relative; width:52px; height:6px; border-radius:3px; background:var(--paper-2); overflow:hidden; flex:0 0 auto;}
 .saldo-bar-fill{position:absolute; left:0; top:0; height:100%; border-radius:3px;}
 .saldo-bar-fill.fill-normal{background:var(--status-good-border);}
+.saldo-bar-fill.fill-atencao{background:var(--warning-border);}
 .saldo-bar-fill.fill-baixo{background:var(--orange);}
 .saldo-bar-fill.fill-esgotado{background:var(--danger-border);}
 .saldo-val{font-family:'Space Mono',monospace;}
@@ -520,6 +524,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
 }
 .status-pill::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:0 0 auto;}
 .status-pill.pill-normal{background:var(--status-good-pale); color:var(--status-good);}
+.status-pill.pill-atencao{background:var(--warning-pale); color:var(--warning);}
 .status-pill.pill-baixo{background:var(--orange-pale); color:var(--orange-deep);}
 .status-pill.pill-esgotado{background:var(--danger-pale); color:var(--danger);}
 

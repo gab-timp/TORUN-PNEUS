@@ -434,10 +434,14 @@ function getProdutosEstoqueBaixo() {
 }
 
 // mesma regra do getProdutosEstoqueBaixo() (saldo < ESTOQUE_BAIXO_LIMITE), só que
-// separando o caso mais grave (esgotado) -- usada pela pilula/barra da tabela de Estoque.
+// separando o caso mais grave (esgotado) e somando uma faixa de "atenção" (perto
+// do limite, mas ainda não baixo) -- usada pela pilula/barra da tabela de Estoque.
+// getProdutosEstoqueBaixo()/os tiles de "saldo baixo" continuam só com baixo+esgotado.
+const ESTOQUE_ATENCAO_MARGEM = 5;
 function statusEstoque(saldo) {
   if (saldo <= 0) return "esgotado";
   if (saldo < ESTOQUE_BAIXO_LIMITE) return "baixo";
+  if (saldo < ESTOQUE_BAIXO_LIMITE + ESTOQUE_ATENCAO_MARGEM) return "atencao";
   return "normal";
 }
 
@@ -753,7 +757,7 @@ function renderEstoque() {
 
   tbody.innerHTML = rows.map(r => {
     const status = statusEstoque(r.saldo);
-    const pillLabel = status === "esgotado" ? "Esgotado" : status === "baixo" ? "Baixo" : "Normal";
+    const pillLabel = status === "esgotado" ? "Esgotado" : status === "baixo" ? "Baixo" : status === "atencao" ? "Atenção" : "Normal";
     const pct = r.entradas > 0 ? Math.max(0, Math.min(100, (r.saldo / r.entradas) * 100)) : 0;
     return `
       <tr>
