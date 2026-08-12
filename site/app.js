@@ -433,6 +433,14 @@ function getProdutosEstoqueBaixo() {
     .sort((a, b) => a.saldo - b.saldo);
 }
 
+// mesma regra do getProdutosEstoqueBaixo() (saldo < ESTOQUE_BAIXO_LIMITE), só que
+// separando o caso mais grave (esgotado) -- usada pela pilula/barra da tabela de Estoque.
+function statusEstoque(saldo) {
+  if (saldo <= 0) return "esgotado";
+  if (saldo < ESTOQUE_BAIXO_LIMITE) return "baixo";
+  return "normal";
+}
+
 let codigosEstoqueBaixoConhecidos = null;
 
 function mostrarAlertaEstoqueBaixoPopup(p) {
@@ -653,12 +661,17 @@ function renderEstoqueKpis() {
   const totalEntradas = rows.reduce((a, r) => a + r.entradas, 0);
   const totalSaidas = rows.reduce((a, r) => a + r.saidas, 0);
   const zerados = rows.filter(r => r.saldo <= 0).length;
+  const baixos = getProdutosEstoqueBaixo().length;
+  const hoje = todayISO();
+  const movHoje = state.movimentos.filter(m => m.data === hoje).length;
 
   const kpis = [
     { lbl: "Pneus em estoque (saldo)", val: fmt(totalSaldo), accent: true },
     { lbl: "Total recebido (histórico)", val: fmt(totalEntradas) },
     { lbl: "Total de saídas (histórico)", val: fmt(totalSaidas) },
-    { lbl: "Produtos com saldo zerado", val: fmt(zerados) }
+    { lbl: "Produtos com saldo zerado", val: fmt(zerados) },
+    { lbl: "Produtos com saldo baixo", val: fmt(baixos) },
+    { lbl: "Movimentações hoje", val: fmt(movHoje) }
   ];
   document.getElementById("estoqueKpis").innerHTML = kpis.map(k => `
     <div class="kpi ${k.accent ? "accent" : ""}">
@@ -668,8 +681,50 @@ function renderEstoqueKpis() {
   `).join("");
 }
 
+function renderEstoqueDonutMedida() {
+  const rows = listEstoque().filter(r => r.saldo > 0);
+  const porMedida = {};
+  rows.forEach(r => {
+    const base = extractMedidaBase(r.medida);
+    porMedida[base] = (porMedida[base] || 0) + r.saldo;
+  });
+  const entries = Object.entries(porMedida).sort((a, b) => b[1] - a[1]);
+  const empty = document.getElementById("estoqueDonutEmpty");
+  if (entries.length === 0) {
+    if (dashCharts["chartEstoqueMedida"]) { dashCharts["chartEstoqueMedida"].destroy(); delete dashCharts["chartEstoqueMedida"]; }
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+  const folded = foldTopN(entries.map(([m]) => m), entries.map(([, q]) => q), 6);
+  dashChart("chartEstoqueMedida",
+    dashDonutConfig(folded.labels, folded.data, { valueIsMoney: false }),
+    { type: "donut", title: "Estoque por Medida", labels: folded.labels, data: folded.data, opts: { valueIsMoney: false } }
+  );
+}
+
+function renderEstoqueSaldoBaixoLista() {
+  const baixos = getProdutosEstoqueBaixo();
+  const countEl = document.getElementById("estoqueSaldoBaixoCount");
+  const listEl = document.getElementById("estoqueSaldoBaixoLista");
+  countEl.textContent = baixos.length;
+  if (baixos.length === 0) {
+    listEl.innerHTML = `<div class="empty-state">Nenhum produto com saldo baixo.</div>`;
+    return;
+  }
+  listEl.innerHTML = baixos.map(p => `
+    <div class="alerta-item">
+      <span class="codigo">${escapeHtml(p.codigo)}</span>
+      <span class="medida">${escapeHtml(p.medida)}</span>
+      <span class="saldo ${p.saldo <= 0 ? "saldo-zero" : "saldo-baixo"}">${fmt(p.saldo)} un.</span>
+    </div>
+  `).join("");
+}
+
 function renderEstoque() {
   renderEstoqueKpis();
+  renderEstoqueDonutMedida();
+  renderEstoqueSaldoBaixoLista();
   const search = (document.getElementById("estoqueSearch").value || "").trim().toLowerCase();
   const filtro = document.getElementById("estoqueFiltro").value;
 
@@ -697,10 +752,9 @@ function renderEstoque() {
   empty.style.display = "none";
 
   tbody.innerHTML = rows.map(r => {
-    let saldoClass = "";
-    let pill = "";
-    if (r.saldo <= 0) { saldoClass = "saldo-zero"; pill = `<span class="pill-empty">esgotado</span>`; }
-    else if (r.entradas > 0 && r.saldo / r.entradas < 0.15) { saldoClass = "saldo-baixo"; }
+    const status = statusEstoque(r.saldo);
+    const pillLabel = status === "esgotado" ? "Esgotado" : status === "baixo" ? "Baixo" : "Normal";
+    const pct = r.entradas > 0 ? Math.max(0, Math.min(100, (r.saldo / r.entradas) * 100)) : 0;
     return `
       <tr>
         <td class="mono">${escapeHtml(r.codigo)}</td>
@@ -708,7 +762,13 @@ function renderEstoque() {
         <td class="mono muted">${r.processos.length ? escapeHtml(r.processos.join(", ")) : "—"}</td>
         <td class="num">${fmt(r.entradas)}</td>
         <td class="num">${fmt(r.saidas)}</td>
-        <td class="num ${saldoClass}">${fmt(r.saldo)}${pill}</td>
+        <td class="num">
+          <div class="saldo-cell">
+            <span class="saldo-bar"><span class="saldo-bar-fill fill-${status}" style="width:${pct}%"></span></span>
+            <span class="saldo-val">${fmt(r.saldo)}</span>
+            <span class="status-pill pill-${status}">${pillLabel}</span>
+          </div>
+        </td>
         <td>
           <button class="btn small outline" data-hist="${escapeAttr(r.codigo)}">Histórico</button>
         </td>

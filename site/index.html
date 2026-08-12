@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=98">
+<link rel="stylesheet" href="styles.css?v=100">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -336,35 +336,55 @@
 
       <div class="kpis" id="estoqueKpis"></div>
 
-      <div class="card">
-        <div class="card-head">
-          <h2>Produtos em estoque</h2>
-          <div class="note">Clique em um produto para ver o histórico de movimentações.</div>
+      <div class="estoque-layout">
+        <div class="card">
+          <div class="card-head">
+            <h2>Produtos em estoque</h2>
+            <div class="note">Clique em um produto para ver o histórico de movimentações.</div>
+          </div>
+          <div class="search-row">
+            <input type="text" id="estoqueSearch" placeholder="Buscar por código, medida ou processo…">
+            <select id="estoqueFiltro">
+              <option value="todos">Todos</option>
+              <option value="disponivel">Com saldo disponível</option>
+              <option value="zerado">Saldo zerado</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Medida</th>
+                  <th>Processo</th>
+                  <th class="num">Entradas</th>
+                  <th class="num">Saídas</th>
+                  <th class="num">Saldo disponível</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="estoqueTbody"></tbody>
+            </table>
+            <div class="empty-state" id="estoqueEmpty" style="display:none;">Nenhum produto encontrado.</div>
+          </div>
         </div>
-        <div class="search-row">
-          <input type="text" id="estoqueSearch" placeholder="Buscar por código, medida ou processo…">
-          <select id="estoqueFiltro">
-            <option value="todos">Todos</option>
-            <option value="disponivel">Com saldo disponível</option>
-            <option value="zerado">Saldo zerado</option>
-          </select>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Medida</th>
-                <th>Processo</th>
-                <th class="num">Entradas</th>
-                <th class="num">Saídas</th>
-                <th class="num">Saldo disponível</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="estoqueTbody"></tbody>
-          </table>
-          <div class="empty-state" id="estoqueEmpty" style="display:none;">Nenhum produto encontrado.</div>
+
+        <div class="estoque-side">
+          <div class="card">
+            <div class="card-head">
+              <h2>Estoque por medida</h2>
+            </div>
+            <div class="dash-canvas-wrap dash-canvas-wrap-donut">
+              <canvas id="chartEstoqueMedida"></canvas>
+            </div>
+            <div class="empty-state" id="estoqueDonutEmpty" style="display:none;">Sem produtos com saldo disponível.</div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Saldo baixo <span class="alerta-badge" id="estoqueSaldoBaixoCount">0</span></h2>
+            </div>
+            <div class="alerta-lista" id="estoqueSaldoBaixoLista"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -1914,6 +1934,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=108"></script>
+<script src="app.js?v=109"></script>
 </body>
 </html>

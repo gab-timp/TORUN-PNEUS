@@ -499,6 +499,32 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
 @media (max-width:900px){.grid-2{grid-template-columns:1fr;}}
 
+/* ---------------- estoque ---------------- */
+.estoque-layout{display:grid; grid-template-columns:1.7fr 1fr; gap:18px; align-items:start;}
+.estoque-layout > *{min-width:0;}
+@media (max-width:900px){.estoque-layout{grid-template-columns:1fr;}}
+.estoque-side{display:flex; flex-direction:column; gap:18px;}
+
+.saldo-cell{display:flex; align-items:center; justify-content:flex-end; gap:8px; min-width:190px;}
+.saldo-bar{position:relative; width:52px; height:6px; border-radius:3px; background:var(--paper-2); overflow:hidden; flex:0 0 auto;}
+.saldo-bar-fill{position:absolute; left:0; top:0; height:100%; border-radius:3px;}
+.saldo-bar-fill.fill-normal{background:var(--status-good-border);}
+.saldo-bar-fill.fill-baixo{background:var(--orange);}
+.saldo-bar-fill.fill-esgotado{background:var(--danger-border);}
+.saldo-val{font-family:'Space Mono',monospace;}
+
+.status-pill{
+  display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:800;
+  padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:.04em;
+  flex:0 0 auto; white-space:nowrap;
+}
+.status-pill::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:0 0 auto;}
+.status-pill.pill-normal{background:var(--status-good-pale); color:var(--status-good);}
+.status-pill.pill-baixo{background:var(--orange-pale); color:var(--orange-deep);}
+.status-pill.pill-esgotado{background:var(--danger-pale); color:var(--danger);}
+
+#estoqueSaldoBaixoLista{max-height:320px; overflow-y:auto;}
+
 /* ---------------- forms ---------------- */
 .form-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
 .field{display:flex;flex-direction:column;gap:5px;flex:1 1 150px;min-width:120px;}
