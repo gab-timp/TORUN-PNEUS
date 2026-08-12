@@ -2528,8 +2528,12 @@ function initEntregas() {
         toast("Só um usuário autorizado pode mover esse pedido pra depois de Autorização de Gerência.");
         return;
       }
+      // Mescla com o registro original antes de montar a linha: o formulário não edita todos
+      // os campos (reserva, origem, tabela de preço, dados do representante etc.), então usar só
+      // "dados" aqui apagava esses campos silenciosamente a cada edição comum (bug real, achado
+      // em revisão — ver commit).
       const { conflict, error, row } = await updateWithConflictCheck(
-        "entregas", editingPedidoId, editingPedidoUpdatedAt, entregaToRow({ id: editingPedidoId, ...dados })
+        "entregas", editingPedidoId, editingPedidoUpdatedAt, entregaToRow({ ...(alvo || {}), ...dados, id: editingPedidoId })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
