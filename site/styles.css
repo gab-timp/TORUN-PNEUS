@@ -430,6 +430,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
 }
 .page-head h1{font-size:24px;font-weight:800;}
 .page-head .sub{color:var(--ink-soft);font-size:13px;margin-top:4px;max-width:620px;}
+.page-head-actions{display:flex; gap:8px; flex-wrap:wrap;}
 
 .view{display:none;}
 .view.active{display:block;}
@@ -1385,6 +1386,11 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 /* ---------------- pedido modal ---------------- */
 .pedido-modal{
   max-width:660px;
+  max-height:88vh;
+  overflow-y:auto;
+}
+.entrada-modal, .saida-modal{
+  max-width:620px;
   max-height:88vh;
   overflow-y:auto;
 }

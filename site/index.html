@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=102">
+<link rel="stylesheet" href="styles.css?v=103">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -464,102 +464,9 @@
           <h1>Movimentações</h1>
           <div class="sub">Registre entradas (com nº de NF) e saídas (venda, reserva de pedido, transferência ou avariado), sempre com número de referência.</div>
         </div>
-      </div>
-
-      <div class="grid-2">
-        <div class="card write-ui">
-          <div class="card-head">
-            <h2 id="entFormTitle">Nova entrada</h2>
-            <div class="note" id="entEditBanner" style="display:none;">Editando lançamento · <a href="#" id="entCancelEdit">cancelar edição</a></div>
-          </div>
-          <form id="formEntrada">
-            <div class="form-row">
-              <div class="field">
-                <label>Data</label>
-                <input type="date" id="entData" required>
-              </div>
-              <div class="field">
-                <label>Nº NF de entrada</label>
-                <input type="text" id="entNumero" placeholder="Ex: 4180" required>
-              </div>
-              <div class="field">
-                <label>Nº do pedido (opcional)</label>
-                <input type="text" id="entPedido" placeholder="Ex: 148">
-              </div>
-              <div class="field">
-                <label>Processo (opcional)</label>
-                <input type="text" id="entProcesso" placeholder="Ex: 3061-26">
-              </div>
-            </div>
-
-            <div class="field" style="margin-bottom:12px;">
-              <label>Medidas (produto + quantidade)</label>
-              <div id="entItens" class="item-list"></div>
-              <button type="button" class="btn small outline" id="btnAddItemEntrada" style="margin-top:8px;">+ Adicionar outra medida</button>
-            </div>
-
-            <div class="form-row">
-              <div class="field grow">
-                <label>Observação (opcional)</label>
-                <input type="text" id="entObs" placeholder="Ex: fornecedor, container...">
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn primary" id="btnSubmitEntrada">Registrar entrada</button>
-            </div>
-          </form>
-        </div>
-
-        <div class="card write-ui">
-          <div class="card-head">
-            <h2 id="saiFormTitle">Nova saída</h2>
-            <div class="note" id="saiEditBanner" style="display:none;">Editando lançamento · <a href="#" id="saiCancelEdit">cancelar edição</a></div>
-          </div>
-          <form id="formSaida">
-            <div class="form-row">
-              <div class="field">
-                <label>Tipo de saída</label>
-                <select id="saiTipo" required>
-                  <option value="venda">Venda (NF de venda)</option>
-                  <option value="reserva">Reserva de pedido</option>
-                  <option value="transferencia">Transferência</option>
-                  <option value="avariado">Avariado</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Data</label>
-                <input type="date" id="saiData" required>
-              </div>
-              <div class="field">
-                <label id="saiNumeroLabel">Nº NF de venda</label>
-                <input type="text" id="saiNumero" placeholder="Ex: 4180" required>
-              </div>
-              <div class="field">
-                <label>Nº do pedido (opcional)</label>
-                <input type="text" id="saiPedido" placeholder="Ex: 148">
-              </div>
-              <div class="field">
-                <label>Nº do processo (opcional)</label>
-                <input type="text" id="saiProcesso" placeholder="Ex: 3061-26">
-              </div>
-            </div>
-
-            <div class="field" style="margin-bottom:12px;">
-              <label>Medidas (produto + quantidade)</label>
-              <div id="saiItens" class="item-list"></div>
-              <button type="button" class="btn small outline" id="btnAddItemSaida" style="margin-top:8px;">+ Adicionar outra medida</button>
-            </div>
-
-            <div class="form-row">
-              <div class="field grow">
-                <label>Observação (opcional)</label>
-                <input type="text" id="saiObs" placeholder="Ex: cliente, transportadora...">
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn primary" id="btnSubmitSaida">Registrar saída</button>
-            </div>
-          </form>
+        <div class="page-head-actions write-ui">
+          <button type="button" class="btn outline" id="btnAbrirEntrada">+ Nova entrada</button>
+          <button type="button" class="btn primary" id="btnAbrirSaida">+ Nova saída</button>
         </div>
       </div>
 
@@ -1543,6 +1450,103 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="entradaModalOverlay" data-table="movimentos">
+  <div class="modal entrada-modal">
+    <h3 id="entFormTitle">Nova entrada</h3>
+    <div class="note" id="entEditBanner" style="display:none;">Editando lançamento</div>
+    <form id="formEntrada">
+      <div class="form-row">
+        <div class="field">
+          <label>Data</label>
+          <input type="date" id="entData" required>
+        </div>
+        <div class="field">
+          <label>Nº NF de entrada</label>
+          <input type="text" id="entNumero" placeholder="Ex: 4180" required>
+        </div>
+        <div class="field">
+          <label>Nº do pedido (opcional)</label>
+          <input type="text" id="entPedido" placeholder="Ex: 148">
+        </div>
+        <div class="field">
+          <label>Processo (opcional)</label>
+          <input type="text" id="entProcesso" placeholder="Ex: 3061-26">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:12px;">
+        <label>Medidas (produto + quantidade)</label>
+        <div id="entItens" class="item-list"></div>
+        <button type="button" class="btn small outline" id="btnAddItemEntrada" style="margin-top:8px;">+ Adicionar outra medida</button>
+      </div>
+
+      <div class="form-row">
+        <div class="field grow">
+          <label>Observação (opcional)</label>
+          <input type="text" id="entObs" placeholder="Ex: fornecedor, container...">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="entradaModalCancel">Cancelar</button>
+        <button type="submit" class="btn primary" id="btnSubmitEntrada">Registrar entrada</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="saidaModalOverlay" data-table="movimentos">
+  <div class="modal saida-modal">
+    <h3 id="saiFormTitle">Nova saída</h3>
+    <div class="note" id="saiEditBanner" style="display:none;">Editando lançamento</div>
+    <form id="formSaida">
+      <div class="form-row">
+        <div class="field">
+          <label>Tipo de saída</label>
+          <select id="saiTipo" required>
+            <option value="venda">Venda (NF de venda)</option>
+            <option value="reserva">Reserva de pedido</option>
+            <option value="transferencia">Transferência</option>
+            <option value="avariado">Avariado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Data</label>
+          <input type="date" id="saiData" required>
+        </div>
+        <div class="field">
+          <label id="saiNumeroLabel">Nº NF de venda</label>
+          <input type="text" id="saiNumero" placeholder="Ex: 4180" required>
+        </div>
+        <div class="field">
+          <label>Nº do pedido (opcional)</label>
+          <input type="text" id="saiPedido" placeholder="Ex: 148">
+        </div>
+        <div class="field">
+          <label>Nº do processo (opcional)</label>
+          <input type="text" id="saiProcesso" placeholder="Ex: 3061-26">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:12px;">
+        <label>Medidas (produto + quantidade)</label>
+        <div id="saiItens" class="item-list"></div>
+        <button type="button" class="btn small outline" id="btnAddItemSaida" style="margin-top:8px;">+ Adicionar outra medida</button>
+      </div>
+
+      <div class="form-row">
+        <div class="field grow">
+          <label>Observação (opcional)</label>
+          <input type="text" id="saiObs" placeholder="Ex: cliente, transportadora...">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="saidaModalCancel">Cancelar</button>
+        <button type="submit" class="btn primary" id="btnSubmitSaida">Registrar saída</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pedidoModalOverlay" data-table="entregas">
   <div class="modal pedido-modal">
     <h3 id="pedidoModalTitle">Novo pedido</h3>
@@ -1944,6 +1948,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=115"></script>
+<script src="app.js?v=116"></script>
 </body>
 </html>

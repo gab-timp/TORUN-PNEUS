@@ -1200,6 +1200,19 @@ function renderMovimentos() {
   });
 }
 
+function openEntradaModal() {
+  document.getElementById("entradaModalOverlay").classList.add("show");
+}
+function closeEntradaModal() {
+  document.getElementById("entradaModalOverlay").classList.remove("show");
+}
+function openSaidaModal() {
+  document.getElementById("saidaModalOverlay").classList.add("show");
+}
+function closeSaidaModal() {
+  document.getElementById("saidaModalOverlay").classList.remove("show");
+}
+
 function startEditMovimento(movId) {
   const m = state.movimentos.find(x => x.id === movId);
   if (!m) return;
@@ -1223,7 +1236,7 @@ function startEditMovimento(movId) {
     document.getElementById("entFormTitle").textContent = "Editar entrada";
     document.getElementById("entEditBanner").style.display = "block";
     document.getElementById("btnSubmitEntrada").textContent = "Salvar alterações";
-    document.getElementById("formEntrada").scrollIntoView({ behavior: "smooth", block: "center" });
+    openEntradaModal();
   } else {
     document.getElementById("saiTipo").value = m.tipo;
     document.getElementById("saiTipo").dispatchEvent(new Event("change"));
@@ -1243,7 +1256,7 @@ function startEditMovimento(movId) {
     document.getElementById("saiFormTitle").textContent = "Editar saída";
     document.getElementById("saiEditBanner").style.display = "block";
     document.getElementById("btnSubmitSaida").textContent = "Salvar alterações";
-    document.getElementById("formSaida").scrollIntoView({ behavior: "smooth", block: "center" });
+    openSaidaModal();
   }
 }
 
@@ -1258,6 +1271,7 @@ function cancelEditMovimento(which) {
     document.getElementById("entFormTitle").textContent = "Nova entrada";
     document.getElementById("entEditBanner").style.display = "none";
     document.getElementById("btnSubmitEntrada").textContent = "Registrar entrada";
+    closeEntradaModal();
   } else {
     document.getElementById("formSaida").reset();
     document.getElementById("saiData").value = todayISO();
@@ -1267,6 +1281,7 @@ function cancelEditMovimento(which) {
     document.getElementById("saiFormTitle").textContent = "Nova saída";
     document.getElementById("saiEditBanner").style.display = "none";
     document.getElementById("btnSubmitSaida").textContent = "Registrar saída";
+    closeSaidaModal();
   }
 }
 
@@ -4058,9 +4073,13 @@ function initForms() {
   });
   resetItens("entItens");
 
-  document.getElementById("entCancelEdit").addEventListener("click", (e) => {
-    e.preventDefault();
+  document.getElementById("btnAbrirEntrada").addEventListener("click", () => {
     cancelEditMovimento("entrada");
+    openEntradaModal();
+  });
+  document.getElementById("entradaModalCancel").addEventListener("click", () => cancelEditMovimento("entrada"));
+  document.getElementById("entradaModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "entradaModalOverlay") cancelEditMovimento("entrada");
   });
 
   document.getElementById("formEntrada").addEventListener("submit", async (e) => {
@@ -4124,6 +4143,7 @@ function initForms() {
     e.target.reset();
     document.getElementById("entData").value = todayISO();
     resetItens("entItens");
+    closeEntradaModal();
     renderMovimentos();
     toast(itens.length > 1 ? `${itens.length} entradas registradas.` : "Entrada registrada.");
   });
@@ -4134,9 +4154,13 @@ function initForms() {
   });
   resetItens("saiItens");
 
-  document.getElementById("saiCancelEdit").addEventListener("click", (e) => {
-    e.preventDefault();
+  document.getElementById("btnAbrirSaida").addEventListener("click", () => {
     cancelEditMovimento("saida");
+    openSaidaModal();
+  });
+  document.getElementById("saidaModalCancel").addEventListener("click", () => cancelEditMovimento("saida"));
+  document.getElementById("saidaModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "saidaModalOverlay") cancelEditMovimento("saida");
   });
 
   document.getElementById("formSaida").addEventListener("submit", async (e) => {
@@ -4223,6 +4247,7 @@ function initForms() {
     document.getElementById("saiData").value = todayISO();
     document.getElementById("saiNumeroLabel").textContent = "Nº NF de venda";
     resetItens("saiItens");
+    closeSaidaModal();
     renderMovimentos();
     toast(itens.length > 1 ? `${itens.length} saídas registradas.` : "Saída registrada.");
   });
