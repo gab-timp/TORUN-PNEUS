@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=103">
+<link rel="stylesheet" href="styles.css?v=104">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1588,16 +1588,10 @@
 
       <div class="field" style="margin-bottom:12px;">
         <label>Medidas do pedido</label>
+        <div class="muted" style="font-size:11px; margin-bottom:6px;">O campo "Processo" de cada medida é opcional — preenche de qual processo/lote de compra aquela medida saiu.</div>
         <div id="pedItens" class="item-list"></div>
         <button type="button" class="btn small outline" id="btnAddItemPedido" style="margin-top:8px;">+ Adicionar medida</button>
         <div id="pedItensTotal" class="ped-itens-total" style="display:none;"></div>
-      </div>
-
-      <div class="form-row">
-        <div class="field">
-          <label>Nº do processo (opcional)</label>
-          <input type="text" id="pedProcesso" placeholder="Ex: 3061-26">
-        </div>
       </div>
 
       <div class="form-row">
@@ -1948,6 +1942,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=116"></script>
+<script src="app.js?v=117"></script>
 </body>
 </html>

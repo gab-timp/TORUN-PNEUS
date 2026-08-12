@@ -166,7 +166,7 @@ function entregaToRow(e) {
     prazo_pagamento: e.prazoPagamento || null, obs_impressao_nf: e.obsImpressaoNF || null, origem: e.origem || "interno",
     reserva: !!e.reserva, reserva_status: e.reservaStatus || null, reserva_expira_em: e.reservaExpiraEm || null,
     tabela_preco_regiao: e.tabelaPrecoRegiao || null, tabela_preco_condicao: e.tabelaPrecoCondicao || null,
-    tabela_preco_tipo_cliente: e.tabelaPrecoTipoCliente || null, processo: e.processo || null
+    tabela_preco_tipo_cliente: e.tabelaPrecoTipoCliente || null
   };
 }
 function entregaFromRow(r) {
@@ -183,8 +183,7 @@ function entregaFromRow(r) {
     tabelaPrecoRegiao: r.tabela_preco_regiao || "", tabelaPrecoCondicao: r.tabela_preco_condicao || "",
     tabelaPrecoTipoCliente: r.tabela_preco_tipo_cliente || "",
     cancelado: !!r.cancelado, canceladoMotivo: r.cancelado_motivo || "",
-    canceladoEm: r.cancelado_em || null, canceladoPor: r.cancelado_por || null,
-    processo: r.processo || ""
+    canceladoEm: r.cancelado_em || null, canceladoPor: r.cancelado_por || null
   };
 }
 
@@ -1086,12 +1085,13 @@ function renderProdutoSelects() {
 
 /* ---------------- entrada/saída: linhas de medida (item rows) ---------------- */
 
-function createItemRow(containerId) {
+function createItemRow(containerId, comProcesso) {
   const row = document.createElement("div");
   row.className = "item-row";
   row.innerHTML = `
     <select class="item-produto" required>${produtoOptionsHTML()}</select>
     <input type="number" class="item-qtd" min="1" step="1" placeholder="Qtd" required>
+    ${comProcesso ? `<input type="text" class="item-processo" placeholder="Processo (ex: 3061-26)">` : ""}
     <button type="button" class="btn small danger item-remove" title="Remover medida">✕</button>
   `;
   row.querySelector(".item-remove").addEventListener("click", () => {
@@ -2229,7 +2229,6 @@ function openPedidoModal(id) {
     document.getElementById("pedVendedor").value = e.vendedor || "";
     document.getElementById("pedDestino").value = e.destino || "";
     document.getElementById("pedTransportadora").value = e.transportadora || "";
-    document.getElementById("pedProcesso").value = e.processo || "";
     document.getElementById("pedEtapa").value = e.etapa;
     document.getElementById("pedDataPrevista").value = e.dataPrevista || "";
     document.getElementById("pedDataEntrega").value = e.dataEntrega || "";
@@ -2240,10 +2239,11 @@ function openPedidoModal(id) {
     const container = document.getElementById("pedItens");
     container.innerHTML = "";
     (e.itens || []).forEach(it => {
-      const row = createItemRow("pedItens");
+      const row = createItemRow("pedItens", true);
       container.appendChild(row);
       if (it.codigo) row.querySelector(".item-produto").value = it.codigo;
       if (it.quantidade) row.querySelector(".item-qtd").value = it.quantidade;
+      if (it.processo) row.querySelector(".item-processo").value = it.processo;
       if (it.valorUnitario != null) {
         const valores = document.createElement("div");
         valores.className = "ped-item-valores";
@@ -2427,7 +2427,7 @@ function initEntregas() {
     if (e.target.id === "pedidoModalOverlay") closePedidoModal();
   });
   document.getElementById("btnAddItemPedido").addEventListener("click", () => {
-    document.getElementById("pedItens").appendChild(createItemRow("pedItens"));
+    document.getElementById("pedItens").appendChild(createItemRow("pedItens", true));
     updateItemRemoveVisibility("pedItens");
   });
 
@@ -2507,9 +2507,10 @@ function initEntregas() {
     for (const row of rows) {
       const codigo = row.querySelector(".item-produto").value;
       const quantidadeRaw = row.querySelector(".item-qtd").value;
+      const processoItem = row.querySelector(".item-processo").value.trim();
       if (!codigo && !quantidadeRaw) continue;
       if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
-      itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10) });
+      itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10), processo: processoItem || null });
     }
 
     const dados = {
@@ -2521,7 +2522,6 @@ function initEntregas() {
       destino: document.getElementById("pedDestino").value.trim(),
       transportadora: document.getElementById("pedTransportadora").value.trim(),
       itens,
-      processo: document.getElementById("pedProcesso").value.trim(),
       etapa: document.getElementById("pedEtapa").value,
       dataPrevista: document.getElementById("pedDataPrevista").value || null,
       dataEntrega: document.getElementById("pedDataEntrega").value || null,

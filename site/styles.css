@@ -607,7 +607,18 @@ body.is-admin .nav-item.admin-only{display:flex;}
   color:var(--ink);
   outline:none;
 }
-.item-row .item-produto:focus, .item-row .item-qtd:focus{
+.item-row .item-processo{
+  flex:0 0 130px;
+  width:130px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  padding:9px 10px;
+  font-size:13.5px;
+  background:var(--paper);
+  color:var(--ink);
+  outline:none;
+}
+.item-row .item-produto:focus, .item-row .item-qtd:focus, .item-row .item-processo:focus{
   border-color:var(--orange);
   background:var(--surface);
   box-shadow:0 0 0 3px var(--orange-pale);
