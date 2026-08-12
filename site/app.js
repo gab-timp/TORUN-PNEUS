@@ -4942,6 +4942,18 @@ function scheduleRefresh() {
 
 let realtimeChannel = null;
 let realtimeReconnectTimer = null;
+let realtimeReconnectTentativas = 0;
+
+// Rede de segurança: mesmo com o Realtime saudável, se ele ficar minutos sem avisar
+// nenhuma mudança (rede instável, aba em segundo plano, etc.) os dados podem ficar
+// parados na tela -- então recarrega tudo do servidor periodicamente, independente
+// do estado da conexão em tempo real.
+const REALTIME_FALLBACK_REFRESH_MS = 5 * 60 * 1000;
+let realtimeFallbackTimer = null;
+function iniciarFallbackRefresh() {
+  clearInterval(realtimeFallbackTimer);
+  realtimeFallbackTimer = setInterval(refreshAll, REALTIME_FALLBACK_REFRESH_MS);
+}
 
 function subscribeRealtime() {
   clearTimeout(realtimeReconnectTimer);
@@ -4965,10 +4977,15 @@ function subscribeRealtime() {
   });
   channel.subscribe((status) => {
     if (status === "SUBSCRIBED") {
+      realtimeReconnectTentativas = 0;
       console.log("Realtime conectado — atualizações automáticas ativas.");
     } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-      console.error("Realtime desconectado:", status, "— tentando reconectar em 5s.");
-      realtimeReconnectTimer = setTimeout(subscribeRealtime, 5000);
+      // Backoff exponencial (5s, 10s, 20s... até 60s) em vez de martelar toda hora --
+      // evita sobrecarregar uma conexão já instável. Zera de volta pra 5s assim que reconectar.
+      const espera = Math.min(60000, 5000 * Math.pow(2, realtimeReconnectTentativas));
+      realtimeReconnectTentativas++;
+      console.error(`Realtime desconectado: ${status} — tentando reconectar em ${Math.round(espera / 1000)}s.`);
+      realtimeReconnectTimer = setTimeout(subscribeRealtime, espera);
     }
   });
 }
@@ -5397,6 +5414,7 @@ async function showApp() {
     appInitialized = true;
     await init();
     subscribeRealtime();
+    iniciarFallbackRefresh();
   }
   document.getElementById("loadingScreen").style.display = "none";
   document.getElementById("appShell").style.display = "flex";
