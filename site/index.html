@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=104">
+<link rel="stylesheet" href="styles.css?v=105">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -470,40 +470,59 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-head">
-          <h2>Histórico de movimentações</h2>
-          <div class="note" id="movCount"></div>
+      <div class="stat-strip" id="movStats"></div>
+
+      <div class="mov-layout">
+        <div class="card">
+          <div class="card-head">
+            <h2>Histórico de movimentações</h2>
+            <div class="note" id="movCount"></div>
+          </div>
+          <div class="search-row">
+            <input type="text" id="movSearch" placeholder="Buscar por código, medida, NF, pedido ou processo…">
+            <select id="movFiltroTipo">
+              <option value="todos">Todos os tipos</option>
+              <option value="entrada">Entrada</option>
+              <option value="venda">Venda</option>
+              <option value="reserva">Reserva</option>
+              <option value="transferencia">Transferência</option>
+              <option value="avariado">Avariado</option>
+            </select>
+            <input type="date" id="movFiltroDe">
+            <input type="date" id="movFiltroAte">
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Produto</th>
+                  <th class="num">Quantidade</th>
+                  <th>Nº NF/Processo</th>
+                  <th>Obs.</th>
+                  <th>Origem</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="movTbody"></tbody>
+            </table>
+            <div class="empty-state" id="movEmpty" style="display:none;">Nenhuma movimentação registrada ainda.</div>
+          </div>
         </div>
-        <div class="search-row">
-          <input type="text" id="movSearch" placeholder="Buscar por código, medida, NF, pedido ou processo…">
-          <select id="movFiltroTipo">
-            <option value="todos">Todos os tipos</option>
-            <option value="entrada">Entrada</option>
-            <option value="venda">Venda</option>
-            <option value="reserva">Reserva</option>
-            <option value="transferencia">Transferência</option>
-            <option value="avariado">Avariado</option>
-          </select>
-          <input type="date" id="movFiltroDe">
-          <input type="date" id="movFiltroAte">
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Produto</th>
-                <th class="num">Quantidade</th>
-                <th>Nº NF/Processo</th>
-                <th>Obs.</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="movTbody"></tbody>
-          </table>
-          <div class="empty-state" id="movEmpty" style="display:none;">Nenhuma movimentação registrada ainda.</div>
+
+        <div class="mov-side">
+          <div class="card">
+            <div class="card-head"><h2 style="font-size:13.5px;">Saídas por tipo</h2></div>
+            <div class="dash-canvas-wrap dash-canvas-wrap-donut"><canvas id="chartMovimentosTipo"></canvas></div>
+            <div class="empty-state" id="movDonutEmpty" style="display:none;">Nenhuma saída registrada ainda.</div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 style="font-size:13.5px;">Automáticos recentes</h2><div class="note">últimos 5</div></div>
+            <div class="auto-list" id="movAutomaticosLista"></div>
+            <div class="empty-state" id="movAutomaticosEmpty" style="display:none;">Nenhuma movimentação automática ainda.</div>
+          </div>
         </div>
       </div>
     </section>
@@ -1942,6 +1961,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=118"></script>
+<script src="app.js?v=119"></script>
 </body>
 </html>

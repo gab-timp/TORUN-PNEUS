@@ -1120,7 +1120,104 @@ function resetItens(containerId) {
 
 /* ---------------- render: MOVIMENTAÇÕES ---------------- */
 
+function extrairClienteDeObs(obs) {
+  if (!obs) return "";
+  const m = obs.match(/Cliente:\s*(.+)$/);
+  if (!m) return "";
+  const nome = m[1].trim();
+  return nome === "—" ? "" : nome;
+}
+
+function renderMovimentosStats() {
+  const hoje = todayISO();
+  const de30 = new Date();
+  de30.setDate(de30.getDate() - 30);
+  const de30ISO = de30.toISOString().slice(0, 10);
+
+  const janela = state.movimentos.filter(m => m.data >= de30ISO);
+  const entradasQtd = janela.filter(m => m.tipo === "entrada").reduce((a, m) => a + m.quantidade, 0);
+  const saidasQtd = janela.filter(m => m.tipo !== "entrada").reduce((a, m) => a + m.quantidade, 0);
+  const saldo = entradasQtd - saidasQtd;
+
+  const entradasHoje = state.movimentos.filter(m => m.tipo === "entrada" && m.data === hoje).reduce((a, m) => a + m.quantidade, 0);
+  const saidasHoje = state.movimentos.filter(m => m.tipo !== "entrada" && m.data === hoje).reduce((a, m) => a + m.quantidade, 0);
+
+  const automaticas = janela.filter(m => m.entregaId).length;
+  const manuais = janela.filter(m => !m.entregaId).length;
+
+  const stats = [
+    { hero: true, lbl: "Saldo (30 dias)", val: `${saldo >= 0 ? "+" : ""}${fmt(saldo)} un.`, sub: `${fmt(entradasQtd)} entradas · ${fmt(saidasQtd)} saídas` },
+    { lbl: "Entradas hoje", val: `+${fmt(entradasHoje)}`, up: true },
+    { lbl: "Saídas hoje", val: saidasHoje > 0 ? `−${fmt(saidasHoje)}` : "0" },
+    { lbl: "Automáticas (30 dias)", val: fmt(automaticas), sub: "geradas por pedidos autorizados" },
+    { lbl: "Manuais (30 dias)", val: fmt(manuais) }
+  ];
+
+  document.getElementById("movStats").innerHTML = stats.map(s => `
+    <div class="stat ${s.hero ? "hero" : ""}">
+      <div class="lbl">${s.lbl}</div>
+      <div class="val ${s.up ? "up" : ""}">${s.val}</div>
+      ${s.sub ? `<div class="sub">${s.sub}</div>` : ""}
+    </div>
+  `).join("");
+}
+
+function renderMovimentosDonut() {
+  const saidas = state.movimentos.filter(m => m.tipo !== "entrada");
+  const porTipo = {};
+  saidas.forEach(m => { porTipo[m.tipo] = (porTipo[m.tipo] || 0) + m.quantidade; });
+  const entries = Object.entries(porTipo).sort((a, b) => b[1] - a[1]);
+  const empty = document.getElementById("movDonutEmpty");
+  if (entries.length === 0) {
+    if (dashCharts["chartMovimentosTipo"]) { dashCharts["chartMovimentosTipo"].destroy(); delete dashCharts["chartMovimentosTipo"]; }
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+  const labels = entries.map(([t]) => TIPO_LABEL[t] || t);
+  const data = entries.map(([, q]) => q);
+  dashChart("chartMovimentosTipo",
+    dashDonutConfig(labels, data, { valueIsMoney: false }),
+    { type: "donut", title: "Saídas por Tipo", labels, data, opts: { valueIsMoney: false } }
+  );
+}
+
+function renderMovimentosAutomaticos() {
+  const autos = state.movimentos
+    .filter(m => m.entregaId)
+    .sort((a, b) => (b.data + b.createdAt).localeCompare(a.data + a.createdAt))
+    .slice(0, 5);
+  const listEl = document.getElementById("movAutomaticosLista");
+  const emptyEl = document.getElementById("movAutomaticosEmpty");
+  if (autos.length === 0) {
+    listEl.innerHTML = "";
+    emptyEl.style.display = "block";
+    return;
+  }
+  emptyEl.style.display = "none";
+  listEl.innerHTML = autos.map(m => {
+    const p = getProduto(m.codigo);
+    const cliente = extrairClienteDeObs(m.obs);
+    const titulo = m.pedido ? `Ped. ${m.pedido}${cliente ? " · " + cliente : ""}` : (cliente || TIPO_LABEL[m.tipo] || m.tipo);
+    const sub = `${m.codigo}${p ? " · " + p.medida : ""} · ${formatDateBR(m.data)}`;
+    const up = m.tipo === "entrada";
+    return `
+      <div class="auto-item">
+        <div class="auto-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 10h10M11 6l4 4-4 4"/></svg></div>
+        <div class="auto-body">
+          <div class="auto-title">${escapeHtml(titulo)}</div>
+          <div class="auto-sub">${escapeHtml(sub)}</div>
+        </div>
+        <div class="auto-qtd ${up ? "up" : ""}">${up ? "+" : "−"}${fmt(m.quantidade)}</div>
+      </div>
+    `;
+  }).join("");
+}
+
 function renderMovimentos() {
+  renderMovimentosStats();
+  renderMovimentosDonut();
+  renderMovimentosAutomaticos();
   const search = (document.getElementById("movSearch").value || "").trim().toLowerCase();
   const tipoF = document.getElementById("movFiltroTipo").value;
   const de = document.getElementById("movFiltroDe").value;
@@ -1167,6 +1264,9 @@ function renderMovimentos() {
         <td class="num mono">${sinal}${fmt(m.quantidade)}</td>
         <td class="mono">${escapeHtml(m.numero || "—")}${m.pedido ? `<div class="muted" style="font-size:11px;">Ped. ${escapeHtml(m.pedido)}</div>` : ""}${m.processo ? `<div class="muted" style="font-size:11px;">Proc. ${escapeHtml(m.processo)}</div>` : ""}</td>
         <td class="muted">${escapeHtml(m.obs || "—")}</td>
+        <td>${m.entregaId
+          ? `<span class="origem-tag auto"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 10h10M11 6l4 4-4 4"/></svg>Automático</span>`
+          : `<span class="origem-tag">Manual</span>`}</td>
         <td style="white-space:nowrap;">
           <span class="write-ui">
             <button class="btn small outline" data-edit="${m.id}">Editar</button>
