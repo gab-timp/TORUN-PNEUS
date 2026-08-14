@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=108">
+<link rel="stylesheet" href="styles.css?v=109">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -264,7 +264,11 @@
       </div>
 
       <div class="dash-grid">
-        <div class="dash-card" data-dashcard="pneusEstado">
+        <div class="dash-card dash-card-hero" data-dashcard="indicadores">
+          <div class="dash-card-head"><span>Indicadores Gerais</span><button type="button" class="dash-pdf-btn" data-dashpdf="indicadores" title="Gerar PDF">📄</button></div>
+          <div class="dash-stat-grid" id="statsIndicadores"></div>
+        </div>
+        <div class="dash-card dash-card-wide" data-dashcard="pneusEstado">
           <div class="dash-card-head"><span>Volume de Pneus Vendidos por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="pneusEstado" title="Gerar PDF">📄</button></div>
           <div class="dash-canvas-wrap"><canvas id="chartPneusEstado"></canvas></div>
           <div class="dash-footer" id="footPneusEstado"></div>
@@ -289,10 +293,6 @@
           <div class="dash-card-head"><span>Gastos com Frete por Transportadora</span><button type="button" class="dash-pdf-btn" data-dashpdf="freteTransportadora" title="Gerar PDF">📄</button></div>
           <div class="dash-canvas-wrap"><canvas id="chartFreteTransportadora"></canvas></div>
           <div class="dash-footer" id="footFreteTransportadora"></div>
-        </div>
-        <div class="dash-card" data-dashcard="indicadores">
-          <div class="dash-card-head"><span>Indicadores Gerais</span><button type="button" class="dash-pdf-btn" data-dashpdf="indicadores" title="Gerar PDF">📄</button></div>
-          <div class="dash-stat-grid" id="statsIndicadores"></div>
         </div>
         <div class="dash-card" data-dashcard="fretePercEstado">
           <div class="dash-card-head"><span>Percentual Médio de Frete por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="fretePercEstado" title="Gerar PDF">📄</button></div>
@@ -1996,6 +1996,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=122"></script>
+<script src="app.js?v=123"></script>
 </body>
 </html>

@@ -2800,6 +2800,28 @@ function getVendasFiltradasPor(selectId) {
   return state.vendas.filter(v => (v.data || "").slice(0, 7) === mes);
 }
 
+// "2026-01" -> "2025-12" (o construtor Date rola o ano sozinho com mês negativo).
+// "todos" ou vazio não tem "mês anterior" -- usado pra decidir se mostra o delta
+// da faixa de destaque do Dashboard.
+function mesAnterior(mes) {
+  if (!mes || mes === "todos") return null;
+  const [ano, m] = mes.split("-").map(Number);
+  const d = new Date(ano, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// null quando não dá pra calcular (sem mês anterior, ou mês anterior sem nenhuma
+// venda pra comparar). invertido=true pra métricas onde subir é ruim (ex. frete).
+function dashDeltaHtml(atual, anterior, invertido = false) {
+  if (anterior === null || !anterior) return "";
+  const delta = (atual - anterior) / anterior * 100;
+  if (!isFinite(delta)) return "";
+  const positivo = delta >= 0;
+  const bom = invertido ? !positivo : positivo;
+  const seta = positivo ? "▲" : "▼";
+  return `<div class="delta ${bom ? "good" : "bad"}">${seta} ${Math.abs(delta).toFixed(1)}% vs. mês anterior</div>`;
+}
+
 function getVendasFiltradas() {
   return getVendasFiltradasPor("fatMesFiltro");
 }
@@ -3001,9 +3023,11 @@ function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMod
 
   const shown = rows.slice(0, maxRows);
   const rest = rows.length - shown.length;
+  const maxValue = Math.max(...shown.map(r => r.value), 0.0001);
   let html = shown.map((r, i) => `
     <div class="dash-footer-row ${i === 0 ? "is-top" : ""}">
       <span class="lbl">${escapeHtml(r.label)}</span>
+      <span class="track"><span class="fill" style="width:${Math.max(0, r.value / maxValue * 100)}%"></span></span>
       <span class="val">${money ? formatMoney(r.value) : fmt(r.value)}${suffix}</span>
     </div>
   `).join("");
@@ -3073,6 +3097,15 @@ function renderDashboard() {
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
   const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
   const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
+
+  // comparação com o mês anterior, pra faixa de destaque (Indicadores Gerais) --
+  // null quando o filtro é "Todos os meses" ou o mês anterior não tem venda nenhuma.
+  const mesAnt = mesAnterior(document.getElementById("dashMesFiltro").value);
+  const vendasMesAnt = mesAnt ? state.vendas.filter(v => (v.data || "").slice(0, 7) === mesAnt) : [];
+  const totalFaturamentoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.valorVenda, 0) : null;
+  const totalPneusAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0) : null;
+  const totalComissaoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0) : null;
+  const totalFreteAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.valorFrete || 0), 0) : null;
 
   // por vendedor / estado / transportadora / forma / cliente
   const porVendedor = {}, porEstado = {}, porTransp = {}, porForma = {}, porCliente = {};
@@ -3165,13 +3198,22 @@ function renderDashboard() {
     transportadoras.map(([nome, d]) => ({ label: nome, value: d.frete }))
   );
 
-  // 5. Indicadores gerais — números isolados, escalas diferentes (R$, unidades) não cabem no mesmo eixo
+  // 5. Indicadores gerais — números isolados, escalas diferentes (R$, unidades) não cabem no mesmo eixo.
+  // Faixa de destaque no topo do Dashboard (site/styles.css .dash-card-hero) -- ícone + delta
+  // vs. mês anterior por tile (null quando "Todos os meses" ou sem venda no mês anterior).
   document.getElementById("statsIndicadores").innerHTML = [
-    { lbl: "Faturamento", val: formatMoney(totalFaturamento) },
-    { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un." },
-    { lbl: "Comissão", val: formatMoney(totalComissao) },
-    { lbl: "Custo de frete", val: formatMoney(totalFrete) }
-  ].map(s => `<div class="dash-stat-tile"><div class="lbl">${s.lbl}</div><div class="val">${s.val}</div></div>`).join("");
+    { lbl: "Faturamento", val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
+    { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
+    { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt) },
+    { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) }
+  ].map(s => `
+    <div class="dash-stat-tile">
+      <div class="dash-stat-tile-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#${s.icone}"/></svg></div>
+      <div class="lbl">${s.lbl}</div>
+      <div class="val">${s.val}</div>
+      ${s.delta}
+    </div>
+  `).join("");
 
   // 6. Percentual médio de frete por estado
   const estadosComFrete = estados.filter(([, d]) => d.fretePct.length > 0);
