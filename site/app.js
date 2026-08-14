@@ -3318,8 +3318,20 @@ function renderDashboard() {
 
   // comparação com o mês anterior, pra faixa de destaque (Indicadores Gerais) --
   // null quando o filtro é "Todos os meses" ou o mês anterior não tem venda nenhuma.
-  const mesAnt = mesAnterior(document.getElementById("dashMesFiltro").value);
-  const vendasMesAnt = mesAnt ? state.vendas.filter(v => (v.data || "").slice(0, 7) === mesAnt) : [];
+  const mesFiltroValue = document.getElementById("dashMesFiltro").value;
+  const mesAnt = mesAnterior(mesFiltroValue);
+  let vendasMesAnt = mesAnt ? state.vendas.filter(v => (v.data || "").slice(0, 7) === mesAnt) : [];
+  // Se o mês selecionado é o mês em andamento (hoje), o mês atual só tem dado até
+  // hoje -- comparar com o mês anterior INTEIRO não é justo (mês incompleto vs.
+  // mês completo sempre parece uma queda enorme). Trunca o mês anterior na mesma
+  // "época" (mesmo dia do mês) pra comparar coisa comparável. Mês selecionado no
+  // passado (já fechado) continua comparando mês cheio com mês cheio, sem truncar.
+  const hoje = new Date();
+  const mesRealAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+  if (mesFiltroValue === mesRealAtual) {
+    const diaCorte = hoje.getDate();
+    vendasMesAnt = vendasMesAnt.filter(v => Number((v.data || "").slice(8, 10)) <= diaCorte);
+  }
   const totalFaturamentoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.valorVenda, 0) : null;
   const totalPneusAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0) : null;
   const totalComissaoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0) : null;
