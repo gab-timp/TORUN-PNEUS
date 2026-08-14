@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=110">
+<link rel="stylesheet" href="styles.css?v=111">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -283,10 +283,9 @@
           <div class="dash-canvas-wrap"><canvas id="chartPneusMaisVendidos"></canvas></div>
           <div class="dash-footer" id="footPneusMaisVendidos"></div>
         </div>
-        <div class="dash-card" data-dashcard="faturamentoRepresentante">
+        <div class="dash-card dash-card-tint-orange" data-dashcard="faturamentoRepresentante">
           <div class="dash-card-head"><span>Faturamento por Representante</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoRepresentante" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartFaturamentoRepresentante"></canvas></div>
-          <div class="dash-footer" id="footFaturamentoRepresentante"></div>
+          <div id="tableFaturamentoRepresentante"></div>
         </div>
         <div class="dash-card" data-dashcard="nfTransportadora">
           <div class="dash-card-head"><span>Quantidade de NFs por Transportadora</span><button type="button" class="dash-pdf-btn" data-dashpdf="nfTransportadora" title="Gerar PDF">📄</button></div>
@@ -315,10 +314,9 @@
           <div class="dash-canvas-wrap"><canvas id="chartFaturamentoCliente"></canvas></div>
           <div class="dash-footer" id="footFaturamentoCliente"></div>
         </div>
-        <div class="dash-card" data-dashcard="top5Clientes">
+        <div class="dash-card dash-card-tint-blue" data-dashcard="top5Clientes">
           <div class="dash-card-head"><span>Top 5 Clientes</span><button type="button" class="dash-pdf-btn" data-dashpdf="top5Clientes" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartTop5Clientes"></canvas></div>
-          <div class="dash-footer" id="footTop5Clientes"></div>
+          <div id="tableTop5Clientes"></div>
         </div>
 
         <div class="dash-card" data-dashcard="comissaoRepresentante">
@@ -2001,6 +1999,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=124"></script>
+<script src="app.js?v=125"></script>
 </body>
 </html>

@@ -2968,12 +2968,56 @@ function foldTopN(labels, data, n = 7, outrosLabel = "Outros") {
   return { labels: [...labels.slice(0, n), outrosLabel], data: [...data.slice(0, n), outros] };
 }
 
+// Mesma lógica de cor por categoria que dashDonutConfig() já usa (CVD-safe, ordem
+// fixa, "Outros" sempre cinza) -- aplicada também nos gráficos de barra que comparam
+// categorias lado a lado, no lugar do laranja sólido único de antes.
+function categoricalBarColors(labels) {
+  return labels.map((l, i) => l === "Outros" && i === labels.length - 1 ? DASH_OUTROS_COLOR : DASH_CATEGORICAL[i % DASH_CATEGORICAL.length]);
+}
+
 function abbrevLabel(label, maxLen) {
   if (!label) return label;
   const s = String(label).trim();
   if (s.length <= maxLen) return s;
   return s.slice(0, maxLen - 1).trimEnd() + "…";
 }
+
+// Plugin do Chart.js que escreve o valor de cada barra em cima dela (vertical) ou
+// no fim dela (horizontal, indexAxis:"y") -- sem precisar de chartjs-plugin-datalabels
+// (não está carregado, e não vale adicionar um CDN novo só pra isso). Ligado direto
+// em dashBarConfig(), então todo gráfico de barra ganha o rótulo de uma vez.
+const dashBarValueLabelsPlugin = {
+  id: "dashBarValueLabels",
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const horizontal = chart.options.indexAxis === "y";
+    const opts = (chart.options.plugins && chart.options.plugins.dashBarValueLabels) || {};
+    const valueIsMoney = opts.valueIsMoney !== false;
+    const suffix = opts.suffix || "";
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, index) => {
+        const value = dataset.data[index];
+        if (!value) return;
+        const texto = (valueIsMoney ? formatMoney(value) : fmt(value)) + suffix;
+        ctx.save();
+        ctx.fillStyle = DASH_COLORS.textStrong;
+        ctx.font = "700 10px 'Space Mono', monospace";
+        if (horizontal) {
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillText(texto, bar.x + 6, bar.y);
+        } else {
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(texto, bar.x, bar.y - 4);
+        }
+        ctx.restore();
+      });
+    });
+  }
+};
 
 function dashChart(canvasId, config, spec) {
   const ctx = document.getElementById(canvasId);
@@ -3087,6 +3131,33 @@ function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMod
   return totalHtml + html;
 }
 
+// Tabela com barra embutida numa das colunas -- substitui canvas+dashFooterHtml em
+// cards onde faz mais sentido escanear várias colunas de uma vez que ler um gráfico
+// (nome + contagem + valor principal com barra + valor extra). columns: array de
+// {key, label, type} -- "name" (texto, cresce), "num" (número simples, largura fixa)
+// ou "bar" (número com barra proporcional ao maior valor da própria coluna).
+function dashTableHtml(rows, columns) {
+  if (!rows.length) {
+    return `<div class="dash-table"><div class="dash-table-row"><span class="col-name">Sem dados no período</span></div></div>`;
+  }
+  const barCol = columns.find(c => c.type === "bar");
+  const maxValue = barCol ? Math.max(...rows.map(r => r[barCol.key]), 0.0001) : 1;
+
+  const celula = (col, r) => {
+    const val = r[col.key];
+    if (col.type === "name") return `<span class="col-name">${escapeHtml(val)}</span>`;
+    if (col.type === "bar") {
+      const pct = Math.max(0, val / maxValue * 100);
+      return `<span class="col-bar"><span class="track"><span class="fill" style="width:${pct}%"></span></span><span class="col-bar-val">${col.money ? formatMoney(val) : fmt(val)}</span></span>`;
+    }
+    return `<span class="col-num">${col.money ? formatMoney(val) : fmt(val)}${col.suffix || ""}</span>`;
+  };
+
+  const headHtml = `<div class="dash-table-head">${columns.map(c => `<span class="col-${c.type}">${escapeHtml(c.label)}</span>`).join("")}</div>`;
+  const rowsHtml = rows.map(r => `<div class="dash-table-row">${columns.map(c => celula(c, r)).join("")}</div>`).join("");
+  return `<div class="dash-table">${headHtml}${rowsHtml}</div>`;
+}
+
 function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, colors = null, abbreviate = true } = {}) {
   const maxLen = horizontal ? 20 : 11;
   const categoryTick = function (value) {
@@ -3095,6 +3166,7 @@ function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, 
   };
   return {
     type: "bar",
+    plugins: [dashBarValueLabelsPlugin],
     data: {
       labels,
       datasets: [{
@@ -3108,8 +3180,10 @@ function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, 
       indexAxis: horizontal ? "y" : "x",
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 18, right: horizontal ? 46 : 8 } },
       plugins: {
         legend: { display: false },
+        dashBarValueLabels: { valueIsMoney },
         tooltip: {
           callbacks: {
             title: (items) => items.length ? labels[items[0].dataIndex] : "",
@@ -3163,9 +3237,10 @@ function renderDashboard() {
   const porVendedor = {}, porEstado = {}, porTransp = {}, porForma = {}, porCliente = {};
   vendas.forEach(v => {
     const vend = v.vendedor || "(sem vendedor)";
-    if (!porVendedor[vend]) porVendedor[vend] = { faturamento: 0, comissao: 0 };
+    if (!porVendedor[vend]) porVendedor[vend] = { faturamento: 0, comissao: 0, qtd: 0 };
     porVendedor[vend].faturamento += v.valorVenda;
     porVendedor[vend].comissao += v.comissao || 0;
+    porVendedor[vend].qtd += 1;
 
     const cli = getCliente(v.cliente);
     const uf = (cli && cli.estado) || "—";
@@ -3182,9 +3257,10 @@ function renderDashboard() {
     const forma = v.formaPagamento || "(não informado)";
     porForma[forma] = (porForma[forma] || 0) + v.valorVenda;
 
-    if (!porCliente[v.cliente]) porCliente[v.cliente] = { faturamento: 0, pneus: 0 };
+    if (!porCliente[v.cliente]) porCliente[v.cliente] = { faturamento: 0, pneus: 0, qtd: 0 };
     porCliente[v.cliente].faturamento += v.valorVenda;
     porCliente[v.cliente].pneus += v.quantidadePneus;
+    porCliente[v.cliente].qtd += 1;
   });
 
   const vendedores = Object.entries(porVendedor).sort((a, b) => b[1].faturamento - a[1].faturamento);
@@ -3216,7 +3292,7 @@ function renderDashboard() {
 
   // 1. Volume de pneus vendidos por estado
   dashChart("chartPneusEstado",
-    dashBarConfig(estados.map(([uf]) => uf), estados.map(([, d]) => d.pneus), { valueIsMoney: false }),
+    dashBarConfig(estados.map(([uf]) => uf), estados.map(([, d]) => d.pneus), { valueIsMoney: false, colors: categoricalBarColors(estados.map(([uf]) => uf)) }),
     { type: "bar", title: "Volume de Pneus Vendidos por Estado", labels: estados.map(([uf]) => uf), data: estados.map(([, d]) => d.pneus), opts: { valueIsMoney: false } }
   );
   document.getElementById("footPneusEstado").innerHTML = dashFooterHtml(
@@ -3233,20 +3309,22 @@ function renderDashboard() {
   });
   const rankingMedida = Object.entries(porMedidaVendida).sort((a, b) => b[1] - a[1]).slice(0, 10);
   dashChart("chartPneusMaisVendidos",
-    dashBarConfig(rankingMedida.map(([medida]) => medida), rankingMedida.map(([, qtd]) => qtd), { horizontal: true, valueIsMoney: false }),
+    dashBarConfig(rankingMedida.map(([medida]) => medida), rankingMedida.map(([, qtd]) => qtd), { horizontal: true, valueIsMoney: false, colors: categoricalBarColors(rankingMedida.map(([medida]) => medida)) }),
     { type: "bar", title: "Pneus Mais Vendidos (por Medida)", labels: rankingMedida.map(([medida]) => medida), data: rankingMedida.map(([, qtd]) => qtd), opts: { horizontal: true, valueIsMoney: false } }
   );
   document.getElementById("footPneusMaisVendidos").innerHTML = dashFooterHtml(
     rankingMedida.map(([medida, qtd]) => ({ label: medida, value: qtd })), { money: false, suffix: " un." }
   );
 
-  // 2. Faturamento por representante
-  dashChart("chartFaturamentoRepresentante",
-    dashBarConfig(vendedores.map(([nome]) => nome), vendedores.map(([, d]) => d.faturamento)),
-    { type: "bar", title: "Faturamento por Representante", labels: vendedores.map(([nome]) => nome), data: vendedores.map(([, d]) => d.faturamento), opts: {} }
-  );
-  document.getElementById("footFaturamentoRepresentante").innerHTML = dashFooterHtml(
-    vendedores.map(([nome, d]) => ({ label: nome, value: d.faturamento }))
+  // 2. Faturamento por representante -- tabela com barra embutida (não gráfico)
+  document.getElementById("tableFaturamentoRepresentante").innerHTML = dashTableHtml(
+    vendedores.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento, comissao: d.comissao })),
+    [
+      { key: "nome", label: "Representante", type: "name" },
+      { key: "qtd", label: "Vendas", type: "num" },
+      { key: "faturamento", label: "Faturamento", type: "bar", money: true },
+      { key: "comissao", label: "Comissão", type: "num", money: true }
+    ]
   );
 
   // 3. Quantidade de NFs por transportadora (donut — parte-do-todo, poucas categorias)
@@ -3261,7 +3339,7 @@ function renderDashboard() {
 
   // 4. Gastos com frete por transportadora
   dashChart("chartFreteTransportadora",
-    dashBarConfig(transportadoras.map(([nome]) => nome), transportadoras.map(([, d]) => d.frete)),
+    dashBarConfig(transportadoras.map(([nome]) => nome), transportadoras.map(([, d]) => d.frete), { colors: categoricalBarColors(transportadoras.map(([nome]) => nome)) }),
     { type: "bar", title: "Gastos com Frete por Transportadora", labels: transportadoras.map(([nome]) => nome), data: transportadoras.map(([, d]) => d.frete), opts: {} }
   );
   document.getElementById("footFreteTransportadora").innerHTML = dashFooterHtml(
@@ -3291,10 +3369,14 @@ function renderDashboard() {
     uf, pct: +(d.fretePct.reduce((a, b) => a + b, 0) / d.fretePct.length * 100).toFixed(1)
   }));
   dashChart("chartFretePercEstado", {
-    ...dashBarConfig(percPorEstado.map(x => x.uf), percPorEstado.map(x => x.pct), { valueIsMoney: false }),
+    ...dashBarConfig(percPorEstado.map(x => x.uf), percPorEstado.map(x => x.pct), { valueIsMoney: false, colors: categoricalBarColors(percPorEstado.map(x => x.uf)) }),
     options: {
       ...dashBarConfig([], []).options,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ctx.parsed.y + "%" } } },
+      plugins: {
+        legend: { display: false },
+        dashBarValueLabels: { valueIsMoney: false, suffix: "%" },
+        tooltip: { callbacks: { label: (ctx) => ctx.parsed.y + "%" } }
+      },
       scales: {
         x: { grid: { color: "transparent" }, ticks: { color: DASH_COLORS.text, font: { size: 10.5 } } },
         y: { grid: { color: DASH_COLORS.grid }, ticks: { color: DASH_COLORS.text, font: { size: 10.5 }, callback: (v) => v + "%" } }
@@ -3318,26 +3400,27 @@ function renderDashboard() {
   // 8. Faturamento por cliente (top 10, horizontal — muitos nomes longos)
   const top10Clientes = clientesRank.slice(0, 10);
   dashChart("chartFaturamentoCliente",
-    dashBarConfig(top10Clientes.map(([nome]) => nome), top10Clientes.map(([, d]) => d.faturamento), { horizontal: true }),
+    dashBarConfig(top10Clientes.map(([nome]) => nome), top10Clientes.map(([, d]) => d.faturamento), { horizontal: true, colors: categoricalBarColors(top10Clientes.map(([nome]) => nome)) }),
     { type: "bar", title: "Faturamento por Cliente", labels: top10Clientes.map(([nome]) => nome), data: top10Clientes.map(([, d]) => d.faturamento), opts: { horizontal: true } }
   );
   document.getElementById("footFaturamentoCliente").innerHTML = dashFooterHtml(
     clientesRank.map(([nome, d]) => ({ label: nome, value: d.faturamento }))
   );
 
-  // 9. Top 5 clientes
+  // 9. Top 5 clientes -- tabela com barra embutida (não gráfico)
   const top5 = clientesRank.slice(0, 5);
-  dashChart("chartTop5Clientes",
-    dashBarConfig(top5.map(([nome]) => nome), top5.map(([, d]) => d.faturamento)),
-    { type: "bar", title: "Top 5 Clientes", labels: top5.map(([nome]) => nome), data: top5.map(([, d]) => d.faturamento), opts: {} }
-  );
-  document.getElementById("footTop5Clientes").innerHTML = dashFooterHtml(
-    top5.map(([nome, d]) => ({ label: nome, value: d.faturamento })), { maxRows: 5 }
+  document.getElementById("tableTop5Clientes").innerHTML = dashTableHtml(
+    top5.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento })),
+    [
+      { key: "nome", label: "Cliente", type: "name" },
+      { key: "qtd", label: "Vendas", type: "num" },
+      { key: "faturamento", label: "Faturamento", type: "bar", money: true }
+    ]
   );
 
   // 10. Comissão por representante
   dashChart("chartComissaoRepresentante",
-    dashBarConfig(vendedores.map(([nome]) => nome), vendedores.map(([, d]) => d.comissao)),
+    dashBarConfig(vendedores.map(([nome]) => nome), vendedores.map(([, d]) => d.comissao), { colors: categoricalBarColors(vendedores.map(([nome]) => nome)) }),
     { type: "bar", title: "Comissão por Representante", labels: vendedores.map(([nome]) => nome), data: vendedores.map(([, d]) => d.comissao), opts: {} }
   );
   document.getElementById("footComissaoRepresentante").innerHTML = dashFooterHtml(
@@ -3346,7 +3429,7 @@ function renderDashboard() {
 
   // 11. Distribuição das formas de pagamento (horizontal — muitas categorias, nomes longos)
   dashChart("chartFormaPagamento",
-    dashBarConfig(formas.map(([nome]) => nome), formas.map(([, valor]) => valor), { horizontal: true }),
+    dashBarConfig(formas.map(([nome]) => nome), formas.map(([, valor]) => valor), { horizontal: true, colors: categoricalBarColors(formas.map(([nome]) => nome)) }),
     { type: "bar", title: "Distribuição das Formas de Pagamento", labels: formas.map(([nome]) => nome), data: formas.map(([, valor]) => valor), opts: { horizontal: true } }
   );
   document.getElementById("footFormaPagamento").innerHTML = dashFooterHtml(
@@ -5165,6 +5248,27 @@ function buildDashPrintHtml(cardKey) {
       `;
     }
     conteudoHtml = imgHtml + tabelaHtml;
+  } else if (cardEl.querySelector(".dash-table")) {
+    // Tabela com barra embutida (dashTableHtml()) -- sem canvas pra exportar como
+    // imagem, então lê as linhas já renderizadas no DOM e monta uma tabela de
+    // impressão comum, mesmo espírito do branch de stat-tile logo abaixo.
+    const headers = Array.from(cardEl.querySelectorAll(".dash-table-head > *")).map(el => el.textContent);
+    const linhasHtml = Array.from(cardEl.querySelectorAll(".dash-table-row")).map(rowEl => {
+      const cols = Array.from(rowEl.children).map(colEl => {
+        const barVal = colEl.querySelector(".col-bar-val");
+        const texto = barVal ? barVal.textContent : colEl.textContent;
+        const isNum = !colEl.classList.contains("col-name");
+        return `<td${isNum ? ' class="num"' : ""}>${escapeHtml(texto)}</td>`;
+      }).join("");
+      return `<tr>${cols}</tr>`;
+    }).join("");
+    const headHtml = headers.map((h, i) => `<th${i > 0 ? ' style="text-align:right;"' : ""}>${escapeHtml(h)}</th>`).join("");
+    conteudoHtml = `
+      <table class="print-report-table" style="margin-top:8px;">
+        <thead><tr>${headHtml}</tr></thead>
+        <tbody>${linhasHtml}</tbody>
+      </table>
+    `;
   } else {
     const tiles = Array.from(cardEl.querySelectorAll(".dash-stat-tile"));
     conteudoHtml = `<div class="print-dash-stats">` + tiles.map(t => `

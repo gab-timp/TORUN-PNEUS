@@ -12,6 +12,11 @@
   --orange:#FF6A13;
   --orange-deep:#C64F0C;
   --orange-pale:#FFE7D6;
+  --blue:#2563EB;
+  --blue-deep:#1D4ED8;
+  --blue-pale:#DBEAFE;
+  --tint-orange:#FFF4EC;
+  --tint-blue:#EEF4FF;
   --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 10px 24px -14px rgba(0,0,0,.14);
   --shadow-modal: 0 20px 60px -20px rgba(0,0,0,.35);
   --danger:#B91C1C;
@@ -38,6 +43,8 @@
     --paper-2:#1A1A1A;
     --line:#2C2C2C;
     --line-strong:#D8D8D8;
+    --tint-orange:#2A1F16;
+    --tint-blue:#182236;
   }
 }
 :root[data-theme="dark"]{
@@ -48,6 +55,8 @@
   --paper-2:#1A1A1A;
   --line:#2C2C2C;
   --line-strong:#D8D8D8;
+  --tint-orange:#2A1F16;
+  --tint-blue:#182236;
 }
 
 /* tamanho da letra: escala visual via zoom (o CSS do site inteiro é em px,
@@ -1115,6 +1124,13 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   background:var(--paper-2);
   border-color:var(--line-strong);
 }
+/* tabelas com barra embutida (site/app.js dashTableHtml()) ganham um leve tom de
+   fundo próprio pra se diferenciar dos cards de gráfico ao redor -- tokens próprios
+   (não --orange-pale/--blue-pale, que são fixos entre temas e feitos pra selo de
+   ícone pequeno) porque um fundo de card inteiro precisa de um tom bem mais sutil
+   em cada tema, não a mesma cor "clara" jogada em cima de um fundo escuro. */
+.dash-card-tint-orange{background:var(--tint-orange);}
+.dash-card-tint-blue{background:var(--tint-blue);}
 .dash-canvas-wrap.is-expandable{cursor:pointer;}
 .dash-canvas-wrap.is-expandable:hover{outline:1px solid var(--orange); border-radius:6px;}
 
@@ -1190,6 +1206,29 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .dash-footer-total{padding-bottom:8px; margin-bottom:3px; border-bottom:1px solid var(--line); justify-content:space-between;}
 .dash-footer-total .lbl{color:var(--ink); font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;}
 .dash-footer-total .val{color:var(--orange); font-size:13px;}
+
+/* tabela com barra embutida na célula (site/app.js dashTableHtml()) -- substitui
+   canvas+dash-footer em cards onde faz mais sentido escanear várias colunas de
+   uma vez (nome + contagem + valor com barra + valor extra) do que ler um gráfico. */
+.dash-table{display:flex; flex-direction:column; font-size:11.5px;}
+.dash-table-head, .dash-table-row{display:flex; align-items:center; gap:10px;}
+.dash-table-head{
+  padding-bottom:8px; margin-bottom:2px; border-bottom:1px solid var(--line);
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft);
+}
+.dash-table-row{padding:8px 0; border-bottom:1px solid var(--paper-2);}
+.dash-table-row:last-child{border-bottom:none;}
+.dash-table .col-name{flex:1 1 30%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.dash-table-row .col-name{color:var(--ink); font-weight:700;}
+.dash-table .col-num{flex:0 0 56px; text-align:right; font-family:'Space Mono',monospace;}
+.dash-table-row .col-num{color:var(--ink); font-weight:700;}
+.dash-table .col-bar{flex:1.6 1 auto; min-width:0; display:flex; align-items:center; gap:8px;}
+.dash-table .col-bar .track{flex:1 1 auto; min-width:20px; height:6px; background:var(--paper-2); border-radius:6px; overflow:hidden;}
+.dash-table .col-bar .fill{display:block; height:100%; background:var(--orange); border-radius:6px;}
+.dash-table .col-bar-val{
+  flex:0 0 auto; min-width:72px; text-align:right;
+  font-family:'Space Mono',monospace; font-weight:800; color:var(--orange-deep);
+}
 .dash-stat-grid{
   display:grid;
   grid-template-columns:repeat(4,1fr);
