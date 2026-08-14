@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=106">
+<link rel="stylesheet" href="styles.css?v=107">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -119,6 +119,10 @@
       <g id="i-help" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="10" cy="10" r="7.2"/><path d="M7.7 7.6a2.3 2.3 0 1 1 3.2 2.1c-.8.4-1 .8-1 1.6"/><circle cx="10" cy="14" r=".15" fill="currentColor" stroke-width="1.4"/>
       </g>
+      <g id="i-close" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></g>
+      <g id="i-camera" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h2.4L7 4.5h6L14.6 7H17a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="3"/></g>
+      <g id="i-user" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.7" r="3.2"/><path d="M3.3 16.5c.7-3.5 2.9-5.3 6.7-5.3s6 1.8 6.7 5.3"/></g>
+      <g id="i-palette" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 0 0 15c1 0 1.6-.7 1.6-1.5 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.5A3.3 3.3 0 0 0 17 9.3C17 5.5 13.9 2.5 10 2.5Z"/><circle cx="6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="5.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="6.5" r=".9" fill="currentColor" stroke="none"/></g>
     </defs>
   </svg>
 
@@ -1317,67 +1321,90 @@
 
 <div class="modal-overlay drawer-overlay" id="minhasConfigOverlay">
   <div class="modal drawer">
-    <h3>Minhas configurações</h3>
+    <div class="drawer-hero">
+      <button type="button" class="drawer-close" id="minhasConfigCancelar" title="Fechar">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-close"/></svg>
+      </button>
+      <div class="drawer-avatar-wrap">
+        <div class="drawer-avatar" id="minhasConfigAvatarPreview"></div>
+        <button type="button" class="drawer-avatar-edit" id="btnMinhasConfigAvatar" title="Alterar foto">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-camera"/></svg>
+        </button>
+        <input type="file" id="minhasConfigAvatarInput" accept="image/*" style="display:none;">
+      </div>
+      <div class="drawer-name" id="minhasConfigDrawerNome"></div>
+      <div class="drawer-role" id="minhasConfigDrawerRole"></div>
+    </div>
 
-    <div class="field">
-      <label>Foto de perfil</label>
-      <div class="minhasconfig-avatar-row">
-        <div class="minhasconfig-avatar-preview" id="minhasConfigAvatarPreview"></div>
-        <div class="minhasconfig-avatar-actions">
-          <button type="button" class="btn small outline" id="btnMinhasConfigAvatar">⬆ Alterar foto</button>
-          <input type="file" id="minhasConfigAvatarInput" accept="image/*" style="display:none;">
+    <div class="drawer-body">
+      <div class="drawer-section">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-user"/></svg></span><h4>Informações</h4></div>
+        <div class="drawer-field">
+          <label>Nome de exibição</label>
+          <input type="text" id="minhasConfigNome" maxlength="120">
+        </div>
+        <div class="drawer-field">
+          <label>Telefone de contato</label>
+          <input type="text" id="minhasConfigTelefone" maxlength="30" placeholder="(00) 00000-0000">
+        </div>
+        <div class="drawer-field">
+          <label>E-mail</label>
+          <div class="ro mono" id="minhasConfigEmail"></div>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-palette"/></svg></span><h4>Aparência</h4></div>
+        <div class="drawer-field">
+          <label>Tema</label>
+          <div class="theme-toggle">
+            <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
+            <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
+            <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
+          </div>
+        </div>
+        <div class="drawer-field">
+          <label>Tamanho da letra</label>
+          <div class="fontsize-toggle">
+            <button type="button" class="fontsize-opt" data-fontsize-choice="pequeno" title="Letra pequena">A-</button>
+            <button type="button" class="fontsize-opt" data-fontsize-choice="medio" title="Letra média">A</button>
+            <button type="button" class="fontsize-opt" data-fontsize-choice="grande" title="Letra grande">A+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-bell"/></svg></span><h4>Notificações</h4></div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Estoque baixo</b><span>Produto atingiu o limite — mostra a medida</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifEstoqueBaixo"><div class="track"></div><div class="thumb"></div></div>
+        </div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Proposta nova</b><span>Chegou proposta de representante</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifProposta"><div class="track"></div><div class="thumb"></div></div>
+        </div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Proposta virou Entrada</b><span>Proposta foi confirmada como entrada</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifMudancaEtapa"><div class="track"></div><div class="thumb"></div></div>
+        </div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Pedido parado</b><span>Mais de 24h sem mudar de etapa (exceto Rastreio)</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifPedidoParado"><div class="track"></div><div class="thumb"></div></div>
+        </div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Previsto chegando</b><span>Processo do estoque previsto, até 5 dias antes</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifPrevisto"><div class="track"></div><div class="thumb"></div></div>
+        </div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Pré-cadastro</b><span>Cadastro novo enviado por representante</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifPrecadastro"><div class="track"></div><div class="thumb"></div></div>
         </div>
       </div>
     </div>
 
-    <div class="field">
-      <label>Nome de exibição</label>
-      <input type="text" id="minhasConfigNome" maxlength="120">
-    </div>
-
-    <div class="field">
-      <label>E-mail</label>
-      <div class="mono" id="minhasConfigEmail" style="padding:8px 0;"></div>
-    </div>
-
-    <div class="field">
-      <label>Telefone de contato</label>
-      <input type="text" id="minhasConfigTelefone" maxlength="30" placeholder="(00) 00000-0000">
-    </div>
-
-    <div class="field">
-      <label>Tema</label>
-      <div class="theme-toggle">
-        <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
-        <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
-        <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Tamanho da letra</label>
-      <div class="fontsize-toggle">
-        <button type="button" class="fontsize-opt" data-fontsize-choice="pequeno" title="Letra pequena">A-</button>
-        <button type="button" class="fontsize-opt" data-fontsize-choice="medio" title="Letra média">A</button>
-        <button type="button" class="fontsize-opt" data-fontsize-choice="grande" title="Letra grande">A+</button>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Notificações</label>
-      <div class="minhasconfig-notif-lista">
-        <label><input type="checkbox" id="minhasConfigNotifEstoqueBaixo"> Estoque baixo</label>
-        <label><input type="checkbox" id="minhasConfigNotifProposta"> Nova proposta de representante</label>
-        <label><input type="checkbox" id="minhasConfigNotifMudancaEtapa"> Proposta virou Entrada</label>
-        <label><input type="checkbox" id="minhasConfigNotifPedidoParado"> Pedido parado há mais de 24h</label>
-        <label><input type="checkbox" id="minhasConfigNotifPrevisto"> Previsto chegando (5 dias antes)</label>
-        <label><input type="checkbox" id="minhasConfigNotifPrecadastro"> Novo pré-cadastro de cliente</label>
-      </div>
-    </div>
-
-    <div class="form-actions">
-      <button class="btn outline" id="minhasConfigCancelar">Fechar</button>
-      <button class="btn primary" id="minhasConfigSalvar">Salvar</button>
+    <div class="drawer-foot">
+      <button type="button" class="btn outline" id="minhasConfigCancelarFoot">Cancelar</button>
+      <button type="button" class="btn primary" id="minhasConfigSalvar">Salvar alterações</button>
     </div>
   </div>
 </div>
@@ -1979,6 +2006,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=120"></script>
+<script src="app.js?v=121"></script>
 </body>
 </html>

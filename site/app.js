@@ -5471,18 +5471,20 @@ function computeUserInitials(nome) {
   return "?";
 }
 
+function currentUserRoleLabel() {
+  return currentUserIsAdmin ? "Administrador"
+    : currentUserRole === "viewer" ? "Somente leitura"
+    : currentUserRole === "representante" ? "Representante"
+    : "Editor";
+}
+
 function updateSidebarUserChip() {
   const nome = currentUserNome || (currentUser && currentUser.email) || "";
   const nameEl = document.getElementById("sidebarUserName");
   const roleEl = document.getElementById("sidebarUserRole");
   const avatarEl = document.getElementById("sidebarUserAvatar");
   if (nameEl) nameEl.textContent = nome;
-  if (roleEl) {
-    roleEl.textContent = currentUserIsAdmin ? "Administrador"
-      : currentUserRole === "viewer" ? "Somente leitura"
-      : currentUserRole === "representante" ? "Representante"
-      : "Editor";
-  }
+  if (roleEl) roleEl.textContent = currentUserRoleLabel();
   if (avatarEl) {
     const url = fotoAvatarUsuarioUrl(currentUserAvatarPath);
     avatarEl.innerHTML = url ? `<img src="${escapeAttr(url)}" alt="">` : "";
@@ -5502,6 +5504,8 @@ function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNome").value = currentUserNome || "";
   document.getElementById("minhasConfigTelefone").value = currentUserTelefone || "";
   document.getElementById("minhasConfigEmail").textContent = (currentUser && currentUser.email) || "";
+  document.getElementById("minhasConfigDrawerNome").textContent = currentUserNome || (currentUser && currentUser.email) || "";
+  document.getElementById("minhasConfigDrawerRole").textContent = currentUserRoleLabel();
   document.getElementById("minhasConfigNotifEstoqueBaixo").checked = currentUserNotifEstoqueBaixo;
   document.getElementById("minhasConfigNotifProposta").checked = currentUserNotifNovaProposta;
   document.getElementById("minhasConfigNotifMudancaEtapa").checked = currentUserNotifMudancaEtapa;
@@ -5561,6 +5565,7 @@ async function uploadAvatar(file) {
 function initMinhasConfiguracoes() {
   document.getElementById("sidebarUser").addEventListener("click", abrirMinhasConfiguracoesModal);
   document.getElementById("minhasConfigCancelar").addEventListener("click", closeMinhasConfiguracoesModal);
+  document.getElementById("minhasConfigCancelarFoot").addEventListener("click", closeMinhasConfiguracoesModal);
   document.getElementById("minhasConfigOverlay").addEventListener("click", (e) => {
     if (e.target.id === "minhasConfigOverlay") closeMinhasConfiguracoesModal();
   });
