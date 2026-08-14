@@ -2826,7 +2826,7 @@ function dashDeltaHtml(atual, anterior, invertido = false) {
   if (!isFinite(delta)) return "";
   const positivo = delta >= 0;
   const bom = invertido ? !positivo : positivo;
-  const seta = positivo ? "▲" : "▼";
+  const seta = bom ? "▲" : "▼";
   return `<div class="delta ${bom ? "good" : "bad"}">${seta} ${Math.abs(delta).toFixed(1)}% vs. mês anterior</div>`;
 }
 
