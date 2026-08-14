@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=105">
+<link rel="stylesheet" href="styles.css?v=106">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -215,7 +215,17 @@
         <input type="text" id="topbarSearch" placeholder="Buscar produto, cliente ou pedido…">
       </div>
       <div class="topbar-spacer"></div>
-      <div class="bell-btn" aria-hidden="true"><svg class="ic" viewBox="0 0 20 20"><use href="#i-bell"/></svg><span class="bell-dot"></span></div>
+      <div class="bell-wrap">
+        <button type="button" class="bell-btn" id="btnSino">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-bell"/></svg>
+          <span class="bell-badge" id="sinoBadge" style="display:none;"></span>
+        </button>
+        <div class="sino-dropdown" id="sinoDropdown">
+          <div class="sino-dropdown-head">Notificações</div>
+          <div class="sino-dropdown-list" id="sinoDropdownList"></div>
+          <div class="empty-state" id="sinoDropdownEmpty" style="display:none;">Nenhuma notificação por enquanto.</div>
+        </div>
+      </div>
       <button type="button" class="profile" id="sidebarUser" title="Minhas configurações">
         <span class="avatar" id="sidebarUserAvatar"></span>
         <span class="profile-text">
@@ -1305,8 +1315,8 @@
 <div id="estoqueBaixoAlerts" class="estoque-baixo-alerts"></div>
 <div id="propostaAlerts" class="estoque-baixo-alerts proposta-alerts"></div>
 
-<div class="modal-overlay" id="minhasConfigOverlay">
-  <div class="modal">
+<div class="modal-overlay drawer-overlay" id="minhasConfigOverlay">
+  <div class="modal drawer">
     <h3>Minhas configurações</h3>
 
     <div class="field">
@@ -1354,7 +1364,15 @@
     </div>
 
     <div class="field">
-      <label><input type="checkbox" id="minhasConfigNotifProposta"> Avisar quando chegar uma nova proposta de representante</label>
+      <label>Notificações</label>
+      <div class="minhasconfig-notif-lista">
+        <label><input type="checkbox" id="minhasConfigNotifEstoqueBaixo"> Estoque baixo</label>
+        <label><input type="checkbox" id="minhasConfigNotifProposta"> Nova proposta de representante</label>
+        <label><input type="checkbox" id="minhasConfigNotifMudancaEtapa"> Proposta virou Entrada</label>
+        <label><input type="checkbox" id="minhasConfigNotifPedidoParado"> Pedido parado há mais de 24h</label>
+        <label><input type="checkbox" id="minhasConfigNotifPrevisto"> Previsto chegando (5 dias antes)</label>
+        <label><input type="checkbox" id="minhasConfigNotifPrecadastro"> Novo pré-cadastro de cliente</label>
+      </div>
     </div>
 
     <div class="form-actions">
@@ -1961,6 +1979,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=119"></script>
+<script src="app.js?v=120"></script>
 </body>
 </html>

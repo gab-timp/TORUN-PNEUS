@@ -389,6 +389,41 @@ body.is-admin .nav-item.admin-only{display:flex;}
 }
 .bell-btn .ic{width:17px; height:17px;}
 .bell-dot{position:absolute; top:8px; right:9px; width:7px; height:7px; border-radius:50%; background:var(--orange); border:2px solid var(--surface);}
+
+.bell-wrap{position:relative; flex:0 0 auto;}
+.bell-badge{
+  position:absolute; top:-5px; right:-5px; min-width:16px; height:16px; padding:0 4px;
+  border-radius:9px; background:var(--orange); color:var(--black);
+  font-family:'Space Mono',monospace; font-size:10px; font-weight:800; line-height:16px; text-align:center;
+  border:2px solid var(--paper);
+}
+.sino-dropdown{
+  position:absolute; top:calc(100% + 10px); right:0; width:340px; max-width:88vw; max-height:420px;
+  display:none; flex-direction:column; overflow:hidden;
+  background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  box-shadow:var(--shadow-modal); z-index:65;
+}
+.sino-dropdown.show{display:flex;}
+.sino-dropdown-head{
+  padding:12px 16px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--ink-soft); border-bottom:1px solid var(--line); flex:0 0 auto;
+}
+.sino-dropdown-list{overflow-y:auto; flex:1 1 auto;}
+.sino-dropdown .empty-state{padding:28px 16px; font-size:12.5px;}
+.sino-item{
+  display:flex; gap:10px; align-items:flex-start; padding:11px 16px; cursor:pointer;
+  border-bottom:1px solid var(--line); transition:background .12s ease;
+}
+.sino-item:last-child{border-bottom:none;}
+.sino-item:hover{background:var(--paper-2);}
+.sino-item-icon{
+  flex:0 0 auto; width:26px; height:26px; border-radius:8px; background:var(--orange-pale);
+  color:var(--orange-deep); display:flex; align-items:center; justify-content:center; font-size:13px;
+}
+.sino-item-body{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.sino-item-titulo{font-size:12.5px; font-weight:700; color:var(--ink);}
+.sino-item-desc{font-size:11.5px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.sino-item-tempo{font-size:10px; color:var(--ink-soft); font-family:'Space Mono',monospace;}
 .profile{
   display:flex; align-items:center; gap:9px;
   padding:6px 12px 6px 6px;
@@ -612,6 +647,12 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;}
 
 .minhasconfig-avatar-row{display:flex; gap:14px; align-items:center;}
+.minhasconfig-notif-lista{display:flex; flex-direction:column; gap:8px;}
+.minhasconfig-notif-lista label{
+  display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600;
+  text-transform:none; letter-spacing:normal; color:var(--ink); cursor:pointer;
+}
+.minhasconfig-notif-lista input[type="checkbox"]{width:auto;}
 .minhasconfig-avatar-preview{
   width:72px; height:72px; border-radius:50%; overflow:hidden; flex:0 0 auto;
   background:linear-gradient(155deg, var(--orange), var(--orange-deep));
@@ -621,6 +662,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .minhasconfig-avatar-preview img{width:100%; height:100%; object-fit:cover;}
 .minhasconfig-avatar-actions{display:flex; flex-direction:column; gap:6px;}
 #minhasConfigOverlay .modal{max-height:88vh; overflow-y:auto;}
+#minhasConfigOverlay .modal.drawer{max-height:none;}
 
 .item-list{display:flex;flex-direction:column;gap:8px;}
 .item-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
@@ -962,6 +1004,16 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .modal h3{font-size:15px; margin-bottom:10px;}
 .modal p{font-size:13px; color:var(--ink-soft); margin-bottom:16px; line-height:1.5;}
 .modal .form-actions{margin-top:0;}
+
+/* gaveta lateral (perfil): mesma .modal-overlay/.modal de base, só que alinhada
+   à direita e deslizando -- classe adicional, não substitui as de cima. */
+.drawer-overlay{justify-content:flex-end; padding:0;}
+.drawer{
+  width:400px; max-width:92vw; height:100%; border-radius:0; border-top:none; border-left:4px solid var(--orange);
+  transform:translateX(100%); transition:transform .25s ease;
+  display:flex; flex-direction:column; gap:16px; overflow-y:auto;
+}
+.drawer-overlay.show .drawer{transform:translateX(0);}
 
 .chart-modal{
   background:var(--surface);

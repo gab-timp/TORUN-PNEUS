@@ -15,6 +15,12 @@ let currentUserKanbanColapsadas = [];
 let currentUserNome = "";
 let currentUserTema = null;
 let currentUserNotifNovaProposta = true;
+let currentUserNotifMudancaEtapa = true;
+let currentUserNotifEstoqueBaixo = true;
+let currentUserNotifPrecadastroNovo = true;
+let currentUserNotifPedidoParado = true;
+let currentUserNotifPrevistoChegando = true;
+let currentUserUltimaNotifVista = null;
 let currentUserTelefone = "";
 let currentUserAvatarPath = null;
 let currentUserTamanhoLetra = null;
@@ -42,7 +48,7 @@ const UF_LIST = [
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ];
 
-let state = { produtos: [], movimentos: [], fretes: [], clientes: [], vendas: [], previsoes: [], entregas: [] };
+let state = { produtos: [], movimentos: [], fretes: [], clientes: [], vendas: [], previsoes: [], entregas: [], notificacoes: [] };
 
 let editingMovimentoId = null;
 let editingFreteId = null;
@@ -219,6 +225,13 @@ function movimentoFromRow(r) {
   };
 }
 
+function notificacaoFromRow(r) {
+  return {
+    id: r.id, tipo: r.tipo, titulo: r.titulo, descricao: r.descricao || "",
+    linkView: r.link_view || null, linkId: r.link_id || null, createdAt: r.created_at
+  };
+}
+
 async function fetchComRetry(builderFn, tentativas = 3, delayMs = 800) {
   let ultimoResultado = null;
   for (let i = 0; i < tentativas; i++) {
@@ -241,16 +254,17 @@ async function loadState() {
       fetchComRetry(() => sb.from("previsoes").select("*")),
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
       fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
-      fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, tamanho_letra").eq("user_id", currentUser.id).maybeSingle()),
-      fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at"))
+      fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
+      fetchComRetry(() => sb.from("notificacoes").select("*").order("created_at", { ascending: false }).limit(50))
     ]),
     fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
   ]);
-  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, roleRes, prefRes, preCadRes] = results;
+  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
   configuracoesSite = configRes.data || null;
   ESTOQUE_BAIXO_LIMITE = (configuracoesSite && configuracoesSite.estoque_baixo_limite) || 20;
-  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes"];
+  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
   let falhaCritica = false;
   results.forEach((r, i) => {
     if (r.error) {
@@ -276,6 +290,12 @@ async function loadState() {
   currentUserKanbanColapsadas = (prefRes.data && prefRes.data.kanban_colunas_recolhidas) || [];
   currentUserTema = (prefRes.data && prefRes.data.tema) || null;
   currentUserNotifNovaProposta = prefRes.data ? prefRes.data.notif_nova_proposta !== false : true;
+  currentUserNotifMudancaEtapa = prefRes.data ? prefRes.data.notif_mudanca_etapa !== false : true;
+  currentUserNotifEstoqueBaixo = prefRes.data ? prefRes.data.notif_estoque_baixo !== false : true;
+  currentUserNotifPrecadastroNovo = prefRes.data ? prefRes.data.notif_precadastro_novo !== false : true;
+  currentUserNotifPedidoParado = prefRes.data ? prefRes.data.notif_pedido_parado !== false : true;
+  currentUserNotifPrevistoChegando = prefRes.data ? prefRes.data.notif_previsto_chegando !== false : true;
+  currentUserUltimaNotifVista = (prefRes.data && prefRes.data.ultima_notificacao_vista_em) || null;
   currentUserTamanhoLetra = (prefRes.data && prefRes.data.tamanho_letra) || null;
   document.body.classList.toggle("is-viewer", currentUserRole === "viewer");
   document.body.classList.toggle("is-admin", currentUserIsAdmin);
@@ -304,12 +324,14 @@ async function loadState() {
     vendas: (vendasRes.data || []).map(vendaFromRow),
     previsoes: (previsoesRes.data || []).map(previstoFromRow),
     entregas: (entregasRes.data || []).map(entregaFromRow),
-    clientesPendentes: preCadRes.data || []
+    clientesPendentes: preCadRes.data || [],
+    notificacoes: (notifRes.data || []).map(notificacaoFromRow)
   };
 
   atualizarAlertaEstoqueBaixo();
   atualizarAlertaNovaProposta();
   renderPreCadastrosClientes();
+  renderSinoNotificacoes();
 }
 
 /* ---------------- derived data ---------------- */
@@ -3565,6 +3587,119 @@ async function rejeitarPreCadastro(id) {
   toast("Pré-cadastro rejeitado.");
 }
 
+/* ---------------- sino de notificações ---------------- */
+
+const NOTIF_TIPO_PREF = {
+  estoque_baixo: "notifEstoqueBaixo",
+  proposta_nova: "notifNovaProposta",
+  proposta_entrada: "notifMudancaEtapa",
+  pedido_parado: "notifPedidoParado",
+  previsto_chegando: "notifPrevistoChegando",
+  precadastro_novo: "notifPrecadastroNovo"
+};
+const NOTIF_TIPO_ICONE = {
+  estoque_baixo: "⚠",
+  proposta_nova: "✉",
+  proposta_entrada: "↗",
+  pedido_parado: "⏱",
+  previsto_chegando: "🚢",
+  precadastro_novo: "＋"
+};
+function currentUserAceitaNotifTipo(tipo) {
+  const chave = NOTIF_TIPO_PREF[tipo];
+  const map = {
+    notifEstoqueBaixo: currentUserNotifEstoqueBaixo,
+    notifNovaProposta: currentUserNotifNovaProposta,
+    notifMudancaEtapa: currentUserNotifMudancaEtapa,
+    notifPedidoParado: currentUserNotifPedidoParado,
+    notifPrevistoChegando: currentUserNotifPrevistoChegando,
+    notifPrecadastroNovo: currentUserNotifPrecadastroNovo
+  };
+  return chave ? map[chave] !== false : true;
+}
+
+function formatTempoRelativo(iso) {
+  if (!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `há ${d}d`;
+  return formatDateBR(iso.slice(0, 10));
+}
+
+function notificacoesVisiveis() {
+  return (state.notificacoes || []).filter(n => currentUserAceitaNotifTipo(n.tipo));
+}
+
+function renderSinoNotificacoes() {
+  const badge = document.getElementById("sinoBadge");
+  const list = document.getElementById("sinoDropdownList");
+  const empty = document.getElementById("sinoDropdownEmpty");
+  if (!badge || !list) return;
+
+  const visiveis = notificacoesVisiveis();
+  const naoLidas = currentUserUltimaNotifVista
+    ? visiveis.filter(n => new Date(n.createdAt) > new Date(currentUserUltimaNotifVista)).length
+    : visiveis.length;
+
+  badge.textContent = naoLidas > 9 ? "9+" : String(naoLidas);
+  badge.style.display = naoLidas > 0 ? "" : "none";
+
+  empty.style.display = visiveis.length ? "none" : "";
+  list.innerHTML = visiveis.slice(0, 20).map(n => `
+    <div class="sino-item" data-notifid="${escapeAttr(n.id)}" data-notifview="${escapeAttr(n.linkView || "")}" data-notiflinkid="${escapeAttr(n.linkId || "")}">
+      <span class="sino-item-icon">${NOTIF_TIPO_ICONE[n.tipo] || "•"}</span>
+      <span class="sino-item-body">
+        <span class="sino-item-titulo">${escapeHtml(n.titulo)}</span>
+        <span class="sino-item-desc">${escapeHtml(n.descricao)}</span>
+        <span class="sino-item-tempo">${formatTempoRelativo(n.createdAt)}</span>
+      </span>
+    </div>
+  `).join("");
+
+  list.querySelectorAll("[data-notifid]").forEach(el => {
+    el.addEventListener("click", () => {
+      const view = el.dataset.notifview;
+      const linkId = el.dataset.notiflinkid;
+      fecharSinoDropdown();
+      if (!view) return;
+      setView(view);
+      if (view === "entregas" && linkId) openPedidoModal(linkId);
+    });
+  });
+}
+
+async function abrirSinoDropdown() {
+  document.getElementById("sinoDropdown").classList.add("show");
+  currentUserUltimaNotifVista = new Date().toISOString();
+  renderSinoNotificacoes();
+  const { error } = await sb.rpc("marcar_notificacoes_vistas");
+  if (error) console.error("Erro ao marcar notificações como vistas:", error);
+}
+
+function fecharSinoDropdown() {
+  document.getElementById("sinoDropdown").classList.remove("show");
+}
+
+function initSino() {
+  const btn = document.getElementById("btnSino");
+  if (!btn) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const dropdown = document.getElementById("sinoDropdown");
+    if (dropdown.classList.contains("show")) fecharSinoDropdown();
+    else abrirSinoDropdown();
+  });
+  document.addEventListener("click", (e) => {
+    const wrap = document.querySelector(".bell-wrap");
+    if (wrap && !wrap.contains(e.target)) fecharSinoDropdown();
+  });
+}
+
 function abrirMesclarClientesModal() {
   const nomes = Array.from(clientesSelecionadosParaMesclar);
   if (nomes.length < 2) return;
@@ -5100,7 +5235,8 @@ const REALTIME_TABLES = [
   { table: "clientes", key: "nome", fromRow: clienteFromRow },
   { table: "vendas", key: "id", fromRow: vendaFromRow },
   { table: "previsoes", key: "id", fromRow: previstoFromRow },
-  { table: "entregas", key: "id", fromRow: entregaFromRow }
+  { table: "entregas", key: "id", fromRow: entregaFromRow },
+  { table: "notificacoes", key: "id", fromRow: notificacaoFromRow }
 ];
 
 let refreshTimer = null;
@@ -5254,6 +5390,7 @@ async function init() {
   initKanbanColumnsCollapse();
   initNavGroups();
   initMinhasConfiguracoes();
+  initSino();
   initAdministracao();
   const btnCentralAjuda = document.getElementById("btnCentralAjuda");
   if (btnCentralAjuda) btnCentralAjuda.addEventListener("click", () => toast("Central de ajuda ainda não está disponível — fale com o time por enquanto."));
@@ -5365,7 +5502,12 @@ function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNome").value = currentUserNome || "";
   document.getElementById("minhasConfigTelefone").value = currentUserTelefone || "";
   document.getElementById("minhasConfigEmail").textContent = (currentUser && currentUser.email) || "";
+  document.getElementById("minhasConfigNotifEstoqueBaixo").checked = currentUserNotifEstoqueBaixo;
   document.getElementById("minhasConfigNotifProposta").checked = currentUserNotifNovaProposta;
+  document.getElementById("minhasConfigNotifMudancaEtapa").checked = currentUserNotifMudancaEtapa;
+  document.getElementById("minhasConfigNotifPedidoParado").checked = currentUserNotifPedidoParado;
+  document.getElementById("minhasConfigNotifPrevisto").checked = currentUserNotifPrevistoChegando;
+  document.getElementById("minhasConfigNotifPrecadastro").checked = currentUserNotifPrecadastroNovo;
   renderMinhasConfigAvatarPreview();
   document.getElementById("minhasConfigOverlay").classList.add("show");
 }
@@ -5386,12 +5528,18 @@ async function salvarPerfil() {
   toast("Perfil atualizado.");
 }
 
-async function salvarNotificacaoPreferencia(checked) {
-  currentUserNotifNovaProposta = checked;
+async function salvarPreferenciasNotificacao(prefs) {
+  currentUserNotifEstoqueBaixo = prefs.notif_estoque_baixo;
+  currentUserNotifNovaProposta = prefs.notif_nova_proposta;
+  currentUserNotifMudancaEtapa = prefs.notif_mudanca_etapa;
+  currentUserNotifPedidoParado = prefs.notif_pedido_parado;
+  currentUserNotifPrevistoChegando = prefs.notif_previsto_chegando;
+  currentUserNotifPrecadastroNovo = prefs.notif_precadastro_novo;
   const { error } = await sb.from("user_preferences").upsert(
-    { user_id: currentUser.id, notif_nova_proposta: checked }, { onConflict: "user_id" }
+    { user_id: currentUser.id, ...prefs }, { onConflict: "user_id" }
   );
-  if (error) toast("Erro ao salvar preferência: " + error.message);
+  if (error) toast("Erro ao salvar preferências: " + error.message);
+  renderSinoNotificacoes();
 }
 
 async function uploadAvatar(file) {
@@ -5426,7 +5574,14 @@ function initMinhasConfiguracoes() {
   });
   document.getElementById("minhasConfigSalvar").addEventListener("click", async () => {
     await salvarPerfil();
-    await salvarNotificacaoPreferencia(document.getElementById("minhasConfigNotifProposta").checked);
+    await salvarPreferenciasNotificacao({
+      notif_estoque_baixo: document.getElementById("minhasConfigNotifEstoqueBaixo").checked,
+      notif_nova_proposta: document.getElementById("minhasConfigNotifProposta").checked,
+      notif_mudanca_etapa: document.getElementById("minhasConfigNotifMudancaEtapa").checked,
+      notif_pedido_parado: document.getElementById("minhasConfigNotifPedidoParado").checked,
+      notif_previsto_chegando: document.getElementById("minhasConfigNotifPrevisto").checked,
+      notif_precadastro_novo: document.getElementById("minhasConfigNotifPrecadastro").checked
+    });
     closeMinhasConfiguracoesModal();
   });
 }
