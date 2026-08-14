@@ -508,22 +508,6 @@ function atualizarAlertaEstoqueBaixo() {
   } else {
     badge.style.display = "none";
   }
-
-  const card = document.getElementById("cardAlertaEstoqueBaixo");
-  if (!card) return;
-  if (baixos.length === 0) {
-    card.style.display = "none";
-    return;
-  }
-  card.style.display = "";
-  document.getElementById("alertaEstoqueBaixoCount").textContent = baixos.length;
-  document.getElementById("alertaEstoqueBaixoLista").innerHTML = baixos.map(p => `
-    <div class="alerta-item">
-      <span class="codigo">${escapeHtml(p.codigo)}</span>
-      <span class="medida">${escapeHtml(p.medida)}</span>
-      <span class="saldo ${p.saldo <= 0 ? "saldo-zero" : "saldo-baixo"}">${fmt(p.saldo)} un.</span>
-    </div>
-  `).join("");
 }
 
 /* ---------------- aviso: nova proposta de representante (só popup, sem card fixo) ---------------- */

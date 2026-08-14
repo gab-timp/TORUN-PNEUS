@@ -519,8 +519,6 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .card-collapsible.collapsed .card-toggle{transform:rotate(-90deg);}
 .card-collapsible.collapsed .card-body{display:none;}
 
-.alerta-card{border-left:3px solid var(--orange); margin-bottom:20px;}
-.alerta-card .card-head h2{font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px;}
 .alerta-badge{
   background:var(--orange-pale); color:var(--orange-deep); font-family:'Space Mono',monospace;
   font-size:11px; font-weight:800; padding:1px 8px; border-radius:20px;
