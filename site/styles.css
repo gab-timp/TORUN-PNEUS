@@ -940,8 +940,8 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   border-radius:10px;
   box-shadow:0 8px 24px rgba(0,0,0,.15);
   padding:12px;
-  width:280px;
-  max-height:320px;
+  width:320px;
+  max-height:380px;
   overflow-y:auto;
 }
 .dash-filter-actions{display:flex; gap:8px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--line);}
@@ -951,9 +951,21 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .dash-filter-actions button:hover{border-color:var(--orange); color:var(--orange-deep);}
 .dash-filter-item{
-  display:flex; align-items:center; gap:8px; font-size:12.5px; padding:5px 2px; cursor:pointer;
+  display:flex; flex-direction:column; gap:5px; font-size:12.5px; padding:6px 2px;
+  border-bottom:1px solid var(--line);
 }
-.dash-filter-item input{width:auto;}
+.dash-filter-item:last-child{border-bottom:none;}
+.dash-filter-item-check{display:flex; align-items:center; gap:8px; cursor:pointer;}
+.dash-filter-item-check input{width:auto;}
+/* fica alinhado embaixo do texto do checkbox (16px de caixa + 8px de gap) --
+   deixa claro que o seletor de estilo pertence àquela linha específica. */
+.dash-filter-style{display:flex; gap:4px; margin-left:24px;}
+.dash-filter-style-opt{
+  background:var(--paper-2); border:1px solid var(--line); border-radius:6px;
+  padding:3px 9px; font-size:12px; line-height:1.3; cursor:pointer;
+}
+.dash-filter-style-opt:hover{border-color:var(--orange);}
+.dash-filter-style-opt.active{background:var(--orange-pale); border-color:var(--orange);}
 
 /* ---------------- ranking ---------------- */
 .rank-list{display:flex; flex-direction:column; gap:10px;}

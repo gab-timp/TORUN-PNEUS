@@ -2894,14 +2894,53 @@ function applyDashVisibility() {
   });
 }
 
+// Estilo de exibição (barra/rosca/tabela) por card -- só os cards que mostram uma
+// lista categoria+valor têm essa opção (não "Indicadores" nem "Evolução Mensal",
+// que não têm esse formato). Padrão = exatamente o que já está na tela hoje, então
+// quem nunca mexer no seletor não percebe diferença nenhuma.
+const DASH_ESTILO_KEY = "torun_dash_estilo_v1";
+const DASH_ESTILO_PADRAO = {
+  pneusEstado: "barra", pneusMaisVendidos: "barra", faturamentoRepresentante: "tabela",
+  nfTransportadora: "rosca", freteTransportadora: "barra", fretePercEstado: "barra",
+  faturamentoEstado: "rosca", faturamentoCliente: "barra", top5Clientes: "tabela",
+  comissaoRepresentante: "barra", formaPagamento: "barra"
+};
+const DASH_ESTILO_OPCOES = [
+  { key: "barra", icone: "📊", titulo: "Barra" },
+  { key: "rosca", icone: "🍩", titulo: "Rosca" },
+  { key: "tabela", icone: "📋", titulo: "Tabela" }
+];
+
+function loadDashEstilos() {
+  try {
+    return JSON.parse(localStorage.getItem(DASH_ESTILO_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function getDashCardEstilo(key) {
+  const estilos = loadDashEstilos();
+  return estilos[key] || DASH_ESTILO_PADRAO[key] || "barra";
+}
+
 function renderDashFiltroLista() {
   const vis = loadDashVisibility();
-  document.getElementById("dashFiltroLista").innerHTML = DASH_CARD_DEFS.map(({ key, label }) => `
-    <label class="dash-filter-item">
-      <input type="checkbox" data-dashvis="${key}" ${isDashCardVisible(key, vis) ? "checked" : ""}>
-      ${escapeHtml(label)}
-    </label>
-  `).join("");
+  document.getElementById("dashFiltroLista").innerHTML = DASH_CARD_DEFS.map(({ key, label }) => {
+    const temEstilo = key in DASH_ESTILO_PADRAO;
+    const estiloAtual = temEstilo ? getDashCardEstilo(key) : null;
+    const seletorHtml = temEstilo ? `
+      <div class="dash-filter-style" data-dashestilo-for="${key}">
+        ${DASH_ESTILO_OPCOES.map(o => `<button type="button" class="dash-filter-style-opt${o.key === estiloAtual ? " active" : ""}" data-estilo="${o.key}" title="${o.titulo}">${o.icone}</button>`).join("")}
+      </div>
+    ` : "";
+    return `
+      <div class="dash-filter-item">
+        <label class="dash-filter-item-check"><input type="checkbox" data-dashvis="${key}" ${isDashCardVisible(key, vis) ? "checked" : ""}> ${escapeHtml(label)}</label>
+        ${seletorHtml}
+      </div>
+    `;
+  }).join("");
 }
 
 function initDashFiltro() {
@@ -2921,6 +2960,17 @@ function initDashFiltro() {
     const vis = loadDashVisibility();
     vis[e.target.dataset.dashvis] = e.target.checked;
     localStorage.setItem(DASH_VISIBILITY_KEY, JSON.stringify(vis));
+    renderDashboard();
+  });
+
+  document.getElementById("dashFiltroLista").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-estilo]");
+    if (!btn) return;
+    const cardKey = btn.closest("[data-dashestilo-for]").dataset.dashestiloFor;
+    const estilos = loadDashEstilos();
+    estilos[cardKey] = btn.dataset.estilo;
+    localStorage.setItem(DASH_ESTILO_KEY, JSON.stringify(estilos));
+    renderDashFiltroLista();
     renderDashboard();
   });
 
@@ -3027,7 +3077,7 @@ function dashChart(canvasId, config, spec) {
   if (spec) dashChartSpecs[canvasId] = spec;
 }
 
-function dashDonutConfig(labels, data, { valueIsMoney = true, abbreviate = true } = {}) {
+function dashDonutConfig(labels, data, { valueIsMoney = true, abbreviate = true, suffix = "" } = {}) {
   const colors = labels.map((l, i) => l === "Outros" && i === labels.length - 1 ? DASH_OUTROS_COLOR : DASH_CATEGORICAL[i % DASH_CATEGORICAL.length]);
   return {
     type: "doughnut",
@@ -3049,7 +3099,7 @@ function dashDonutConfig(labels, data, { valueIsMoney = true, abbreviate = true 
         },
         tooltip: {
           callbacks: {
-            label: (ctx) => `${ctx.label}: ${valueIsMoney ? formatMoney(ctx.parsed) : fmt(ctx.parsed)}`
+            label: (ctx) => `${ctx.label}: ${(valueIsMoney ? formatMoney(ctx.parsed) : fmt(ctx.parsed))}${suffix}`
           }
         }
       }
@@ -3148,7 +3198,7 @@ function dashTableHtml(rows, columns) {
     if (col.type === "name") return `<span class="col-name">${escapeHtml(val)}</span>`;
     if (col.type === "bar") {
       const pct = Math.max(0, val / maxValue * 100);
-      return `<span class="col-bar"><span class="track"><span class="fill" style="width:${pct}%"></span></span><span class="col-bar-val">${col.money ? formatMoney(val) : fmt(val)}</span></span>`;
+      return `<span class="col-bar"><span class="track"><span class="fill" style="width:${pct}%"></span></span><span class="col-bar-val">${col.money ? formatMoney(val) : fmt(val)}${col.suffix || ""}</span></span>`;
     }
     return `<span class="col-num">${col.money ? formatMoney(val) : fmt(val)}${col.suffix || ""}</span>`;
   };
@@ -3158,12 +3208,60 @@ function dashTableHtml(rows, columns) {
   return `<div class="dash-table">${headHtml}${rowsHtml}</div>`;
 }
 
-function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, colors = null, abbreviate = true } = {}) {
+// Despachante genérico: desenha um card de "categoria + valor" (rows: [{label, value}])
+// no estilo escolhido pelo usuário no seletor de "Escolher dashboards" (barra/rosca/
+// tabela, ver getDashCardEstilo()) -- monta o miolo do card (#bodyId) do zero a cada
+// chamada, então funciona junto com o resto de renderDashboard() rodando de novo a
+// cada mudança de filtro/realtime, do jeito que os outros cards já fazem.
+function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney = true, suffix = "", horizontal = false, totalMode = "sum", maxRows = 6, tabelaRica = null } = {}) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const estilo = getDashCardEstilo(cardKey);
+
+  if (estilo === "tabela") {
+    if (tabelaRica) {
+      body.innerHTML = dashTableHtml(tabelaRica.rows, tabelaRica.columns);
+    } else {
+      body.innerHTML = dashTableHtml(
+        rows.map(r => ({ nome: r.label, valor: r.value })),
+        [
+          { key: "nome", label: "Nome", type: "name" },
+          { key: "valor", label: "Valor", type: "bar", money: valueIsMoney, suffix }
+        ]
+      );
+    }
+    return;
+  }
+
+  const donutClass = estilo === "rosca" ? " dash-canvas-wrap-donut" : "";
+  body.innerHTML = `<div class="dash-canvas-wrap${donutClass}"><canvas id="${canvasId}"></canvas></div><div class="dash-footer" id="${bodyId}Foot"></div>`;
+
+  const labels = rows.map(r => r.label);
+  const data = rows.map(r => r.value);
+  const def = DASH_CARD_DEFS.find(d => d.key === cardKey);
+
+  if (estilo === "rosca") {
+    const folded = foldTopN(labels, data);
+    dashChart(canvasId,
+      dashDonutConfig(folded.labels, folded.data, { valueIsMoney, suffix }),
+      { type: "donut", title: def ? def.label : cardKey, labels: folded.labels, data: folded.data, opts: { valueIsMoney } }
+    );
+  } else {
+    dashChart(canvasId,
+      dashBarConfig(labels, data, { horizontal, valueIsMoney, suffix, colors: categoricalBarColors(labels) }),
+      { type: "bar", title: def ? def.label : cardKey, labels, data, opts: { horizontal, valueIsMoney } }
+    );
+  }
+  document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows });
+}
+
+function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, colors = null, abbreviate = true, suffix = "" } = {}) {
   const maxLen = horizontal ? 20 : 11;
   const categoryTick = function (value) {
     const label = this.getLabelForValue(value);
     return abbreviate ? abbrevLabel(label, maxLen) : label;
   };
+  const valorTick = (v) => (valueIsMoney ? formatMoney(v) : fmt(v)) + suffix;
   return {
     type: "bar",
     plugins: [dashBarValueLabelsPlugin],
@@ -3183,11 +3281,11 @@ function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, 
       layout: { padding: { top: 18, right: horizontal ? 46 : 8 } },
       plugins: {
         legend: { display: false },
-        dashBarValueLabels: { valueIsMoney },
+        dashBarValueLabels: { valueIsMoney, suffix },
         tooltip: {
           callbacks: {
             title: (items) => items.length ? labels[items[0].dataIndex] : "",
-            label: (ctx) => valueIsMoney ? formatMoney(ctx.parsed[horizontal ? "x" : "y"]) : fmt(ctx.parsed[horizontal ? "x" : "y"])
+            label: (ctx) => valorTick(ctx.parsed[horizontal ? "x" : "y"])
           }
         }
       },
@@ -3196,7 +3294,7 @@ function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, 
           grid: { color: horizontal ? DASH_COLORS.grid : "transparent" },
           ticks: {
             color: DASH_COLORS.text, font: { size: 10.5 },
-            callback: horizontal ? (valueIsMoney ? (v) => formatMoney(v) : undefined) : categoryTick,
+            callback: horizontal ? valorTick : categoryTick,
             maxRotation: horizontal ? 0 : 40, minRotation: horizontal ? 0 : 40
           }
         },
@@ -3204,7 +3302,7 @@ function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, 
           grid: { color: horizontal ? "transparent" : DASH_COLORS.grid },
           ticks: {
             color: DASH_COLORS.text, font: { size: 10.5 },
-            callback: !horizontal ? (valueIsMoney ? (v) => formatMoney(v) : undefined) : categoryTick
+            callback: !horizontal ? valorTick : categoryTick
           }
         }
       }
@@ -3291,12 +3389,8 @@ function renderDashboard() {
   );
 
   // 1. Volume de pneus vendidos por estado
-  dashChart("chartPneusEstado",
-    dashBarConfig(estados.map(([uf]) => uf), estados.map(([, d]) => d.pneus), { valueIsMoney: false, colors: categoricalBarColors(estados.map(([uf]) => uf)) }),
-    { type: "bar", title: "Volume de Pneus Vendidos por Estado", labels: estados.map(([uf]) => uf), data: estados.map(([, d]) => d.pneus), opts: { valueIsMoney: false } }
-  );
-  document.getElementById("footPneusEstado").innerHTML = dashFooterHtml(
-    estados.map(([uf, d]) => ({ label: uf, value: d.pneus })), { money: false, suffix: " un." }
+  renderDashCardVariavel("pneusEstado", "bodyPneusEstado", "chartPneusEstado",
+    estados.map(([uf, d]) => ({ label: uf, value: d.pneus })), { valueIsMoney: false, suffix: " un." }
   );
 
   // 1b. Pneus mais vendidos por medida (soma de todos os códigos daquela medida)
@@ -3308,41 +3402,36 @@ function renderDashboard() {
     porMedidaVendida[medidaBase] = (porMedidaVendida[medidaBase] || 0) + m.quantidade;
   });
   const rankingMedida = Object.entries(porMedidaVendida).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  dashChart("chartPneusMaisVendidos",
-    dashBarConfig(rankingMedida.map(([medida]) => medida), rankingMedida.map(([, qtd]) => qtd), { horizontal: true, valueIsMoney: false, colors: categoricalBarColors(rankingMedida.map(([medida]) => medida)) }),
-    { type: "bar", title: "Pneus Mais Vendidos (por Medida)", labels: rankingMedida.map(([medida]) => medida), data: rankingMedida.map(([, qtd]) => qtd), opts: { horizontal: true, valueIsMoney: false } }
-  );
-  document.getElementById("footPneusMaisVendidos").innerHTML = dashFooterHtml(
-    rankingMedida.map(([medida, qtd]) => ({ label: medida, value: qtd })), { money: false, suffix: " un." }
+  renderDashCardVariavel("pneusMaisVendidos", "bodyPneusMaisVendidos", "chartPneusMaisVendidos",
+    rankingMedida.map(([medida, qtd]) => ({ label: medida, value: qtd })), { horizontal: true, valueIsMoney: false, suffix: " un." }
   );
 
-  // 2. Faturamento por representante -- tabela com barra embutida (não gráfico)
-  document.getElementById("tableFaturamentoRepresentante").innerHTML = dashTableHtml(
-    vendedores.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento, comissao: d.comissao })),
-    [
-      { key: "nome", label: "Representante", type: "name" },
-      { key: "qtd", label: "Vendas", type: "num" },
-      { key: "faturamento", label: "Faturamento", type: "bar", money: true },
-      { key: "comissao", label: "Comissão", type: "num", money: true }
-    ]
+  // 2. Faturamento por representante -- tabela rica (Vendas + Comissão) quando o
+  // estilo escolhido for "tabela"; em barra/rosca usa só nome+faturamento como
+  // qualquer outro card variável.
+  renderDashCardVariavel("faturamentoRepresentante", "bodyFaturamentoRepresentante", "chartFaturamentoRepresentante",
+    vendedores.map(([nome, d]) => ({ label: nome, value: d.faturamento })),
+    {
+      valueIsMoney: true,
+      tabelaRica: {
+        rows: vendedores.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento, comissao: d.comissao })),
+        columns: [
+          { key: "nome", label: "Representante", type: "name" },
+          { key: "qtd", label: "Vendas", type: "num" },
+          { key: "faturamento", label: "Faturamento", type: "bar", money: true },
+          { key: "comissao", label: "Comissão", type: "num", money: true }
+        ]
+      }
+    }
   );
 
-  // 3. Quantidade de NFs por transportadora (donut — parte-do-todo, poucas categorias)
-  const nfTranspFolded = foldTopN(transportadorasPorQtd.map(([nome]) => nome), transportadorasPorQtd.map(([, d]) => d.qtd));
-  dashChart("chartNFTransportadora",
-    dashDonutConfig(nfTranspFolded.labels, nfTranspFolded.data, { valueIsMoney: false }),
-    { type: "donut", title: "Quantidade de NFs por Transportadora", labels: nfTranspFolded.labels, data: nfTranspFolded.data, opts: { valueIsMoney: false } }
-  );
-  document.getElementById("footNFTransportadora").innerHTML = dashFooterHtml(
-    transportadorasPorQtd.map(([nome, d]) => ({ label: nome, value: d.qtd })), { money: false, suffix: " NF(s)" }
+  // 3. Quantidade de NFs por transportadora
+  renderDashCardVariavel("nfTransportadora", "bodyNfTransportadora", "chartNFTransportadora",
+    transportadorasPorQtd.map(([nome, d]) => ({ label: nome, value: d.qtd })), { valueIsMoney: false, suffix: " NF(s)" }
   );
 
   // 4. Gastos com frete por transportadora
-  dashChart("chartFreteTransportadora",
-    dashBarConfig(transportadoras.map(([nome]) => nome), transportadoras.map(([, d]) => d.frete), { colors: categoricalBarColors(transportadoras.map(([nome]) => nome)) }),
-    { type: "bar", title: "Gastos com Frete por Transportadora", labels: transportadoras.map(([nome]) => nome), data: transportadoras.map(([, d]) => d.frete), opts: {} }
-  );
-  document.getElementById("footFreteTransportadora").innerHTML = dashFooterHtml(
+  renderDashCardVariavel("freteTransportadora", "bodyFreteTransportadora", "chartFreteTransportadora",
     transportadoras.map(([nome, d]) => ({ label: nome, value: d.frete }))
   );
 
@@ -3368,72 +3457,45 @@ function renderDashboard() {
   const percPorEstado = estadosComFrete.map(([uf, d]) => ({
     uf, pct: +(d.fretePct.reduce((a, b) => a + b, 0) / d.fretePct.length * 100).toFixed(1)
   }));
-  dashChart("chartFretePercEstado", {
-    ...dashBarConfig(percPorEstado.map(x => x.uf), percPorEstado.map(x => x.pct), { valueIsMoney: false, colors: categoricalBarColors(percPorEstado.map(x => x.uf)) }),
-    options: {
-      ...dashBarConfig([], []).options,
-      plugins: {
-        legend: { display: false },
-        dashBarValueLabels: { valueIsMoney: false, suffix: "%" },
-        tooltip: { callbacks: { label: (ctx) => ctx.parsed.y + "%" } }
-      },
-      scales: {
-        x: { grid: { color: "transparent" }, ticks: { color: DASH_COLORS.text, font: { size: 10.5 } } },
-        y: { grid: { color: DASH_COLORS.grid }, ticks: { color: DASH_COLORS.text, font: { size: 10.5 }, callback: (v) => v + "%" } }
-      }
-    }
-  }, { type: "pct", title: "Percentual Médio de Frete por Estado", labels: percPorEstado.map(x => x.uf), data: percPorEstado.map(x => x.pct), opts: {} });
-  document.getElementById("footFretePercEstado").innerHTML = dashFooterHtml(
-    percPorEstado.map(x => ({ label: x.uf, value: x.pct })), { money: false, suffix: "%", totalMode: "avg" }
+  renderDashCardVariavel("fretePercEstado", "bodyFretePercEstado", "chartFretePercEstado",
+    percPorEstado.map(x => ({ label: x.uf, value: x.pct })), { valueIsMoney: false, suffix: "%", totalMode: "avg" }
   );
 
-  // 7. Faturamento por estado (donut — parte-do-todo, poucas categorias, diferença clara)
-  const fatEstadoFolded = foldTopN(estados.map(([uf]) => uf), estados.map(([, d]) => d.faturamento));
-  dashChart("chartFaturamentoEstado",
-    dashDonutConfig(fatEstadoFolded.labels, fatEstadoFolded.data),
-    { type: "donut", title: "Faturamento por Estado", labels: fatEstadoFolded.labels, data: fatEstadoFolded.data, opts: {} }
-  );
-  document.getElementById("footFaturamentoEstado").innerHTML = dashFooterHtml(
+  // 7. Faturamento por estado
+  renderDashCardVariavel("faturamentoEstado", "bodyFaturamentoEstado", "chartFaturamentoEstado",
     estados.map(([uf, d]) => ({ label: uf, value: d.faturamento }))
   );
 
   // 8. Faturamento por cliente (top 10, horizontal — muitos nomes longos)
   const top10Clientes = clientesRank.slice(0, 10);
-  dashChart("chartFaturamentoCliente",
-    dashBarConfig(top10Clientes.map(([nome]) => nome), top10Clientes.map(([, d]) => d.faturamento), { horizontal: true, colors: categoricalBarColors(top10Clientes.map(([nome]) => nome)) }),
-    { type: "bar", title: "Faturamento por Cliente", labels: top10Clientes.map(([nome]) => nome), data: top10Clientes.map(([, d]) => d.faturamento), opts: { horizontal: true } }
-  );
-  document.getElementById("footFaturamentoCliente").innerHTML = dashFooterHtml(
-    clientesRank.map(([nome, d]) => ({ label: nome, value: d.faturamento }))
+  renderDashCardVariavel("faturamentoCliente", "bodyFaturamentoCliente", "chartFaturamentoCliente",
+    top10Clientes.map(([nome, d]) => ({ label: nome, value: d.faturamento })), { horizontal: true }
   );
 
-  // 9. Top 5 clientes -- tabela com barra embutida (não gráfico)
+  // 9. Top 5 clientes -- tabela rica (Vendas) quando o estilo for "tabela".
   const top5 = clientesRank.slice(0, 5);
-  document.getElementById("tableTop5Clientes").innerHTML = dashTableHtml(
-    top5.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento })),
-    [
-      { key: "nome", label: "Cliente", type: "name" },
-      { key: "qtd", label: "Vendas", type: "num" },
-      { key: "faturamento", label: "Faturamento", type: "bar", money: true }
-    ]
+  renderDashCardVariavel("top5Clientes", "bodyTop5Clientes", "chartTop5Clientes",
+    top5.map(([nome, d]) => ({ label: nome, value: d.faturamento })),
+    {
+      tabelaRica: {
+        rows: top5.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento })),
+        columns: [
+          { key: "nome", label: "Cliente", type: "name" },
+          { key: "qtd", label: "Vendas", type: "num" },
+          { key: "faturamento", label: "Faturamento", type: "bar", money: true }
+        ]
+      }
+    }
   );
 
   // 10. Comissão por representante
-  dashChart("chartComissaoRepresentante",
-    dashBarConfig(vendedores.map(([nome]) => nome), vendedores.map(([, d]) => d.comissao), { colors: categoricalBarColors(vendedores.map(([nome]) => nome)) }),
-    { type: "bar", title: "Comissão por Representante", labels: vendedores.map(([nome]) => nome), data: vendedores.map(([, d]) => d.comissao), opts: {} }
-  );
-  document.getElementById("footComissaoRepresentante").innerHTML = dashFooterHtml(
+  renderDashCardVariavel("comissaoRepresentante", "bodyComissaoRepresentante", "chartComissaoRepresentante",
     vendedores.map(([nome, d]) => ({ label: nome, value: d.comissao }))
   );
 
   // 11. Distribuição das formas de pagamento (horizontal — muitas categorias, nomes longos)
-  dashChart("chartFormaPagamento",
-    dashBarConfig(formas.map(([nome]) => nome), formas.map(([, valor]) => valor), { horizontal: true, colors: categoricalBarColors(formas.map(([nome]) => nome)) }),
-    { type: "bar", title: "Distribuição das Formas de Pagamento", labels: formas.map(([nome]) => nome), data: formas.map(([, valor]) => valor), opts: { horizontal: true } }
-  );
-  document.getElementById("footFormaPagamento").innerHTML = dashFooterHtml(
-    formas.map(([nome, valor]) => ({ label: nome, value: valor })), { maxRows: 8 }
+  renderDashCardVariavel("formaPagamento", "bodyFormaPagamento", "chartFormaPagamento",
+    formas.map(([nome, valor]) => ({ label: nome, value: valor })), { horizontal: true, maxRows: 8 }
   );
 
   wireDashCardExpand();

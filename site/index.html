@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=111">
+<link rel="stylesheet" href="styles.css?v=112">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -275,59 +275,50 @@
         </div>
         <div class="dash-card dash-card-wide" data-dashcard="pneusEstado">
           <div class="dash-card-head"><span>Volume de Pneus Vendidos por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="pneusEstado" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartPneusEstado"></canvas></div>
-          <div class="dash-footer" id="footPneusEstado"></div>
+          <div class="dash-card-body" id="bodyPneusEstado"></div>
         </div>
         <div class="dash-card" data-dashcard="pneusMaisVendidos">
           <div class="dash-card-head"><span>Pneus Mais Vendidos (por Medida)</span><button type="button" class="dash-pdf-btn" data-dashpdf="pneusMaisVendidos" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartPneusMaisVendidos"></canvas></div>
-          <div class="dash-footer" id="footPneusMaisVendidos"></div>
+          <div class="dash-card-body" id="bodyPneusMaisVendidos"></div>
         </div>
         <div class="dash-card dash-card-tint-orange" data-dashcard="faturamentoRepresentante">
           <div class="dash-card-head"><span>Faturamento por Representante</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoRepresentante" title="Gerar PDF">📄</button></div>
-          <div id="tableFaturamentoRepresentante"></div>
+          <div class="dash-card-body" id="bodyFaturamentoRepresentante"></div>
         </div>
         <div class="dash-card" data-dashcard="nfTransportadora">
           <div class="dash-card-head"><span>Quantidade de NFs por Transportadora</span><button type="button" class="dash-pdf-btn" data-dashpdf="nfTransportadora" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap dash-canvas-wrap-donut"><canvas id="chartNFTransportadora"></canvas></div>
-          <div class="dash-footer" id="footNFTransportadora"></div>
+          <div class="dash-card-body" id="bodyNfTransportadora"></div>
         </div>
 
         <div class="dash-card" data-dashcard="freteTransportadora">
           <div class="dash-card-head"><span>Gastos com Frete por Transportadora</span><button type="button" class="dash-pdf-btn" data-dashpdf="freteTransportadora" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartFreteTransportadora"></canvas></div>
-          <div class="dash-footer" id="footFreteTransportadora"></div>
+          <div class="dash-card-body" id="bodyFreteTransportadora"></div>
         </div>
         <div class="dash-card" data-dashcard="fretePercEstado">
           <div class="dash-card-head"><span>Percentual Médio de Frete por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="fretePercEstado" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartFretePercEstado"></canvas></div>
-          <div class="dash-footer" id="footFretePercEstado"></div>
+          <div class="dash-card-body" id="bodyFretePercEstado"></div>
         </div>
 
         <div class="dash-card" data-dashcard="faturamentoEstado">
           <div class="dash-card-head"><span>Faturamento por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoEstado" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap dash-canvas-wrap-donut"><canvas id="chartFaturamentoEstado"></canvas></div>
-          <div class="dash-footer" id="footFaturamentoEstado"></div>
+          <div class="dash-card-body" id="bodyFaturamentoEstado"></div>
         </div>
         <div class="dash-card" data-dashcard="faturamentoCliente">
           <div class="dash-card-head"><span>Faturamento por Cliente</span><button type="button" class="dash-pdf-btn" data-dashpdf="faturamentoCliente" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartFaturamentoCliente"></canvas></div>
-          <div class="dash-footer" id="footFaturamentoCliente"></div>
+          <div class="dash-card-body" id="bodyFaturamentoCliente"></div>
         </div>
         <div class="dash-card dash-card-tint-blue" data-dashcard="top5Clientes">
           <div class="dash-card-head"><span>Top 5 Clientes</span><button type="button" class="dash-pdf-btn" data-dashpdf="top5Clientes" title="Gerar PDF">📄</button></div>
-          <div id="tableTop5Clientes"></div>
+          <div class="dash-card-body" id="bodyTop5Clientes"></div>
         </div>
 
         <div class="dash-card" data-dashcard="comissaoRepresentante">
           <div class="dash-card-head"><span>Comissão por Representante</span><button type="button" class="dash-pdf-btn" data-dashpdf="comissaoRepresentante" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartComissaoRepresentante"></canvas></div>
-          <div class="dash-footer" id="footComissaoRepresentante"></div>
+          <div class="dash-card-body" id="bodyComissaoRepresentante"></div>
         </div>
         <div class="dash-card dash-card-wide" data-dashcard="formaPagamento">
           <div class="dash-card-head"><span>Distribuição das Formas de Pagamento</span><button type="button" class="dash-pdf-btn" data-dashpdf="formaPagamento" title="Gerar PDF">📄</button></div>
-          <div class="dash-canvas-wrap"><canvas id="chartFormaPagamento"></canvas></div>
-          <div class="dash-footer" id="footFormaPagamento"></div>
+          <div class="dash-card-body" id="bodyFormaPagamento"></div>
         </div>
       </div>
     </section>
@@ -1999,6 +1990,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=125"></script>
+<script src="app.js?v=126"></script>
 </body>
 </html>
