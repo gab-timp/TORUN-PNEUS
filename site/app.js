@@ -2894,53 +2894,14 @@ function applyDashVisibility() {
   });
 }
 
-// Estilo de exibição (barra/rosca/tabela) por card -- só os cards que mostram uma
-// lista categoria+valor têm essa opção (não "Indicadores" nem "Evolução Mensal",
-// que não têm esse formato). Padrão = exatamente o que já está na tela hoje, então
-// quem nunca mexer no seletor não percebe diferença nenhuma.
-const DASH_ESTILO_KEY = "torun_dash_estilo_v1";
-const DASH_ESTILO_PADRAO = {
-  pneusEstado: "barra", pneusMaisVendidos: "barra", faturamentoRepresentante: "tabela",
-  nfTransportadora: "rosca", freteTransportadora: "barra", fretePercEstado: "barra",
-  faturamentoEstado: "rosca", faturamentoCliente: "barra", top5Clientes: "tabela",
-  comissaoRepresentante: "barra", formaPagamento: "barra"
-};
-const DASH_ESTILO_OPCOES = [
-  { key: "barra", icone: "📊", titulo: "Barra" },
-  { key: "rosca", icone: "🍩", titulo: "Rosca" },
-  { key: "tabela", icone: "📋", titulo: "Tabela" }
-];
-
-function loadDashEstilos() {
-  try {
-    return JSON.parse(localStorage.getItem(DASH_ESTILO_KEY)) || {};
-  } catch (e) {
-    return {};
-  }
-}
-
-function getDashCardEstilo(key) {
-  const estilos = loadDashEstilos();
-  return estilos[key] || DASH_ESTILO_PADRAO[key] || "barra";
-}
-
 function renderDashFiltroLista() {
   const vis = loadDashVisibility();
-  document.getElementById("dashFiltroLista").innerHTML = DASH_CARD_DEFS.map(({ key, label }) => {
-    const temEstilo = key in DASH_ESTILO_PADRAO;
-    const estiloAtual = temEstilo ? getDashCardEstilo(key) : null;
-    const seletorHtml = temEstilo ? `
-      <div class="dash-filter-style" data-dashestilo-for="${key}">
-        ${DASH_ESTILO_OPCOES.map(o => `<button type="button" class="dash-filter-style-opt${o.key === estiloAtual ? " active" : ""}" data-estilo="${o.key}" title="${o.titulo}">${o.icone}</button>`).join("")}
-      </div>
-    ` : "";
-    return `
-      <div class="dash-filter-item">
-        <label class="dash-filter-item-check"><input type="checkbox" data-dashvis="${key}" ${isDashCardVisible(key, vis) ? "checked" : ""}> ${escapeHtml(label)}</label>
-        ${seletorHtml}
-      </div>
-    `;
-  }).join("");
+  document.getElementById("dashFiltroLista").innerHTML = DASH_CARD_DEFS.map(({ key, label }) => `
+    <label class="dash-filter-item">
+      <input type="checkbox" data-dashvis="${key}" ${isDashCardVisible(key, vis) ? "checked" : ""}>
+      ${escapeHtml(label)}
+    </label>
+  `).join("");
 }
 
 function initDashFiltro() {
@@ -2963,17 +2924,6 @@ function initDashFiltro() {
     renderDashboard();
   });
 
-  document.getElementById("dashFiltroLista").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-estilo]");
-    if (!btn) return;
-    const cardKey = btn.closest("[data-dashestilo-for]").dataset.dashestiloFor;
-    const estilos = loadDashEstilos();
-    estilos[cardKey] = btn.dataset.estilo;
-    localStorage.setItem(DASH_ESTILO_KEY, JSON.stringify(estilos));
-    renderDashFiltroLista();
-    renderDashboard();
-  });
-
   document.getElementById("dashFiltroTodos").addEventListener("click", () => {
     const vis = {};
     DASH_CARD_DEFS.forEach(({ key }) => { vis[key] = true; });
@@ -2986,6 +2936,45 @@ function initDashFiltro() {
     DASH_CARD_DEFS.forEach(({ key }) => { vis[key] = false; });
     localStorage.setItem(DASH_VISIBILITY_KEY, JSON.stringify(vis));
     renderDashFiltroLista();
+    renderDashboard();
+  });
+}
+
+// Estilo de exibição (barra/rosca/tabela) por card -- só os cards que mostram uma
+// lista categoria+valor têm essa opção (não "Indicadores" nem "Evolução Mensal",
+// que não têm esse formato). Padrão = exatamente o que já estava na tela antes
+// desse seletor existir, então quem nunca mexer não percebe diferença nenhuma.
+// Fica direto no cabeçalho de cada card (não mais dentro de "Escolher dashboards")
+// -- o botão já é a própria escolha, não precisa reabrir outro painel pra trocar.
+const DASH_ESTILO_KEY = "torun_dash_estilo_v1";
+const DASH_ESTILO_PADRAO = {
+  pneusEstado: "barra", pneusMaisVendidos: "barra", faturamentoRepresentante: "tabela",
+  nfTransportadora: "rosca", freteTransportadora: "barra", fretePercEstado: "barra",
+  faturamentoEstado: "rosca", faturamentoCliente: "barra", top5Clientes: "tabela",
+  comissaoRepresentante: "barra", formaPagamento: "barra"
+};
+
+function loadDashEstilos() {
+  try {
+    return JSON.parse(localStorage.getItem(DASH_ESTILO_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function getDashCardEstilo(key) {
+  const estilos = loadDashEstilos();
+  return estilos[key] || DASH_ESTILO_PADRAO[key] || "barra";
+}
+
+function initDashCardEstilos() {
+  document.querySelector(".dash-grid").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-estilo]");
+    if (!btn) return;
+    const cardKey = btn.closest("[data-dashestilo-for]").dataset.dashestiloFor;
+    const estilos = loadDashEstilos();
+    estilos[cardKey] = btn.dataset.estilo;
+    localStorage.setItem(DASH_ESTILO_KEY, JSON.stringify(estilos));
     renderDashboard();
   });
 }
@@ -3217,6 +3206,11 @@ function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney 
   const body = document.getElementById(bodyId);
   if (!body) return;
   const estilo = getDashCardEstilo(cardKey);
+
+  const seletor = document.querySelector(`[data-dashestilo-for="${cardKey}"]`);
+  if (seletor) {
+    seletor.querySelectorAll("[data-estilo]").forEach(b => b.classList.toggle("active", b.dataset.estilo === estilo));
+  }
 
   if (estilo === "tabela") {
     if (tabelaRica) {
@@ -5639,6 +5633,7 @@ async function init() {
   initBackupControls();
   initMotivoSugestoes();
   initDashFiltro();
+  initDashCardEstilos();
   initDashPdfButtons();
   initRelatorios();
   initHistorico();
