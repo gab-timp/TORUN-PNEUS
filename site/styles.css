@@ -170,7 +170,15 @@ body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display
   height:100vh;
   height:100dvh;
   overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,.18) transparent;
 }
+/* sidebar é sempre preta (var(--black)), em qualquer tema -- a barra de rolagem
+   custom (fina, translúcida) segue esse fundo fixo, sem precisar de variante clara. */
+.sidebar::-webkit-scrollbar{width:8px;}
+.sidebar::-webkit-scrollbar-track{background:transparent;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18); border-radius:8px;}
+.sidebar::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.3);}
 .brand{
   display:flex;
   flex-direction:column;
@@ -256,7 +264,7 @@ body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display
 body.is-admin .nav-item.admin-only{display:flex;}
 
 .sidebar-foot{
-  margin-top:auto;
+  margin-top:28px;
   padding-top:16px;
   border-top:1px solid rgba(255,255,255,.12);
   display:flex;
@@ -394,7 +402,8 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .bell-badge{
   position:absolute; top:-5px; right:-5px; min-width:16px; height:16px; padding:0 4px;
   border-radius:9px; background:var(--orange); color:var(--black);
-  font-family:'Space Mono',monospace; font-size:10px; font-weight:800; line-height:16px; text-align:center;
+  font-family:'Space Mono',monospace; font-size:10px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
   border:2px solid var(--paper);
 }
 .sino-dropdown{
@@ -1019,10 +1028,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
     transform:translateX(-100%); transition:transform .22s ease; z-index:100;
     overflow-y:auto;
   }
-  /* margin-top:auto (rodapé colado embaixo) não combina bem com overflow-y:auto quando o
-     conteúdo é mais alto que a gaveta — o navegador calcula mal a área de scroll e os últimos
-     itens ficam cortados/soltos. No modo gaveta o rodapé só segue o fluxo normal, com scroll. */
-  .sidebar-foot{margin-top:20px;}
   .sidebar.open{transform:translateX(0);}
   .brand-logo{width:150px;}
   .topbar{position:static; flex-wrap:wrap; gap:10px;}
