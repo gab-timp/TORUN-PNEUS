@@ -268,6 +268,11 @@
           <div class="dash-card-head"><span>Indicadores Gerais</span><button type="button" class="dash-pdf-btn" data-dashpdf="indicadores" title="Gerar PDF">📄</button></div>
           <div class="dash-stat-grid" id="statsIndicadores"></div>
         </div>
+        <div class="dash-card dash-card-wide" data-dashcard="evolucaoMensal">
+          <div class="dash-card-head"><span>Evolução Mensal do Faturamento</span><button type="button" class="dash-pdf-btn" data-dashpdf="evolucaoMensal" title="Gerar PDF">📄</button></div>
+          <div class="dash-canvas-wrap"><canvas id="chartEvolucaoMensal"></canvas></div>
+          <div class="dash-footer" id="footEvolucaoMensal"></div>
+        </div>
         <div class="dash-card dash-card-wide" data-dashcard="pneusEstado">
           <div class="dash-card-head"><span>Volume de Pneus Vendidos por Estado</span><button type="button" class="dash-pdf-btn" data-dashpdf="pneusEstado" title="Gerar PDF">📄</button></div>
           <div class="dash-canvas-wrap"><canvas id="chartPneusEstado"></canvas></div>
@@ -1996,6 +2001,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=123"></script>
+<script src="app.js?v=124"></script>
 </body>
 </html>

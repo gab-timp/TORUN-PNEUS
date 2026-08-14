@@ -2794,6 +2794,14 @@ function populateMesFiltro(selectId) {
   }
 }
 
+// Últimos N meses (chave "YYYY-MM") que têm pelo menos 1 venda, em ordem cronológica
+// crescente -- usado pelo card de Evolução Mensal, que mostra a trajetória inteira,
+// não um mês só (por isso não usa getVendasFiltradasPor/dashMesFiltro).
+function ultimosMesesComVendas(n = 6) {
+  const chaves = Array.from(new Set(state.vendas.map(v => (v.data || "").slice(0, 7)).filter(k => k.length === 7))).sort();
+  return chaves.slice(-n);
+}
+
 function getVendasFiltradasPor(selectId) {
   const mes = document.getElementById(selectId).value;
   if (!mes || mes === "todos") return state.vendas.slice();
@@ -2850,6 +2858,7 @@ const dashChartSpecs = {};
 let dashModalChart = null;
 
 const DASH_CARD_DEFS = [
+  { key: "evolucaoMensal", label: "Evolução Mensal do Faturamento" },
   { key: "pneusEstado", label: "Volume de Pneus Vendidos por Estado" },
   { key: "pneusMaisVendidos", label: "Pneus Mais Vendidos (por Medida)" },
   { key: "faturamentoRepresentante", label: "Faturamento por Representante" },
@@ -3004,6 +3013,49 @@ function dashDonutConfig(labels, data, { valueIsMoney = true, abbreviate = true 
   };
 }
 
+function dashLineConfig(labels, data, { valueIsMoney = true } = {}) {
+  return {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: DASH_COLORS.bar,
+        backgroundColor: "rgba(255,106,19,.12)",
+        fill: true,
+        tension: .35,
+        borderWidth: 2.5,
+        pointRadius: 3.5,
+        pointBackgroundColor: DASH_COLORS.cardBg,
+        pointBorderColor: DASH_COLORS.bar,
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => valueIsMoney ? formatMoney(ctx.parsed.y) : fmt(ctx.parsed.y)
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: "transparent" },
+          ticks: { color: DASH_COLORS.text, font: { size: 10.5 } }
+        },
+        y: {
+          grid: { color: DASH_COLORS.grid },
+          ticks: { color: DASH_COLORS.text, font: { size: 10.5 }, callback: valueIsMoney ? (v) => formatMoney(v) : undefined }
+        }
+      }
+    }
+  };
+}
+
 function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMode = "sum" } = {}) {
   if (!rows.length) return `<div class="dash-footer-row"><span class="lbl">Sem dados no período</span></div>`;
 
@@ -3143,6 +3195,24 @@ function renderDashboard() {
   const transportadorasPorQtd = Object.entries(porTransp).sort((a, b) => b[1].qtd - a[1].qtd);
   const formas = Object.entries(porForma).sort((a, b) => b[1] - a[1]);
   const clientesRank = Object.entries(porCliente).sort((a, b) => b[1].faturamento - a[1].faturamento);
+
+  // 0. Evolução mensal do faturamento -- independente do dashMesFiltro, sempre os
+  // últimos meses com venda (não "o mês selecionado"), pra mostrar a trajetória.
+  const mesesEvolucao = ultimosMesesComVendas(6);
+  const labelsEvolucao = mesesEvolucao.map(mes => {
+    const [ano, m] = mes.split("-");
+    return `${MES_ABREV[m] || m}/${ano.slice(2)}`;
+  });
+  const faturamentoPorMes = mesesEvolucao.map(mes =>
+    state.vendas.filter(v => (v.data || "").slice(0, 7) === mes).reduce((a, v) => a + v.valorVenda, 0)
+  );
+  dashChart("chartEvolucaoMensal",
+    dashLineConfig(labelsEvolucao, faturamentoPorMes, { valueIsMoney: true }),
+    { type: "line", title: "Evolução Mensal do Faturamento", labels: labelsEvolucao, data: faturamentoPorMes, opts: { valueIsMoney: true } }
+  );
+  document.getElementById("footEvolucaoMensal").innerHTML = dashFooterHtml(
+    mesesEvolucao.map((mes, i) => ({ label: labelsEvolucao[i], value: faturamentoPorMes[i] })), { money: true, totalMode: "avg" }
+  );
 
   // 1. Volume de pneus vendidos por estado
   dashChart("chartPneusEstado",
