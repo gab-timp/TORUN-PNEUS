@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=113">
+<link rel="stylesheet" href="styles.css?v=114">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -123,6 +123,8 @@
       <g id="i-camera" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h2.4L7 4.5h6L14.6 7H17a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="3"/></g>
       <g id="i-user" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.7" r="3.2"/><path d="M3.3 16.5c.7-3.5 2.9-5.3 6.7-5.3s6 1.8 6.7 5.3"/></g>
       <g id="i-palette" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 0 0 15c1 0 1.6-.7 1.6-1.5 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.5A3.3 3.3 0 0 0 17 9.3C17 5.5 13.9 2.5 10 2.5Z"/><circle cx="6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="5.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="6.5" r=".9" fill="currentColor" stroke="none"/></g>
+      <g id="i-pencil" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12.3 3.3 16.7 7.7 7 17.4 2.5 18l.6-4.5Z"/><path d="M10.9 4.7 15.3 9.1"/></g>
+      <g id="i-external" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3H3v14h14v-5.5"/><path d="M11 3h6v6"/><path d="M9.5 10.5 17 3"/></g>
     </defs>
   </svg>
 
@@ -653,9 +655,10 @@
           <table>
             <thead>
               <tr>
-                <th>Código</th>
-                <th>Medida</th>
+                <th class="sortable" data-prodsort="codigo">Código <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
+                <th class="sortable" data-prodsort="medida">Medida <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
                 <th>Medida (tamanho)</th>
+                <th class="sortable" data-prodsort="status">Status <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
                 <th></th>
               </tr>
             </thead>
@@ -1391,6 +1394,32 @@
 <div id="estoqueBaixoAlerts" class="estoque-baixo-alerts"></div>
 <div id="propostaAlerts" class="estoque-baixo-alerts proposta-alerts"></div>
 
+<div class="modal-overlay drawer-overlay" id="prodEditOverlay">
+  <div class="modal drawer">
+    <div class="drawer-simple-head">
+      <h3>Editar produto</h3>
+      <button type="button" class="drawer-simple-close" id="prodEditClose" title="Fechar">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="drawer-simple-body">
+      <div class="drawer-field">
+        <label>Código do produto</label>
+        <input type="text" id="prodEditCodigo" maxlength="60">
+        <div class="hint" id="prodEditCodigoHint" style="display:none;"></div>
+      </div>
+      <div class="drawer-field">
+        <label>Medida / descrição completa</label>
+        <input type="text" id="prodEditMedida" maxlength="200">
+      </div>
+    </div>
+    <div class="drawer-foot">
+      <button type="button" class="btn outline" id="prodEditCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="prodEditSalvar">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay drawer-overlay" id="minhasConfigOverlay">
   <div class="modal drawer">
     <div class="drawer-hero">
@@ -2078,6 +2107,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=129"></script>
+<script src="app.js?v=130"></script>
 </body>
 </html>

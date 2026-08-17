@@ -1394,24 +1394,47 @@ function cancelEditMovimento(which) {
 
 /* ---------------- render: PRODUTOS ---------------- */
 
+let prodSortKey = "codigo";
+let prodSortAsc = true;
+
+function produtoTemPreco(codigo) {
+  return state.produtos_precos.some(pr => pr.codigo === codigo);
+}
+
 function renderProdutos() {
   const search = (document.getElementById("prodSearch").value || "").trim().toLowerCase();
   let rows = state.produtos.slice();
   if (search) {
     rows = rows.filter(p => p.codigo.toLowerCase().includes(search) || p.medida.toLowerCase().includes(search));
   }
-  rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
+  rows.sort((a, b) => {
+    let r;
+    if (prodSortKey === "status") r = Number(produtoTemPreco(a.codigo)) - Number(produtoTemPreco(b.codigo));
+    else r = a[prodSortKey].localeCompare(b[prodSortKey]);
+    return prodSortAsc ? r : -r;
+  });
 
   document.getElementById("prodCount").textContent = `${state.produtos.length} produto(s) cadastrado(s)`;
 
-  document.getElementById("prodTbody").innerHTML = rows.map(p => `
+  document.getElementById("prodTbody").innerHTML = rows.map(p => {
+    const completo = produtoTemPreco(p.codigo);
+    return `
     <tr>
       <td class="mono">${escapeHtml(p.codigo)}</td>
       <td>${escapeHtml(p.medida)}</td>
       <td class="mono muted">${escapeHtml(extractMedidaBase(p.medida))}</td>
-      <td><button class="btn small danger write-ui" data-delprod="${escapeAttr(p.codigo)}">Excluir</button></td>
+      <td><span class="status-pill ${completo ? "pill-normal" : "pill-baixo"}">${completo ? "Completo" : "Sem preço"}</span></td>
+      <td>
+        <div class="row-actions">
+          <button type="button" class="icon-btn write-ui" data-editprod="${escapeAttr(p.codigo)}" title="Editar"><svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg></button>
+          <button type="button" class="icon-btn" data-vercatalogo="${escapeAttr(p.codigo)}" title="Ver no Catálogo"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></button>
+          <button type="button" class="icon-btn" data-verestoque="${escapeAttr(p.codigo)}" title="Ver no Estoque"><svg class="ic" viewBox="0 0 20 20"><use href="#i-box"/></svg></button>
+          <button class="btn small danger write-ui" data-delprod="${escapeAttr(p.codigo)}">Excluir</button>
+        </div>
+      </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   document.querySelectorAll("[data-delprod]").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -1429,6 +1452,92 @@ function renderProdutos() {
       state.produtos = state.produtos.filter(p => p.codigo !== codigo);
       renderProdutos();
       toast("Produto removido.");
+    });
+  });
+  document.querySelectorAll("[data-editprod]").forEach(btn => {
+    btn.addEventListener("click", () => abrirProdutoEditDrawer(btn.dataset.editprod));
+  });
+  document.querySelectorAll("[data-vercatalogo]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("catSearch").value = btn.dataset.vercatalogo;
+      setView("catalogo");
+    });
+  });
+  document.querySelectorAll("[data-verestoque]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.getElementById("estoqueSearch").value = btn.dataset.verestoque;
+      setView("estoque");
+    });
+  });
+
+  document.querySelectorAll("[data-prodsort]").forEach(th => {
+    th.classList.toggle("sorted", th.dataset.prodsort === prodSortKey);
+    th.classList.toggle("desc", th.dataset.prodsort === prodSortKey && !prodSortAsc);
+  });
+}
+
+function abrirProdutoEditDrawer(codigo) {
+  const p = getProduto(codigo);
+  if (!p) return;
+  const codigoInput = document.getElementById("prodEditCodigo");
+  const hint = document.getElementById("prodEditCodigoHint");
+  codigoInput.value = p.codigo;
+  codigoInput.dataset.original = p.codigo;
+  document.getElementById("prodEditMedida").value = p.medida;
+
+  const temMov = state.movimentos.some(m => m.codigo === codigo);
+  codigoInput.disabled = temMov;
+  if (temMov) {
+    hint.textContent = "Não dá pra mudar o código de um produto que já tem movimentação registrada (evita desencontrar o histórico).";
+    hint.style.display = "";
+  } else {
+    hint.style.display = "none";
+  }
+
+  document.getElementById("prodEditOverlay").classList.add("show");
+}
+
+function fecharProdutoEditDrawer() {
+  document.getElementById("prodEditOverlay").classList.remove("show");
+}
+
+async function salvarProdutoEdit() {
+  const codigoInput = document.getElementById("prodEditCodigo");
+  const codigoOriginal = codigoInput.dataset.original;
+  const novoCodigo = codigoInput.value.trim();
+  const novaMedida = document.getElementById("prodEditMedida").value.trim();
+  if (!novoCodigo || !novaMedida) { toast("Código e medida não podem ficar em branco."); return; }
+
+  const payload = { medida: novaMedida };
+  if (!codigoInput.disabled) payload.codigo = novoCodigo;
+
+  const { error } = await sb.from("produtos").update(payload).eq("codigo", codigoOriginal);
+  if (error) { toast("Erro ao salvar produto: " + error.message); return; }
+
+  await registrarLog("produtos", payload.codigo || codigoOriginal, "edicao", "Ação automática", `Produto editado: ${codigoOriginal}${payload.codigo && payload.codigo !== codigoOriginal ? ` → ${payload.codigo}` : ""}`);
+
+  const idx = state.produtos.findIndex(p => p.codigo === codigoOriginal);
+  if (idx !== -1) {
+    state.produtos[idx] = { ...state.produtos[idx], codigo: payload.codigo || codigoOriginal, medida: novaMedida };
+  }
+  fecharProdutoEditDrawer();
+  renderProdutos();
+  toast("Produto atualizado.");
+}
+
+function initProdutoEdit() {
+  document.getElementById("prodEditClose").addEventListener("click", fecharProdutoEditDrawer);
+  document.getElementById("prodEditCancelar").addEventListener("click", fecharProdutoEditDrawer);
+  document.getElementById("prodEditSalvar").addEventListener("click", salvarProdutoEdit);
+  document.getElementById("prodEditOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "prodEditOverlay") fecharProdutoEditDrawer();
+  });
+  document.querySelectorAll("[data-prodsort]").forEach(th => {
+    th.addEventListener("click", () => {
+      const key = th.dataset.prodsort;
+      if (prodSortKey === key) prodSortAsc = !prodSortAsc;
+      else { prodSortKey = key; prodSortAsc = true; }
+      renderProdutos();
     });
   });
 }
@@ -1536,6 +1645,8 @@ function renderCatalogo() {
       ["PSI", p.psi], ["Sulco (mm)", p.sulcoMm], ["Peso (kg)", p.pesoKg]
     ];
     const temAlgumSpec = specs.some(([, v]) => v);
+    const saldoProduto = computeProdutoTotais(p.codigo).saldo;
+    const statusSaldo = statusEstoque(saldoProduto);
 
     const precoPorRegiao = CATALOGO_REGIOES.map(r => {
       const preco = getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual);
@@ -1545,18 +1656,33 @@ function renderCatalogo() {
       </div>`;
     }).join("");
 
+    // slots da foto em destaque: 2 fotos dividem lado a lado, 1 ocupa tudo,
+    // 0 mostra um placeholder neutro (sem foto de verdade ainda cadastrada).
+    const slotsFoto = fotosCard.length > 0 ? fotosCard : [null];
+    const fotoHeroHtml = slotsFoto.map((url, i) => `
+      <div class="catalogo-card-foto-slot" ${url ? `data-catfoto="${escapeAttr(p.codigo)}" data-catfotoidx="${i}"` : ""}>
+        ${url ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(p.codigo)}">` : `<div class="catalogo-foto-vazia"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></div>`}
+      </div>
+    `).join("");
+
     return `
       <div class="catalogo-card" data-catcard="${escapeAttr(p.codigo)}">
-        <button type="button" class="catalogo-card-editbtn write-ui" data-editcard="${escapeAttr(p.codigo)}" title="Editar especificações">✎</button>
-        <div class="catalogo-card-top">
-          ${fotosCard.length ? `<div class="catalogo-card-thumbs">${fotosCard.map((url, i) => `<img class="catalogo-card-thumb" src="${escapeAttr(url)}" alt="${escapeAttr(p.codigo)}" data-catfoto="${escapeAttr(p.codigo)}" data-catfotoidx="${i}">`).join("")}</div>` : ""}
+        <div class="catalogo-foto-hero">${fotoHeroHtml}</div>
+        <div class="catalogo-foto-overlay-top">
+          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(p.categoria)}</span>` : "<span></span>"}
+          <span class="status-pill pill-${statusSaldo}">${fmt(saldoProduto)} un.</span>
+        </div>
+        <button type="button" class="catalogo-card-editbtn write-ui" data-editcard="${escapeAttr(p.codigo)}" title="Editar especificações">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg>
+        </button>
+        ${fotosCard.length > 1 ? `<span class="catalogo-foto-count"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg>${fotosCard.length} fotos</span>` : ""}
+
+        <div class="catalogo-card-body">
           <div class="catalogo-card-titulo-wrap">
             <div class="catalogo-card-titulo">${escapeHtml(p.modelo || p.codigo)}</div>
             <div class="catalogo-card-codigo mono muted">${escapeHtml(p.codigo)}</div>
           </div>
-          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(p.categoria)}</span>` : ""}
-        </div>
-        <div class="catalogo-card-medida">${escapeHtml(p.medida)}</div>
+          <div class="catalogo-card-medida">${escapeHtml(p.medida)}</div>
 
         ${temAlgumSpec ? `
           <div class="catalogo-card-divider"></div>
@@ -1574,6 +1700,7 @@ function renderCatalogo() {
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-toggleprazos="${escapeAttr(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" data-prazoslista="${escapeAttr(p.codigo)}" style="display:${aberto ? "" : "none"};">
           ${aberto ? buildPrecoMatrixHtml(p.codigo, tipoCliente) : ""}
+        </div>
         </div>
       </div>
     `;
@@ -5646,6 +5773,7 @@ async function init() {
   initMotivoSugestoes();
   initDashFiltro();
   initDashCardEstilos();
+  initProdutoEdit();
   initDashPdfButtons();
   initRelatorios();
   initHistorico();

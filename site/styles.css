@@ -676,6 +676,22 @@ body.is-admin .nav-item.admin-only{display:flex;}
 }
 .drawer-close:hover{background:rgba(255,255,255,.16);}
 .drawer-close .ic{width:14px; height:14px;}
+/* cabeçalho de gaveta "simples" (sem o hero escuro/avatar do perfil) -- usado em
+   gavetas de edição de registro comum, ex. editar produto. */
+.drawer-simple-head{
+  padding:20px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center;
+  justify-content:space-between; gap:12px; flex:0 0 auto;
+}
+.drawer-simple-head h3{margin:0; font-size:16px; font-weight:800;}
+.drawer-simple-close{
+  width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--paper);
+  color:var(--ink-soft); cursor:pointer; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+}
+.drawer-simple-close:hover{border-color:var(--orange); color:var(--orange-deep);}
+.drawer-simple-close .ic{width:14px; height:14px;}
+.drawer-simple-body{flex:1; overflow-y:auto; padding:20px 22px; display:flex; flex-direction:column; gap:16px;}
+.drawer-field input:disabled{background:var(--paper-2); color:var(--ink-soft); cursor:not-allowed;}
+.drawer-field .hint{font-size:11px; color:var(--ink-soft); margin-top:6px; line-height:1.5;}
 .drawer-avatar-wrap{position:relative; width:88px; height:88px; margin:0 auto 14px;}
 .drawer-avatar{
   width:88px; height:88px; border-radius:50%; background:linear-gradient(155deg, var(--orange), var(--orange-deep));
@@ -867,6 +883,15 @@ tr.frete-row-contratada .btn.outline:hover{color:var(--orange); border-color:var
 .btn.danger{background:var(--danger-pale); color:var(--danger); border:1px solid var(--danger-border);}
 .btn.danger:hover{background:var(--danger); border-color:var(--danger); color:var(--white);}
 
+.row-actions{display:flex; align-items:center; gap:5px; flex-wrap:nowrap;}
+.icon-btn{
+  background:transparent; border:1px solid var(--line); border-radius:6px;
+  width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--ink-soft); flex:0 0 auto; padding:0;
+}
+.icon-btn .ic{width:13px; height:13px;}
+.icon-btn:hover{border-color:var(--orange); color:var(--orange-deep);}
+
 /* ---------------- tables ---------------- */
 .table-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -881,6 +906,11 @@ thead th{
   border-bottom:1px solid var(--line-strong);
   white-space:nowrap;
 }
+thead th.sortable{cursor:pointer; user-select:none;}
+thead th.sortable:hover{color:var(--orange-deep);}
+thead th.sortable .sort-ic{display:inline-block; width:9px; margin-left:3px; opacity:.35; transform:translateY(1px);}
+thead th.sortable.sorted .sort-ic{opacity:1; color:var(--orange-deep);}
+thead th.sortable.sorted.desc .sort-ic{transform:translateY(1px) rotate(180deg);}
 tbody td{
   padding:12px 12px;
   border-bottom:1px solid var(--line);
@@ -1541,19 +1571,43 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   border:1px solid var(--line);
   border-radius:16px;
   box-shadow:var(--shadow-card);
-  padding:16px;
+  overflow:hidden;
   transition:border-color .15s ease, box-shadow .15s ease;
 }
 .catalogo-card:hover{border-color:var(--orange); box-shadow:var(--shadow-modal);}
-.catalogo-card-editbtn{
-  position:absolute; top:12px; right:12px;
-  width:26px; height:26px; border-radius:7px;
-  border:1px solid var(--line); background:var(--paper); color:var(--ink-soft);
-  cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center;
+
+/* foto em destaque no topo do card (antes era uma miniatura de 44px ao lado do
+   título) -- 2 fotos dividem o espaço lado a lado, 1 ocupa tudo, 0 mostra um
+   placeholder neutro. */
+.catalogo-foto-hero{position:relative; height:190px; display:flex; gap:2px; background:var(--paper-2);}
+.catalogo-card-foto-slot{flex:1; min-width:0; cursor:zoom-in; overflow:hidden;}
+.catalogo-card-foto-slot img{width:100%; height:100%; object-fit:cover; display:block;}
+.catalogo-foto-vazia{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  color:var(--ink-soft); opacity:.4; cursor:default;
 }
-.catalogo-card-editbtn:hover{border-color:var(--orange); color:var(--orange-deep);}
-.catalogo-card-top{display:flex; align-items:flex-start; gap:10px; padding-right:28px;}
-.catalogo-card-thumb{width:44px; height:44px; border-radius:8px; object-fit:cover; flex:0 0 auto; background:var(--paper);}
+.catalogo-foto-vazia .ic{width:40px; height:40px;}
+.catalogo-foto-overlay-top{
+  position:absolute; top:10px; left:10px; right:10px; z-index:2;
+  display:flex; justify-content:space-between; align-items:flex-start; gap:8px;
+}
+.catalogo-foto-overlay-top .catalogo-badge, .catalogo-foto-overlay-top .status-pill{box-shadow:0 2px 6px rgba(0,0,0,.15);}
+.catalogo-foto-count{
+  position:absolute; bottom:10px; right:10px; z-index:2; background:rgba(0,0,0,.55); color:#fff;
+  font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; display:flex; align-items:center; gap:4px;
+}
+.catalogo-foto-count .ic{width:10px; height:10px;}
+.catalogo-card-editbtn{
+  position:absolute; top:44px; right:10px; z-index:2;
+  width:28px; height:28px; border-radius:8px; border:none;
+  background:rgba(255,255,255,.92); color:var(--black);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+.catalogo-card-editbtn:hover{background:var(--orange); color:var(--white);}
+.catalogo-card-editbtn .ic{width:13px; height:13px;}
+
+.catalogo-card-body{padding:15px 16px 16px;}
 .catalogo-card-titulo-wrap{flex:1 1 auto; min-width:0;}
 .catalogo-card-titulo{font-size:14.5px; font-weight:800; line-height:1.25;}
 .catalogo-card-codigo{font-size:11px; margin-top:2px;}
