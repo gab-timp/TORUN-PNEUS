@@ -2813,10 +2813,31 @@ function initEntregas() {
   initKanbanBoardDragScroll();
 }
 
+// cards que têm data-collapse-key lembram se foram deixados abertos/fechados
+// (mesmo padrão de localStorage do menu lateral, ver initNavGroups()/NAV_GRUPOS_KEY).
+// Cards sem essa chave continuam só alternando em memória, sem persistir -- aditivo,
+// não muda nada pras telas que já usam .card-collapsible hoje.
+const FAT_CARDS_KEY = "torun_fat_cards_recolhidos_v1";
 function initCollapsibleCards() {
+  let recolhidos = {};
+  try { recolhidos = JSON.parse(localStorage.getItem(FAT_CARDS_KEY)) || {}; } catch (e) { recolhidos = {}; }
+
+  document.querySelectorAll(".card-collapsible[data-collapse-key]").forEach(card => {
+    const key = card.dataset.collapseKey;
+    if (Object.prototype.hasOwnProperty.call(recolhidos, key)) {
+      card.classList.toggle("collapsed", recolhidos[key]);
+    }
+  });
+
   document.querySelectorAll(".card-collapsible .card-head").forEach(head => {
     head.addEventListener("click", () => {
-      head.closest(".card-collapsible").classList.toggle("collapsed");
+      const card = head.closest(".card-collapsible");
+      card.classList.toggle("collapsed");
+      const key = card.dataset.collapseKey;
+      if (key) {
+        recolhidos[key] = card.classList.contains("collapsed");
+        localStorage.setItem(FAT_CARDS_KEY, JSON.stringify(recolhidos));
+      }
     });
   });
 }
@@ -2957,8 +2978,40 @@ function dashDeltaHtml(atual, anterior, invertido = false) {
   return `<div class="delta ${bom ? "good" : "bad"}">${seta} ${Math.abs(delta).toFixed(1)}% vs. mês anterior</div>`;
 }
 
+// Único filtro da tela de Faturamento -- antes só olhava o mês (fatMesFiltro) e
+// deixava vendedor/forma/período/busca só pra tabela de vendas, então filtrar por
+// vendedor ali não refletia nos blocos de análise embaixo. Agora todo mundo lê
+// daqui (KPIs, análises e a tabela em renderVendas()).
 function getVendasFiltradas() {
-  return getVendasFiltradasPor("fatMesFiltro");
+  const mes = document.getElementById("fatMesFiltro").value;
+  const search = (document.getElementById("venSearch").value || "").trim().toLowerCase();
+  const vendedor = document.getElementById("venFiltroVendedor").value;
+  const formaPagamento = document.getElementById("venFiltroFormaPagamento").value;
+  const de = document.getElementById("venFiltroDe").value;
+  const ate = document.getElementById("venFiltroAte").value;
+
+  let rows = state.vendas.slice();
+  if (mes && mes !== "todos") rows = rows.filter(v => (v.data || "").slice(0, 7) === mes);
+  if (search) {
+    rows = rows.filter(v => [v.cliente, v.numeroNFVenda, v.numeroPedido, v.vendedor].join(" ").toLowerCase().includes(search));
+  }
+  if (vendedor) rows = rows.filter(v => v.vendedor === vendedor);
+  if (formaPagamento) rows = rows.filter(v => v.formaPagamento === formaPagamento);
+  if (de) rows = rows.filter(v => v.data >= de);
+  if (ate) rows = rows.filter(v => v.data <= ate);
+  return rows;
+}
+
+// true quando algum filtro além do mês está ativo -- usado pra decidir se o delta
+// dos KPIs (vs. mesma época do mês passado) faz sentido de mostrar.
+function fatFiltroExtraAtivo() {
+  return !!(
+    document.getElementById("venFiltroVendedor").value ||
+    document.getElementById("venFiltroFormaPagamento").value ||
+    (document.getElementById("venSearch").value || "").trim() ||
+    document.getElementById("venFiltroDe").value ||
+    document.getElementById("venFiltroAte").value
+  );
 }
 
 function getMovimentosVendaFiltradosPor(selectId) {
@@ -3684,16 +3737,45 @@ function renderFaturamento() {
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
   const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
   const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
+  const vendasTrademaster = vendas.filter(v => v.valorRecebido != null);
+  const totalDiferencaTrademaster = vendasTrademaster.reduce((a, v) => a + (v.valorVenda - v.valorRecebido), 0);
+
+  // delta vs. mesma época do mês passado -- mesma lógica do Dashboard (mesAnterior()
+  // + truncar o mês anterior no mesmo dia quando o mês selecionado é o corrente).
+  // Só faz sentido comparar quando o único filtro ativo é o mês: uma fatia filtrada
+  // por vendedor/forma/período/busca não tem um "mês anterior" equivalente pra comparar.
+  const filtroExtraAtivo = fatFiltroExtraAtivo();
+  let totalFaturamentoAnt = null, totalPneusAnt = null, totalComissaoAnt = null, totalFreteAnt = null;
+  if (!filtroExtraAtivo) {
+    const mesFiltroValue = document.getElementById("fatMesFiltro").value;
+    const mesAnt = mesAnterior(mesFiltroValue);
+    let vendasMesAnt = mesAnt ? state.vendas.filter(v => (v.data || "").slice(0, 7) === mesAnt) : [];
+    const hoje = new Date();
+    const mesRealAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+    if (mesFiltroValue === mesRealAtual) {
+      const diaCorte = hoje.getDate();
+      vendasMesAnt = vendasMesAnt.filter(v => Number((v.data || "").slice(8, 10)) <= diaCorte);
+    }
+    if (vendasMesAnt.length) {
+      totalFaturamentoAnt = vendasMesAnt.reduce((a, v) => a + v.valorVenda, 0);
+      totalPneusAnt = vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0);
+      totalComissaoAnt = vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0);
+      totalFreteAnt = vendasMesAnt.reduce((a, v) => a + (v.valorFrete || 0), 0);
+    }
+  }
 
   document.getElementById("fatKpis").innerHTML = [
-    { lbl: "Faturamento no período", val: formatMoney(totalFaturamento), accent: true },
-    { lbl: "Pneus vendidos", val: fmt(totalPneus) },
-    { lbl: "Total de comissão", val: formatMoney(totalComissao) },
-    { lbl: "Custo de frete", val: formatMoney(totalFrete) }
+    { lbl: "Faturamento no período", val: formatMoney(totalFaturamento), accent: true, delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
+    { lbl: "Pneus vendidos", val: fmt(totalPneus), delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
+    { lbl: "Total de comissão", val: formatMoney(totalComissao), delta: dashDeltaHtml(totalComissao, totalComissaoAnt) },
+    { lbl: "Custo de frete", val: formatMoney(totalFrete), delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) },
+    { lbl: "Diferença Trademaster", val: formatMoney(totalDiferencaTrademaster),
+      delta: `<div class="delta neutral">${vendasTrademaster.length ? `${fmt(vendasTrademaster.length)} boleto(s) no período` : "nenhum boleto Trademaster"}</div>` }
   ].map(k => `
     <div class="kpi ${k.accent ? "accent" : ""}">
       <div class="lbl">${k.lbl}</div>
       <div class="val" style="font-size:19px;">${k.val}</div>
+      ${k.delta}
     </div>
   `).join("");
 
@@ -3706,12 +3788,13 @@ function renderFaturamento() {
     porVendedor[key].comissao += v.comissao || 0;
   });
   const vendedores = Object.entries(porVendedor).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  const maxVendedor = vendedores.length ? vendedores[0][1].faturamento : 1;
   document.getElementById("fatVendedorTbody").innerHTML = vendedores.length === 0
     ? `<tr><td colspan="3" class="muted">Nenhuma venda no período.</td></tr>`
     : vendedores.map(([nome, d]) => `
       <tr>
         <td>${escapeHtml(nome)}</td>
-        <td class="num mono">${formatMoney(d.faturamento)}</td>
+        <td class="num">${valorBarCellHtml(d.faturamento, maxVendedor)}</td>
         <td class="num mono">${formatMoney(d.comissao)}</td>
       </tr>
     `).join("");
@@ -3727,6 +3810,7 @@ function renderFaturamento() {
     if (v.valorFrete && v.valorVenda) porEstado[uf].fretePct.push(v.valorFrete / v.valorVenda);
   });
   const estados = Object.entries(porEstado).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  const maxEstado = estados.length ? estados[0][1].faturamento : 1;
   document.getElementById("fatEstadoTbody").innerHTML = estados.length === 0
     ? `<tr><td colspan="4" class="muted">Nenhuma venda no período.</td></tr>`
     : estados.map(([uf, d]) => {
@@ -3734,7 +3818,7 @@ function renderFaturamento() {
       return `
         <tr>
           <td class="mono">${escapeHtml(uf)}</td>
-          <td class="num mono">${formatMoney(d.faturamento)}</td>
+          <td class="num">${valorBarCellHtml(d.faturamento, maxEstado)}</td>
           <td class="num mono">${fmt(d.pneus)}</td>
           <td class="num mono">${media !== null ? media.toFixed(1).replace(".", ",") + "%" : "—"}</td>
         </tr>
@@ -3750,13 +3834,14 @@ function renderFaturamento() {
     porTransp[key].frete += v.valorFrete || 0;
   });
   const transportadoras = Object.entries(porTransp).sort((a, b) => b[1].frete - a[1].frete);
+  const maxTransp = transportadoras.length ? transportadoras[0][1].frete : 1;
   document.getElementById("fatTransportadoraTbody").innerHTML = transportadoras.length === 0
     ? `<tr><td colspan="3" class="muted">Nenhuma venda no período.</td></tr>`
     : transportadoras.map(([nome, d]) => `
       <tr>
         <td>${escapeHtml(nome)}</td>
         <td class="num mono">${fmt(d.qtd)}</td>
-        <td class="num mono">${formatMoney(d.frete)}</td>
+        <td class="num">${valorBarCellHtml(d.frete, maxTransp)}</td>
       </tr>
     `).join("");
 
@@ -3787,6 +3872,7 @@ function renderFaturamento() {
     porCliente[v.cliente].pneus += v.quantidadePneus;
   });
   const clientesRank = Object.entries(porCliente).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  const maxCliente = clientesRank.length ? clientesRank[0][1].faturamento : 1;
   const tbodyCliente = document.getElementById("fatClienteTbody");
   const emptyCliente = document.getElementById("fatClienteEmpty");
   if (clientesRank.length === 0) {
@@ -3801,12 +3887,19 @@ function renderFaturamento() {
           <td class="mono">${i + 1}</td>
           <td>${escapeHtml(nome)}</td>
           <td class="mono muted">${escapeHtml((cli && cli.estado) || "—")}</td>
-          <td class="num mono">${formatMoney(d.faturamento)}</td>
+          <td class="num">${valorBarCellHtml(d.faturamento, maxCliente)}</td>
           <td class="num mono">${fmt(d.pneus)}</td>
         </tr>
       `;
     }).join("");
   }
+}
+
+// célula de valor com uma barra proporcional embaixo, pra bater o olho e comparar
+// sem ler número por número -- usado nas tabelas de análise do Faturamento.
+function valorBarCellHtml(valor, max) {
+  const pct = Math.max(4, (valor / (max || 1)) * 100);
+  return `<div class="valor-bar-cell"><span class="mono">${formatMoney(valor)}</span><div class="valor-bar-track"><div class="valor-bar-fill" style="width:${pct}%"></div></div></div>`;
 }
 
 let clientesSelecionadosParaMesclar = new Set();
@@ -4431,11 +4524,6 @@ async function salvarEdicaoCliente() {
 }
 
 function renderVendas() {
-  const search = (document.getElementById("venSearch").value || "").trim().toLowerCase();
-  const formaPagamento = document.getElementById("venFiltroFormaPagamento").value;
-  const de = document.getElementById("venFiltroDe").value;
-  const ate = document.getElementById("venFiltroAte").value;
-
   const vendedorSelect = document.getElementById("venFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
   const vendedoresUnicos = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
@@ -4443,14 +4531,8 @@ function renderVendas() {
     vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
   vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
 
-  let rows = state.vendas.slice();
-  if (search) {
-    rows = rows.filter(v => [v.cliente, v.numeroNFVenda, v.numeroPedido, v.vendedor].join(" ").toLowerCase().includes(search));
-  }
-  if (vendedorSelect.value) rows = rows.filter(v => v.vendedor === vendedorSelect.value);
-  if (formaPagamento) rows = rows.filter(v => v.formaPagamento === formaPagamento);
-  if (de) rows = rows.filter(v => v.data >= de);
-  if (ate) rows = rows.filter(v => v.data <= ate);
+  // filtro único da tela -- ver getVendasFiltradas()
+  let rows = getVendasFiltradas();
   rows.sort((a, b) => (b.data + b.createdAt).localeCompare(a.data + a.createdAt));
 
   const totalFiltrado = rows.length;
@@ -4564,6 +4646,7 @@ function startEditVenda(vendaId) {
   document.getElementById("venFormTitle").textContent = "Editar venda";
   document.getElementById("venEditBanner").style.display = "block";
   document.getElementById("btnSubmitVenda").textContent = "Salvar alterações";
+  document.getElementById("novaVendaCard").classList.remove("collapsed"); // nasce fechada -- abre pra mostrar o formulário preenchido
   document.getElementById("formVenda").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
@@ -4982,6 +5065,7 @@ function initForms() {
 
   document.getElementById("venCancelEdit").addEventListener("click", (e) => {
     e.preventDefault();
+    e.stopPropagation(); // fica dentro do card-head do "Nova venda" -- sem isso também alterna o colapso do card
     cancelEditVenda();
   });
 
@@ -5712,15 +5796,17 @@ async function init() {
   document.getElementById("prodSearch").addEventListener("input", renderProdutos);
   document.getElementById("freteSearch").addEventListener("input", renderFretes);
   document.getElementById("cliSearch").addEventListener("input", renderClientes);
-  document.getElementById("venSearch").addEventListener("input", () => { vendasMostrarTodas = false; renderVendas(); });
-  ["venFiltroVendedor", "venFiltroFormaPagamento", "venFiltroDe", "venFiltroAte"].forEach(id => {
-    document.getElementById(id).addEventListener("change", () => { vendasMostrarTodas = false; renderVendas(); });
+  // filtro único da tela de Faturamento (ver getVendasFiltradas()) -- qualquer um
+  // desses 6 controles precisa atualizar KPIs, análises E a tabela de vendas juntos.
+  const aplicarFiltroFaturamento = () => { vendasMostrarTodas = false; renderFaturamento(); renderVendas(); };
+  document.getElementById("venSearch").addEventListener("input", aplicarFiltroFaturamento);
+  ["venFiltroVendedor", "venFiltroFormaPagamento", "venFiltroDe", "venFiltroAte", "fatMesFiltro"].forEach(id => {
+    document.getElementById(id).addEventListener("change", aplicarFiltroFaturamento);
   });
   document.getElementById("btnVenMostrarMais").addEventListener("click", () => {
     vendasMostrarTodas = !vendasMostrarTodas;
     renderVendas();
   });
-  document.getElementById("fatMesFiltro").addEventListener("change", renderFaturamento);
   document.getElementById("dashMesFiltro").addEventListener("change", renderDashboard);
   document.getElementById("prevSearch").addEventListener("input", renderPrevistos);
   document.getElementById("prevFiltroStatus").addEventListener("change", renderPrevistos);

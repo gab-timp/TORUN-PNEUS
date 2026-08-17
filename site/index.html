@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=114">
+<link rel="stylesheet" href="styles.css?v=115">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -854,17 +854,35 @@
         </div>
       </div>
 
-      <div class="search-row">
-        <select id="fatMesFiltro"></select>
+      <div class="card">
+        <div class="search-row" style="margin-bottom:0;">
+          <select id="fatMesFiltro"></select>
+          <input type="text" id="venSearch" placeholder="Buscar por cliente, NF, pedido ou vendedor…">
+          <select id="venFiltroVendedor">
+            <option value="">Todos os vendedores</option>
+          </select>
+          <select id="venFiltroFormaPagamento">
+            <option value="">Todas as formas de pagamento</option>
+            <option value="PIX">PIX</option>
+            <option value="CARTÃO">CARTÃO</option>
+            <option value="BOLETO PRÓPRIO">BOLETO PRÓPRIO</option>
+            <option value="BOLETO TRADEMASTER">BOLETO TRADEMASTER</option>
+          </select>
+          <input type="date" id="venFiltroDe">
+          <input type="date" id="venFiltroAte">
+        </div>
+        <div class="filtro-nota">Esse filtro vale pra tabela de vendas e pras análises abaixo.</div>
       </div>
 
       <div class="kpis" id="fatKpis"></div>
 
-      <div class="card write-ui" data-table="vendas">
+      <div class="card card-collapsible collapsed write-ui" data-table="vendas" data-collapse-key="fat-nova-venda" id="novaVendaCard">
         <div class="card-head">
           <h2 id="venFormTitle">Nova venda</h2>
           <div class="note" id="venEditBanner" style="display:none;">Editando venda · <a href="#" id="venCancelEdit">cancelar edição</a></div>
+          <span class="card-toggle">⌄</span>
         </div>
+        <div class="card-body">
         <form id="formVenda">
           <div class="form-row">
             <div class="field">
@@ -960,27 +978,13 @@
             <button type="submit" class="btn primary" id="btnSubmitVenda">Registrar venda</button>
           </div>
         </form>
+        </div>
       </div>
 
       <div class="card" data-table="vendas">
         <div class="card-head">
           <h2>Vendas registradas</h2>
           <div class="note" id="venCount"></div>
-        </div>
-        <div class="search-row">
-          <input type="text" id="venSearch" placeholder="Buscar por cliente, NF, pedido ou vendedor…">
-          <select id="venFiltroVendedor">
-            <option value="">Todos os vendedores</option>
-          </select>
-          <select id="venFiltroFormaPagamento">
-            <option value="">Todas as formas de pagamento</option>
-            <option value="PIX">PIX</option>
-            <option value="CARTÃO">CARTÃO</option>
-            <option value="BOLETO PRÓPRIO">BOLETO PRÓPRIO</option>
-            <option value="BOLETO TRADEMASTER">BOLETO TRADEMASTER</option>
-          </select>
-          <input type="date" id="venFiltroDe">
-          <input type="date" id="venFiltroAte">
         </div>
         <div class="table-wrap">
           <table>
@@ -1008,7 +1012,7 @@
       </div>
 
       <div class="grid-2">
-        <div class="card card-collapsible">
+        <div class="card card-collapsible" data-collapse-key="fat-vendedor">
           <div class="card-head"><h2>Faturamento e comissão por vendedor</h2><span class="card-toggle">⌄</span></div>
           <div class="card-body">
             <div class="table-wrap">
@@ -1019,7 +1023,7 @@
             </div>
           </div>
         </div>
-        <div class="card card-collapsible">
+        <div class="card card-collapsible" data-collapse-key="fat-estado">
           <div class="card-head"><h2>Faturamento e frete por estado</h2><span class="card-toggle">⌄</span></div>
           <div class="card-body">
             <div class="table-wrap">
@@ -1033,7 +1037,7 @@
       </div>
 
       <div class="grid-2">
-        <div class="card card-collapsible">
+        <div class="card card-collapsible" data-collapse-key="fat-transportadora">
           <div class="card-head"><h2>Frete por transportadora</h2><span class="card-toggle">⌄</span></div>
           <div class="card-body">
             <div class="table-wrap">
@@ -1044,7 +1048,7 @@
             </div>
           </div>
         </div>
-        <div class="card card-collapsible">
+        <div class="card card-collapsible" data-collapse-key="fat-forma">
           <div class="card-head"><h2>Formas de pagamento</h2><span class="card-toggle">⌄</span></div>
           <div class="card-body">
             <div class="rank-list" id="fatFormaPagList"></div>
@@ -1052,7 +1056,7 @@
         </div>
       </div>
 
-      <div class="card card-collapsible">
+      <div class="card card-collapsible" data-collapse-key="fat-cliente">
         <div class="card-head">
           <h2>Faturamento por cliente</h2>
           <div class="note">Os 5 primeiros (destacados) são os maiores clientes do período selecionado.</div>
@@ -2107,6 +2111,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=130"></script>
+<script src="app.js?v=131"></script>
 </body>
 </html>
