@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=115">
+<link rel="stylesheet" href="styles.css?v=116">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1084,8 +1084,12 @@
         </div>
       </div>
 
-      <div class="card write-ui" data-table="clientes">
-        <div class="card-head"><h2>Novo cliente</h2></div>
+      <div class="kpis" id="cliKpis"></div>
+      <div id="cliAlertaDup"></div>
+
+      <div class="card write-ui card-collapsible collapsed" data-table="clientes" data-collapse-key="cli-novo-cliente">
+        <div class="card-head"><h2>Novo cliente</h2><span class="card-toggle">⌄</span></div>
+        <div class="card-body">
         <form id="formCliente">
           <div class="form-row">
             <div class="field grow">
@@ -1139,6 +1143,7 @@
             <button type="submit" class="btn primary">Adicionar cliente</button>
           </div>
         </form>
+        </div>
       </div>
 
       <div class="card write-ui" data-table="clientes" id="cardPreCadastros" style="display:none;">
@@ -1155,21 +1160,133 @@
         </div>
       </div>
 
-      <div class="card" data-table="clientes">
-        <div class="card-head">
-          <h2>Clientes cadastrados</h2>
-          <div class="note" id="cliCount"></div>
+      <div class="split-wrap">
+        <div class="split-lista">
+          <div class="split-lista-head">
+            <input type="text" id="cliSearch" placeholder="Buscar por nome, estado ou cidade…">
+            <select id="cliFiltroTag"><option value="">Todas as tags</option></select>
+            <button type="button" class="btn outline write-ui" id="btnMesclarClientes" style="display:none;">🔗 Mesclar selecionados (<span id="cliSelecionadosCount">0</span>)</button>
+            <div class="note" id="cliCount" style="margin-top:6px;"></div>
+          </div>
+          <div class="split-rows" id="cliRows"></div>
         </div>
-        <div class="note" style="margin-bottom:10px;">Clique no nome de um cliente para ver o perfil completo. Marque 2 ou mais cadastros duplicados (mesmo CNPJ, nomes diferentes) para mesclá-los.</div>
-        <div class="search-row">
-          <input type="text" id="cliSearch" placeholder="Buscar por nome, estado ou cidade…">
-          <button type="button" class="btn outline write-ui" id="btnMesclarClientes" style="display:none;">🔗 Mesclar selecionados (<span id="cliSelecionadosCount">0</span>)</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th class="write-ui"></th><th>Nome</th><th>Estado</th><th>Cidade</th><th>Tipo</th><th>Tags</th><th></th></tr></thead>
-            <tbody id="cliTbody"></tbody>
-          </table>
+        <div class="card split-detalhe" id="clienteDetalhePanel">
+          <div class="muted" id="clienteDetalheVazio" style="padding:60px 20px; text-align:center;">Selecione um cliente na lista à esquerda pra ver o perfil completo.</div>
+          <div id="clienteDetalheConteudo" style="display:none;">
+          <div class="cliente-modal-head">
+            <h3 id="clienteModalNome"></h3>
+            <div class="cliente-modal-head-actions">
+              <button type="button" class="btn small outline write-ui" id="btnEditarCliente">✎ Editar dados</button>
+              <button type="button" class="btn small danger write-ui" id="btnExcluirCliente">🗑 Excluir</button>
+            </div>
+          </div>
+          <div class="cliente-modal-info" id="clienteModalInfo"></div>
+
+          <form class="cliente-modal-edit-form write-ui" id="formEditarCliente" style="display:none;">
+            <div class="form-row">
+              <div class="field grow">
+                <label>Nome do cliente</label>
+                <input type="text" id="clienteEditNome" required>
+              </div>
+              <div class="field">
+                <label>CNPJ/CPF</label>
+                <input type="text" id="clienteEditDocumento" placeholder="Ex: 00.000.000/0001-00">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field grow">
+                <label>Razão social</label>
+                <input type="text" id="clienteEditRazaoSocial">
+              </div>
+              <div class="field">
+                <label>Contato responsável</label>
+                <input type="text" id="clienteEditContato">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label>Telefone</label>
+                <input type="text" id="clienteEditTelefone">
+              </div>
+              <div class="field grow">
+                <label>E-mail</label>
+                <input type="email" id="clienteEditEmail">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label>Estado (UF)</label>
+                <select id="clienteEditEstado"></select>
+              </div>
+              <div class="field grow">
+                <label>Cidade</label>
+                <input type="text" id="clienteEditCidade">
+              </div>
+              <div class="field grow">
+                <label>Endereço</label>
+                <input type="text" id="clienteEditEndereco">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label>Tipo de cliente</label>
+                <select id="clienteEditTipoCliente"></select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn outline" id="btnCancelarEdicaoCliente">Cancelar</button>
+              <button type="submit" class="btn primary">Salvar alterações</button>
+            </div>
+          </form>
+
+          <div class="cliente-tags-row" id="clienteModalTags"></div>
+          <div class="cliente-tags-add write-ui">
+            <input type="text" id="clienteNovaTag" list="listTagsSugeridas" placeholder="Adicionar tag (Ex: VIP)" maxlength="24">
+            <datalist id="listTagsSugeridas">
+              <option value="VIP">
+              <option value="Atacado">
+              <option value="Varejo">
+              <option value="Inadimplente">
+              <option value="Prioritário">
+              <option value="Novo">
+            </datalist>
+            <button type="button" class="btn small outline" id="btnAdicionarTag">+ Tag</button>
+          </div>
+
+          <div class="kpis" id="clienteModalKpis"></div>
+
+          <div class="cliente-modal-section">
+            <h4>Notas e observações</h4>
+            <div class="cliente-nota-add write-ui">
+              <textarea id="clienteNovaNota" rows="2" placeholder="Escreva uma observação sobre este cliente..."></textarea>
+              <button type="button" class="btn small primary" id="btnAdicionarNota" style="align-self:flex-end;">Adicionar nota</button>
+            </div>
+            <div id="clienteModalNotas" class="cliente-notas-list"></div>
+          </div>
+
+          <div class="cliente-modal-section">
+            <h4>Histórico de vendas</h4>
+            <div class="table-wrap" style="max-height:220px; overflow-y:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>NF</th>
+                    <th class="num">Pneus</th>
+                    <th class="num">Valor</th>
+                    <th>Forma pgto</th>
+                    <th>Vendedor</th>
+                  </tr>
+                </thead>
+                <tbody id="clienteModalVendasTbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="cliente-modal-section">
+            <h4>Pedidos em Entregas</h4>
+            <div id="clienteModalEntregasList"></div>
+          </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1836,124 +1953,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="clienteModalOverlay">
-  <div class="modal cliente-modal">
-    <div class="cliente-modal-head">
-      <h3 id="clienteModalNome"></h3>
-      <div class="cliente-modal-head-actions">
-        <button type="button" class="btn small outline write-ui" id="btnEditarCliente">✎ Editar dados</button>
-        <button type="button" class="btn small outline" id="clienteModalClose">✕ Fechar</button>
-      </div>
-    </div>
-    <div class="cliente-modal-info" id="clienteModalInfo"></div>
-
-    <form class="cliente-modal-edit-form write-ui" id="formEditarCliente" style="display:none;">
-      <div class="form-row">
-        <div class="field grow">
-          <label>Nome do cliente</label>
-          <input type="text" id="clienteEditNome" required>
-        </div>
-        <div class="field">
-          <label>CNPJ/CPF</label>
-          <input type="text" id="clienteEditDocumento" placeholder="Ex: 00.000.000/0001-00">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field grow">
-          <label>Razão social</label>
-          <input type="text" id="clienteEditRazaoSocial">
-        </div>
-        <div class="field">
-          <label>Contato responsável</label>
-          <input type="text" id="clienteEditContato">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Telefone</label>
-          <input type="text" id="clienteEditTelefone">
-        </div>
-        <div class="field grow">
-          <label>E-mail</label>
-          <input type="email" id="clienteEditEmail">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Estado (UF)</label>
-          <select id="clienteEditEstado"></select>
-        </div>
-        <div class="field grow">
-          <label>Cidade</label>
-          <input type="text" id="clienteEditCidade">
-        </div>
-        <div class="field grow">
-          <label>Endereço</label>
-          <input type="text" id="clienteEditEndereco">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Tipo de cliente</label>
-          <select id="clienteEditTipoCliente"></select>
-        </div>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn outline" id="btnCancelarEdicaoCliente">Cancelar</button>
-        <button type="submit" class="btn primary">Salvar alterações</button>
-      </div>
-    </form>
-
-    <div class="cliente-tags-row" id="clienteModalTags"></div>
-    <div class="cliente-tags-add write-ui">
-      <input type="text" id="clienteNovaTag" list="listTagsSugeridas" placeholder="Adicionar tag (Ex: VIP)" maxlength="24">
-      <datalist id="listTagsSugeridas">
-        <option value="VIP">
-        <option value="Atacado">
-        <option value="Varejo">
-        <option value="Inadimplente">
-        <option value="Prioritário">
-        <option value="Novo">
-      </datalist>
-      <button type="button" class="btn small outline" id="btnAdicionarTag">+ Tag</button>
-    </div>
-
-    <div class="kpis" id="clienteModalKpis"></div>
-
-    <div class="cliente-modal-section">
-      <h4>Notas e observações</h4>
-      <div class="cliente-nota-add write-ui">
-        <textarea id="clienteNovaNota" rows="2" placeholder="Escreva uma observação sobre este cliente..."></textarea>
-        <button type="button" class="btn small primary" id="btnAdicionarNota" style="align-self:flex-end;">Adicionar nota</button>
-      </div>
-      <div id="clienteModalNotas" class="cliente-notas-list"></div>
-    </div>
-
-    <div class="cliente-modal-section">
-      <h4>Histórico de vendas</h4>
-      <div class="table-wrap" style="max-height:220px; overflow-y:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>NF</th>
-              <th class="num">Pneus</th>
-              <th class="num">Valor</th>
-              <th>Forma pgto</th>
-              <th>Vendedor</th>
-            </tr>
-          </thead>
-          <tbody id="clienteModalVendasTbody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="cliente-modal-section">
-      <h4>Pedidos em Entregas</h4>
-      <div id="clienteModalEntregasList"></div>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="mesclarClientesModalOverlay">
   <div class="modal">
     <div class="cliente-modal-head">
@@ -2111,6 +2110,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=132"></script>
+<script src="app.js?v=133"></script>
 </body>
 </html>

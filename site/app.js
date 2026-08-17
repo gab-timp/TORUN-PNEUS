@@ -3904,39 +3904,106 @@ function valorBarCellHtml(valor, max) {
 
 let clientesSelecionadosParaMesclar = new Set();
 
+// resumo de vendas por cliente numa passada só (faturamento + última compra) --
+// mais leve que chamar getClienteStats() (que também monta histórico/ticket médio,
+// coisa que só o painel de detalhe de UM cliente precisa) pra cada linha da lista.
+function resumoVendasPorCliente() {
+  const porCliente = {};
+  state.vendas.forEach(v => {
+    if (!porCliente[v.cliente]) porCliente[v.cliente] = { faturamento: 0, ultimaCompra: null };
+    porCliente[v.cliente].faturamento += v.valorVenda;
+    if (!porCliente[v.cliente].ultimaCompra || v.data > porCliente[v.cliente].ultimaCompra) porCliente[v.cliente].ultimaCompra = v.data;
+  });
+  return porCliente;
+}
+
+// dias desde a última compra decidem o selo -- "novo" (nunca comprou) é diferente
+// de "inativo" (comprou antes, mas já faz tempo).
+function statusAtividadeCliente(ultimaCompra) {
+  if (!ultimaCompra) return "novo";
+  const dias = Math.round((new Date() - new Date(ultimaCompra)) / 86400000);
+  if (dias <= 60) return "ativo";
+  if (dias <= 120) return "atencao";
+  return "inativo";
+}
+const STATUS_ATIVIDADE_LABEL = { ativo: "Ativo", atencao: "Atenção", inativo: "Inativo", novo: "Novo" };
+const STATUS_ATIVIDADE_PILL = { ativo: "pill-normal", atencao: "pill-atencao", inativo: "pill-esgotado", novo: "pill-neutro" };
+
+// agrupa clientes pelo documento normalizado -- mesma normalização já usada em
+// aprovarPreCadastro() pra bloquear duplicar CNPJ na aprovação; aqui detecta
+// duplicados que já existem no cadastro.
+function clientesDuplicadosPorDocumento() {
+  const porDoc = {};
+  state.clientes.forEach(c => {
+    const doc = normalizarDocumentoTexto(c.documento);
+    if (!doc) return;
+    (porDoc[doc] = porDoc[doc] || []).push(c);
+  });
+  return Object.values(porDoc).filter(g => g.length > 1);
+}
+
 function renderClientes() {
   const search = (document.getElementById("cliSearch").value || "").trim().toLowerCase();
-  let rows = state.clientes.slice();
-  if (search) {
-    rows = rows.filter(c => [c.nome, c.estado, c.cidade].join(" ").toLowerCase().includes(search));
-  }
-  rows.sort((a, b) => a.nome.localeCompare(b.nome));
 
   const nomesExistentes = new Set(state.clientes.map(c => c.nome));
   clientesSelecionadosParaMesclar.forEach(n => { if (!nomesExistentes.has(n)) clientesSelecionadosParaMesclar.delete(n); });
+  // se o cliente que estava aberto no painel sumiu (excluído, ou mesclado pra outro
+  // nome), volta o painel pro estado vazio em vez de mostrar dado obsoleto.
+  if (currentClienteModalNome && !nomesExistentes.has(currentClienteModalNome)) {
+    currentClienteModalNome = null;
+    document.getElementById("clienteDetalheConteudo").style.display = "none";
+    document.getElementById("clienteDetalheVazio").style.display = "";
+  }
+
+  const resumo = resumoVendasPorCliente();
+
+  const tagsUnicas = Array.from(new Set(state.clientes.flatMap(c => c.tags || []))).sort();
+  const tagSelect = document.getElementById("cliFiltroTag");
+  const tagAnterior = tagSelect.value;
+  tagSelect.innerHTML = `<option value="">Todas as tags</option>` + tagsUnicas.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join("");
+  tagSelect.value = tagsUnicas.includes(tagAnterior) ? tagAnterior : "";
+  const tagFiltro = tagSelect.value;
+
+  let rows = state.clientes.slice();
+  if (search) rows = rows.filter(c => [c.nome, c.estado, c.cidade].join(" ").toLowerCase().includes(search));
+  if (tagFiltro) rows = rows.filter(c => (c.tags || []).includes(tagFiltro));
+  rows.sort((a, b) => a.nome.localeCompare(b.nome));
 
   document.getElementById("cliCount").textContent = `${state.clientes.length} cliente(s) cadastrado(s)`;
-  document.getElementById("cliTbody").innerHTML = rows.map(c => `
-    <tr>
-      <td class="write-ui"><input type="checkbox" class="cliente-select-check" data-selcli="${escapeAttr(c.nome)}" ${clientesSelecionadosParaMesclar.has(c.nome) ? "checked" : ""}></td>
-      <td class="cliente-nome-click" data-clientenome="${escapeAttr(c.nome)}">${escapeHtml(c.nome)}</td>
-      <td class="mono">${escapeHtml(c.estado || "—")}</td>
-      <td>${escapeHtml(c.cidade || "—")}</td>
-      <td>${escapeHtml(TIPO_CLIENTE_LABEL[c.tipoCliente] || "—")}</td>
-      <td>
-        <div class="cliente-tags-list-compact">
-          ${(c.tags || []).map(t => `<span class="cliente-tag-pill">${escapeHtml(t)}</span>`).join("") || "—"}
-        </div>
-      </td>
-      <td><button class="btn small danger write-ui" data-delcli="${escapeAttr(c.nome)}">Excluir</button></td>
-    </tr>
-  `).join("");
 
-  document.querySelectorAll("[data-clientenome]").forEach(td => {
-    td.addEventListener("click", () => openClienteModal(td.dataset.clientenome));
+  const grupos = clientesDuplicadosPorDocumento();
+  const nomesDup = new Set(grupos.flat().map(c => c.nome));
+
+  document.getElementById("cliRows").innerHTML = rows.map(c => {
+    const r = resumo[c.nome] || { faturamento: 0, ultimaCompra: null };
+    const status = statusAtividadeCliente(r.ultimaCompra);
+    return `
+      <div class="split-row ${c.nome === currentClienteModalNome ? "active" : ""}" data-cliente="${escapeAttr(c.nome)}">
+        <input type="checkbox" class="split-row-check write-ui" data-selcli="${escapeAttr(c.nome)}" ${clientesSelecionadosParaMesclar.has(c.nome) ? "checked" : ""}>
+        <div class="split-row-body">
+          <div class="split-row-top">
+            <span class="split-row-nome">${escapeHtml(c.nome)}</span>
+            <span class="status-pill ${STATUS_ATIVIDADE_PILL[status]}">${STATUS_ATIVIDADE_LABEL[status]}</span>
+          </div>
+          <div class="split-row-meta">
+            <span>${escapeHtml(c.cidade || "—")} · ${escapeHtml(c.estado || "—")}</span>
+            <span class="fat mono">${formatMoney(r.faturamento)}</span>
+          </div>
+          ${nomesDup.has(c.nome) ? `<div class="split-row-dupflag">⚠ possível duplicado</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll(".split-row-body").forEach(body => {
+    body.addEventListener("click", () => {
+      openClienteModal(body.closest(".split-row").dataset.cliente);
+      renderClientes();
+    });
   });
 
   document.querySelectorAll("[data-selcli]").forEach(chk => {
+    chk.addEventListener("click", (e) => e.stopPropagation());
     chk.addEventListener("change", () => {
       if (chk.checked) clientesSelecionadosParaMesclar.add(chk.dataset.selcli);
       else clientesSelecionadosParaMesclar.delete(chk.dataset.selcli);
@@ -3944,23 +4011,41 @@ function renderClientes() {
     });
   });
 
-  document.querySelectorAll("[data-delcli]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const nome = btn.dataset.delcli;
-      const temVenda = state.vendas.some(v => v.cliente === nome);
-      if (temVenda) {
-        toast("Não é possível excluir: esse cliente já tem vendas registradas.");
-        return;
-      }
-      const motivo = await motivoModal("Excluir cliente?", `Remover "${nome}" do cadastro? Informe o motivo da exclusão.`);
-      if (!motivo) return;
-      const { error } = await sb.from("clientes").delete().eq("nome", nome);
-      if (error) { toast("Erro ao excluir: " + error.message); return; }
-      await registrarLog("clientes", nome, "exclusao", motivo, nome);
-      state.clientes = state.clientes.filter(c => c.nome !== nome);
+  // kpis
+  const totalClientes = state.clientes.length;
+  const inicioMes = todayISO().slice(0, 7) + "-01";
+  const novosNoMes = state.clientes.filter(c => (c.createdAt || "") >= inicioMes).length;
+  const inativos = state.clientes.filter(c => statusAtividadeCliente((resumo[c.nome] || {}).ultimaCompra) === "inativo").length;
+  const comCompra = state.clientes.filter(c => (resumo[c.nome] || {}).faturamento > 0);
+  const faturamentoMedio = comCompra.length
+    ? comCompra.reduce((a, c) => a + resumo[c.nome].faturamento, 0) / comCompra.length
+    : 0;
+  document.getElementById("cliKpis").innerHTML = [
+    { lbl: "Total de clientes", val: fmt(totalClientes), accent: true },
+    { lbl: "Novos no mês", val: fmt(novosNoMes) },
+    { lbl: "Inativos (120+ dias)", val: fmt(inativos) },
+    { lbl: "Faturamento médio / cliente", val: formatMoney(faturamentoMedio) }
+  ].map(k => `
+    <div class="kpi ${k.accent ? "accent" : ""}">
+      <div class="lbl">${k.lbl}</div>
+      <div class="val" style="font-size:19px;">${k.val}</div>
+    </div>
+  `).join("");
+
+  // aviso de possível cadastro duplicado, com atalho pra já marcar pra mesclar
+  // (reaproveita clientesSelecionadosParaMesclar/atualizarBotaoMesclarClientes/
+  // abrirMesclarClientesModal, que já existiam antes desta tela mudar de layout)
+  document.getElementById("cliAlertaDup").innerHTML = grupos.length === 0 ? "" : grupos.map(g => `
+    <div class="cliente-alerta-dup">
+      <div class="ic-wrap"><svg class="ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3v8m0 4v.01M3.5 16.5h13a1 1 0 0 0 .87-1.5l-6.5-11a1 1 0 0 0-1.74 0l-6.5 11a1 1 0 0 0 .87 1.5Z"/></svg></div>
+      <div class="txt"><b>Possível cadastro duplicado:</b> "${g.map(c => escapeHtml(c.nome)).join('" e "')}" têm o mesmo CNPJ/CPF.</div>
+      <button type="button" class="btn small outline write-ui" data-selecionardup="${g.map(c => escapeAttr(c.nome)).join("|")}">Selecionar pra mesclar</button>
+    </div>
+  `).join("");
+  document.querySelectorAll("[data-selecionardup]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      btn.dataset.selecionardup.split("|").forEach(n => clientesSelecionadosParaMesclar.add(n));
       renderClientes();
-      renderClienteSelect();
-      toast("Cliente removido.");
     });
   });
 
@@ -4383,10 +4468,15 @@ async function removerNotaCliente(nome, notaId) {
   toast("Nota removida.");
 }
 
+// nome mantido por compatibilidade (ids clienteModal* espalhados pelo HTML/CSS) --
+// desde a virada pro layout split, isso preenche o painel de detalhe sempre visível
+// à direita, não abre mais um modal flutuante.
 function openClienteModal(nome) {
   const c = getCliente(nome);
   if (!c) return;
   currentClienteModalNome = nome;
+  document.getElementById("clienteDetalheVazio").style.display = "none";
+  document.getElementById("clienteDetalheConteudo").style.display = "";
   cancelarEdicaoCliente();
   const stats = getClienteStats(nome);
 
@@ -4428,13 +4518,28 @@ function openClienteModal(nome) {
 
   renderClienteTags();
   renderClienteNotas();
-  document.getElementById("clienteModalOverlay").classList.add("show");
 }
 
-function closeClienteModal() {
-  document.getElementById("clienteModalOverlay").classList.remove("show");
+async function excluirClienteAtual() {
+  const nome = currentClienteModalNome;
+  if (!nome) return;
+  const temVenda = state.vendas.some(v => v.cliente === nome);
+  if (temVenda) {
+    toast("Não é possível excluir: esse cliente já tem vendas registradas.");
+    return;
+  }
+  const motivo = await motivoModal("Excluir cliente?", `Remover "${nome}" do cadastro? Informe o motivo da exclusão.`);
+  if (!motivo) return;
+  const { error } = await sb.from("clientes").delete().eq("nome", nome);
+  if (error) { toast("Erro ao excluir: " + error.message); return; }
+  await registrarLog("clientes", nome, "exclusao", motivo, nome);
+  state.clientes = state.clientes.filter(c => c.nome !== nome);
   currentClienteModalNome = null;
-  cancelarEdicaoCliente();
+  document.getElementById("clienteDetalheConteudo").style.display = "none";
+  document.getElementById("clienteDetalheVazio").style.display = "";
+  renderClientes();
+  renderClienteSelect();
+  toast("Cliente removido.");
 }
 
 function abrirEdicaoCliente() {
@@ -5796,6 +5901,7 @@ async function init() {
   document.getElementById("prodSearch").addEventListener("input", renderProdutos);
   document.getElementById("freteSearch").addEventListener("input", renderFretes);
   document.getElementById("cliSearch").addEventListener("input", renderClientes);
+  document.getElementById("cliFiltroTag").addEventListener("change", renderClientes);
   // filtro único da tela de Faturamento (ver getVendasFiltradas()) -- qualquer um
   // desses 6 controles precisa atualizar KPIs, análises E a tabela de vendas juntos.
   const aplicarFiltroFaturamento = () => { vendasMostrarTodas = false; renderFaturamento(); renderVendas(); };
@@ -5821,15 +5927,12 @@ async function init() {
     if (e.target.id === "processoModalOverlay") closeProcessoModal();
   });
 
-  document.getElementById("clienteModalClose").addEventListener("click", closeClienteModal);
   document.getElementById("btnEditarCliente").addEventListener("click", abrirEdicaoCliente);
+  document.getElementById("btnExcluirCliente").addEventListener("click", excluirClienteAtual);
   document.getElementById("btnCancelarEdicaoCliente").addEventListener("click", cancelarEdicaoCliente);
   document.getElementById("formEditarCliente").addEventListener("submit", (e) => {
     e.preventDefault();
     salvarEdicaoCliente();
-  });
-  document.getElementById("clienteModalOverlay").addEventListener("click", (e) => {
-    if (e.target.id === "clienteModalOverlay") closeClienteModal();
   });
 
   document.getElementById("btnMesclarClientes").addEventListener("click", abrirMesclarClientesModal);
