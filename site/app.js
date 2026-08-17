@@ -3627,7 +3627,7 @@ function renderDashboard() {
   document.getElementById("statsIndicadores").innerHTML = [
     { lbl: "Faturamento", val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
     { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
-    { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt) },
+    { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true) },
     { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) }
   ].map(s => `
     <div class="dash-stat-tile">
@@ -3767,7 +3767,7 @@ function renderFaturamento() {
   document.getElementById("fatKpis").innerHTML = [
     { lbl: "Faturamento no período", val: formatMoney(totalFaturamento), accent: true, delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
     { lbl: "Pneus vendidos", val: fmt(totalPneus), delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
-    { lbl: "Total de comissão", val: formatMoney(totalComissao), delta: dashDeltaHtml(totalComissao, totalComissaoAnt) },
+    { lbl: "Total de comissão", val: formatMoney(totalComissao), delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true) },
     { lbl: "Custo de frete", val: formatMoney(totalFrete), delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) },
     { lbl: "Diferença Trademaster", val: formatMoney(totalDiferencaTrademaster),
       delta: `<div class="delta neutral">${vendasTrademaster.length ? `${fmt(vendasTrademaster.length)} boleto(s) no período` : "nenhum boleto Trademaster"}</div>` }
