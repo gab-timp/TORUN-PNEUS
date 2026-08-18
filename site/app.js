@@ -2890,6 +2890,30 @@ function initNavGroups() {
   });
 }
 
+// mesmo padrão de localStorage do menu lateral (ver NAV_GRUPOS_KEY acima) --
+// aqui é a sidebar inteira que recolhe pra uma barra só de ícones, recurso
+// só de tela larga (o botão some no celular, ver media query em styles.css).
+const SIDEBAR_COLAPSADA_KEY = "torun_sidebar_recolhida_v1";
+function initSidebarCollapse() {
+  const sidebar = document.getElementById("sidebar");
+  const btn = document.getElementById("btnSidebarCollapse");
+  if (!sidebar || !btn) return;
+  const aplicarEstado = (recolhida) => {
+    sidebar.classList.toggle("collapsed", recolhida);
+    // a classe vai no botão também (em vez de um seletor irmão tipo
+    // ".sidebar.collapsed ~ .sidebar-collapse-btn" no CSS) -- mais direto
+    // e evita depender de invalidação de seletor irmão entre elementos.
+    btn.classList.toggle("collapsed", recolhida);
+    btn.title = recolhida ? "Expandir menu" : "Recolher menu";
+  };
+  aplicarEstado(localStorage.getItem(SIDEBAR_COLAPSADA_KEY) === "1");
+  btn.addEventListener("click", () => {
+    const recolhida = !sidebar.classList.contains("collapsed");
+    aplicarEstado(recolhida);
+    localStorage.setItem(SIDEBAR_COLAPSADA_KEY, recolhida ? "1" : "0");
+  });
+}
+
 function initKanbanColumnsCollapse() {
   document.querySelectorAll(".kanban-col").forEach(col => {
     if (currentUserKanbanColapsadas.includes(col.dataset.etapa)) {
@@ -6004,6 +6028,7 @@ async function init() {
   initCollapsibleCards();
   initKanbanColumnsCollapse();
   initNavGroups();
+  initSidebarCollapse();
   initMinhasConfiguracoes();
   initSino();
   initAdministracao();

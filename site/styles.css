@@ -365,6 +365,70 @@ body.is-admin .nav-item.admin-only{display:flex;}
   padding:8px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit;
 }
 
+/* ---------------- sidebar recolhível (desktop) ---------------- */
+.brand-logo-mini{display:none; width:34px; height:34px; border-radius:8px;}
+.sidebar.collapsed .brand-logo,
+.sidebar.collapsed .brand-sub{display:none;}
+.sidebar.collapsed .brand-logo-mini{display:block;}
+
+.sidebar.collapsed{width:72px; flex:0 0 72px; padding:22px 8px;}
+.sidebar.collapsed .nav-label{
+  height:0; padding:0; margin:10px 0; border-top:1px solid rgba(255,255,255,.1); overflow:hidden;
+}
+/* com font-size:0 some só o texto solto do botão (o ícone svg tem tamanho
+   próprio em px, não em em, então não encolhe junto) -- evita ter que
+   embrulhar o rótulo de cada um dos itens do menu numa <span> só pra isso */
+.sidebar.collapsed .nav-item{
+  justify-content:center; padding:10px; width:44px; margin:0 auto; font-size:0; position:relative;
+}
+.sidebar.collapsed .nav-badge{display:none;}
+.sidebar.collapsed .nav-item::after{
+  content:attr(data-label);
+  position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%);
+  background:var(--black); color:var(--white);
+  font-size:12px; font-weight:600; white-space:nowrap;
+  padding:6px 10px; border-radius:7px; box-shadow:var(--shadow-modal);
+  opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:15;
+}
+.sidebar.collapsed .nav-item:hover::after{opacity:1;}
+
+.sidebar.collapsed .theme-toggle{flex-direction:column;}
+.sidebar.collapsed .viewer-badge{display:none;}
+.sidebar.collapsed .ghost-btn{
+  display:flex; align-items:center; justify-content:center; padding:8px; width:36px; margin:0 auto; position:relative;
+}
+.sidebar.collapsed .ghost-btn-label{display:none;}
+.sidebar.collapsed .ghost-btn::after{
+  content:attr(data-label);
+  position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%);
+  background:var(--black); color:var(--white);
+  font-size:12px; font-weight:600; white-space:nowrap;
+  padding:6px 10px; border-radius:7px; box-shadow:var(--shadow-modal);
+  opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:15;
+}
+.sidebar.collapsed .ghost-btn:hover::after{opacity:1;}
+.sidebar.collapsed .help-card{display:none;}
+
+/* botão que recolhe/expande a sidebar -- fixed (não absolute): a sidebar
+   usa position:sticky e é a página inteira que rola (não só o .main), então
+   um botão absolute ia ficar preso ao topo do .shell e sumir de vista assim
+   que a página descesse. Fixed acompanha a sidebar em qualquer scroll. */
+.sidebar-collapse-btn{
+  position:fixed; top:26px; left:239px;
+  width:34px; height:34px; border-radius:50%;
+  background:var(--orange); color:var(--white);
+  border:2px solid var(--surface); box-shadow:0 3px 10px -1px rgba(255,106,19,.55);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; z-index:20; transition:left .2s ease, background .12s ease, transform .12s ease;
+}
+.sidebar-collapse-btn.collapsed{left:81px;}
+.sidebar-collapse-btn:hover{background:var(--orange-deep); transform:scale(1.08);}
+.sidebar-collapse-btn svg{width:19px; height:19px;}
+.sidebar-collapse-btn .scb-fill{fill:currentColor; stroke:none; transition:opacity .15s ease;}
+.sidebar-collapse-btn .scb-fill-right{opacity:0;}
+.sidebar-collapse-btn.collapsed .scb-fill-left{opacity:0;}
+.sidebar-collapse-btn.collapsed .scb-fill-right{opacity:1;}
+
 /* ---------------- topbar ---------------- */
 .topbar{
   display:flex;
@@ -376,6 +440,9 @@ body.is-admin .nav-item.admin-only{display:flex;}
   z-index:10;
   background:var(--paper);
   padding:6px 0;
+  margin-left:20px; /* única faixa na mesma altura do botão de recolher a sidebar
+    (.sidebar-collapse-btn) -- esse respiro evita que ele cubra a busca; o resto
+    do conteúdo de .main fica mais abaixo e não precisa disso */
 }
 .topbar-search{
   flex:1;
@@ -1080,7 +1147,14 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   }
   .sidebar.open{transform:translateX(0);}
   .brand-logo{width:150px;}
-  .topbar{position:static; flex-wrap:wrap; gap:10px;}
+  .topbar{position:static; flex-wrap:wrap; gap:10px; margin-left:0;}
+
+  /* recolher é recurso de tela larga -- no celular a sidebar continua sendo
+     a gaveta de sempre, então o botão some e um "collapsed" que tenha
+     sobrado de uma sessão no desktop (mesmo localStorage) não pode encolher
+     a gaveta aqui */
+  .sidebar-collapse-btn{display:none;}
+  .sidebar.collapsed{width:250px; flex:none; padding:22px 16px;}
 }
 
 @media (max-width:480px){

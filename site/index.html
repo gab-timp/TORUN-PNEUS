@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=118">
+<link rel="stylesheet" href="styles.css?v=119">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -131,59 +131,60 @@
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <img src="assets/logo-dark.png" alt="Torun Pneus" class="brand-logo">
+      <img src="assets/favicon.png" alt="Torun Pneus" class="brand-logo-mini">
       <span class="brand-sub">Controle de Estoque</span>
     </div>
 
     <nav class="nav">
-      <button class="nav-item active" data-view="dashboard">
+      <button class="nav-item active" data-view="dashboard" data-label="Dashboard">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
       </button>
 
       <div class="nav-group" data-group="estoque">
         <button type="button" class="nav-label">Estoque <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
-        <button class="nav-item" data-view="estoque">
+        <button class="nav-item" data-view="estoque" data-label="Estoque">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-box"/></svg> Estoque
           <span class="nav-badge" id="navBadgeEstoque" style="display:none;"></span>
         </button>
-        <button class="nav-item" data-view="previsto">
+        <button class="nav-item" data-view="previsto" data-label="Estoque Previsto">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-calendar"/></svg> Estoque Previsto
         </button>
-        <button class="nav-item" data-view="movimentacoes">
+        <button class="nav-item" data-view="movimentacoes" data-label="Movimentações">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-swap"/></svg> Movimentações
         </button>
-        <button class="nav-item" data-view="produtos">
+        <button class="nav-item" data-view="produtos" data-label="Produtos">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-tag"/></svg> Produtos
         </button>
-        <button class="nav-item" data-view="catalogo">
+        <button class="nav-item" data-view="catalogo" data-label="Catálogo">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg> Catálogo
         </button>
       </div>
 
       <div class="nav-group" data-group="comercial">
         <button type="button" class="nav-label">Comercial <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
-        <button class="nav-item" data-view="faturamento">
+        <button class="nav-item" data-view="faturamento" data-label="Faturamento">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg> Faturamento
         </button>
-        <button class="nav-item" data-view="clientes">
+        <button class="nav-item" data-view="clientes" data-label="Clientes">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
         </button>
-        <button class="nav-item" data-view="fretes">
+        <button class="nav-item" data-view="fretes" data-label="Fretes">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Fretes
         </button>
-        <button class="nav-item" data-view="entregas">
+        <button class="nav-item" data-view="entregas" data-label="Entregas">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg> Entregas
         </button>
       </div>
 
       <div class="nav-group" data-group="gestao">
         <button type="button" class="nav-label">Gestão <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
-        <button class="nav-item" data-view="relatorios">
+        <button class="nav-item" data-view="relatorios" data-label="Relatórios">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatórios
         </button>
-        <button class="nav-item" data-view="historico">
+        <button class="nav-item" data-view="historico" data-label="Histórico">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-history"/></svg> Histórico
         </button>
-        <button class="nav-item admin-only" data-view="administracao">
+        <button class="nav-item admin-only" data-view="administracao" data-label="Administração">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-settings"/></svg> Administração
         </button>
       </div>
@@ -196,10 +197,10 @@
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
       </div>
       <div class="viewer-badge">Modo somente leitura</div>
-      <button class="ghost-btn admin-only" id="btnExport">⬇ Exportar backup (JSON)</button>
-      <button class="ghost-btn admin-only" id="btnImport">⬆ Importar backup</button>
-      <button class="ghost-btn admin-only" id="btnReset">↻ Restaurar dados iniciais</button>
-      <button class="ghost-btn" id="btnLogout">⎋ Sair</button>
+      <button class="ghost-btn admin-only" id="btnExport" data-label="Exportar backup (JSON)">⬇ <span class="ghost-btn-label">Exportar backup (JSON)</span></button>
+      <button class="ghost-btn admin-only" id="btnImport" data-label="Importar backup">⬆ <span class="ghost-btn-label">Importar backup</span></button>
+      <button class="ghost-btn admin-only" id="btnReset" data-label="Restaurar dados iniciais">↻ <span class="ghost-btn-label">Restaurar dados iniciais</span></button>
+      <button class="ghost-btn" id="btnLogout" data-label="Sair">⎋ <span class="ghost-btn-label">Sair</span></button>
       <div class="sidebar-divider"></div>
       <div class="help-card">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-help"/></svg>
@@ -209,6 +210,15 @@
       </div>
     </div>
   </aside>
+
+  <button type="button" class="sidebar-collapse-btn" id="btnSidebarCollapse" title="Recolher menu">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2.5" y="3.5" width="15" height="13" rx="3"/>
+      <path d="M8 3.5v13"/>
+      <path class="scb-fill scb-fill-left" d="M8 3.5H5.5A3 3 0 0 0 2.5 6.5V13.5A3 3 0 0 0 5.5 16.5H8Z"/>
+      <path class="scb-fill scb-fill-right" d="M8 3.5H14.5A3 3 0 0 1 17.5 6.5V13.5A3 3 0 0 1 14.5 16.5H8Z"/>
+    </svg>
+  </button>
 
   <!-- ============================================================ -->
   <!-- MAIN                                                          -->
@@ -2120,6 +2130,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=134"></script>
+<script src="app.js?v=135"></script>
 </body>
 </html>
