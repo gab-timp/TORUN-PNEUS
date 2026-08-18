@@ -718,11 +718,13 @@
 
       <div class="kpis" id="freteKpis"></div>
 
-      <div class="card write-ui">
+      <div class="card write-ui card-collapsible collapsed" data-collapse-key="frete-nova-cotacao">
         <div class="card-head">
           <h2 id="freteFormTitle">Nova cotação</h2>
           <div class="note" id="freteEditBanner" style="display:none;">Editando cotação · <a href="#" id="freteCancelEdit">cancelar edição</a></div>
+          <span class="card-toggle">⌄</span>
         </div>
+        <div class="card-body">
         <form id="formFrete">
           <div class="form-row">
             <div class="field">
@@ -763,6 +765,7 @@
             <button type="submit" class="btn primary" id="btnSubmitFrete">Registrar cotação</button>
           </div>
         </form>
+        </div>
       </div>
 
       <div class="card">
@@ -772,6 +775,13 @@
         </div>
         <div class="search-row">
           <input type="text" id="freteSearch" placeholder="Buscar por referência, localidade ou transportadora…">
+          <select id="freteFiltroStatus">
+            <option value="">Todos os status</option>
+            <option value="pendente">Aguardando decisão</option>
+            <option value="ok">Já contratado</option>
+          </select>
+          <input type="date" id="freteFiltroDe">
+          <input type="date" id="freteFiltroAte">
         </div>
         <div id="freteList"></div>
         <div class="empty-state" id="freteEmpty" style="display:none;">Nenhuma cotação registrada ainda.</div>
@@ -2110,6 +2120,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=133"></script>
+<script src="app.js?v=134"></script>
 </body>
 </html>

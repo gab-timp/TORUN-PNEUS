@@ -2076,6 +2076,9 @@ function renderFreteKpis() {
 function renderFretes() {
   renderFreteKpis();
   const search = (document.getElementById("freteSearch").value || "").trim().toLowerCase();
+  const filtroStatus = document.getElementById("freteFiltroStatus").value;
+  const de = document.getElementById("freteFiltroDe").value;
+  const ate = document.getElementById("freteFiltroAte").value;
 
   let rows = state.fretes.slice();
   if (search) {
@@ -2084,7 +2087,18 @@ function renderFretes() {
       return hay.includes(search);
     });
   }
-  rows.sort((a, b) => (b.data + b.createdAt).localeCompare(a.data + a.createdAt));
+  if (filtroStatus === "pendente") rows = rows.filter(f => !f.contratadaId);
+  if (filtroStatus === "ok") rows = rows.filter(f => f.contratadaId);
+  if (de) rows = rows.filter(f => f.data >= de);
+  if (ate) rows = rows.filter(f => f.data <= ate);
+
+  // pendentes primeiro (mais antiga primeiro -- é a que está esperando decisão
+  // há mais tempo), depois os já contratados (mais recente primeiro) -- sem essa
+  // separação, uma cotação pendente antiga ficava enterrada embaixo de outras
+  // mais novas já decididas, só por causa da ordenação por data.
+  const pendentes = rows.filter(f => !f.contratadaId).sort((a, b) => a.data.localeCompare(b.data));
+  const contratados = rows.filter(f => f.contratadaId).sort((a, b) => (b.data + b.createdAt).localeCompare(a.data + a.createdAt));
+  rows = [...pendentes, ...contratados];
 
   document.getElementById("freteCount").textContent = `${rows.length} de ${state.fretes.length} cotações`;
 
@@ -2101,6 +2115,8 @@ function renderFretes() {
   wrap.innerHTML = rows.map(f => {
     const cotacoes = (f.cotacoes || []).slice().sort((a, b) => a.valorFrete - b.valorFrete);
     const min = cotacoes.length ? cotacoes[0].valorFrete : null;
+    const max = cotacoes.length ? Math.max(...cotacoes.map(c => c.valorFrete)) : 1;
+    const pendente = !f.contratadaId;
 
     const linhas = cotacoes.map(c => {
       const pct = f.valorNF ? (c.valorFrete / f.valorNF * 100) : null;
@@ -2109,7 +2125,7 @@ function renderFretes() {
       return `
         <tr class="${isContratada ? "frete-row-contratada" : ""}">
           <td>${escapeHtml(c.transportadora || "—")}${isMin ? '<span class="badge-mini barata">mais barata</span>' : ""}${isContratada ? '<span class="badge-mini contratada">contratada</span>' : ""}</td>
-          <td class="num mono">${formatMoney(c.valorFrete)}</td>
+          <td class="num">${valorBarCellHtml(c.valorFrete, max)}</td>
           <td class="num mono">${pct !== null ? pct.toFixed(1).replace(".", ",") + "%" : "—"}</td>
           <td>
             <span class="write-ui">
@@ -2126,7 +2142,10 @@ function renderFretes() {
     return `
       <div class="frete-group">
         <div class="frete-group-head">
-          <div><span class="mono frete-ref">${escapeHtml(f.referencia)}</span>${f.localidade ? `<span class="muted"> · ${escapeHtml(f.localidade)}</span>` : ""}${f.cep ? `<span class="muted"> · CEP ${escapeHtml(f.cep)}</span>` : ""}</div>
+          <div>
+            <span class="mono frete-ref">${escapeHtml(f.referencia)}</span>${f.localidade ? `<span class="muted"> · ${escapeHtml(f.localidade)}</span>` : ""}${f.cep ? `<span class="muted"> · CEP ${escapeHtml(f.cep)}</span>` : ""}
+            <span class="status-pill ${pendente ? "pill-atencao" : "pill-normal"}" style="margin-left:8px;">${pendente ? "Aguardando decisão" : "Contratado"}</span>
+          </div>
           <div class="frete-group-meta">
             ${f.valorNF ? `<span class="muted">NF: ${formatMoney(f.valorNF)}</span>` : ""}
             <span class="muted">${formatDateBR(f.data)}</span>
@@ -2241,7 +2260,9 @@ function startEditFrete(freteId) {
   document.getElementById("freteFormTitle").textContent = "Editar cotação";
   document.getElementById("freteEditBanner").style.display = "block";
   document.getElementById("btnSubmitFrete").textContent = "Salvar alterações";
-  document.getElementById("formFrete").scrollIntoView({ behavior: "smooth", block: "center" });
+  const formFrete = document.getElementById("formFrete");
+  formFrete.closest(".card-collapsible")?.classList.remove("collapsed"); // nasce fechada -- abre pra mostrar o formulário preenchido
+  formFrete.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function cancelEditFrete() {
@@ -5090,6 +5111,7 @@ function initForms() {
 
   document.getElementById("freteCancelEdit").addEventListener("click", (e) => {
     e.preventDefault();
+    e.stopPropagation(); // fica dentro do card-head do "Nova cotação" -- sem isso também alterna o colapso do card
     cancelEditFrete();
   });
 
@@ -5904,6 +5926,9 @@ async function init() {
 
   document.getElementById("prodSearch").addEventListener("input", renderProdutos);
   document.getElementById("freteSearch").addEventListener("input", renderFretes);
+  ["freteFiltroStatus", "freteFiltroDe", "freteFiltroAte"].forEach(id => {
+    document.getElementById(id).addEventListener("change", renderFretes);
+  });
   document.getElementById("cliSearch").addEventListener("input", renderClientes);
   document.getElementById("cliFiltroTag").addEventListener("change", renderClientes);
   // filtro único da tela de Faturamento (ver getVendasFiltradas()) -- qualquer um
