@@ -4321,7 +4321,16 @@ function buscaGeralResultados(query) {
       (e.cliente || "").toLowerCase().includes(q) ||
       (e.transportadora || "").toLowerCase().includes(q))
     .slice(0, 4);
-  return { produtos, clientes, entregas };
+  // NF de venda/entrada mora em vendas (Faturamento), não em entregas --
+  // são registros separados, então entram como grupo próprio na busca.
+  const vendas = state.vendas
+    .filter(v =>
+      (v.numeroNFVenda || "").toLowerCase().includes(q) ||
+      (v.numeroNFEntrada || "").toLowerCase().includes(q) ||
+      (v.numeroPedido || "").toLowerCase().includes(q) ||
+      (v.cliente || "").toLowerCase().includes(q))
+    .slice(0, 4);
+  return { produtos, clientes, entregas, vendas };
 }
 
 function marcarTrechoBusca(texto, query) {
@@ -4341,6 +4350,7 @@ function irParaResultadoBusca(view, id) {
   if (view === "produtos") abrirProdutoEditDrawer(id);
   if (view === "clientes") openClienteModal(id);
   if (view === "entregas") openPedidoModal(id);
+  if (view === "faturamento") startEditVenda(id);
 }
 
 function renderBuscaGeral() {
@@ -4356,8 +4366,8 @@ function renderBuscaGeral() {
     return;
   }
 
-  const { produtos, clientes, entregas } = resultados;
-  if (produtos.length + clientes.length + entregas.length === 0) {
+  const { produtos, clientes, entregas, vendas } = resultados;
+  if (produtos.length + clientes.length + entregas.length + vendas.length === 0) {
     list.innerHTML = `<div class="search-empty">Nada encontrado pra "${escapeHtml(q.trim())}".</div>`;
     dropdown.classList.add("show");
     return;
@@ -4399,6 +4409,24 @@ function renderBuscaGeral() {
         <span class="search-item-body">
           <span class="search-item-titulo">${titulo} · ${escapeHtml(e.cliente || "")}</span>
           <span class="search-item-desc">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "")}</span>
+        </span>
+      </div>
+    `;
+    }).join("");
+  }
+  if (vendas.length) {
+    if (produtos.length || clientes.length || entregas.length) html += `<div class="search-divider"></div>`;
+    html += `<div class="search-group-head">Faturamento</div>` + vendas.map(v => {
+      const titulo = v.numeroNFVenda ? "NF " + marcarTrechoBusca(v.numeroNFVenda, q)
+        : v.numeroNFEntrada ? "NF entrada " + marcarTrechoBusca(v.numeroNFEntrada, q)
+        : v.numeroPedido ? "Pedido " + marcarTrechoBusca(v.numeroPedido, q)
+        : marcarTrechoBusca(v.cliente || "", q);
+      return `
+      <div class="search-item" data-buscaview="faturamento" data-buscaid="${escapeAttr(v.id)}">
+        <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg></span>
+        <span class="search-item-body">
+          <span class="search-item-titulo">${titulo} · ${escapeHtml(v.cliente || "")}</span>
+          <span class="search-item-desc">${formatMoney(v.valorVenda || 0)} · ${formatDateBR(v.data)}</span>
         </span>
       </div>
     `;
