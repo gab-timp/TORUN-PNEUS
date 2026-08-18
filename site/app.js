@@ -4301,6 +4301,152 @@ function initSino() {
   });
 }
 
+/* ---------------- busca geral (topbar) ---------------- */
+
+// mesmo componente visual do dropdown de notificações (ver .sino-dropdown/
+// .sino-item em styles.css), só que com resultados agrupados por tipo.
+function buscaGeralResultados(query) {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return null;
+  const produtos = state.produtos
+    .filter(p => p.codigo.toLowerCase().includes(q) || p.medida.toLowerCase().includes(q))
+    .slice(0, 4);
+  const clientes = state.clientes
+    .filter(c => c.nome.toLowerCase().includes(q) || (c.documento || "").toLowerCase().includes(q))
+    .slice(0, 4);
+  const entregas = state.entregas
+    .filter(e =>
+      (e.numeroNF || "").toLowerCase().includes(q) ||
+      (e.numeroPedido || "").toLowerCase().includes(q) ||
+      (e.cliente || "").toLowerCase().includes(q) ||
+      (e.transportadora || "").toLowerCase().includes(q))
+    .slice(0, 4);
+  return { produtos, clientes, entregas };
+}
+
+function marcarTrechoBusca(texto, query) {
+  const idx = texto.toLowerCase().indexOf(query.trim().toLowerCase());
+  if (idx === -1) return escapeHtml(texto);
+  return escapeHtml(texto.slice(0, idx)) + "<mark>" + escapeHtml(texto.slice(idx, idx + query.trim().length)) + "</mark>" + escapeHtml(texto.slice(idx + query.trim().length));
+}
+
+function fecharBuscaGeral() {
+  document.getElementById("searchDropdown").classList.remove("show");
+}
+
+function irParaResultadoBusca(view, id) {
+  fecharBuscaGeral();
+  document.getElementById("topbarSearch").value = "";
+  setView(view);
+  if (view === "produtos") abrirProdutoEditDrawer(id);
+  if (view === "clientes") openClienteModal(id);
+  if (view === "entregas") openPedidoModal(id);
+}
+
+function renderBuscaGeral() {
+  const input = document.getElementById("topbarSearch");
+  const dropdown = document.getElementById("searchDropdown");
+  const list = document.getElementById("searchDropdownList");
+  const q = input.value;
+  const resultados = buscaGeralResultados(q);
+
+  if (resultados === null) {
+    list.innerHTML = `<div class="search-empty">Digite pelo menos 2 letras…</div>`;
+    dropdown.classList.add("show");
+    return;
+  }
+
+  const { produtos, clientes, entregas } = resultados;
+  if (produtos.length + clientes.length + entregas.length === 0) {
+    list.innerHTML = `<div class="search-empty">Nada encontrado pra "${escapeHtml(q.trim())}".</div>`;
+    dropdown.classList.add("show");
+    return;
+  }
+
+  let html = "";
+  if (produtos.length) {
+    html += `<div class="search-group-head">Produtos</div>` + produtos.map(p => `
+      <div class="search-item" data-buscaview="produtos" data-buscaid="${escapeAttr(p.codigo)}">
+        <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-tag"/></svg></span>
+        <span class="search-item-body">
+          <span class="search-item-titulo">${marcarTrechoBusca(p.codigo, q)}</span>
+          <span class="search-item-desc">${escapeHtml(p.medida)}</span>
+        </span>
+      </div>
+    `).join("");
+  }
+  if (clientes.length) {
+    if (produtos.length) html += `<div class="search-divider"></div>`;
+    html += `<div class="search-group-head">Clientes</div>` + clientes.map(c => `
+      <div class="search-item" data-buscaview="clientes" data-buscaid="${escapeAttr(c.nome)}">
+        <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg></span>
+        <span class="search-item-body">
+          <span class="search-item-titulo">${marcarTrechoBusca(c.nome, q)}</span>
+          <span class="search-item-desc">${escapeHtml(c.documento || c.cidade || "")}</span>
+        </span>
+      </div>
+    `).join("");
+  }
+  if (entregas.length) {
+    if (produtos.length || clientes.length) html += `<div class="search-divider"></div>`;
+    html += `<div class="search-group-head">Pedidos</div>` + entregas.map(e => {
+      const titulo = e.numeroNF ? "NF " + marcarTrechoBusca(e.numeroNF, q)
+        : e.numeroPedido ? "Pedido " + marcarTrechoBusca(e.numeroPedido, q)
+        : marcarTrechoBusca(e.cliente || "", q);
+      return `
+      <div class="search-item" data-buscaview="entregas" data-buscaid="${escapeAttr(e.id)}">
+        <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg></span>
+        <span class="search-item-body">
+          <span class="search-item-titulo">${titulo} · ${escapeHtml(e.cliente || "")}</span>
+          <span class="search-item-desc">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "")}</span>
+        </span>
+      </div>
+    `;
+    }).join("");
+  }
+
+  list.innerHTML = html;
+  dropdown.classList.add("show");
+  list.querySelectorAll("[data-buscaview]").forEach(el => {
+    el.addEventListener("click", () => irParaResultadoBusca(el.dataset.buscaview, el.dataset.buscaid));
+  });
+}
+
+function initBuscaGeral() {
+  const input = document.getElementById("topbarSearch");
+  if (!input) return;
+  input.addEventListener("input", renderBuscaGeral);
+  input.addEventListener("focus", () => { if (input.value.trim()) renderBuscaGeral(); });
+  input.addEventListener("keydown", (e) => {
+    const list = document.getElementById("searchDropdownList");
+    const itens = Array.from(list.querySelectorAll(".search-item"));
+    if (e.key === "Escape") { fecharBuscaGeral(); input.blur(); return; }
+    if (!itens.length) return;
+    let atual = itens.findIndex(el => el.classList.contains("active"));
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (atual >= 0) itens[atual].classList.remove("active");
+      atual = (atual + 1) % itens.length;
+      itens[atual].classList.add("active");
+      itens[atual].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (atual >= 0) itens[atual].classList.remove("active");
+      atual = atual <= 0 ? itens.length - 1 : atual - 1;
+      itens[atual].classList.add("active");
+      itens[atual].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const alvo = atual >= 0 ? itens[atual] : itens[0];
+      irParaResultadoBusca(alvo.dataset.buscaview, alvo.dataset.buscaid);
+    }
+  });
+  document.addEventListener("click", (e) => {
+    const wrap = document.querySelector(".topbar-search");
+    if (wrap && !wrap.contains(e.target)) fecharBuscaGeral();
+  });
+}
+
 function abrirMesclarClientesModal() {
   const nomes = Array.from(clientesSelecionadosParaMesclar);
   if (nomes.length < 2) return;
@@ -6031,6 +6177,7 @@ async function init() {
   initSidebarCollapse();
   initMinhasConfiguracoes();
   initSino();
+  initBuscaGeral();
   initAdministracao();
   const btnCentralAjuda = document.getElementById("btnCentralAjuda");
   if (btnCentralAjuda) btnCentralAjuda.addEventListener("click", () => toast("Central de ajuda ainda não está disponível — fale com o time por enquanto."));

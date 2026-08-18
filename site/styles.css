@@ -509,6 +509,43 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .sino-item-titulo{font-size:12.5px; font-weight:700; color:var(--ink);}
 .sino-item-desc{font-size:11.5px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .sino-item-tempo{font-size:10px; color:var(--ink-soft); font-family:'Space Mono',monospace;}
+
+/* ---------------- busca geral (topbar) ---------------- */
+.topbar-search{position:relative;}
+.search-dropdown{
+  position:absolute; top:calc(100% + 10px); left:0; width:100%; min-width:320px; max-height:420px;
+  display:none; flex-direction:column; overflow:hidden;
+  background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  box-shadow:var(--shadow-modal); z-index:65;
+}
+.search-dropdown.show{display:flex;}
+.search-dropdown-list{overflow-y:auto; flex:1 1 auto;}
+.search-group-head{
+  padding:10px 16px 6px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--ink-soft);
+}
+.search-item{
+  display:flex; gap:10px; align-items:flex-start; padding:9px 16px; cursor:pointer;
+  transition:background .12s ease;
+}
+.search-item:hover, .search-item.active{background:var(--paper-2);}
+.search-item-icon{
+  flex:0 0 auto; width:26px; height:26px; border-radius:8px; background:var(--orange-pale);
+  color:var(--orange-deep); display:flex; align-items:center; justify-content:center;
+}
+.search-item-icon .ic{width:14px; height:14px;}
+.search-item-body{display:flex; flex-direction:column; gap:1px; min-width:0;}
+.search-item-titulo{font-size:12.5px; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.search-item-titulo mark{background:var(--orange-pale); color:var(--orange-deep); border-radius:3px; padding:0 1px;}
+.search-item-desc{font-size:11.5px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.search-divider{height:1px; background:var(--line); margin:2px 0;}
+.search-empty{padding:26px 16px; font-size:12.5px; color:var(--ink-soft); text-align:center;}
+.search-hint{padding:8px 16px; font-size:11px; color:var(--ink-soft); border-top:1px solid var(--line); flex:0 0 auto;}
+.search-hint kbd{
+  background:var(--paper-2); border:1px solid var(--line); border-radius:4px; padding:1px 5px;
+  font-family:'Space Mono',monospace; font-size:10px;
+}
+
 .profile{
   display:flex; align-items:center; gap:9px;
   padding:6px 12px 6px 6px;
