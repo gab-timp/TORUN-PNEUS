@@ -1746,13 +1746,17 @@ function openCatalogoModal(codigo) {
 
   const fotoUrl = fotoProdutoUrl(p.fotoPath);
   const fotoUrl2 = fotoProdutoUrl(p.fotoPath2);
+  // índice calculado pela posição real no array já filtrado -- antes comparava
+  // "url === fotoUrl" pra decidir 0 ou 1, o que dava índice errado (fora dos
+  // limites) quando a foto 1 não existia e a 2 sim.
+  const fotosModal = [fotoUrl, fotoUrl2].filter(Boolean);
   [[1, fotoUrl, p.fotoPath], [2, fotoUrl2, p.fotoPath2]].forEach(([slot, url, path]) => {
     const previewEl = document.getElementById(`catalogoModalFotoPreview${slot}`);
     previewEl.classList.toggle("sem-foto", !url);
     previewEl.innerHTML = url
       ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(p.codigo)} - foto ${slot}">`
       : `<div class="catalogo-foto-placeholder">Sem foto</div>`;
-    previewEl.onclick = url ? () => openCatalogoFotoLightbox([fotoUrl, fotoUrl2].filter(Boolean), url === fotoUrl ? 0 : 1) : null;
+    previewEl.onclick = url ? () => openCatalogoFotoLightbox(fotosModal, fotosModal.indexOf(url)) : null;
     document.getElementById(`btnCatalogoRemoverFoto${slot}`).style.display = path ? "" : "none";
   });
 

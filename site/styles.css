@@ -1676,9 +1676,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .catalogo-specs-grid .lbl{display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:700;}
 .catalogo-specs-grid .val{display:block; margin-top:2px; font-weight:700; font-family:'Space Mono',monospace;}
-.catalogo-card-preco-row{display:flex; justify-content:space-between; align-items:center; gap:10px;}
 .catalogo-preco-condicao{font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:700;}
-.catalogo-preco-valor{font-size:20px; font-weight:800; color:var(--orange-deep); font-family:'Space Mono',monospace; margin-top:2px;}
 .catalogo-prazos-lista{margin-top:12px; padding-top:10px; border-top:1px solid var(--line);}
 .catalogo-prazo-row{
   display:flex; justify-content:space-between; padding:5px 0; font-size:12.5px;
@@ -1689,7 +1687,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .catalogo-prazos-matriz{margin-top:10px;}
 .catalogo-prazos-matriz .catalogo-preco-table{font-size:11.5px;}
 .catalogo-prazos-matriz th, .catalogo-prazos-matriz td{padding:5px 7px;}
-.catalogo-card-thumb{cursor:zoom-in;}
 .catalogo-foto-preview{cursor:zoom-in;}
 .catalogo-foto-preview.sem-foto{cursor:default;}
 
@@ -1716,8 +1713,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   position:absolute; bottom:-30px; left:50%; transform:translateX(-50%);
   color:var(--white); font-size:12.5px; font-weight:700; background:rgba(0,0,0,.5); padding:3px 10px; border-radius:20px;
 }
-.catalogo-card-thumbs{display:flex; gap:6px;}
-
 .catalogo-modal{max-width:760px; max-height:88vh; overflow-y:auto;}
 .catalogo-modal-foto-row{display:flex; gap:24px; align-items:flex-start; margin:14px 0; flex-wrap:wrap;}
 .catalogo-foto-slot{display:flex; gap:12px; align-items:flex-start; flex:1 1 200px;}
@@ -1726,6 +1721,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   background:var(--paper); display:flex; align-items:center; justify-content:center;
 }
 .catalogo-foto-preview img{width:100%; height:100%; object-fit:cover;}
+.catalogo-foto-placeholder{color:var(--ink-soft); font-size:12px; font-weight:700; text-align:center;}
 .catalogo-foto-actions{display:flex; flex-direction:column; gap:8px;}
 .catalogo-modal-info{
   display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; margin:14px 0;

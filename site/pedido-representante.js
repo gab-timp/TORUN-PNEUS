@@ -507,6 +507,7 @@ function renderRepCatalogo() {
       ["PSI", p.psi], ["Sulco (mm)", p.sulco_mm], ["Peso (kg)", p.peso_kg]
     ];
     const temAlgumSpec = specs.some(([, v]) => v);
+    const saldoProduto = computeSaldoProduto(p.codigo);
 
     const precoPorRegiao = CATALOGO_REGIOES.map(r => {
       const preco = getPrecoProdutoRep(p.codigo, r, tipoClienteAtual, condicaoAtual);
@@ -516,46 +517,62 @@ function renderRepCatalogo() {
       </div>`;
     }).join("");
 
+    // foto em destaque no topo do card -- mesmo layout já aplicado no Catálogo
+    // interno (site/app.js renderCatalogo()): 2 fotos dividem lado a lado, 1
+    // ocupa tudo, 0 mostra um placeholder neutro. Portal do representante é só
+    // leitura, então sem botão de editar specs/fotos aqui.
+    const slotsFoto = fotosCard.length > 0 ? fotosCard : [null];
+    const fotoHeroHtml = slotsFoto.map((url, i) => `
+      <div class="catalogo-card-foto-slot" ${url ? `data-repcatfoto="${escapeHtml(p.codigo)}" data-repcatfotoidx="${i}"` : ""}>
+        ${url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(p.codigo)}">` : `<div class="catalogo-foto-vazia"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></div>`}
+      </div>
+    `).join("");
+
     return `
       <div class="catalogo-card" data-repcatcard="${escapeHtml(p.codigo)}">
-        <div class="catalogo-card-top">
-          ${fotosCard.length ? `<div class="catalogo-card-thumbs">${fotosCard.map((url, i) => `<img class="catalogo-card-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(p.codigo)}" data-repcatfoto="${escapeHtml(p.codigo)}" data-repcatfotoidx="${i}">`).join("")}</div>` : ""}
+        <div class="catalogo-foto-hero">${fotoHeroHtml}</div>
+        <div class="catalogo-foto-overlay-top">
+          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(p.categoria)}</span>` : "<span></span>"}
+          <span class="status-pill pill-normal">${fmt(saldoProduto)} un.</span>
+        </div>
+        ${fotosCard.length > 1 ? `<span class="catalogo-foto-count"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg>${fotosCard.length} fotos</span>` : ""}
+
+        <div class="catalogo-card-body">
           <div class="catalogo-card-titulo-wrap">
             <div class="catalogo-card-titulo">${escapeHtml(p.modelo || p.codigo)}</div>
             <div class="catalogo-card-codigo mono muted">${escapeHtml(p.codigo)}</div>
           </div>
-          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(p.categoria)}</span>` : ""}
-        </div>
-        <div class="catalogo-card-medida">${escapeHtml(p.medida)}</div>
+          <div class="catalogo-card-medida">${escapeHtml(p.medida)}</div>
 
-        ${temAlgumSpec ? `
+          ${temAlgumSpec ? `
+            <div class="catalogo-card-divider"></div>
+            <div class="catalogo-specs-grid">
+              ${specs.map(([lbl, v]) => `<div><span class="lbl">${escapeHtml(lbl)}</span><span class="val">${v ? escapeHtml(v) : "—"}</span></div>`).join("")}
+            </div>
+          ` : ""}
+
           <div class="catalogo-card-divider"></div>
-          <div class="catalogo-specs-grid">
-            ${specs.map(([lbl, v]) => `<div><span class="lbl">${escapeHtml(lbl)}</span><span class="val">${v ? escapeHtml(v) : "—"}</span></div>`).join("")}
+          <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} · ${escapeHtml(condicaoAtual)}</div>
+          <div class="catalogo-prazos-lista aberto">
+            ${precoPorRegiao}
           </div>
-        ` : ""}
 
-        <div class="catalogo-card-divider"></div>
-        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} · ${escapeHtml(condicaoAtual)}</div>
-        <div class="catalogo-prazos-lista aberto">
-          ${precoPorRegiao}
-        </div>
-
-        <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
-        <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
-          ${aberto ? buildPrecoMatrixHtmlRep(p.codigo, tipoClienteAtual) : ""}
+          <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
+          <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
+            ${aberto ? buildPrecoMatrixHtmlRep(p.codigo, tipoClienteAtual) : ""}
+          </div>
         </div>
       </div>
     `;
   }).join("");
 
-  grid.querySelectorAll("[data-repcatfoto]").forEach(img => {
-    img.addEventListener("click", (e) => {
+  grid.querySelectorAll("[data-repcatfoto]").forEach(slotEl => {
+    slotEl.addEventListener("click", (e) => {
       e.stopPropagation();
-      const prod = produtos.find(x => x.codigo === img.dataset.repcatfoto);
+      const prod = produtos.find(x => x.codigo === slotEl.dataset.repcatfoto);
       if (!prod) return;
       const urls = [fotoProdutoUrlRep(prod.foto_path), fotoProdutoUrlRep(prod.foto_path_2)].filter(Boolean);
-      openCatalogoFotoLightbox(urls, Number(img.dataset.repcatfotoidx) || 0);
+      openCatalogoFotoLightbox(urls, Number(slotEl.dataset.repcatfotoidx) || 0);
     });
   });
   grid.querySelectorAll("[data-reptoggleprazos]").forEach(btn => {
