@@ -3427,11 +3427,60 @@ function dashTableHtml(rows, columns) {
   return `<div class="dash-table">${headHtml}${rowsHtml}</div>`;
 }
 
+// ---- mapa por estado (4º estilo dos cards "por Estado") ----
+// SVG buscado uma vez só (assets/mapa-brasil-estados.svg, contorno real dos
+// 27 estados) e reaproveitado -- fica em cache tanto em sucesso quanto em
+// falha da promise, então uma rede instável não faz o site tentar nunca mais.
+let mapaBrasilSvgPromise = null;
+function getMapaBrasilSvg() {
+  if (!mapaBrasilSvgPromise) {
+    mapaBrasilSvgPromise = fetch("assets/mapa-brasil-estados.svg").then(r => r.text());
+  }
+  return mapaBrasilSvgPromise;
+}
+
+function mixOrangeMapa(t) {
+  // interpola entre laranja claro e escuro da marca, com piso de 0.35 na
+  // intensidade -- sem isso, o menor valor real ficava quase ilegível, perto
+  // demais da cor de "sem dado"
+  const tt = 0.35 + t * 0.65;
+  const a = [255, 200, 163], b = [198, 79, 12];
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * tt));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// pinta e liga o tooltip do mapa já inserido dentro de `container` -- rows é
+// o mesmo [{label, value}] que os outros estilos (barra/rosca/tabela) usam,
+// label sendo a sigla do estado (UF) nesses três cards.
+function pintarMapaEstados(container, rows, { valueIsMoney = true, suffix = "" } = {}) {
+  const svgEl = container.querySelector(".dash-mapa-svg");
+  const tooltip = container.querySelector(".dash-mapa-tooltip");
+  if (!svgEl || !tooltip) return;
+  const dados = {};
+  rows.forEach(r => { dados[r.label] = r.value; });
+  const max = Math.max(0, ...Object.values(dados));
+  svgEl.querySelectorAll(".state[id]").forEach(el => {
+    const uf = el.id;
+    const valor = dados[uf] || 0;
+    const temDado = valor > 0;
+    el.style.fill = temDado ? mixOrangeMapa(max > 0 ? valor / max : 0) : "var(--mapa-sem-dado)";
+    el.onmousemove = (e) => {
+      const rect = container.getBoundingClientRect();
+      tooltip.style.left = (e.clientX - rect.left) + "px";
+      tooltip.style.top = (e.clientY - rect.top) + "px";
+      const valTxt = (valueIsMoney ? formatMoney(valor) : fmt(valor)) + suffix;
+      tooltip.innerHTML = temDado ? `${uf} · <b>${valTxt}</b>` : `${uf} · sem dado no período`;
+      tooltip.classList.add("show");
+    };
+    el.onmouseleave = () => tooltip.classList.remove("show");
+  });
+}
+
 // Despachante genérico: desenha um card de "categoria + valor" (rows: [{label, value}])
 // no estilo escolhido pelo usuário no seletor de "Escolher dashboards" (barra/rosca/
-// tabela, ver getDashCardEstilo()) -- monta o miolo do card (#bodyId) do zero a cada
-// chamada, então funciona junto com o resto de renderDashboard() rodando de novo a
-// cada mudança de filtro/realtime, do jeito que os outros cards já fazem.
+// tabela/mapa, ver getDashCardEstilo()) -- monta o miolo do card (#bodyId) do zero a
+// cada chamada, então funciona junto com o resto de renderDashboard() rodando de novo
+// a cada mudança de filtro/realtime, do jeito que os outros cards já fazem.
 function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney = true, suffix = "", horizontal = false, totalMode = "sum", maxRows = 6, tabelaRica = null } = {}) {
   const body = document.getElementById(bodyId);
   if (!body) return;
@@ -3454,6 +3503,24 @@ function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney 
         ]
       );
     }
+    return;
+  }
+
+  if (estilo === "mapa") {
+    body.innerHTML = `
+      <div class="dash-mapa-wrap"><div class="dash-mapa-tooltip"></div></div>
+      <div class="dash-mapa-legenda"><span>sem dado</span><span class="dash-mapa-legenda-barra"></span><span>maior valor</span></div>
+      <div class="dash-footer" id="${bodyId}Foot"></div>
+    `;
+    const wrap = body.querySelector(".dash-mapa-wrap");
+    getMapaBrasilSvg().then(svgText => {
+      // se o usuário já trocou de estilo/tela antes do fetch terminar, `wrap`
+      // não está mais no documento -- não faz sentido pintar um mapa órfão
+      if (!document.body.contains(wrap)) return;
+      wrap.insertAdjacentHTML("afterbegin", svgText);
+      pintarMapaEstados(body, rows, { valueIsMoney, suffix });
+    });
+    document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows });
     return;
   }
 
@@ -5883,6 +5950,13 @@ function buildDashPrintHtml(cardKey) {
         <tbody>${linhasHtml}</tbody>
       </table>
     `;
+  } else if (cardEl.querySelector(".dash-mapa-wrap")) {
+    // mapa: é SVG puro, imprime direto sem precisar converter pra imagem
+    // (mesmo mapa colorido que a pessoa está vendo na tela, clonado como está)
+    const mapaHtml = cardEl.querySelector(".dash-mapa-wrap").outerHTML;
+    const legendaEl = cardEl.querySelector(".dash-mapa-legenda");
+    const footerEl = cardEl.querySelector(".dash-footer");
+    conteudoHtml = `<div class="print-dash-mapa">${mapaHtml}${legendaEl ? legendaEl.outerHTML : ""}</div>${footerEl ? footerEl.outerHTML : ""}`;
   } else {
     const tiles = Array.from(cardEl.querySelectorAll(".dash-stat-tile"));
     conteudoHtml = `<div class="print-dash-stats">` + tiles.map(t => `

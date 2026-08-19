@@ -30,6 +30,10 @@
   --warning:#B45309;
   --warning-pale:#FEF3C7;
   --warning-border:#F59E0B;
+  /* estado sem dado no mapa do Dashboard -- tom dedicado, não reaproveita
+     --paper-2 (fica perto demais do fundo do card e some visualmente,
+     principalmente no escuro, onde --paper-2/--surface são quase a mesma cor) */
+  --mapa-sem-dado:#D8D2C4;
 }
 
 /* modo escuro: aplica quando o sistema pede e o usuario nao escolheu "claro",
@@ -45,6 +49,7 @@
     --line-strong:#D8D8D8;
     --tint-orange:#2A1F16;
     --tint-blue:#182236;
+    --mapa-sem-dado:#544C3C;
   }
 }
 :root[data-theme="dark"]{
@@ -55,6 +60,7 @@
   --paper-2:#1A1A1A;
   --line:#2C2C2C;
   --line-strong:#D8D8D8;
+  --mapa-sem-dado:#544C3C;
   --tint-orange:#2A1F16;
   --tint-blue:#182236;
 }
@@ -1375,6 +1381,31 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .dash-footer-total .lbl{color:var(--ink); font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;}
 .dash-footer-total .val{color:var(--orange); font-size:13px;}
 
+/* ---------------- dashboard: mapa por estado ---------------- */
+/* 4º estilo dos cards "por Estado" (Faturamento/Pneus/% Frete), ao lado de
+   Barra/Rosca/Tabela -- ver pintarMapaEstados() em app.js. O SVG do mapa
+   (assets/mapa-brasil-estados.svg) é buscado uma vez só e reaproveitado. */
+.dash-mapa-wrap{position:relative; height:220px; display:flex; align-items:center; justify-content:center;}
+.dash-mapa-svg{width:auto; height:100%; max-width:100%;}
+/* maior especificidade que o <style> já embutido dentro do SVG importado
+   (fill:#D3DEE2 fixo) -- não precisei editar o arquivo fonte do mapa. */
+.dash-mapa-svg .state{fill:var(--mapa-sem-dado); stroke:var(--surface); stroke-width:0.7; cursor:pointer;}
+.dash-mapa-svg .state:hover{opacity:.86;}
+.dash-mapa-tooltip{
+  position:absolute; pointer-events:none; background:var(--ink); color:var(--surface);
+  font-size:11.5px; font-weight:600; padding:6px 10px; border-radius:7px;
+  box-shadow:var(--shadow-modal); opacity:0; transition:opacity .1s ease; white-space:nowrap;
+  transform:translate(-50%,-130%); z-index:2;
+}
+.dash-mapa-tooltip.show{opacity:1;}
+.dash-mapa-tooltip b{color:var(--orange);}
+.dash-mapa-legenda{
+  display:flex; align-items:center; justify-content:center; gap:6px; margin-top:6px;
+  font-size:10px; color:var(--ink-soft); font-family:'Space Mono',monospace;
+}
+.dash-mapa-legenda-barra{width:70px; height:6px; border-radius:4px;
+  background:linear-gradient(90deg, var(--mapa-sem-dado), var(--orange) 55%, var(--orange-deep));}
+
 /* tabela com barra embutida na célula (site/app.js dashTableHtml()) -- substitui
    canvas+dash-footer em cards onde faz mais sentido escanear várias colunas de
    uma vez (nome + contagem + valor com barra + valor extra) do que ler um gráfico. */
@@ -1582,6 +1613,10 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .print-report-summary-row.total{font-weight:800; font-size:14px; border-bottom:2px solid #0b0b0b; margin-top:4px;}
 
 .print-dash-img{max-width:100%; display:block; margin:0 auto;}
+.print-dash-mapa{max-width:360px; margin:0 auto;}
+.print-dash-mapa .dash-mapa-wrap{height:auto;}
+.print-dash-mapa .dash-mapa-svg{width:100%; height:auto;}
+.print-dash-mapa .dash-mapa-tooltip{display:none;}
 .print-dash-stats{display:grid; grid-template-columns:1fr 1fr; gap:12px; max-width:480px; margin:0 auto;}
 .print-dash-stat{border:1px solid #ccc; border-radius:8px; padding:10px 12px;}
 .print-dash-stat .lbl{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#555;}
