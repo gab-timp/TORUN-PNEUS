@@ -5862,6 +5862,38 @@ function codigosResumo(codigos) {
   return `${codigos.length} produtos selecionados`;
 }
 
+const CATEGORIA_LABEL = { DIRECIONAL: "Direcional", TRACAO: "Tração", ARRASTO: "Arrasto", AGRICOLA: "Agrícola", INDUSTRIAL: "Industrial", OUTRO: "Outro" };
+const AGRUPAR_ESTOQUE_LABEL = { medida: "Medida", categoria: "Tipo de pneu", marca: "Marca", carcaca: "Carcaça", pr: "PR (lonas)", capCarga: "Cap. de carga" };
+
+// chave usada só pra somar (normaliza maiúsc./espaço, já que categoria era texto livre
+// antes de virar select -- produto antigo pode ter "Direcional", "DIRECIONAL " etc.)
+function agruparChaveEstoque(p, agrupar) {
+  if (agrupar === "medida") return extractMedidaBase(p.medida);
+  if (agrupar === "categoria") {
+    const raw = (p.categoria || "").trim();
+    if (!raw) return "Sem categoria";
+    return CATEGORIA_LABEL[raw.toUpperCase()] || raw;
+  }
+  if (agrupar === "marca") return (p.marca || "").trim() || "Sem marca";
+  if (agrupar === "carcaca") return p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : "Não informado";
+  if (agrupar === "pr") return (p.pr || "").trim() || "Não informado";
+  if (agrupar === "capCarga") return (p.capCarga || "").trim() || "Não informado";
+  return null;
+}
+
+function agruparEstoque(produtos, agrupar) {
+  const grupos = {};
+  produtos.forEach(p => {
+    const chave = agruparChaveEstoque(p, agrupar);
+    if (!grupos[chave]) grupos[chave] = { grupo: chave, produtos: 0, entradas: 0, saidas: 0, saldo: 0 };
+    grupos[chave].produtos += 1;
+    grupos[chave].entradas += p.entradas;
+    grupos[chave].saidas += p.saidas;
+    grupos[chave].saldo += p.saldo;
+  });
+  return Object.values(grupos).sort((a, b) => b.saldo - a.saldo);
+}
+
 const REPORT_DEFS = {
   faturamento: {
     title: "Relatório de Faturamento",
@@ -5901,11 +5933,37 @@ const REPORT_DEFS = {
   estoque: {
     title: "Relatório de Estoque Atual",
     hasDateRange: false,
-    build(de, ate, filtro, codigos) {
+    build(de, ate, filtro, codigos, agrupar) {
       let produtos = listEstoque().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
       if (filtro === "disponivel") produtos = produtos.filter(p => p.saldo > 0);
       if (filtro === "zerado") produtos = produtos.filter(p => p.saldo <= 0);
       if (Array.isArray(codigos)) produtos = produtos.filter(p => codigos.includes(p.codigo));
+
+      const filtroLabel = filtro === "disponivel" ? "Só com saldo disponível" : filtro === "zerado" ? "Só com saldo zerado" : "Todos";
+      const totalSaldo = produtos.reduce((a, p) => a + p.saldo, 0);
+      const summaryBase = [
+        { label: "Filtro aplicado", value: filtroLabel },
+        ...(codigosResumo(codigos) ? [{ label: "Códigos incluídos", value: codigosResumo(codigos) }] : [])
+      ];
+
+      if (agrupar && AGRUPAR_ESTOQUE_LABEL[agrupar]) {
+        const grupos = agruparEstoque(produtos, agrupar);
+        const columns = [
+          { key: "grupo", label: AGRUPAR_ESTOQUE_LABEL[agrupar] },
+          { key: "produtos", label: "Nº de produtos", numeric: true },
+          { key: "entradas", label: "Entradas", numeric: true },
+          { key: "saidas", label: "Saídas", numeric: true },
+          { key: "saldo", label: "Saldo disponível", numeric: true }
+        ];
+        const summaryLines = [
+          { label: "Agrupado por", value: AGRUPAR_ESTOQUE_LABEL[agrupar] },
+          ...summaryBase,
+          { label: "Grupos incluídos", value: fmt(grupos.length) },
+          { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
+        ];
+        return { columns, rows: grupos, summaryLines };
+      }
+
       const columns = [
         { key: "codigo", label: "Código" },
         { key: "medida", label: "Medida" },
@@ -5914,11 +5972,8 @@ const REPORT_DEFS = {
         { key: "saldo", label: "Saldo disponível", numeric: true }
       ];
       const rows = produtos.map(p => ({ codigo: p.codigo, medida: p.medida, entradas: p.entradas, saidas: p.saidas, saldo: p.saldo }));
-      const totalSaldo = produtos.reduce((a, p) => a + p.saldo, 0);
-      const filtroLabel = filtro === "disponivel" ? "Só com saldo disponível" : filtro === "zerado" ? "Só com saldo zerado" : "Todos";
       const summaryLines = [
-        { label: "Filtro aplicado", value: filtroLabel },
-        ...(codigosResumo(codigos) ? [{ label: "Códigos incluídos", value: codigosResumo(codigos) }] : []),
+        ...summaryBase,
         { label: "Produtos incluídos", value: fmt(produtos.length) },
         { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
       ];
@@ -6029,16 +6084,16 @@ function buildReportPrintHtml(def, de, ate, data) {
   `;
 }
 
-function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo) {
+function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar) {
   const def = REPORT_DEFS[reportKey];
-  const data = def.build(de, ate, filtro, codigo);
+  const data = def.build(de, ate, filtro, codigo, agrupar);
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
   window.print();
 }
 
-function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo) {
+function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar) {
   const def = REPORT_DEFS[reportKey];
-  const { columns, rows } = def.build(de, ate, filtro, codigo);
+  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar);
   const wsData = [columns.map(c => c.label)].concat(rows.map(r => columns.map(c => r[c.key] ?? "")));
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
@@ -6052,14 +6107,15 @@ function initRelatorios() {
     const deInput = card.querySelector(".report-de");
     const ateInput = card.querySelector(".report-ate");
     const filtroInput = card.querySelector(".report-filtro");
+    const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
     card.querySelector(".report-btn-pdf").addEventListener("click", () => {
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null);
     });
     card.querySelector(".report-btn-excel").addEventListener("click", () => {
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null);
     });
   });
   initRelatorioCodigoFiltros();

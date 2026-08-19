@@ -1503,7 +1503,7 @@
 
         <div class="card report-card" data-report="estoque">
           <div class="card-head"><h2>Estoque atual</h2></div>
-          <div class="note">Saldo por produto — entradas, saídas e disponibilidade, na data de hoje.</div>
+          <div class="note">Saldo por produto — entradas, saídas e disponibilidade, na data de hoje. Ou agrupado por medida, tipo, marca, carcaça, PR ou capacidade de carga.</div>
           <div class="form-row">
             <div class="field">
               <label>Produtos a incluir</label>
@@ -1511,6 +1511,18 @@
                 <option value="todos">Todos</option>
                 <option value="disponivel">Só com saldo disponível</option>
                 <option value="zerado">Só com saldo zerado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Agrupar por</label>
+              <select class="report-agrupar">
+                <option value="">Produto (sem agrupar)</option>
+                <option value="medida">Medida</option>
+                <option value="categoria">Tipo de pneu</option>
+                <option value="marca">Marca</option>
+                <option value="carcaca">Carcaça</option>
+                <option value="pr">PR (lonas)</option>
+                <option value="capCarga">Cap. de carga</option>
               </select>
             </div>
             <div class="field grow">
@@ -2319,6 +2331,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=142"></script>
+<script src="app.js?v=143"></script>
 </body>
 </html>
