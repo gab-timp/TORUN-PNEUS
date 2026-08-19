@@ -6030,11 +6030,15 @@ function initBackupControls() {
   });
 }
 
-async function refreshAll() {
-  await loadState();
+function rerenderViewAtual() {
   renderProdutoSelects();
   const activeBtn = document.querySelector(".nav-item.active");
   setView(activeBtn ? activeBtn.dataset.view : "estoque");
+}
+
+async function refreshAll() {
+  await loadState();
+  rerenderViewAtual();
 }
 
 /* ---------------- realtime ---------------- */
@@ -6052,9 +6056,24 @@ const REALTIME_TABLES = [
 ];
 
 let refreshTimer = null;
+// Recarrega tudo do servidor -- usado só quando o state local pode estar
+// desatualizado de um jeito que o patch incremental do realtime não cobre
+// (ex: conflito de edição concorrente, onde a versão local é a desatualizada).
 function scheduleRefresh() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(refreshAll, 200);
+}
+
+let rerenderTimer = null;
+// Só re-renderiza a tela atual com o que já está em state -- usado pelo
+// realtime, que já aplica a mudança direto em state[table] antes de chamar
+// isso (ver subscribeRealtime() abaixo). Recarregar tudo de novo aqui seria
+// jogar fora esse patch incremental e refazer 12 consultas completas no
+// banco a cada mudança de QUALQUER usuário, mesmo sem relação com a tela
+// que a pessoa está olhando.
+function scheduleRerender() {
+  clearTimeout(rerenderTimer);
+  rerenderTimer = setTimeout(rerenderViewAtual, 200);
 }
 
 let realtimeChannel = null;
@@ -6089,7 +6108,7 @@ function subscribeRealtime() {
         if (idx === -1) list.push(row);
         else list[idx] = row;
       }
-      scheduleRefresh();
+      scheduleRerender();
     });
   });
   channel.subscribe((status) => {
