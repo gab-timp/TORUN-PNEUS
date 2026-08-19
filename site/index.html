@@ -1705,15 +1705,97 @@
       </button>
     </div>
     <div class="drawer-simple-body">
+      <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-tag"/></svg></span><h4>Identificação</h4></div>
       <div class="drawer-field">
         <label>Código do produto</label>
         <input type="text" id="prodEditCodigo" maxlength="60">
         <div class="hint" id="prodEditCodigoHint" style="display:none;"></div>
       </div>
       <div class="drawer-field">
+        <label>Marca (opcional)</label>
+        <input type="text" id="prodEditMarca" placeholder="Ex: ROYALBLACK">
+      </div>
+      <div class="drawer-field">
+        <label>Modelo (opcional)</label>
+        <input type="text" id="prodEditModelo" placeholder="Ex: SL102">
+      </div>
+      <div class="drawer-field">
         <label>Medida / descrição completa</label>
         <input type="text" id="prodEditMedida" maxlength="200">
       </div>
+
+      <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg></span><h4>Classificação</h4></div>
+      <div class="drawer-field">
+        <label>Categoria (opcional)</label>
+        <select id="prodEditCategoria">
+          <option value="">—</option>
+          <option value="DIRECIONAL">Direcional</option>
+          <option value="TRACAO">Tração</option>
+          <option value="ARRASTO">Arrasto</option>
+          <option value="AGRICOLA">Agrícola</option>
+          <option value="INDUSTRIAL">Industrial</option>
+          <option value="OUTRO">Outro</option>
+        </select>
+      </div>
+      <div class="drawer-field">
+        <label>Carcaça (opcional)</label>
+        <select id="prodEditCarcaca">
+          <option value="">—</option>
+          <option value="RADIAL">Radial</option>
+          <option value="DIAGONAL">Diagonal</option>
+        </select>
+      </div>
+      <div class="drawer-field">
+        <label>Situação</label>
+        <select id="prodEditSituacao">
+          <option value="ATIVO">Ativo</option>
+          <option value="DESCONTINUADO">Descontinuado</option>
+        </select>
+      </div>
+
+      <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-settings"/></svg></span><h4>Especificações técnicas (opcional)</h4></div>
+      <div class="drawer-field-grid">
+        <div class="drawer-field">
+          <label>IC/IV</label>
+          <input type="text" id="prodEditIcIv" placeholder="154/149M">
+        </div>
+        <div class="drawer-field">
+          <label>PR (lonas)</label>
+          <input type="text" id="prodEditPr" placeholder="18PR">
+        </div>
+        <div class="drawer-field">
+          <label>Cintas</label>
+          <input type="text" id="prodEditCintas" placeholder="6">
+        </div>
+        <div class="drawer-field">
+          <label>Cap. carga</label>
+          <input type="text" id="prodEditCapCarga" placeholder="3550 kg">
+        </div>
+        <div class="drawer-field">
+          <label>PSI</label>
+          <input type="text" id="prodEditPsi" placeholder="120">
+        </div>
+        <div class="drawer-field">
+          <label>Sulco (mm)</label>
+          <input type="text" id="prodEditSulco" placeholder="18">
+        </div>
+        <div class="drawer-field">
+          <label>Larg. banda (mm)</label>
+          <input type="text" id="prodEditLargBanda" placeholder="245">
+        </div>
+        <div class="drawer-field">
+          <label>Peso (kg)</label>
+          <input type="text" id="prodEditPeso" placeholder="68">
+        </div>
+      </div>
+
+      <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg></span><h4>Fiscal (opcional)</h4></div>
+      <div class="drawer-field">
+        <label>NCM</label>
+        <input type="text" id="prodEditNcm" placeholder="4011.20.90">
+      </div>
+
+      <div class="note" style="margin-top:2px;">Fotos e preços continuam pelo Catálogo — clique em "Ver no Catálogo" na tabela de produtos.</div>
     </div>
     <div class="drawer-foot">
       <button type="button" class="btn outline" id="prodEditCancelar">Cancelar</button>
@@ -2157,7 +2239,7 @@
         <span class="status-pill pill-esgotado" id="catalogoModalSituacaoPill" style="display:none; flex:0 0 auto;">Descontinuado</span>
       </div>
       <div class="cliente-modal-head-actions">
-        <button type="button" class="btn small outline write-ui" id="btnEditarCatalogo">✎ Editar especificações</button>
+        <button type="button" class="btn small outline write-ui" id="btnEditarNoProduto">✎ Editar no cadastro de Produtos</button>
         <button type="button" class="btn small outline" id="catalogoModalClose">✕ Fechar</button>
       </div>
     </div>
@@ -2182,88 +2264,6 @@
     </div>
 
     <div class="catalogo-modal-info" id="catalogoModalInfo"></div>
-
-    <form class="catalogo-modal-edit-form write-ui" id="formEditarCatalogo" style="display:none;">
-      <div class="form-row">
-        <div class="field grow">
-          <label>Medida / descrição completa</label>
-          <input type="text" id="catEditMedida" required>
-        </div>
-        <div class="field">
-          <label>Categoria</label>
-          <input type="text" id="catEditCategoria" placeholder="Ex: DIRECIONAL">
-        </div>
-        <div class="field grow">
-          <label>Modelo</label>
-          <input type="text" id="catEditModelo">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Marca</label>
-          <input type="text" id="catEditMarca" placeholder="Ex: ROYALBLACK">
-        </div>
-        <div class="field">
-          <label>Carcaça</label>
-          <select id="catEditCarcaca">
-            <option value="">—</option>
-            <option value="RADIAL">Radial</option>
-            <option value="DIAGONAL">Diagonal</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Situação</label>
-          <select id="catEditSituacao">
-            <option value="ATIVO">Ativo</option>
-            <option value="DESCONTINUADO">Descontinuado</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>NCM</label>
-          <input type="text" id="catEditNcm" placeholder="4011.20.90">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>IC/IV</label>
-          <input type="text" id="catEditIcIv">
-        </div>
-        <div class="field">
-          <label>PR</label>
-          <input type="text" id="catEditPr">
-        </div>
-        <div class="field">
-          <label>Cintas</label>
-          <input type="text" id="catEditCintas">
-        </div>
-        <div class="field">
-          <label>Cap. carga</label>
-          <input type="text" id="catEditCapCarga">
-        </div>
-        <div class="field">
-          <label>PSI</label>
-          <input type="text" id="catEditPsi">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>Sulco (mm)</label>
-          <input type="text" id="catEditSulco">
-        </div>
-        <div class="field">
-          <label>Larg. banda (mm)</label>
-          <input type="text" id="catEditLargBanda">
-        </div>
-        <div class="field">
-          <label>Peso (kg)</label>
-          <input type="text" id="catEditPeso">
-        </div>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn outline" id="btnCancelarEdicaoCatalogo">Cancelar</button>
-        <button type="submit" class="btn primary">Salvar alterações</button>
-      </div>
-    </form>
 
     <div class="catalogo-modal-section">
       <div class="catalogo-modal-section-head">
@@ -2319,6 +2319,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=141"></script>
+<script src="app.js?v=142"></script>
 </body>
 </html>

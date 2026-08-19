@@ -1485,7 +1485,21 @@ function abrirProdutoEditDrawer(codigo) {
   const hint = document.getElementById("prodEditCodigoHint");
   codigoInput.value = p.codigo;
   codigoInput.dataset.original = p.codigo;
-  document.getElementById("prodEditMedida").value = p.medida;
+  document.getElementById("prodEditMedida").value = p.medida || "";
+  document.getElementById("prodEditMarca").value = p.marca || "";
+  document.getElementById("prodEditModelo").value = p.modelo || "";
+  document.getElementById("prodEditCategoria").value = p.categoria || "";
+  document.getElementById("prodEditCarcaca").value = p.carcaca || "";
+  document.getElementById("prodEditSituacao").value = p.situacao || "ATIVO";
+  document.getElementById("prodEditIcIv").value = p.icIv || "";
+  document.getElementById("prodEditPr").value = p.pr || "";
+  document.getElementById("prodEditCintas").value = p.cintas || "";
+  document.getElementById("prodEditCapCarga").value = p.capCarga || "";
+  document.getElementById("prodEditPsi").value = p.psi || "";
+  document.getElementById("prodEditSulco").value = p.sulcoMm || "";
+  document.getElementById("prodEditLargBanda").value = p.largBandaMm || "";
+  document.getElementById("prodEditPeso").value = p.pesoKg || "";
+  document.getElementById("prodEditNcm").value = p.ncm || "";
 
   const temMov = state.movimentos.some(m => m.codigo === codigo);
   codigoInput.disabled = temMov;
@@ -1510,7 +1524,23 @@ async function salvarProdutoEdit() {
   const novaMedida = document.getElementById("prodEditMedida").value.trim();
   if (!novoCodigo || !novaMedida) { toast("Código e medida não podem ficar em branco."); return; }
 
-  const payload = { medida: novaMedida };
+  const payload = {
+    medida: novaMedida,
+    marca: document.getElementById("prodEditMarca").value.trim(),
+    modelo: document.getElementById("prodEditModelo").value.trim(),
+    categoria: document.getElementById("prodEditCategoria").value.trim(),
+    carcaca: document.getElementById("prodEditCarcaca").value.trim() || null,
+    situacao: document.getElementById("prodEditSituacao").value.trim() || "ATIVO",
+    ic_iv: document.getElementById("prodEditIcIv").value.trim(),
+    pr: document.getElementById("prodEditPr").value.trim(),
+    cintas: document.getElementById("prodEditCintas").value.trim(),
+    cap_carga: document.getElementById("prodEditCapCarga").value.trim(),
+    psi: document.getElementById("prodEditPsi").value.trim(),
+    sulco_mm: document.getElementById("prodEditSulco").value.trim(),
+    larg_banda_mm: document.getElementById("prodEditLargBanda").value.trim(),
+    peso_kg: document.getElementById("prodEditPeso").value.trim(),
+    ncm: document.getElementById("prodEditNcm").value.trim()
+  };
   if (!codigoInput.disabled) payload.codigo = novoCodigo;
 
   const { error } = await sb.from("produtos").update(payload).eq("codigo", codigoOriginal);
@@ -1520,10 +1550,17 @@ async function salvarProdutoEdit() {
 
   const idx = state.produtos.findIndex(p => p.codigo === codigoOriginal);
   if (idx !== -1) {
-    state.produtos[idx] = { ...state.produtos[idx], codigo: payload.codigo || codigoOriginal, medida: novaMedida };
+    state.produtos[idx] = {
+      ...state.produtos[idx], codigo: payload.codigo || codigoOriginal, medida: novaMedida,
+      marca: payload.marca, modelo: payload.modelo, categoria: payload.categoria,
+      carcaca: payload.carcaca || "", situacao: payload.situacao, ncm: payload.ncm,
+      icIv: payload.ic_iv, pr: payload.pr, cintas: payload.cintas, capCarga: payload.cap_carga,
+      psi: payload.psi, sulcoMm: payload.sulco_mm, largBandaMm: payload.larg_banda_mm, pesoKg: payload.peso_kg
+    };
   }
   fecharProdutoEditDrawer();
   renderProdutos();
+  renderCatalogo();
   toast("Produto atualizado.");
 }
 
@@ -1847,24 +1884,6 @@ function openCatalogoModal(codigo) {
     : `<div class="muted">Nenhuma especificação técnica cadastrada ainda.</div>`;
   document.getElementById("catalogoModalSituacaoPill").style.display = p.situacao === "DESCONTINUADO" ? "inline-flex" : "none";
 
-  document.getElementById("formEditarCatalogo").style.display = "none";
-  document.getElementById("catalogoModalInfo").style.display = "";
-  document.getElementById("catEditMedida").value = p.medida || "";
-  document.getElementById("catEditCategoria").value = p.categoria || "";
-  document.getElementById("catEditModelo").value = p.modelo || "";
-  document.getElementById("catEditMarca").value = p.marca || "";
-  document.getElementById("catEditCarcaca").value = p.carcaca || "";
-  document.getElementById("catEditSituacao").value = p.situacao || "ATIVO";
-  document.getElementById("catEditNcm").value = p.ncm || "";
-  document.getElementById("catEditIcIv").value = p.icIv || "";
-  document.getElementById("catEditPr").value = p.pr || "";
-  document.getElementById("catEditCintas").value = p.cintas || "";
-  document.getElementById("catEditCapCarga").value = p.capCarga || "";
-  document.getElementById("catEditPsi").value = p.psi || "";
-  document.getElementById("catEditSulco").value = p.sulcoMm || "";
-  document.getElementById("catEditLargBanda").value = p.largBandaMm || "";
-  document.getElementById("catEditPeso").value = p.pesoKg || "";
-
   populateCatalogoTipoCliente();
   renderCatalogoModalPrecos(codigo);
   document.getElementById("formEditarPrecosCatalogo").style.display = "none";
@@ -1876,8 +1895,6 @@ function openCatalogoModal(codigo) {
 
 function closeCatalogoModal() {
   document.getElementById("catalogoModalOverlay").classList.remove("show");
-  document.getElementById("formEditarCatalogo").style.display = "none";
-  document.getElementById("catalogoModalInfo").style.display = "";
   document.getElementById("formEditarPrecosCatalogo").style.display = "none";
   document.getElementById("catalogoModalPrecoWrap").style.display = "";
   document.getElementById("btnEditarPrecosCatalogo").style.display = "";
@@ -1975,46 +1992,6 @@ async function salvarPrecosCatalogo(e) {
   renderCatalogo();
 }
 
-async function salvarEdicaoCatalogo(e) {
-  e.preventDefault();
-  if (!catalogoEditingCodigo) return;
-  const payload = {
-    medida: document.getElementById("catEditMedida").value.trim(),
-    categoria: document.getElementById("catEditCategoria").value.trim(),
-    modelo: document.getElementById("catEditModelo").value.trim(),
-    marca: document.getElementById("catEditMarca").value.trim(),
-    carcaca: document.getElementById("catEditCarcaca").value.trim() || null,
-    situacao: document.getElementById("catEditSituacao").value.trim() || "ATIVO",
-    ncm: document.getElementById("catEditNcm").value.trim(),
-    ic_iv: document.getElementById("catEditIcIv").value.trim(),
-    pr: document.getElementById("catEditPr").value.trim(),
-    cintas: document.getElementById("catEditCintas").value.trim(),
-    cap_carga: document.getElementById("catEditCapCarga").value.trim(),
-    psi: document.getElementById("catEditPsi").value.trim(),
-    sulco_mm: document.getElementById("catEditSulco").value.trim(),
-    larg_banda_mm: document.getElementById("catEditLargBanda").value.trim(),
-    peso_kg: document.getElementById("catEditPeso").value.trim()
-  };
-  if (!payload.medida) { toast("Informe a medida do produto."); return; }
-
-  const { error } = await sb.from("produtos").update(payload).eq("codigo", catalogoEditingCodigo);
-  if (error) { toast("Erro ao salvar especificações: " + error.message); return; }
-
-  const p = getProduto(catalogoEditingCodigo);
-  if (p) {
-    p.medida = payload.medida; p.categoria = payload.categoria; p.modelo = payload.modelo;
-    p.marca = payload.marca; p.carcaca = payload.carcaca || ""; p.situacao = payload.situacao; p.ncm = payload.ncm;
-    p.icIv = payload.ic_iv; p.pr = payload.pr; p.cintas = payload.cintas; p.capCarga = payload.cap_carga;
-    p.psi = payload.psi; p.sulcoMm = payload.sulco_mm; p.largBandaMm = payload.larg_banda_mm; p.pesoKg = payload.peso_kg;
-  }
-
-  await registrarLog("produtos", catalogoEditingCodigo, "edicao", "Ação automática", `Especificações atualizadas: ${catalogoEditingCodigo}`);
-  openCatalogoModal(catalogoEditingCodigo);
-  renderCatalogo();
-  renderProdutos();
-  toast("Especificações salvas.");
-}
-
 /* ---------------- catálogo: upload de foto ---------------- */
 
 async function uploadFotoCatalogo(codigo, file, slot) {
@@ -2075,19 +2052,14 @@ function initCatalogo() {
   document.getElementById("catalogoFotoLightboxNext").addEventListener("click", (e) => { e.stopPropagation(); catalogoFotoLightboxNext(); });
 
   document.getElementById("catalogoModalClose").addEventListener("click", closeCatalogoModal);
+  document.getElementById("btnEditarNoProduto").addEventListener("click", () => {
+    const codigo = catalogoEditingCodigo;
+    closeCatalogoModal();
+    if (codigo) abrirProdutoEditDrawer(codigo);
+  });
   document.getElementById("catalogoModalOverlay").addEventListener("click", (e) => {
     if (e.target.id === "catalogoModalOverlay") closeCatalogoModal();
   });
-
-  document.getElementById("btnEditarCatalogo").addEventListener("click", () => {
-    document.getElementById("catalogoModalInfo").style.display = "none";
-    document.getElementById("formEditarCatalogo").style.display = "";
-  });
-  document.getElementById("btnCancelarEdicaoCatalogo").addEventListener("click", () => {
-    document.getElementById("formEditarCatalogo").style.display = "none";
-    document.getElementById("catalogoModalInfo").style.display = "";
-  });
-  document.getElementById("formEditarCatalogo").addEventListener("submit", salvarEdicaoCatalogo);
 
   document.getElementById("btnEditarPrecosCatalogo").addEventListener("click", () => {
     const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";

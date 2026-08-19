@@ -868,12 +868,15 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .drawer-field{margin-bottom:12px;}
 .drawer-field:last-child{margin-bottom:0;}
 .drawer-field label{display:block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:700; margin-bottom:5px;}
-.drawer-field input{
+.drawer-field input, .drawer-field select{
   width:100%; border:1px solid var(--line); border-radius:9px; padding:9px 11px; font-size:13px;
   background:var(--paper); color:var(--ink); outline:none; font-family:inherit;
 }
-.drawer-field input:focus{border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);}
+.drawer-field input:focus, .drawer-field select:focus{border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);}
 .drawer-field .ro{padding:9px 0; font-size:13px; color:var(--ink-soft);}
+/* especificações técnicas do drawer de produto: 2 colunas pra não esticar demais o painel lateral */
+.drawer-field-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 10px; margin-bottom:12px;}
+.drawer-field-grid .drawer-field{margin-bottom:12px;}
 
 .drawer-toggle-row{display:flex; align-items:center; justify-content:space-between; gap:14px;}
 .drawer-toggle-row + .drawer-toggle-row{margin-top:13px; padding-top:13px; border-top:1px solid var(--line);}
