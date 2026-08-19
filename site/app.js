@@ -1424,7 +1424,7 @@ function renderProdutos() {
     <tr>
       <td class="mono">${escapeHtml(p.codigo)}</td>
       <td>${escapeHtml(p.medida)}</td>
-      <td class="mono muted">${escapeHtml(extractMedidaBase(p.medida))}</td>
+      <td>${p.categoria ? escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria) : '<span class="muted">—</span>'}</td>
       <td><span class="status-pill ${completo ? "pill-normal" : "pill-baixo"}">${completo ? "Completo" : "Sem preço"}</span></td>
       <td>
         <div class="row-actions">
