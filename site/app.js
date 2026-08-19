@@ -210,7 +210,8 @@ function produtoFromRow(r) {
     categoria: r.categoria || "", modelo: r.modelo || "", icIv: r.ic_iv || "", pr: r.pr || "",
     cintas: r.cintas || "", capCarga: r.cap_carga || "", psi: r.psi || "",
     sulcoMm: r.sulco_mm || "", largBandaMm: r.larg_banda_mm || "", pesoKg: r.peso_kg || "",
-    fotoPath: r.foto_path || null, fotoPath2: r.foto_path_2 || null
+    fotoPath: r.foto_path || null, fotoPath2: r.foto_path_2 || null,
+    marca: r.marca || "", carcaca: r.carcaca || "", ncm: r.ncm || "", situacao: r.situacao || "ATIVO"
   };
 }
 function precoFromRow(r) {
@@ -1565,7 +1566,7 @@ function populateCatalogoCondicao() {
 
 function populateCatalogoTipoCliente() {
   const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
-  [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente")].forEach(sel => {
+  [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente"), document.getElementById("prodPrecoTipoCliente")].forEach(sel => {
     if (sel && sel.options.length === 0) {
       sel.innerHTML = opcoesHtml;
       sel.value = "CONSUMO";
@@ -1602,6 +1603,80 @@ function buildPrecoMatrixEditHtml(codigo, tipoCliente) {
     <thead><tr><th>Condição</th>${CATALOGO_REGIOES.map(r => `<th>${escapeHtml(r)}</th>`).join("")}</tr></thead>
     <tbody>${linhas}</tbody>
   </table></div>`;
+}
+
+// ---------------- "Novo produto": grade de preços em branco (produto ainda não existe, não tem preço nenhum) ----------------
+function buildPrecoMatrixNovoHtml() {
+  return CATALOGO_CONDICOES.map(cond => {
+    const cells = CATALOGO_REGIOES.map(r =>
+      `<td><input type="number" step="0.01" min="0" class="catalogo-preco-input" data-regiao="${escapeAttr(r)}" data-condicao="${escapeAttr(cond)}" placeholder="—"></td>`
+    ).join("");
+    return `<tr><td class="mono">${escapeHtml(cond)}</td>${cells}</tr>`;
+  }).join("");
+}
+
+function renderProdPrecoTable() {
+  const body = document.getElementById("prodPrecoTableBody");
+  if (body) body.innerHTML = buildPrecoMatrixNovoHtml();
+}
+
+async function persistirPrecosProdutoNovo(codigo) {
+  const tipoCliente = document.getElementById("prodPrecoTipoCliente").value || "CONSUMO";
+  const inputs = Array.from(document.querySelectorAll("#prodPrecoTableBody .catalogo-preco-input"));
+  const upserts = [];
+  for (const inp of inputs) {
+    const raw = inp.value.trim();
+    if (raw === "") continue;
+    const valor = parseFloat(raw.replace(",", "."));
+    if (!(valor >= 0)) continue;
+    upserts.push({
+      codigo, regiao: inp.dataset.regiao, tipo_cliente: tipoCliente, condicao_pagamento: inp.dataset.condicao,
+      preco: valor, atualizado_em: new Date().toISOString()
+    });
+  }
+  if (!upserts.length) return false;
+  const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
+  if (error) { toast("Produto salvo, mas houve erro ao salvar os preços: " + error.message); return false; }
+  return true;
+}
+
+// ---------------- "Novo produto": fotos ficam só em memória (arquivo escolhido) até o produto ser salvo com sucesso ----------------
+let prodFotoFile1 = null;
+let prodFotoFile2 = null;
+
+function stageFotoProdutoNovo(slot, file) {
+  const inputEl = document.getElementById(`prodFotoInput${slot}`);
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast("Imagem muito grande (máx. 5 MB)."); inputEl.value = ""; return; }
+  if (slot === 2) prodFotoFile2 = file; else prodFotoFile1 = file;
+  const previewEl = document.getElementById(`prodFotoPreview${slot}`);
+  previewEl.classList.remove("sem-foto");
+  previewEl.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Foto ${slot}">`;
+  document.getElementById(`btnProdRemoverFoto${slot}`).style.display = "";
+  inputEl.value = "";
+}
+
+function limparFotoProdutoNovo(slot) {
+  if (slot === 2) prodFotoFile2 = null; else prodFotoFile1 = null;
+  const previewEl = document.getElementById(`prodFotoPreview${slot}`);
+  previewEl.classList.add("sem-foto");
+  previewEl.innerHTML = `<div class="catalogo-foto-placeholder">Sem foto</div>`;
+  document.getElementById(`btnProdRemoverFoto${slot}`).style.display = "none";
+}
+
+function resetFotosProdutoNovo() {
+  limparFotoProdutoNovo(1);
+  limparFotoProdutoNovo(2);
+}
+
+async function persistirFotoProdutoNovo(codigo, slot, file) {
+  const campo = slot === 2 ? "foto_path_2" : "foto_path";
+  const path = `${codigo}/${slot === 2 ? "2-" : "1-"}${Date.now()}-${sanitizarNomeArquivo(file.name)}`;
+  const { error: uploadError } = await sb.storage.from(CATALOGO_BUCKET).upload(path, file);
+  if (uploadError) { toast(`Produto salvo, mas houve erro ao enviar a foto ${slot}: ` + uploadError.message); return null; }
+  const { error } = await sb.from("produtos").update({ [campo]: path }).eq("codigo", codigo);
+  if (error) { toast(`Produto salvo, mas houve erro ao registrar a foto ${slot}: ` + error.message); return null; }
+  return path;
 }
 
 function renderCatalogo() {
@@ -5533,6 +5608,15 @@ function initForms() {
     toast("Cotação de frete registrada.");
   });
 
+  populateCatalogoTipoCliente();
+  renderProdPrecoTable();
+  document.getElementById("btnProdFoto1").addEventListener("click", () => document.getElementById("prodFotoInput1").click());
+  document.getElementById("btnProdFoto2").addEventListener("click", () => document.getElementById("prodFotoInput2").click());
+  document.getElementById("prodFotoInput1").addEventListener("change", (e) => stageFotoProdutoNovo(1, e.target.files[0]));
+  document.getElementById("prodFotoInput2").addEventListener("change", (e) => stageFotoProdutoNovo(2, e.target.files[0]));
+  document.getElementById("btnProdRemoverFoto1").addEventListener("click", () => limparFotoProdutoNovo(1));
+  document.getElementById("btnProdRemoverFoto2").addEventListener("click", () => limparFotoProdutoNovo(2));
+
   document.getElementById("formProduto").addEventListener("submit", async (e) => {
     e.preventDefault();
     const codigo = document.getElementById("prodCodigo").value.trim();
@@ -5540,15 +5624,58 @@ function initForms() {
     if (!codigo || !medida) return;
     if (getProduto(codigo)) { toast("Já existe um produto com esse código."); return; }
 
-    const { error } = await sb.from("produtos").insert({ codigo, medida });
-    if (error) { toast("Erro ao adicionar produto: " + error.message); return; }
+    const marca = document.getElementById("prodMarca").value.trim();
+    const modelo = document.getElementById("prodModelo").value.trim();
+    const categoria = document.getElementById("prodCategoria").value.trim();
+    const carcaca = document.getElementById("prodCarcaca").value.trim() || null;
+    const situacao = document.getElementById("prodSituacao").value.trim() || "ATIVO";
+    const icIv = document.getElementById("prodIcIv").value.trim();
+    const pr = document.getElementById("prodPr").value.trim();
+    const cintas = document.getElementById("prodCintas").value.trim();
+    const capCarga = document.getElementById("prodCapCarga").value.trim();
+    const psi = document.getElementById("prodPsi").value.trim();
+    const sulcoMm = document.getElementById("prodSulco").value.trim();
+    const largBandaMm = document.getElementById("prodLargBanda").value.trim();
+    const pesoKg = document.getElementById("prodPeso").value.trim();
+    const ncm = document.getElementById("prodNcm").value.trim();
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    const labelOriginal = btn.textContent;
+    btn.textContent = "Salvando...";
+
+    const { error } = await sb.from("produtos").insert({
+      codigo, medida, marca, modelo, categoria, carcaca, situacao,
+      ic_iv: icIv, pr, cintas, cap_carga: capCarga, psi,
+      sulco_mm: sulcoMm, larg_banda_mm: largBandaMm, peso_kg: pesoKg, ncm
+    });
+    if (error) { toast("Erro ao adicionar produto: " + error.message); btn.disabled = false; btn.textContent = labelOriginal; return; }
+
+    let fotoPath = null, fotoPath2 = null;
+    if (prodFotoFile1) fotoPath = await persistirFotoProdutoNovo(codigo, 1, prodFotoFile1);
+    if (prodFotoFile2) fotoPath2 = await persistirFotoProdutoNovo(codigo, 2, prodFotoFile2);
+    const houvePrecos = await persistirPrecosProdutoNovo(codigo);
 
     state.produtos.push({
       codigo, medida, createdAt: new Date().toISOString(),
-      categoria: "", modelo: "", icIv: "", pr: "", cintas: "", capCarga: "", psi: "",
-      sulcoMm: "", largBandaMm: "", pesoKg: "", fotoPath: null, fotoPath2: null
+      categoria, modelo, icIv, pr, cintas, capCarga, psi,
+      sulcoMm, largBandaMm, pesoKg, fotoPath, fotoPath2,
+      marca, carcaca: carcaca || "", ncm, situacao
     });
+    if (houvePrecos) {
+      const { data: precosNovos } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+      if (precosNovos && precosNovos.length) {
+        state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat(precosNovos.map(precoFromRow));
+      }
+    }
+
     e.target.reset();
+    document.getElementById("prodSituacao").value = "ATIVO";
+    resetFotosProdutoNovo();
+    renderProdPrecoTable();
+    if (document.getElementById("prodPrecoTipoCliente").options.length) document.getElementById("prodPrecoTipoCliente").value = "CONSUMO";
+    btn.disabled = false;
+    btn.textContent = labelOriginal;
     renderProdutos();
     renderProdutoSelects();
     toast("Produto adicionado.");

@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=122">
+<link rel="stylesheet" href="styles.css?v=123">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -648,16 +648,151 @@
         <div class="card-head"><h2>Novo produto</h2><span class="card-toggle">⌄</span></div>
         <div class="card-body">
         <form id="formProduto">
-          <div class="form-row">
-            <div class="field">
-              <label>Código do produto</label>
-              <input type="text" id="prodCodigo" placeholder="Ex: ROYALB000014" required>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">1</span>Identificação</div>
+            <div class="form-row">
+              <div class="field">
+                <label>Código do produto</label>
+                <input type="text" id="prodCodigo" placeholder="Ex: ROYALB000014" required>
+              </div>
+              <div class="field">
+                <label>Marca (opcional)</label>
+                <input type="text" id="prodMarca" placeholder="Ex: ROYALBLACK">
+              </div>
+              <div class="field grow">
+                <label>Modelo (opcional)</label>
+                <input type="text" id="prodModelo" placeholder="Ex: SL102">
+              </div>
             </div>
-            <div class="field grow">
-              <label>Medida / descrição completa</label>
-              <input type="text" id="prodMedida" placeholder="Ex: 295/80R22.5 154/149M 18PR SL102 - ROYALBLACK" required>
+            <div class="form-row">
+              <div class="field grow">
+                <label>Medida / descrição completa</label>
+                <input type="text" id="prodMedida" placeholder="Ex: 295/80R22.5 154/149M 18PR SL102" required>
+              </div>
             </div>
           </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">2</span>Classificação</div>
+            <div class="form-row">
+              <div class="field">
+                <label>Categoria (opcional)</label>
+                <select id="prodCategoria">
+                  <option value="">—</option>
+                  <option value="DIRECIONAL">Direcional</option>
+                  <option value="TRACAO">Tração</option>
+                  <option value="ARRASTO">Arrasto</option>
+                  <option value="AGRICOLA">Agrícola</option>
+                  <option value="INDUSTRIAL">Industrial</option>
+                  <option value="OUTRO">Outro</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Carcaça (opcional)</label>
+                <select id="prodCarcaca">
+                  <option value="">—</option>
+                  <option value="RADIAL">Radial</option>
+                  <option value="DIAGONAL">Diagonal</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Situação</label>
+                <select id="prodSituacao">
+                  <option value="ATIVO" selected>Ativo</option>
+                  <option value="DESCONTINUADO">Descontinuado</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">3</span>Especificações técnicas (opcional)</div>
+            <div class="form-row">
+              <div class="field small">
+                <label>IC/IV</label>
+                <input type="text" id="prodIcIv" placeholder="154/149M">
+              </div>
+              <div class="field small">
+                <label>PR (lonas)</label>
+                <input type="text" id="prodPr" placeholder="18PR">
+              </div>
+              <div class="field small">
+                <label>Cintas</label>
+                <input type="text" id="prodCintas" placeholder="6">
+              </div>
+              <div class="field small">
+                <label>Cap. carga</label>
+                <input type="text" id="prodCapCarga" placeholder="3550 kg">
+              </div>
+              <div class="field small">
+                <label>PSI</label>
+                <input type="text" id="prodPsi" placeholder="120">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field small">
+                <label>Sulco (mm)</label>
+                <input type="text" id="prodSulco" placeholder="18">
+              </div>
+              <div class="field small">
+                <label>Larg. banda (mm)</label>
+                <input type="text" id="prodLargBanda" placeholder="245">
+              </div>
+              <div class="field small">
+                <label>Peso (kg)</label>
+                <input type="text" id="prodPeso" placeholder="68">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">4</span>Fiscal (opcional)</div>
+            <div class="form-row">
+              <div class="field">
+                <label>NCM</label>
+                <input type="text" id="prodNcm" placeholder="4011.20.90">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">5</span>Fotos (opcional)</div>
+            <div class="catalogo-modal-foto-row">
+              <div class="catalogo-foto-slot">
+                <div class="catalogo-foto-preview" id="prodFotoPreview1"><div class="catalogo-foto-placeholder">Sem foto</div></div>
+                <div class="catalogo-foto-actions write-ui">
+                  <button type="button" class="btn small outline" id="btnProdFoto1">⬆ Enviar foto</button>
+                  <button type="button" class="btn small outline danger" id="btnProdRemoverFoto1" style="display:none;">Remover</button>
+                  <input type="file" id="prodFotoInput1" accept="image/*" style="display:none;">
+                </div>
+              </div>
+              <div class="catalogo-foto-slot">
+                <div class="catalogo-foto-preview" id="prodFotoPreview2"><div class="catalogo-foto-placeholder">Sem foto</div></div>
+                <div class="catalogo-foto-actions write-ui">
+                  <button type="button" class="btn small outline" id="btnProdFoto2">⬆ Enviar foto</button>
+                  <button type="button" class="btn small outline danger" id="btnProdRemoverFoto2" style="display:none;">Remover</button>
+                  <input type="file" id="prodFotoInput2" accept="image/*" style="display:none;">
+                </div>
+              </div>
+            </div>
+            <span class="note">A foto só é enviada de verdade depois que o produto for salvo com sucesso.</span>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">6</span>Precificação (opcional)</div>
+            <div class="search-row" style="margin-bottom:10px;">
+              <select id="prodPrecoTipoCliente"></select>
+            </div>
+            <div class="table-wrap">
+              <table class="catalogo-preco-table catalogo-preco-table-edit">
+                <thead><tr><th>Condição</th><th>SC/RS</th><th>PR</th><th>MG</th><th>MT</th></tr></thead>
+                <tbody id="prodPrecoTableBody"></tbody>
+              </table>
+            </div>
+            <span class="note">Deixe em branco o que não for cadastrar preço agora — dá pra completar depois pelo Catálogo, do jeito que já é hoje.</span>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="btn primary">Adicionar produto</button>
           </div>
@@ -2156,6 +2291,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=139"></script>
+<script src="app.js?v=140"></script>
 </body>
 </html>
