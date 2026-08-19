@@ -1837,19 +1837,25 @@ function openCatalogoModal(codigo) {
   });
 
   const specs = [
-    ["Categoria", p.categoria], ["Modelo", p.modelo], ["IC/IV", p.icIv], ["PR", p.pr],
-    ["Cintas", p.cintas], ["Cap. carga", p.capCarga], ["PSI", p.psi],
-    ["Sulco (mm)", p.sulcoMm], ["Larg. banda (mm)", p.largBandaMm], ["Peso (kg)", p.pesoKg]
+    ["Marca", p.marca], ["Categoria", p.categoria], ["Modelo", p.modelo],
+    ["Carcaça", p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : ""],
+    ["IC/IV", p.icIv], ["PR", p.pr], ["Cintas", p.cintas], ["Cap. carga", p.capCarga], ["PSI", p.psi],
+    ["Sulco (mm)", p.sulcoMm], ["Larg. banda (mm)", p.largBandaMm], ["Peso (kg)", p.pesoKg], ["NCM", p.ncm]
   ].filter(([, v]) => v);
   document.getElementById("catalogoModalInfo").innerHTML = specs.length
     ? specs.map(([lbl, v]) => `<div class="catalogo-info-row"><span class="lbl">${escapeHtml(lbl)}</span><span class="val">${escapeHtml(v)}</span></div>`).join("")
     : `<div class="muted">Nenhuma especificação técnica cadastrada ainda.</div>`;
+  document.getElementById("catalogoModalSituacaoPill").style.display = p.situacao === "DESCONTINUADO" ? "inline-flex" : "none";
 
   document.getElementById("formEditarCatalogo").style.display = "none";
   document.getElementById("catalogoModalInfo").style.display = "";
   document.getElementById("catEditMedida").value = p.medida || "";
   document.getElementById("catEditCategoria").value = p.categoria || "";
   document.getElementById("catEditModelo").value = p.modelo || "";
+  document.getElementById("catEditMarca").value = p.marca || "";
+  document.getElementById("catEditCarcaca").value = p.carcaca || "";
+  document.getElementById("catEditSituacao").value = p.situacao || "ATIVO";
+  document.getElementById("catEditNcm").value = p.ncm || "";
   document.getElementById("catEditIcIv").value = p.icIv || "";
   document.getElementById("catEditPr").value = p.pr || "";
   document.getElementById("catEditCintas").value = p.cintas || "";
@@ -1976,6 +1982,10 @@ async function salvarEdicaoCatalogo(e) {
     medida: document.getElementById("catEditMedida").value.trim(),
     categoria: document.getElementById("catEditCategoria").value.trim(),
     modelo: document.getElementById("catEditModelo").value.trim(),
+    marca: document.getElementById("catEditMarca").value.trim(),
+    carcaca: document.getElementById("catEditCarcaca").value.trim() || null,
+    situacao: document.getElementById("catEditSituacao").value.trim() || "ATIVO",
+    ncm: document.getElementById("catEditNcm").value.trim(),
     ic_iv: document.getElementById("catEditIcIv").value.trim(),
     pr: document.getElementById("catEditPr").value.trim(),
     cintas: document.getElementById("catEditCintas").value.trim(),
@@ -1993,6 +2003,7 @@ async function salvarEdicaoCatalogo(e) {
   const p = getProduto(catalogoEditingCodigo);
   if (p) {
     p.medida = payload.medida; p.categoria = payload.categoria; p.modelo = payload.modelo;
+    p.marca = payload.marca; p.carcaca = payload.carcaca || ""; p.situacao = payload.situacao; p.ncm = payload.ncm;
     p.icIv = payload.ic_iv; p.pr = payload.pr; p.cintas = payload.cintas; p.capCarga = payload.cap_carga;
     p.psi = payload.psi; p.sulcoMm = payload.sulco_mm; p.largBandaMm = payload.larg_banda_mm; p.pesoKg = payload.peso_kg;
   }

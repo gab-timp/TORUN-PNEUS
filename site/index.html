@@ -2152,7 +2152,10 @@
 <div class="modal-overlay" id="catalogoModalOverlay">
   <div class="modal catalogo-modal">
     <div class="cliente-modal-head">
-      <h3 id="catalogoModalTitulo"></h3>
+      <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+        <h3 id="catalogoModalTitulo"></h3>
+        <span class="status-pill pill-esgotado" id="catalogoModalSituacaoPill" style="display:none; flex:0 0 auto;">Descontinuado</span>
+      </div>
       <div class="cliente-modal-head-actions">
         <button type="button" class="btn small outline write-ui" id="btnEditarCatalogo">✎ Editar especificações</button>
         <button type="button" class="btn small outline" id="catalogoModalClose">✕ Fechar</button>
@@ -2193,6 +2196,31 @@
         <div class="field grow">
           <label>Modelo</label>
           <input type="text" id="catEditModelo">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Marca</label>
+          <input type="text" id="catEditMarca" placeholder="Ex: ROYALBLACK">
+        </div>
+        <div class="field">
+          <label>Carcaça</label>
+          <select id="catEditCarcaca">
+            <option value="">—</option>
+            <option value="RADIAL">Radial</option>
+            <option value="DIAGONAL">Diagonal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Situação</label>
+          <select id="catEditSituacao">
+            <option value="ATIVO">Ativo</option>
+            <option value="DESCONTINUADO">Descontinuado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>NCM</label>
+          <input type="text" id="catEditNcm" placeholder="4011.20.90">
         </div>
       </div>
       <div class="form-row">
@@ -2291,6 +2319,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=140"></script>
+<script src="app.js?v=141"></script>
 </body>
 </html>
