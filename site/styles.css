@@ -757,7 +757,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
 
 /* ---------------- forms ---------------- */
 .form-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
-.field{display:flex;flex-direction:column;gap:5px;flex:1 1 150px;min-width:120px;}
+.field{display:flex;flex-direction:column;gap:5px;flex:1 1 150px;min-width:120px;position:relative;}
 .field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
 .field input, .field select, .field textarea{
   border:1px solid var(--line);
@@ -767,6 +767,7 @@ body.is-admin .nav-item.admin-only{display:flex;}
   background:var(--paper);
   color:var(--ink);
   outline:none;
+  transition:background .9s ease;
 }
 .field input:focus, .field select:focus, .field textarea:focus{
   border-color:var(--orange);
@@ -774,6 +775,20 @@ body.is-admin .nav-item.admin-only{display:flex;}
   box-shadow:0 0 0 3px var(--orange-pale);
 }
 .field.grow{flex:2 1 220px;}
+
+/* ---------------- auto-preenchimento (CNPJ/CEP) ---------------- */
+/* pisca em laranja por um instante nos campos que a busca de CNPJ/CEP
+   preencheu sozinha -- só pra ficar claro pra quem tá olhando o que veio
+   automático, sem precisar reler campo por campo */
+.field input.auto-filled, .field select.auto-filled{background:var(--orange-pale);}
+.autofill-spinner{
+  display:none; position:absolute; right:10px; top:31px; width:13px; height:13px; border-radius:50%;
+  border:2px solid var(--line); border-top-color:var(--orange);
+  animation:autofillGirar .6s linear infinite;
+}
+.autofill-spinner.show{display:block;}
+@keyframes autofillGirar{ to{ transform:rotate(360deg); } }
+.status-pill-row{margin:-2px 0 10px;}
 .field input[type="checkbox"]{width:auto;padding:0;border:none;background:none;box-shadow:none;}
 .field input[type="checkbox"]:focus{box-shadow:none;}
 .form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;}

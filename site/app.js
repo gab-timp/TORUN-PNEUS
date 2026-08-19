@@ -111,7 +111,7 @@ function clienteToRow(c) {
   return {
     nome: c.nome, estado: c.estado || null, cidade: c.cidade || null,
     documento: c.documento || null, telefone: c.telefone || null, email: c.email || null,
-    endereco: c.endereco || null, contato: c.contato || null, razao_social: c.razaoSocial || null,
+    endereco: c.endereco || null, cep: c.cep || null, contato: c.contato || null, razao_social: c.razaoSocial || null,
     tags: c.tags || [], notas: c.notas || [], tipo_cliente: c.tipoCliente || null
   };
 }
@@ -119,7 +119,7 @@ function clienteFromRow(r) {
   return {
     nome: r.nome, estado: r.estado || "", cidade: r.cidade || "",
     documento: r.documento || "", telefone: r.telefone || "", email: r.email || "",
-    endereco: r.endereco || "", contato: r.contato || "", razaoSocial: r.razao_social || "",
+    endereco: r.endereco || "", cep: r.cep || "", contato: r.contato || "", razaoSocial: r.razao_social || "",
     tags: r.tags || [], notas: r.notas || [], createdAt: r.created_at, tipoCliente: r.tipo_cliente || ""
   };
 }
@@ -4849,6 +4849,7 @@ function abrirEdicaoCliente() {
   document.getElementById("clienteEditEstado").value = c.estado || "";
   document.getElementById("clienteEditCidade").value = c.cidade || "";
   document.getElementById("clienteEditEndereco").value = c.endereco || "";
+  document.getElementById("clienteEditCep").value = c.cep || "";
   document.getElementById("clienteEditTipoCliente").value = c.tipoCliente || "";
   document.getElementById("clienteModalInfo").style.display = "none";
   document.getElementById("formEditarCliente").style.display = "block";
@@ -4881,6 +4882,7 @@ async function salvarEdicaoCliente() {
     estado: document.getElementById("clienteEditEstado").value,
     cidade: document.getElementById("clienteEditCidade").value.trim(),
     endereco: document.getElementById("clienteEditEndereco").value.trim(),
+    cep: document.getElementById("clienteEditCep").value.trim(),
     tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null
   };
 
@@ -4910,6 +4912,7 @@ async function salvarEdicaoCliente() {
   c.estado = dados.estado;
   c.cidade = dados.cidade;
   c.endereco = dados.endereco;
+  c.cep = dados.cep;
   c.tipoCliente = dados.tipo_cliente || "";
 
   await registrarLog("clientes", novoNome, "edicao", "Ação automática",
@@ -5080,6 +5083,92 @@ function formatDateBR(iso) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
+}
+
+/* ---------------- auto-preenchimento por CNPJ/CEP (cadastro de cliente) ---------------- */
+// Usa BrasilAPI (CNPJ) e ViaCEP (endereço) -- as duas gratuitas, públicas, sem chave.
+// `prefixo` é "cli" (form "Novo cliente") ou "clienteEdit" (edição) -- os ids dos campos
+// nas duas telas seguem o mesmo padrão ({prefixo}Documento, {prefixo}Cep, etc.), então uma
+// função só atende as duas, em vez de duplicar a lógica.
+
+function soDigitos(v) { return (v || "").replace(/\D/g, ""); }
+
+function preencherEDestacar(id, valor) {
+  if (!valor) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = valor;
+  el.classList.add("auto-filled");
+  setTimeout(() => el.classList.remove("auto-filled"), 900);
+}
+
+async function autoPreencherPorCnpj(prefixo) {
+  const cap = prefixo.charAt(0).toUpperCase() + prefixo.slice(1);
+  const docInput = document.getElementById(prefixo + "Documento");
+  const pill = document.getElementById(prefixo + "SituacaoCnpj");
+  const cnpj = soDigitos(docInput.value);
+  if (pill) pill.style.display = "none";
+  if (cnpj.length !== 14) return; // CPF (11 dígitos) não tem API pública equivalente -- só CNPJ dispara a busca
+  const spinner = document.getElementById("spinner" + cap + "Documento");
+  if (spinner) spinner.classList.add("show");
+  try {
+    const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+    if (!resp.ok) {
+      toast(resp.status === 404 ? "CNPJ não encontrado na Receita Federal." : "CNPJ inválido.");
+      return;
+    }
+    const d = await resp.json();
+    const logradouroCompleto = [d.descricao_tipo_de_logradouro, d.logradouro].filter(Boolean).join(" ");
+    const enderecoCompleto = [[logradouroCompleto, d.numero].filter(Boolean).join(", "), d.bairro].filter(Boolean).join(" - ");
+    preencherEDestacar(prefixo + "RazaoSocial", d.razao_social);
+    preencherEDestacar(prefixo + "Estado", d.uf);
+    preencherEDestacar(prefixo + "Cidade", d.municipio);
+    preencherEDestacar(prefixo + "Endereco", enderecoCompleto);
+    const telInput = document.getElementById(prefixo + "Telefone");
+    if (telInput && !telInput.value.trim() && d.ddd_telefone_1) preencherEDestacar(prefixo + "Telefone", d.ddd_telefone_1);
+    const emailInput = document.getElementById(prefixo + "Email");
+    if (emailInput && !emailInput.value.trim() && d.email) preencherEDestacar(prefixo + "Email", d.email);
+    if (pill && d.descricao_situacao_cadastral) {
+      const ativa = d.descricao_situacao_cadastral.toUpperCase() === "ATIVA";
+      pill.innerHTML = `<span class="status-pill ${ativa ? "pill-normal" : "pill-esgotado"}">${ativa ? "CNPJ com situação ativa" : "Atenção: CNPJ " + d.descricao_situacao_cadastral.toLowerCase() + " — confirme antes de prosseguir"}</span>`;
+      pill.style.display = "";
+    }
+  } catch (e) {
+    toast("Não foi possível consultar o CNPJ agora.");
+  } finally {
+    if (spinner) spinner.classList.remove("show");
+  }
+}
+
+async function autoPreencherPorCep(prefixo) {
+  const cap = prefixo.charAt(0).toUpperCase() + prefixo.slice(1);
+  const cepInput = document.getElementById(prefixo + "Cep");
+  const cep = soDigitos(cepInput.value);
+  if (cep.length !== 8) return;
+  const spinner = document.getElementById("spinner" + cap + "Cep");
+  if (spinner) spinner.classList.add("show");
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    if (!resp.ok) { toast("CEP inválido."); return; }
+    const d = await resp.json();
+    if (d.erro) { toast("CEP não encontrado."); return; }
+    preencherEDestacar(prefixo + "Estado", d.uf);
+    preencherEDestacar(prefixo + "Cidade", d.localidade);
+    preencherEDestacar(prefixo + "Endereco", [d.logradouro, d.bairro].filter(Boolean).join(" - "));
+  } catch (e) {
+    toast("Não foi possível consultar o CEP agora.");
+  } finally {
+    if (spinner) spinner.classList.remove("show");
+  }
+}
+
+function initAutofillCnpjCep() {
+  ["cli", "clienteEdit"].forEach(prefixo => {
+    const docInput = document.getElementById(prefixo + "Documento");
+    const cepInput = document.getElementById(prefixo + "Cep");
+    if (docInput) docInput.addEventListener("blur", () => autoPreencherPorCnpj(prefixo));
+    if (cepInput) cepInput.addEventListener("blur", () => autoPreencherPorCep(prefixo));
+  });
 }
 
 /* ---------------- form handlers ---------------- */
@@ -5630,6 +5719,7 @@ function initForms() {
       telefone: document.getElementById("cliTelefone").value.trim(),
       email: document.getElementById("cliEmail").value.trim(),
       endereco: document.getElementById("cliEndereco").value.trim(),
+      cep: document.getElementById("cliCep").value.trim(),
       contato: document.getElementById("cliContato").value.trim(),
       tipoCliente: document.getElementById("cliTipoCliente").value || null
     };
@@ -6305,6 +6395,7 @@ async function init() {
   initMinhasConfiguracoes();
   initSino();
   initBuscaGeral();
+  initAutofillCnpjCep();
   initAdministracao();
   const btnCentralAjuda = document.getElementById("btnCentralAjuda");
   if (btnCentralAjuda) btnCentralAjuda.addEventListener("click", () => toast("Central de ajuda ainda não está disponível — fale com o time por enquanto."));

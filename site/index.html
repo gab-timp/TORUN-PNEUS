@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=121">
+<link rel="stylesheet" href="styles.css?v=122">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1131,12 +1131,14 @@
             <div class="field">
               <label>CNPJ/CPF (opcional)</label>
               <input type="text" id="cliDocumento" placeholder="Ex: 00.000.000/0001-00">
+              <span class="autofill-spinner" id="spinnerCliDocumento"></span>
             </div>
             <div class="field">
               <label>Contato responsável (opcional)</label>
               <input type="text" id="cliContato" placeholder="Ex: João da Silva">
             </div>
           </div>
+          <div class="status-pill-row" id="cliSituacaoCnpj" style="display:none;"></div>
           <div class="form-row">
             <div class="field grow">
               <label>Razão social (opcional)</label>
@@ -1152,6 +1154,11 @@
             </div>
           </div>
           <div class="form-row">
+            <div class="field">
+              <label>CEP (opcional)</label>
+              <input type="text" id="cliCep" placeholder="Ex: 89201-000">
+              <span class="autofill-spinner" id="spinnerCliCep"></span>
+            </div>
             <div class="field">
               <label>Estado (UF)</label>
               <select id="cliEstado" required></select>
@@ -1223,8 +1230,10 @@
               <div class="field">
                 <label>CNPJ/CPF</label>
                 <input type="text" id="clienteEditDocumento" placeholder="Ex: 00.000.000/0001-00">
+                <span class="autofill-spinner" id="spinnerClienteEditDocumento"></span>
               </div>
             </div>
+            <div class="status-pill-row" id="clienteEditSituacaoCnpj" style="display:none;"></div>
             <div class="form-row">
               <div class="field grow">
                 <label>Razão social</label>
@@ -1246,6 +1255,11 @@
               </div>
             </div>
             <div class="form-row">
+              <div class="field">
+                <label>CEP</label>
+                <input type="text" id="clienteEditCep" placeholder="Ex: 89201-000">
+                <span class="autofill-spinner" id="spinnerClienteEditCep"></span>
+              </div>
               <div class="field">
                 <label>Estado (UF)</label>
                 <select id="clienteEditEstado"></select>
@@ -2142,6 +2156,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=138"></script>
+<script src="app.js?v=139"></script>
 </body>
 </html>
