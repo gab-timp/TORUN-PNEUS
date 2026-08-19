@@ -502,11 +502,13 @@
         </div>
       </div>
 
-      <div class="card write-ui">
+      <div class="card write-ui card-collapsible collapsed" data-collapse-key="prev-novo-processo">
         <div class="card-head">
           <h2 id="prevFormTitle">Novo processo previsto</h2>
           <div class="note" id="prevEditBanner" style="display:none;">Editando processo · <a href="#" id="prevCancelEdit">cancelar edição</a></div>
+          <span class="card-toggle">⌄</span>
         </div>
+        <div class="card-body">
         <form id="formPrevisto">
           <div class="form-row">
             <div class="field">
@@ -543,6 +545,7 @@
             <button type="submit" class="btn primary" id="btnSubmitPrevisto">Adicionar processo</button>
           </div>
         </form>
+        </div>
       </div>
 
       <div class="search-row">
@@ -2136,6 +2139,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=136"></script>
+<script src="app.js?v=137"></script>
 </body>
 </html>

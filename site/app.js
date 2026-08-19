@@ -993,6 +993,7 @@ function startEditPrevisto(id) {
   document.getElementById("prevFormTitle").textContent = "Editar processo previsto";
   document.getElementById("prevEditBanner").style.display = "block";
   document.getElementById("btnSubmitPrevisto").textContent = "Salvar alterações";
+  document.getElementById("formPrevisto").closest(".card-collapsible")?.classList.remove("collapsed");
   document.getElementById("formPrevisto").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
@@ -5031,6 +5032,7 @@ function initForms() {
 
   document.getElementById("prevCancelEdit").addEventListener("click", (e) => {
     e.preventDefault();
+    e.stopPropagation();
     cancelEditPrevisto();
   });
 
