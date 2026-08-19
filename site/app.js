@@ -4319,7 +4319,8 @@ function buscaGeralResultados(query) {
       (e.numeroNF || "").toLowerCase().includes(q) ||
       (e.numeroPedido || "").toLowerCase().includes(q) ||
       (e.cliente || "").toLowerCase().includes(q) ||
-      (e.transportadora || "").toLowerCase().includes(q))
+      (e.transportadora || "").toLowerCase().includes(q) ||
+      (e.vendedor || "").toLowerCase().includes(q))
     .slice(0, 4);
   // NF de venda/entrada mora em vendas (Faturamento), não em entregas --
   // são registros separados, então entram como grupo próprio na busca.
@@ -4328,7 +4329,8 @@ function buscaGeralResultados(query) {
       (v.numeroNFVenda || "").toLowerCase().includes(q) ||
       (v.numeroNFEntrada || "").toLowerCase().includes(q) ||
       (v.numeroPedido || "").toLowerCase().includes(q) ||
-      (v.cliente || "").toLowerCase().includes(q))
+      (v.cliente || "").toLowerCase().includes(q) ||
+      (v.vendedor || "").toLowerCase().includes(q))
     .slice(0, 4);
   return { produtos, clientes, entregas, vendas };
 }
@@ -4403,12 +4405,13 @@ function renderBuscaGeral() {
       const titulo = e.numeroNF ? "NF " + marcarTrechoBusca(e.numeroNF, q)
         : e.numeroPedido ? "Pedido " + marcarTrechoBusca(e.numeroPedido, q)
         : marcarTrechoBusca(e.cliente || "", q);
+      const desc = [ETAPA_LABEL[e.etapa] || e.etapa || "", e.vendedor ? marcarTrechoBusca(e.vendedor, q) : ""].filter(Boolean).join(" · ");
       return `
       <div class="search-item" data-buscaview="entregas" data-buscaid="${escapeAttr(e.id)}">
         <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg></span>
         <span class="search-item-body">
           <span class="search-item-titulo">${titulo} · ${escapeHtml(e.cliente || "")}</span>
-          <span class="search-item-desc">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "")}</span>
+          <span class="search-item-desc">${desc}</span>
         </span>
       </div>
     `;
@@ -4421,12 +4424,13 @@ function renderBuscaGeral() {
         : v.numeroNFEntrada ? "NF entrada " + marcarTrechoBusca(v.numeroNFEntrada, q)
         : v.numeroPedido ? "Pedido " + marcarTrechoBusca(v.numeroPedido, q)
         : marcarTrechoBusca(v.cliente || "", q);
+      const desc = [formatMoney(v.valorVenda || 0), v.vendedor ? marcarTrechoBusca(v.vendedor, q) : "", formatDateBR(v.data)].filter(Boolean).join(" · ");
       return `
       <div class="search-item" data-buscaview="faturamento" data-buscaid="${escapeAttr(v.id)}">
         <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg></span>
         <span class="search-item-body">
           <span class="search-item-titulo">${titulo} · ${escapeHtml(v.cliente || "")}</span>
-          <span class="search-item-desc">${formatMoney(v.valorVenda || 0)} · ${formatDateBR(v.data)}</span>
+          <span class="search-item-desc">${desc}</span>
         </span>
       </div>
     `;
