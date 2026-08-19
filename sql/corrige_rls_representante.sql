@@ -24,6 +24,7 @@
 -- Pré-venda; confirmar venda é exatamente a transição de saída dela).
 
 drop policy if exists "representante finaliza propria reserva" on entregas;
+drop policy if exists "representante atualiza propria entrega em pre-venda" on entregas;
 create policy "representante atualiza propria entrega em pre-venda" on entregas for update
   using (
     coalesce(current_user_role(), '') <> 'representante'
@@ -59,6 +60,7 @@ create policy "representante insere entregas" on entregas for insert
 -- a função de anexar arquivo no pré-cadastro.
 
 drop policy if exists "representante nao gerencia pre-cadastros" on clientes_pendentes;
+drop policy if exists "representante so gerencia proprio pre-cadastro" on clientes_pendentes;
 create policy "representante so gerencia proprio pre-cadastro" on clientes_pendentes for update
   using (
     coalesce(current_user_role(), '') <> 'representante'
