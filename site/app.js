@@ -5862,17 +5862,28 @@ function codigosResumo(codigos) {
   return `${codigos.length} produtos selecionados`;
 }
 
-const CATEGORIA_LABEL = { DIRECIONAL: "Direcional", TRACAO: "Tração", ARRASTO: "Arrasto", AGRICOLA: "Agrícola", INDUSTRIAL: "Industrial", OUTRO: "Outro" };
+const CATEGORIA_LABEL = { PASSEIO: "Passeio", CARGAS_TBR: "Cargas/TBR", AGRICOLA_FLORESTAL: "Agrícola/Florestal", OUTRO: "Outro" };
 const AGRUPAR_ESTOQUE_LABEL = { medida: "Medida", categoria: "Tipo de pneu", marca: "Marca", carcaca: "Carcaça", pr: "PR (lonas)", capCarga: "Cap. de carga" };
 
-// chave usada só pra somar (normaliza maiúsc./espaço, já que categoria era texto livre
-// antes de virar select -- produto antigo pode ter "Direcional", "DIRECIONAL " etc.)
+// tira acento/maiúsc./"/"/"_"/espaço pra comparar -- só usado como chave de busca,
+// nunca aparece na tela
+function normalizarCategoria(s) {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+// aceita tanto o valor do select ("CARGAS_TBR") quanto o rótulo já digitado livre
+// antes de virar select ("Cargas/TBR", "cargas tbr" etc.) e leva pro mesmo grupo
+const CATEGORIA_NORM_LOOKUP = {};
+Object.entries(CATEGORIA_LABEL).forEach(([key, label]) => {
+  CATEGORIA_NORM_LOOKUP[normalizarCategoria(key)] = label;
+  CATEGORIA_NORM_LOOKUP[normalizarCategoria(label)] = label;
+});
+
 function agruparChaveEstoque(p, agrupar) {
   if (agrupar === "medida") return extractMedidaBase(p.medida);
   if (agrupar === "categoria") {
     const raw = (p.categoria || "").trim();
     if (!raw) return "Sem categoria";
-    return CATEGORIA_LABEL[raw.toUpperCase()] || raw;
+    return CATEGORIA_NORM_LOOKUP[normalizarCategoria(raw)] || raw;
   }
   if (agrupar === "marca") return (p.marca || "").trim() || "Sem marca";
   if (agrupar === "carcaca") return p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : "Não informado";
