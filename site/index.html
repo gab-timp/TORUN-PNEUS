@@ -803,8 +803,53 @@
           <h2>Produtos cadastrados</h2>
           <div class="note" id="prodCount"></div>
         </div>
-        <div class="search-row">
-          <input type="text" id="prodSearch" placeholder="Buscar por código ou medida…">
+        <div class="form-row">
+          <div class="field grow">
+            <label>Buscar</label>
+            <input type="text" id="prodSearch" placeholder="Código ou medida…">
+          </div>
+          <div class="field">
+            <label>Tipo do pneu</label>
+            <select id="prodFiltroTipo">
+              <option value="">Todos</option>
+              <option value="PASSEIO">Passeio</option>
+              <option value="CARGAS_TBR">Cargas/TBR</option>
+              <option value="AGRICOLA_FLORESTAL">Agrícola/Florestal</option>
+              <option value="OUTRO">Outro</option>
+              <option value="__sem">Sem categoria</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Marca</label>
+            <select id="prodFiltroMarca">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Carcaça</label>
+            <select id="prodFiltroCarcaca">
+              <option value="">Todas</option>
+              <option value="RADIAL">Radial</option>
+              <option value="DIAGONAL">Diagonal</option>
+              <option value="__sem">Não informado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Situação</label>
+            <select id="prodFiltroSituacao">
+              <option value="">Todas</option>
+              <option value="ATIVO">Ativo</option>
+              <option value="DESCONTINUADO">Descontinuado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Preço</label>
+            <select id="prodFiltroStatus">
+              <option value="">Todos</option>
+              <option value="completo">Completo</option>
+              <option value="sem_preco">Sem preço</option>
+            </select>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -813,6 +858,9 @@
                 <th class="sortable" data-prodsort="codigo">Código <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
                 <th class="sortable" data-prodsort="medida">Medida <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
                 <th class="sortable" data-prodsort="categoria">Tipo do pneu <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
+                <th>Marca</th>
+                <th>Carcaça</th>
+                <th>Situação</th>
                 <th class="sortable" data-prodsort="status">Status <span class="sort-ic"><svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></span></th>
                 <th></th>
               </tr>
@@ -2327,6 +2375,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=146"></script>
+<script src="app.js?v=147"></script>
 </body>
 </html>

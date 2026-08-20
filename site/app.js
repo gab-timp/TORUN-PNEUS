@@ -1403,12 +1403,37 @@ function produtoTemPreco(codigo) {
   return state.produtos_precos.some(pr => pr.codigo === codigo);
 }
 
+function populateProdFiltroMarca() {
+  const sel = document.getElementById("prodFiltroMarca");
+  const atual = sel.value;
+  const marcas = [...new Set(state.produtos.map(p => p.marca).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">Todas</option>` + marcas.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join("");
+  if (marcas.includes(atual)) sel.value = atual;
+}
+
 function renderProdutos() {
+  populateProdFiltroMarca();
+
   const search = (document.getElementById("prodSearch").value || "").trim().toLowerCase();
+  const fTipo = document.getElementById("prodFiltroTipo").value;
+  const fMarca = document.getElementById("prodFiltroMarca").value;
+  const fCarcaca = document.getElementById("prodFiltroCarcaca").value;
+  const fSituacao = document.getElementById("prodFiltroSituacao").value;
+  const fStatus = document.getElementById("prodFiltroStatus").value;
+
   let rows = state.produtos.slice();
   if (search) {
     rows = rows.filter(p => p.codigo.toLowerCase().includes(search) || p.medida.toLowerCase().includes(search));
   }
+  if (fTipo === "__sem") rows = rows.filter(p => !p.categoria);
+  else if (fTipo) rows = rows.filter(p => normalizarCategoria(p.categoria || "") === normalizarCategoria(fTipo));
+  if (fMarca) rows = rows.filter(p => p.marca === fMarca);
+  if (fCarcaca === "__sem") rows = rows.filter(p => !p.carcaca);
+  else if (fCarcaca) rows = rows.filter(p => p.carcaca === fCarcaca);
+  if (fSituacao) rows = rows.filter(p => (p.situacao || "ATIVO") === fSituacao);
+  if (fStatus === "completo") rows = rows.filter(p => produtoTemPreco(p.codigo));
+  else if (fStatus === "sem_preco") rows = rows.filter(p => !produtoTemPreco(p.codigo));
+
   rows.sort((a, b) => {
     let r;
     if (prodSortKey === "status") r = Number(produtoTemPreco(a.codigo)) - Number(produtoTemPreco(b.codigo));
@@ -1416,7 +1441,10 @@ function renderProdutos() {
     return prodSortAsc ? r : -r;
   });
 
-  document.getElementById("prodCount").textContent = `${state.produtos.length} produto(s) cadastrado(s)`;
+  const temFiltro = !!(search || fTipo || fMarca || fCarcaca || fSituacao || fStatus);
+  document.getElementById("prodCount").textContent = temFiltro
+    ? `${rows.length} de ${state.produtos.length} produto(s)`
+    : `${state.produtos.length} produto(s) cadastrado(s)`;
 
   document.getElementById("prodTbody").innerHTML = rows.map(p => {
     const completo = produtoTemPreco(p.codigo);
@@ -1425,6 +1453,9 @@ function renderProdutos() {
       <td class="mono">${escapeHtml(p.codigo)}</td>
       <td>${escapeHtml(p.medida)}</td>
       <td>${p.categoria ? escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria) : '<span class="muted">—</span>'}</td>
+      <td>${p.marca ? escapeHtml(p.marca) : '<span class="muted">—</span>'}</td>
+      <td>${p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : '<span class="muted">—</span>'}</td>
+      <td>${p.situacao === "DESCONTINUADO" ? '<span class="status-pill pill-esgotado">Descontinuado</span>' : '<span class="muted">Ativo</span>'}</td>
       <td><span class="status-pill ${completo ? "pill-normal" : "pill-baixo"}">${completo ? "Completo" : "Sem preço"}</span></td>
       <td>
         <div class="row-actions">
@@ -6489,6 +6520,9 @@ async function init() {
   });
 
   document.getElementById("prodSearch").addEventListener("input", renderProdutos);
+  ["prodFiltroTipo", "prodFiltroMarca", "prodFiltroCarcaca", "prodFiltroSituacao", "prodFiltroStatus"].forEach(id => {
+    document.getElementById(id).addEventListener("change", renderProdutos);
+  });
   document.getElementById("freteSearch").addEventListener("input", renderFretes);
   ["freteFiltroStatus", "freteFiltroDe", "freteFiltroAte"].forEach(id => {
     document.getElementById(id).addEventListener("change", renderFretes);

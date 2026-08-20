@@ -2,3 +2,4 @@
 Thumbs.db
 *.swp
 mock-supabase-test.js
+.claude/
