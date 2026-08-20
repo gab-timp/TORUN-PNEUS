@@ -779,12 +779,26 @@ function initEstoqueResize() {
   });
 }
 
+function populateEstoqueFiltroMarca() {
+  const sel = document.getElementById("estoqueFiltroMarca");
+  const atual = sel.value;
+  const marcas = [...new Set(state.produtos.map(p => p.marca).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">Todas</option>` + marcas.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join("");
+  if (marcas.includes(atual)) sel.value = atual;
+}
+
 function renderEstoque() {
+  populateEstoqueFiltroMarca();
   renderEstoqueKpis();
   renderEstoqueDonutMedida();
   renderEstoqueSaldoBaixoLista();
   const search = (document.getElementById("estoqueSearch").value || "").trim().toLowerCase();
   const filtro = document.getElementById("estoqueFiltro").value;
+  const fTipo = document.getElementById("estoqueFiltroTipo").value;
+  const fMarca = document.getElementById("estoqueFiltroMarca").value;
+  const fCarcaca = document.getElementById("estoqueFiltroCarcaca").value;
+  const fSituacao = document.getElementById("estoqueFiltroSituacao").value;
+  const fStatus = document.getElementById("estoqueFiltroStatus").value;
 
   let rows = listEstoque();
   if (search) {
@@ -796,6 +810,14 @@ function renderEstoque() {
   }
   if (filtro === "disponivel") rows = rows.filter(r => r.saldo > 0);
   if (filtro === "zerado") rows = rows.filter(r => r.saldo <= 0);
+  if (fTipo === "__sem") rows = rows.filter(r => !r.categoria);
+  else if (fTipo) rows = rows.filter(r => normalizarCategoria(r.categoria || "") === normalizarCategoria(fTipo));
+  if (fMarca) rows = rows.filter(r => r.marca === fMarca);
+  if (fCarcaca === "__sem") rows = rows.filter(r => !r.carcaca);
+  else if (fCarcaca) rows = rows.filter(r => r.carcaca === fCarcaca);
+  if (fSituacao) rows = rows.filter(r => (r.situacao || "ATIVO") === fSituacao);
+  if (fStatus === "completo") rows = rows.filter(r => produtoTemPreco(r.codigo));
+  else if (fStatus === "sem_preco") rows = rows.filter(r => !produtoTemPreco(r.codigo));
 
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
@@ -6513,6 +6535,9 @@ async function init() {
     document.getElementById(id).addEventListener("input", renderEstoque)
   );
   document.getElementById("estoqueFiltro").addEventListener("change", renderEstoque);
+  ["estoqueFiltroTipo", "estoqueFiltroMarca", "estoqueFiltroCarcaca", "estoqueFiltroSituacao", "estoqueFiltroStatus"].forEach(id => {
+    document.getElementById(id).addEventListener("change", renderEstoque);
+  });
 
   ["movSearch", "movFiltroTipo", "movFiltroDe", "movFiltroAte"].forEach(id => {
     document.getElementById(id).addEventListener("input", renderMovimentos);

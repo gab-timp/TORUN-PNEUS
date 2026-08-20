@@ -447,13 +447,61 @@
             <h2>Produtos em estoque</h2>
             <div class="note">Clique em um produto para ver o histórico de movimentações.</div>
           </div>
-          <div class="search-row">
-            <input type="text" id="estoqueSearch" placeholder="Buscar por código, medida ou processo…">
-            <select id="estoqueFiltro">
-              <option value="todos">Todos</option>
-              <option value="disponivel">Com saldo disponível</option>
-              <option value="zerado">Saldo zerado</option>
-            </select>
+          <div class="form-row">
+            <div class="field grow">
+              <label>Buscar</label>
+              <input type="text" id="estoqueSearch" placeholder="Código, medida ou processo…">
+            </div>
+            <div class="field">
+              <label>Saldo</label>
+              <select id="estoqueFiltro">
+                <option value="todos">Todos</option>
+                <option value="disponivel">Com saldo disponível</option>
+                <option value="zerado">Saldo zerado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tipo do pneu</label>
+              <select id="estoqueFiltroTipo">
+                <option value="">Todos</option>
+                <option value="PASSEIO">Passeio</option>
+                <option value="CARGAS_TBR">Cargas/TBR</option>
+                <option value="AGRICOLA_FLORESTAL">Agrícola/Florestal</option>
+                <option value="OUTRO">Outro</option>
+                <option value="__sem">Sem categoria</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Marca</label>
+              <select id="estoqueFiltroMarca">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Carcaça</label>
+              <select id="estoqueFiltroCarcaca">
+                <option value="">Todas</option>
+                <option value="RADIAL">Radial</option>
+                <option value="DIAGONAL">Diagonal</option>
+                <option value="__sem">Não informado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Situação</label>
+              <select id="estoqueFiltroSituacao">
+                <option value="">Todas</option>
+                <option value="ATIVO">Ativo</option>
+                <option value="DESCONTINUADO">Descontinuado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Preço</label>
+              <select id="estoqueFiltroStatus">
+                <option value="">Todos</option>
+                <option value="completo">Completo</option>
+                <option value="sem_preco">Sem preço</option>
+              </select>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
@@ -2375,6 +2423,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=147"></script>
+<script src="app.js?v=148"></script>
 </body>
 </html>
