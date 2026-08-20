@@ -6015,8 +6015,6 @@ const REPORT_DEFS = {
         const columns = [
           { key: "grupo", label: AGRUPAR_ESTOQUE_LABEL[agrupar] },
           { key: "produtos", label: "Nº de produtos", numeric: true },
-          { key: "entradas", label: "Entradas", numeric: true },
-          { key: "saidas", label: "Saídas", numeric: true },
           { key: "saldo", label: "Saldo disponível", numeric: true }
         ];
         const summaryLines = [
@@ -6031,11 +6029,9 @@ const REPORT_DEFS = {
       const columns = [
         { key: "codigo", label: "Código" },
         { key: "medida", label: "Medida" },
-        { key: "entradas", label: "Entradas", numeric: true },
-        { key: "saidas", label: "Saídas", numeric: true },
         { key: "saldo", label: "Saldo disponível", numeric: true }
       ];
-      const rows = produtos.map(p => ({ codigo: p.codigo, medida: p.medida, entradas: p.entradas, saidas: p.saidas, saldo: p.saldo }));
+      const rows = produtos.map(p => ({ codigo: p.codigo, medida: p.medida, saldo: p.saldo }));
       const summaryLines = [
         ...summaryBase,
         { label: "Produtos incluídos", value: fmt(produtos.length) },
