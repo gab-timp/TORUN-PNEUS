@@ -5961,7 +5961,7 @@ function agruparEstoque(produtos, agrupar) {
     .map(g => ({
       ...g,
       itens: g.itens.sort((a, b) => a.codigo.localeCompare(b.codigo)),
-      medidas: g.itens.map(it => `${it.codigo} — ${it.medida}`).join("; ")
+      medidas: g.itens.map(it => `${it.codigo} — ${it.medida}`)
     }));
 }
 
@@ -6021,9 +6021,8 @@ const REPORT_DEFS = {
         const grupos = agruparEstoque(produtos, agrupar);
         const columns = [
           { key: "grupo", label: AGRUPAR_ESTOQUE_LABEL[agrupar] },
-          { key: "produtos", label: "Nº de produtos", numeric: true },
           { key: "saldo", label: "Saldo disponível", numeric: true },
-          { key: "medidas", label: "Medidas incluídas" }
+          { key: "medidas", label: "Medidas incluídas", list: true }
         ];
         const summaryLines = [
           { label: "Agrupado por", value: AGRUPAR_ESTOQUE_LABEL[agrupar] },
@@ -6120,6 +6119,10 @@ function buildReportPrintHtml(def, de, ate, data) {
   const tbodyHtml = rows.length
     ? rows.map(r => `<tr>${columns.map(c => {
         let val = r[c.key];
+        if (c.list) {
+          const conteudo = Array.isArray(val) && val.length ? val.map(escapeHtml).join("<br>") : "—";
+          return `<td class="list-cell">${conteudo}</td>`;
+        }
         if (val === undefined || val === null || val === "") val = "—";
         else if (c.money) val = formatMoney(val);
         else if (c.numeric) val = fmt(val);
@@ -6162,7 +6165,10 @@ function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar) {
 function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar) {
   const def = REPORT_DEFS[reportKey];
   const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar);
-  const wsData = [columns.map(c => c.label)].concat(rows.map(r => columns.map(c => r[c.key] ?? "")));
+  const wsData = [columns.map(c => c.label)].concat(rows.map(r => columns.map(c => {
+    const val = r[c.key];
+    return Array.isArray(val) ? val.join("\n") : (val ?? "");
+  })));
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, def.title.replace("Relatório de ", "").slice(0, 31));
