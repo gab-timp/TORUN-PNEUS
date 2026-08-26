@@ -5949,13 +5949,20 @@ function agruparEstoque(produtos, agrupar) {
   const grupos = {};
   produtos.forEach(p => {
     const chave = agruparChaveEstoque(p, agrupar);
-    if (!grupos[chave]) grupos[chave] = { grupo: chave, produtos: 0, entradas: 0, saidas: 0, saldo: 0 };
+    if (!grupos[chave]) grupos[chave] = { grupo: chave, produtos: 0, entradas: 0, saidas: 0, saldo: 0, itens: [] };
     grupos[chave].produtos += 1;
     grupos[chave].entradas += p.entradas;
     grupos[chave].saidas += p.saidas;
     grupos[chave].saldo += p.saldo;
+    grupos[chave].itens.push({ codigo: p.codigo, medida: p.medida });
   });
-  return Object.values(grupos).sort((a, b) => b.saldo - a.saldo);
+  return Object.values(grupos)
+    .sort((a, b) => b.saldo - a.saldo)
+    .map(g => ({
+      ...g,
+      itens: g.itens.sort((a, b) => a.codigo.localeCompare(b.codigo)),
+      medidas: g.itens.map(it => `${it.codigo} — ${it.medida}`).join("; ")
+    }));
 }
 
 const REPORT_DEFS = {
@@ -6015,7 +6022,8 @@ const REPORT_DEFS = {
         const columns = [
           { key: "grupo", label: AGRUPAR_ESTOQUE_LABEL[agrupar] },
           { key: "produtos", label: "Nº de produtos", numeric: true },
-          { key: "saldo", label: "Saldo disponível", numeric: true }
+          { key: "saldo", label: "Saldo disponível", numeric: true },
+          { key: "medidas", label: "Medidas incluídas" }
         ];
         const summaryLines = [
           { label: "Agrupado por", value: AGRUPAR_ESTOQUE_LABEL[agrupar] },
