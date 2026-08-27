@@ -5949,10 +5949,7 @@ function agruparEstoque(produtos, agrupar) {
   const grupos = {};
   produtos.forEach(p => {
     const chave = agruparChaveEstoque(p, agrupar);
-    if (!grupos[chave]) grupos[chave] = { grupo: chave, produtos: 0, entradas: 0, saidas: 0, saldo: 0, itens: [] };
-    grupos[chave].produtos += 1;
-    grupos[chave].entradas += p.entradas;
-    grupos[chave].saidas += p.saidas;
+    if (!grupos[chave]) grupos[chave] = { grupo: chave, saldo: 0, itens: [] };
     grupos[chave].saldo += p.saldo;
     grupos[chave].itens.push({ codigo: p.codigo, medida: p.medida });
   });
@@ -6088,14 +6085,14 @@ const REPORT_DEFS = {
       const previsoes = state.previsoes.slice().sort((a, b) => a.numeroProcesso.localeCompare(b.numeroProcesso));
       const columns = [
         { key: "processo", label: "Processo" },
-        { key: "medidas", label: "Medidas" },
+        { key: "medidas", label: "Medidas", list: true },
         { key: "status", label: "Status" },
         { key: "dataChegada", label: "Data de chegada" },
         { key: "obs", label: "Obs." }
       ];
       const rows = previsoes.map(p => ({
         processo: p.numeroProcesso,
-        medidas: p.itens.map(it => `${it.codigo} (${fmt(it.quantidade)})`).join(", "),
+        medidas: p.itens.map(it => `${it.codigo} (${fmt(it.quantidade)})`),
         status: p.status,
         dataChegada: p.dataChegada ? formatDateBR(p.dataChegada) : "—",
         obs: p.obs || "—"
@@ -6165,10 +6162,23 @@ function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar) {
 function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar) {
   const def = REPORT_DEFS[reportKey];
   const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar);
-  const wsData = [columns.map(c => c.label)].concat(rows.map(r => columns.map(c => {
-    const val = r[c.key];
-    return Array.isArray(val) ? val.join("\n") : (val ?? "");
-  })));
+
+  // A versão livre do SheetJS não escreve estilo de célula (sem isso, "Wrap Text"
+  // não dá pra ligar via código -- confirmado testando: o estilo simplesmente não
+  // persiste no arquivo gerado). Uma célula só com "\n" no meio de 10 itens fica
+  // ilegível até o usuário ligar Wrap Text na mão. Solução mais robusta pro Excel
+  // (e mais correta como planilha, dá pra filtrar/ordenar por item): quando a
+  // coluna é uma lista, quebra em uma linha por item, repetindo o resto -- em vez
+  // de confiar em quebra de linha dentro da célula.
+  const colunaLista = columns.find(c => c.list);
+  const linhas = colunaLista
+    ? rows.flatMap(r => {
+        const itens = Array.isArray(r[colunaLista.key]) && r[colunaLista.key].length ? r[colunaLista.key] : [""];
+        return itens.map(item => ({ ...r, [colunaLista.key]: item }));
+      })
+    : rows;
+
+  const wsData = [columns.map(c => c.label)].concat(linhas.map(r => columns.map(c => r[c.key] ?? "")));
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, def.title.replace("Relatório de ", "").slice(0, 31));
