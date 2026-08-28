@@ -6043,12 +6043,16 @@ const REPORT_DEFS = {
   faturamento: {
     title: "Relatório de Faturamento",
     hasDateRange: true,
-    build(de, ate, filtro) {
+    build(de, ate, filtro, codigos, agrupar, filtro2) {
       let vendas = filtrarPorPeriodo(state.vendas, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
       if (filtro) vendas = vendas.filter(v => v.vendedor === filtro);
+      // estado não é campo da venda -- vem do cadastro do cliente (mesma lógica de
+      // "Faturamento e frete por estado": getCliente(v.cliente).estado).
+      if (filtro2) vendas = vendas.filter(v => { const cli = getCliente(v.cliente); return cli && cli.estado === filtro2; });
       const columns = [
         { key: "data", label: "Data" },
         { key: "cliente", label: "Cliente" },
+        { key: "estado", label: "Estado" },
         { key: "nf", label: "NF" },
         { key: "vendedor", label: "Vendedor" },
         { key: "qtd", label: "Qtd. pneus", numeric: true },
@@ -6057,17 +6061,21 @@ const REPORT_DEFS = {
         { key: "frete", label: "Frete", money: true },
         { key: "transportadora", label: "Transportadora" }
       ];
-      const rows = vendas.map(v => ({
-        data: formatDateBR(v.data), cliente: v.cliente, nf: v.numeroNFVenda || "—", vendedor: v.vendedor || "—",
-        qtd: v.quantidadePneus, valor: v.valorVenda, comissao: v.comissao || 0, frete: v.valorFrete || 0,
-        transportadora: v.transportadora || "—"
-      }));
+      const rows = vendas.map(v => {
+        const cli = getCliente(v.cliente);
+        return {
+          data: formatDateBR(v.data), cliente: v.cliente, estado: (cli && cli.estado) || "—", nf: v.numeroNFVenda || "—", vendedor: v.vendedor || "—",
+          qtd: v.quantidadePneus, valor: v.valorVenda, comissao: v.comissao || 0, frete: v.valorFrete || 0,
+          transportadora: v.transportadora || "—"
+        };
+      });
       const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
       const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
       const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
       const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
       const summaryLines = [
         ...(filtro ? [{ label: "Vendedor", value: filtro }] : []),
+        ...(filtro2 ? [{ label: "Estado", value: filtro2 }] : []),
         { label: "Vendas no período", value: fmt(vendas.length) },
         { label: "Pneus vendidos", value: fmt(totalPneus) + " un." },
         { label: "Comissão total", value: formatMoney(totalComissao) },
@@ -6231,16 +6239,16 @@ function buildReportPrintHtml(def, de, ate, data) {
   `;
 }
 
-function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar) {
+function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2) {
   const def = REPORT_DEFS[reportKey];
-  const data = def.build(de, ate, filtro, codigo, agrupar);
+  const data = def.build(de, ate, filtro, codigo, agrupar, filtro2);
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
   window.print();
 }
 
-function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar) {
+function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar, filtro2) {
   const def = REPORT_DEFS[reportKey];
-  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar);
+  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar, filtro2);
 
   // A versão livre do SheetJS não escreve estilo de célula (sem isso, "Wrap Text"
   // não dá pra ligar via código -- confirmado testando: o estilo simplesmente não
@@ -6272,24 +6280,39 @@ function populateReportFatVendedor() {
   if (vendedores.includes(atual)) sel.value = atual;
 }
 
+function populateReportFatEstado() {
+  const sel = document.getElementById("reportFatEstado");
+  const atual = sel.value;
+  // estado não é campo da venda -- vem do cadastro do cliente, mesma lógica já
+  // usada em "Faturamento e frete por estado" (getCliente(v.cliente).estado).
+  const estados = Array.from(new Set(state.vendas.map(v => {
+    const cli = getCliente(v.cliente);
+    return cli && cli.estado;
+  }).filter(Boolean))).sort();
+  sel.innerHTML = `<option value="">Todos os estados</option>` + estados.map(uf => `<option value="${escapeAttr(uf)}">${escapeHtml(uf)}</option>`).join("");
+  if (estados.includes(atual)) sel.value = atual;
+}
+
 function initRelatorios() {
   populateReportFatVendedor();
+  populateReportFatEstado();
   document.querySelectorAll(".report-card").forEach(card => {
     const reportKey = card.dataset.report;
     const deInput = card.querySelector(".report-de");
     const ateInput = card.querySelector(".report-ate");
     const filtroInput = card.querySelector(".report-filtro");
+    const filtro2Input = card.querySelector(".report-filtro2");
     const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
     card.querySelector(".report-btn-pdf").addEventListener("click", () => {
-      if (reportKey === "faturamento") populateReportFatVendedor(); // pega vendedor novo, se houve venda desde o init
+      if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); } // pega vendedor/estado novo, se houve venda desde o init
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null);
     });
     card.querySelector(".report-btn-excel").addEventListener("click", () => {
-      if (reportKey === "faturamento") populateReportFatVendedor();
+      if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); }
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null);
     });
   });
   initRelatorioCodigoFiltros();
