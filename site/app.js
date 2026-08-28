@@ -792,6 +792,7 @@ function renderEstoque() {
   renderEstoqueKpis();
   renderEstoqueDonutMedida();
   renderEstoqueSaldoBaixoLista();
+  atualizarAlertaEstoqueBaixo();
   const search = (document.getElementById("estoqueSearch").value || "").trim().toLowerCase();
   const filtro = document.getElementById("estoqueFiltro").value;
   const fTipo = document.getElementById("estoqueFiltroTipo").value;
@@ -1162,7 +1163,12 @@ function renderMovimentosStats() {
   const hoje = todayISO();
   const de30 = new Date();
   de30.setDate(de30.getDate() - 30);
-  const de30ISO = de30.toISOString().slice(0, 10);
+  // mesma correção de fuso do todayISO() -- sem isso, nas últimas horas do dia
+  // (fuso BR = UTC-3) o toISOString() cru já rolou pro dia seguinte em UTC e o
+  // corte de 30 dias fica 1 dia adiantado, excluindo movimentação do limite
+  // (achado em revisão).
+  const tz30 = de30.getTimezoneOffset() * 60000;
+  const de30ISO = new Date(de30 - tz30).toISOString().slice(0, 10);
 
   const janela = state.movimentos.filter(m => m.data >= de30ISO);
   const entradasQtd = janela.filter(m => m.tipo === "entrada").reduce((a, m) => a + m.quantidade, 0);
@@ -1248,6 +1254,7 @@ function renderMovimentos() {
   renderMovimentosStats();
   renderMovimentosDonut();
   renderMovimentosAutomaticos();
+  atualizarAlertaEstoqueBaixo();
   const search = (document.getElementById("movSearch").value || "").trim().toLowerCase();
   const tipoF = document.getElementById("movFiltroTipo").value;
   const de = document.getElementById("movFiltroDe").value;
@@ -1298,15 +1305,23 @@ function renderMovimentos() {
           ? `<span class="origem-tag auto"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 10h10M11 6l4 4-4 4"/></svg>Automático</span>`
           : `<span class="origem-tag">Manual</span>`}</td>
         <td style="white-space:nowrap;">
-          <span class="write-ui">
-            <button class="btn small outline" data-edit="${m.id}">Editar</button>
-            <button class="btn small danger" data-del="${m.id}">Excluir</button>
-          </span>
+          ${m.entregaId
+            ? `<span class="muted" style="font-size:11px;">Editar pelo pedido</span>`
+            : `<span class="write-ui">
+                <button class="btn small outline" data-edit="${m.id}">Editar</button>
+                <button class="btn small danger" data-del="${m.id}">Excluir</button>
+              </span>`}
         </td>
       </tr>
     `;
   }).join("");
 
+  // Movimentação automática (m.entregaId setado) não tem botão de editar/excluir de
+  // propósito -- ela é a fonte da verdade do trigger de baixa automática de estoque
+  // (sql/baixa_automatica_e_cancelamento_pedidos.sql, que decide "esse pedido já
+  // baixou estoque?" só pela EXISTÊNCIA dessa linha). Editar/excluir direto aqui
+  // desencontra o saldo do que o pedido realmente tem no Kanban sem o trigger saber
+  // (achado em revisão) -- pra mudar, edita os itens do pedido ou cancela ele.
   tbody.querySelectorAll("[data-edit]").forEach(btn => {
     btn.addEventListener("click", () => startEditMovimento(btn.dataset.edit));
   });
@@ -1499,6 +1514,16 @@ function renderProdutos() {
         toast("Não é possível excluir: esse produto já tem movimentações.");
         return;
       }
+      // achado em revisão: faltava essa checagem -- produto referenciado só num
+      // processo previsto (sem movimentação ainda, já que não chegou) podia ser
+      // excluído, e depois o <select> de itens da previsão (que só lista produtos
+      // existentes) não achava mais o código, travando o formulário de edição
+      // inteiro (nem os outros campos davam pra salvar).
+      const temPrevisto = state.previsoes.some(pr => (pr.itens || []).some(it => it.codigo === codigo));
+      if (temPrevisto) {
+        toast("Não é possível excluir: esse produto está numa medida de Estoque Previsto.");
+        return;
+      }
       const motivo = await motivoModal("Excluir produto?", `Remover "${codigo}" do cadastro? Informe o motivo da exclusão.`);
       if (!motivo) return;
       const { error } = await sb.from("produtos").delete().eq("codigo", codigo);
@@ -1555,9 +1580,17 @@ function abrirProdutoEditDrawer(codigo) {
   document.getElementById("prodEditNcm").value = p.ncm || "";
 
   const temMov = state.movimentos.some(m => m.codigo === codigo);
-  codigoInput.disabled = temMov;
+  const temPreco = produtoTemPreco(codigo);
+  codigoInput.disabled = temMov || temPreco;
   if (temMov) {
     hint.textContent = "Não dá pra mudar o código de um produto que já tem movimentação registrada (evita desencontrar o histórico).";
+    hint.style.display = "";
+  } else if (temPreco) {
+    // produtos_precos.codigo referencia produtos(codigo) sem "on update cascade"
+    // (sql/catalogo_setup_agosto2026.sql) -- renomear aqui quebraria a gravação
+    // inteira com um erro cru de FK do Postgres, inclusive nos outros campos
+    // editados junto. Precisa apagar/refazer os preços antes de poder renomear.
+    hint.textContent = "Não dá pra mudar o código de um produto que já tem preço cadastrado no Catálogo (evita quebrar a referência no banco).";
     hint.style.display = "";
   } else {
     hint.style.display = "none";
@@ -1643,7 +1676,12 @@ function populateCatalogoFiltroCategoria() {
   const sel = document.getElementById("catFiltroCategoria");
   const atual = sel.value;
   const categorias = [...new Set(state.produtos.map(p => p.categoria).filter(Boolean))].sort();
-  sel.innerHTML = `<option value="">Todas</option>` + categorias.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+  // valor da option continua o bruto (é o que renderCatalogo compara direto
+  // contra p.categoria) -- só o texto mostrado passa pela normalização, senão
+  // o dropdown mostrava "CARGAS_TBR" em vez de "Cargas/TBR" (achado em revisão).
+  sel.innerHTML = `<option value="">Todas</option>` + categorias.map(c =>
+    `<option value="${escapeAttr(c)}">${escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(c)] || c)}</option>`
+  ).join("");
   if (categorias.includes(atual)) sel.value = atual;
 }
 
@@ -1765,7 +1803,11 @@ async function persistirFotoProdutoNovo(codigo, slot, file) {
   const { error: uploadError } = await sb.storage.from(CATALOGO_BUCKET).upload(path, file);
   if (uploadError) { toast(`Produto salvo, mas houve erro ao enviar a foto ${slot}: ` + uploadError.message); return null; }
   const { error } = await sb.from("produtos").update({ [campo]: path }).eq("codigo", codigo);
-  if (error) { toast(`Produto salvo, mas houve erro ao registrar a foto ${slot}: ` + error.message); return null; }
+  if (error) {
+    toast(`Produto salvo, mas houve erro ao registrar a foto ${slot}: ` + error.message);
+    await sb.storage.from(CATALOGO_BUCKET).remove([path]); // desfaz o upload -- sem isso, ficava órfão no bucket (achado em revisão)
+    return null;
+  }
   return path;
 }
 
@@ -1835,10 +1877,10 @@ function renderCatalogo() {
       <div class="catalogo-card" data-catcard="${escapeAttr(p.codigo)}">
         <div class="catalogo-foto-hero">${fotoHeroHtml}</div>
         <div class="catalogo-foto-overlay-top">
-          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(p.categoria)}</span>` : "<span></span>"}
+          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria)}</span>` : "<span></span>"}
           <span class="status-pill pill-${statusSaldo}">${fmt(saldoProduto)} un.</span>
         </div>
-        <button type="button" class="catalogo-card-editbtn write-ui" data-editcard="${escapeAttr(p.codigo)}" title="Editar especificações">
+        <button type="button" class="catalogo-card-editbtn write-ui" data-editcard="${escapeAttr(p.codigo)}" title="Ver no Catálogo (fotos e preços)">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg>
         </button>
         ${fotosCard.length > 1 ? `<span class="catalogo-foto-count"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg>${fotosCard.length} fotos</span>` : ""}
@@ -1927,7 +1969,7 @@ function openCatalogoModal(codigo) {
   });
 
   const specs = [
-    ["Marca", p.marca], ["Categoria", p.categoria], ["Modelo", p.modelo],
+    ["Marca", p.marca], ["Categoria", p.categoria ? (CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria) : ""], ["Modelo", p.modelo],
     ["Carcaça", p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : ""],
     ["IC/IV", p.icIv], ["PR", p.pr], ["Cintas", p.cintas], ["Cap. carga", p.capCarga], ["PSI", p.psi],
     ["Sulco (mm)", p.sulcoMm], ["Larg. banda (mm)", p.largBandaMm], ["Peso (kg)", p.pesoKg], ["NCM", p.ncm]
@@ -2060,7 +2102,11 @@ async function uploadFotoCatalogo(codigo, file, slot) {
   if (uploadError) { toast("Erro ao enviar foto: " + uploadError.message); return; }
 
   const { error } = await sb.from("produtos").update({ [campo]: path }).eq("codigo", codigo);
-  if (error) { toast("Erro ao salvar foto: " + error.message); return; }
+  if (error) {
+    toast("Erro ao salvar foto: " + error.message);
+    await sb.storage.from(CATALOGO_BUCKET).remove([path]); // desfaz o upload -- sem isso, ficava órfão no bucket (achado em revisão)
+    return;
+  }
 
   if (p) p[propState] = path;
   if (pathAntigo) await sb.storage.from(CATALOGO_BUCKET).remove([pathAntigo]);
@@ -2281,9 +2327,14 @@ function renderFretes() {
       const [freteId, cotId] = btn.dataset.contratar.split("|");
       const f = state.fretes.find(x => x.id === freteId);
       if (!f) return;
-      const { error } = await sb.from("fretes").update({ contratada_id: cotId }).eq("id", freteId);
+      // .select().single() pra pegar o updated_at novo de volta -- sem isso, a próxima
+      // vez que o usuário abrisse "Editar" nesse mesmo frete levava o updated_at velho
+      // pro updateWithConflictCheck, que dava falso positivo de "editado por outra
+      // pessoa" mesmo sendo a própria ação do usuário segundos antes (achado em revisão).
+      const { data: rowAtualizada, error } = await sb.from("fretes").update({ contratada_id: cotId }).eq("id", freteId).select().single();
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       f.contratadaId = cotId;
+      if (rowAtualizada) f.updatedAt = rowAtualizada.updated_at;
       const cot = f.cotacoes.find(c => c.id === cotId);
       await registrarLog("fretes", freteId, "edicao", "Ação automática",
         `Transportadora ${cot ? cot.transportadora : cotId} marcada como contratada no frete ${f.referencia}`);
@@ -2297,9 +2348,10 @@ function renderFretes() {
       const f = state.fretes.find(x => x.id === btn.dataset.desmarcar);
       if (!f) return;
       const cotAnterior = f.cotacoes.find(c => c.id === f.contratadaId);
-      const { error } = await sb.from("fretes").update({ contratada_id: null }).eq("id", f.id);
+      const { data: rowAtualizada, error } = await sb.from("fretes").update({ contratada_id: null }).eq("id", f.id).select().single();
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       f.contratadaId = null;
+      if (rowAtualizada) f.updatedAt = rowAtualizada.updated_at;
       await registrarLog("fretes", f.id, "edicao", "Ação automática",
         `Transportadora ${cotAnterior ? cotAnterior.transportadora : "—"} desmarcada como contratada no frete ${f.referencia}`);
       renderFretes();
@@ -2316,12 +2368,13 @@ function renderFretes() {
       const cotacaoRemovida = f.cotacoes.find(c => c.id === cotId);
       const novasCotacoes = f.cotacoes.filter(c => c.id !== cotId);
       const novaContratadaId = f.contratadaId === cotId ? null : f.contratadaId;
-      const { error } = await sb.from("fretes").update({ cotacoes: novasCotacoes, contratada_id: novaContratadaId }).eq("id", freteId);
+      const { data: rowAtualizada, error } = await sb.from("fretes").update({ cotacoes: novasCotacoes, contratada_id: novaContratadaId }).eq("id", freteId).select().single();
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       await registrarLog("fretes", freteId, "exclusao", motivo,
         `Cotação de ${cotacaoRemovida ? cotacaoRemovida.transportadora : cotId} removida do frete ${f.referencia}`);
       f.cotacoes = novasCotacoes;
       f.contratadaId = novaContratadaId;
+      if (rowAtualizada) f.updatedAt = rowAtualizada.updated_at;
       renderFretes();
     });
   });
@@ -2362,7 +2415,7 @@ function startEditFrete(freteId) {
   const container = document.getElementById("freteItens");
   container.innerHTML = "";
   (f.cotacoes && f.cotacoes.length ? f.cotacoes : [{ transportadora: "", valorFrete: "" }]).forEach(c => {
-    const row = createFreteItemRow();
+    const row = createFreteItemRow(c.id);
     container.appendChild(row);
     row.querySelector(".frete-transportadora").value = c.transportadora || "";
     row.querySelector(".frete-valor").value = c.valorFrete != null ? c.valorFrete : "";
@@ -2390,9 +2443,15 @@ function cancelEditFrete() {
 
 /* ---------------- fretes: linhas de transportadora (item rows) ---------------- */
 
-function createFreteItemRow() {
+function createFreteItemRow(cotacaoId) {
   const row = document.createElement("div");
   row.className = "item-row";
+  // guarda o id estável da cotação (quando é uma linha já existente sendo
+  // reaberta pra edição) no próprio elemento -- sem isso, o submit reconhecia
+  // uma cotação "a mesma de antes" comparando o TEXTO da transportadora, e só
+  // corrigir um typo no nome já bastava pra gerar um id novo e desmarcar
+  // silenciosamente a transportadora contratada (achado em revisão).
+  if (cotacaoId) row.dataset.cotacaoId = cotacaoId;
   row.innerHTML = `
     <input type="text" class="item-text frete-transportadora" placeholder="Transportadora">
     <input type="number" class="item-valor frete-valor" min="0" step="0.01" placeholder="Valor frete">
@@ -2560,13 +2619,18 @@ function initKanbanDrag() {
 
         const etapaAnterior = alvo.etapa;
         alvo.etapa = novaEtapa;
-        const { error } = await sb.from("entregas").update({ etapa: novaEtapa }).eq("id", id);
+        // .select().single() pra atualizar updatedAt local -- sem isso, editar esse
+        // mesmo pedido pelo modal logo em seguida (antes do realtime chegar) achava
+        // conflito de edição por engano contra a própria ação do usuário (achado em
+        // revisão, mesma causa corrigida nas ações rápidas de Frete).
+        const { data: rowAtualizada, error } = await sb.from("entregas").update({ etapa: novaEtapa }).eq("id", id).select().single();
         if (error) {
           alvo.etapa = etapaAnterior;
           toast("Erro ao mover pedido: " + error.message);
           renderEntregas();
           return;
         }
+        if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at;
         await registrarLog("entregas", id, "edicao", "Ação automática",
           `Pedido ${alvo.numeroNF || alvo.numeroPedido || "—"} movido de ${ETAPA_LABEL[etapaAnterior] || etapaAnterior} para ${ETAPA_LABEL[novaEtapa] || novaEtapa}`);
         renderEntregas();
@@ -2727,9 +2791,9 @@ async function uploadAnexoPedido(file) {
     nome: file.name, path, tamanho: file.size,
     criadoEm: new Date().toISOString(), criadoPor: currentUser ? currentUser.email : null
   }];
-  const { error } = await sb.from("entregas").update({ anexos: novosAnexos }).eq("id", editingPedidoId);
+  const { data: rowAtualizada, error } = await sb.from("entregas").update({ anexos: novosAnexos }).eq("id", editingPedidoId).select().single();
   if (error) { toast("Erro ao salvar anexo: " + error.message); return; }
-  if (alvo) alvo.anexos = novosAnexos;
+  if (alvo) { alvo.anexos = novosAnexos; if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at; }
 
   await registrarLog("entregas", editingPedidoId, "edicao", "Ação automática",
     `Arquivo anexado ao pedido ${alvo ? (alvo.numeroNF || alvo.numeroPedido || "—") : editingPedidoId}: ${file.name}`);
@@ -2749,9 +2813,10 @@ async function removerAnexoPedido(path) {
   if (removeError) { toast("Erro ao remover arquivo: " + removeError.message); return; }
 
   const novosAnexos = (alvo.anexos || []).filter(a => a.path !== path);
-  const { error } = await sb.from("entregas").update({ anexos: novosAnexos }).eq("id", editingPedidoId);
+  const { data: rowAtualizada, error } = await sb.from("entregas").update({ anexos: novosAnexos }).eq("id", editingPedidoId).select().single();
   if (error) { toast("Erro ao salvar: " + error.message); return; }
   alvo.anexos = novosAnexos;
+  if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at;
 
   await registrarLog("entregas", editingPedidoId, "exclusao", motivo,
     `Anexo removido do pedido ${alvo.numeroNF || alvo.numeroPedido || "—"}: ${anexo ? anexo.nome : path}`);
@@ -2819,14 +2884,14 @@ function initEntregas() {
 
     if (editingPedidoId) {
       const alvo = state.entregas.find(x => x.id === editingPedidoId);
-      const { error } = await sb.from("entregas").update({ cte_status: novoValor }).eq("id", editingPedidoId);
+      const { data: rowAtualizada, error } = await sb.from("entregas").update({ cte_status: novoValor }).eq("id", editingPedidoId).select().single();
       if (error) {
         editingPedidoCteStatus = valorAnterior;
         renderCteToggle();
         toast("Erro ao salvar: " + error.message);
         return;
       }
-      if (alvo) alvo.cteStatus = novoValor;
+      if (alvo) { alvo.cteStatus = novoValor; if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at; }
       await registrarLog("entregas", editingPedidoId, "edicao", "Ação automática",
         `CTE do pedido ${alvo ? (alvo.numeroNF || alvo.numeroPedido || "—") : editingPedidoId} marcado como ${CTE_STATUS_LABEL[novoValor]}`);
       renderEntregas();
@@ -2855,13 +2920,13 @@ function initEntregas() {
       "O pedido sai do quadro Kanban mas fica salvo para consulta. Se o estoque já tinha sido baixado, ele será estornado automaticamente. Informe o motivo do cancelamento."
     );
     if (!motivo) return;
-    const { error } = await sb.from("entregas").update({
+    const { data: rowAtualizada, error } = await sb.from("entregas").update({
       cancelado: true, cancelado_motivo: motivo,
       cancelado_em: new Date().toISOString(),
       cancelado_por: currentUser ? currentUser.id : null
-    }).eq("id", editingPedidoId);
+    }).eq("id", editingPedidoId).select().single();
     if (error) { toast("Erro ao cancelar: " + error.message); return; }
-    if (alvo) { alvo.cancelado = true; alvo.canceladoMotivo = motivo; }
+    if (alvo) { alvo.cancelado = true; alvo.canceladoMotivo = motivo; if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at; }
     await registrarLog("entregas", editingPedidoId, "edicao", motivo,
       `Pedido cancelado: ${alvo ? (alvo.numeroNF || alvo.numeroPedido || "—") : editingPedidoId}${alvo && alvo.cliente ? " · " + alvo.cliente : ""}`);
     closePedidoModal();
@@ -2934,6 +2999,17 @@ function initEntregas() {
       closePedidoModal();
       renderEntregas();
       toast("Pedido atualizado.");
+      return;
+    }
+
+    // achado em revisão de código: só a edição checava autorização de gerência --
+    // criar um pedido novo já direto numa etapa depois dela (ex: escolhendo
+    // "Faturamento" no seletor) passava batido e disparava a baixa automática
+    // de estoque sem revisão nenhuma. Mesma regra de "pular a etapa inteira".
+    const idxAGNovo = ETAPAS_PEDIDO.indexOf("AUTORIZACAO_GERENCIA");
+    const idxEtapaNovo = ETAPAS_PEDIDO.indexOf(dados.etapa);
+    if (idxAGNovo !== -1 && idxEtapaNovo > idxAGNovo && !podeTirarDeAutorizacaoGerencia()) {
+      toast("Só um usuário autorizado pode criar um pedido já numa etapa depois de Autorização de Gerência.");
       return;
     }
 
@@ -5599,15 +5675,16 @@ function initForms() {
     if (!referencia) { toast("Informe a referência (NF ou pedido)."); return; }
 
     const rows = Array.from(document.querySelectorAll("#freteItens .item-row"));
-    const cotacoesAntigas = editingFreteId ? (state.fretes.find(x => x.id === editingFreteId) || {}).cotacoes || [] : [];
     const cotacoes = [];
     for (const row of rows) {
       const transportadora = row.querySelector(".frete-transportadora").value.trim();
       const valorRaw = row.querySelector(".frete-valor").value;
       if (!transportadora && !valorRaw) continue;
       if (!transportadora || !valorRaw) { toast("Preencha transportadora e valor do frete em todas as linhas adicionadas."); return; }
-      const existente = cotacoesAntigas.find(c => c.transportadora === transportadora);
-      cotacoes.push({ id: existente ? existente.id : uid("cot"), transportadora, valorFrete: parseFloat(valorRaw) });
+      // id vem do dataset (linha de cotação já existente, marcado em startEditFrete) --
+      // não mais comparando pelo texto da transportadora, que quebrava ao corrigir
+      // um nome (ver comentário em createFreteItemRow).
+      cotacoes.push({ id: row.dataset.cotacaoId || uid("cot"), transportadora, valorFrete: parseFloat(valorRaw) });
     }
     if (cotacoes.length === 0) { toast("Adicione ao menos uma transportadora cotada."); return; }
 
@@ -5966,8 +6043,9 @@ const REPORT_DEFS = {
   faturamento: {
     title: "Relatório de Faturamento",
     hasDateRange: true,
-    build(de, ate) {
-      const vendas = filtrarPorPeriodo(state.vendas, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
+    build(de, ate, filtro) {
+      let vendas = filtrarPorPeriodo(state.vendas, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
+      if (filtro) vendas = vendas.filter(v => v.vendedor === filtro);
       const columns = [
         { key: "data", label: "Data" },
         { key: "cliente", label: "Cliente" },
@@ -5989,6 +6067,7 @@ const REPORT_DEFS = {
       const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
       const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
       const summaryLines = [
+        ...(filtro ? [{ label: "Vendedor", value: filtro }] : []),
         { label: "Vendas no período", value: fmt(vendas.length) },
         { label: "Pneus vendidos", value: fmt(totalPneus) + " un." },
         { label: "Comissão total", value: formatMoney(totalComissao) },
@@ -6185,7 +6264,16 @@ function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar) {
   XLSX.writeFile(wb, `${def.title.replace(/\s+/g, "_")}_${todayISO()}.xlsx`);
 }
 
+function populateReportFatVendedor() {
+  const sel = document.getElementById("reportFatVendedor");
+  const atual = sel.value;
+  const vendedores = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
+  sel.innerHTML = `<option value="">Todos os vendedores</option>` + vendedores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  if (vendedores.includes(atual)) sel.value = atual;
+}
+
 function initRelatorios() {
+  populateReportFatVendedor();
   document.querySelectorAll(".report-card").forEach(card => {
     const reportKey = card.dataset.report;
     const deInput = card.querySelector(".report-de");
@@ -6194,10 +6282,12 @@ function initRelatorios() {
     const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
     card.querySelector(".report-btn-pdf").addEventListener("click", () => {
+      if (reportKey === "faturamento") populateReportFatVendedor(); // pega vendedor novo, se houve venda desde o init
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
       gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null);
     });
     card.querySelector(".report-btn-excel").addEventListener("click", () => {
+      if (reportKey === "faturamento") populateReportFatVendedor();
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
       gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null);
     });
@@ -6520,7 +6610,12 @@ function subscribeRealtime() {
         state[table] = list.filter(x => x[key] !== payload.old[key]);
       } else {
         const row = fromRow(payload.new);
-        const idx = list.findIndex(x => x[key] === row[key]);
+        // acha pelo valor ANTIGO da chave (payload.old), não o novo -- em tabela
+        // com chave editável (produtos.codigo, clientes.nome), payload.new já
+        // vem com o valor trocado, e procurar por ele nunca acha a linha que já
+        // existe local -- duplicava em vez de substituir (achado em revisão).
+        const chaveAntiga = payload.old && payload.old[key] !== undefined ? payload.old[key] : row[key];
+        const idx = list.findIndex(x => x[key] === chaveAntiga);
         if (idx === -1) list.push(row);
         else list[idx] = row;
       }
