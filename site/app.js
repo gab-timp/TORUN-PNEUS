@@ -2078,7 +2078,12 @@ async function salvarPrecosCatalogo(e) {
 
   btn.disabled = false;
   btn.textContent = labelOriginal;
-  await registrarLog("produtos_precos", codigo, "edicao", "Ação automática", `Preços atualizados: ${codigo}`);
+  // "produtos_precos" não é um valor reconhecido pelo filtro de tabela do
+  // Histórico (só produtos/movimentos/fretes/clientes/vendas/previsoes/
+  // entregas) -- ficava invisível ao filtrar por "Produtos" e aparecia com o
+  // nome cru "produtos_precos" em "Todas as tabelas" (achado em revisão).
+  // Preço é uma edição do próprio produto, então loga como tal.
+  await registrarLog("produtos", codigo, "edicao", "Ação automática", `Preços atualizados: ${codigo}`);
   toast("Preços atualizados.");
   document.getElementById("formEditarPrecosCatalogo").style.display = "none";
   document.getElementById("catalogoModalPrecoWrap").style.display = "";
@@ -3859,6 +3864,14 @@ function renderDashboard() {
   const transportadorasPorQtd = Object.entries(porTransp).sort((a, b) => b[1].qtd - a[1].qtd);
   const formas = Object.entries(porForma).sort((a, b) => b[1] - a[1]);
   const clientesRank = Object.entries(porCliente).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  // "estados"/"vendedores" acima são ordenados por faturamento -- serve pros cards
+  // que MOSTRAM faturamento (Faturamento por Estado, Faturamento por Representante),
+  // mas 3 outros cards reaproveitavam essa mesma ordem pra mostrar OUTRA métrica
+  // (pneus, comissão, %frete) -- o rodapé/rosca corta e destaca por posição, então
+  // o estado/vendedor com o maior valor DAQUELE card podia ficar escondido dentro
+  // de "+N outros" só porque não era o maior em faturamento (achado em revisão).
+  const estadosPorPneus = Object.entries(porEstado).sort((a, b) => b[1].pneus - a[1].pneus);
+  const vendedoresPorComissao = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao);
 
   // 0. Evolução mensal do faturamento -- independente do dashMesFiltro, sempre os
   // últimos meses com venda (não "o mês selecionado"), pra mostrar a trajetória.
@@ -3880,7 +3893,7 @@ function renderDashboard() {
 
   // 1. Volume de pneus vendidos por estado
   renderDashCardVariavel("pneusEstado", "bodyPneusEstado", "chartPneusEstado",
-    estados.map(([uf, d]) => ({ label: uf, value: d.pneus })), { valueIsMoney: false, suffix: " un." }
+    estadosPorPneus.map(([uf, d]) => ({ label: uf, value: d.pneus })), { valueIsMoney: false, suffix: " un." }
   );
 
   // 1b. Pneus mais vendidos por medida (soma de todos os códigos daquela medida)
@@ -3946,7 +3959,7 @@ function renderDashboard() {
   const estadosComFrete = estados.filter(([, d]) => d.fretePct.length > 0);
   const percPorEstado = estadosComFrete.map(([uf, d]) => ({
     uf, pct: +(d.fretePct.reduce((a, b) => a + b, 0) / d.fretePct.length * 100).toFixed(1)
-  }));
+  })).sort((a, b) => b.pct - a.pct); // ordem própria (%), não a herdada de "estados" (faturamento)
   renderDashCardVariavel("fretePercEstado", "bodyFretePercEstado", "chartFretePercEstado",
     percPorEstado.map(x => ({ label: x.uf, value: x.pct })), { valueIsMoney: false, suffix: "%", totalMode: "avg" }
   );
@@ -3980,7 +3993,7 @@ function renderDashboard() {
 
   // 10. Comissão por representante
   renderDashCardVariavel("comissaoRepresentante", "bodyComissaoRepresentante", "chartComissaoRepresentante",
-    vendedores.map(([nome, d]) => ({ label: nome, value: d.comissao }))
+    vendedoresPorComissao.map(([nome, d]) => ({ label: nome, value: d.comissao }))
   );
 
   // 11. Distribuição das formas de pagamento (horizontal — muitas categorias, nomes longos)
@@ -4418,9 +4431,20 @@ async function aprovarPreCadastro(id) {
   if (errInsert) { toast("Erro ao aprovar: " + errInsert.message); return; }
 
   const { error: errDelete } = await sb.from("clientes_pendentes").delete().eq("id", id);
-  if (errDelete) { toast("Cliente criado, mas houve erro ao remover o pré-cadastro: " + errDelete.message); }
-
   state.clientes.push(clienteFromRow(inserido[0]));
+  if (errDelete) {
+    // Não tira do estado local se a limpeza falhou -- senão esse card some da
+    // tela agora, mas continua "pendente" de verdade no banco e reaparece
+    // sozinho num próximo reload, só que agora travado (o cliente já existe,
+    // então aprovar de novo bate no conflito acima) -- ficava um pré-cadastro
+    // preso sem indicação clara de como resolver (achado em revisão). Deixa
+    // visível de propósito, pra "Rejeitar" limpar manualmente.
+    toast(`Cliente "${p.nome}" criado, mas o pré-cadastro continua na lista por um erro ao limpar (${errDelete.message}). Use "Rejeitar" nesse item pra remover.`);
+    renderPreCadastrosClientes();
+    renderClientes();
+    renderClienteSelect();
+    return;
+  }
   state.clientesPendentes = state.clientesPendentes.filter(x => x.id !== id);
   renderPreCadastrosClientes();
   renderClientes();
@@ -4787,7 +4811,10 @@ async function confirmarMesclagemClientes() {
   const survivor = getCliente(survivorNome);
   const grupo = [survivor, ...outros.map(getCliente)];
 
-  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "contato", "estado", "cidade", "tipoCliente"];
+  // "cep" faltava aqui -- mesclar descartava o CEP de qualquer duplicata sem
+  // levar pro sobrevivente, mesmo quando o principal não tinha CEP nenhum
+  // (achado em revisão).
+  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "cep", "contato", "estado", "cidade", "tipoCliente"];
   const camposMesclados = {};
   CAMPOS_MESCLAGEM.forEach(f => {
     camposMesclados[f] = survivor[f] || (grupo.find(c => c[f]) || {})[f] || "";
@@ -4805,6 +4832,7 @@ async function confirmarMesclagemClientes() {
     telefone: camposMesclados.telefone || null,
     email: camposMesclados.email || null,
     endereco: camposMesclados.endereco || null,
+    cep: camposMesclados.cep || null,
     contato: camposMesclados.contato || null,
     estado: camposMesclados.estado || null,
     cidade: camposMesclados.cidade || null,
@@ -4816,37 +4844,56 @@ async function confirmarMesclagemClientes() {
   const { error: errSurvivor } = await sb.from("clientes").update(payloadSurvivor).eq("nome", survivorNome);
   if (errSurvivor) { toast("Erro ao atualizar cliente principal: " + errSurvivor.message); return; }
 
+  // Objeto local do sobrevivente ganha TODOS os campos que acabaram de ir pro
+  // banco -- antes faltava cep e tipoCliente aqui, então a tela ficava
+  // mostrando o valor de antes da mesclagem até um reload (achado em revisão).
+  Object.assign(survivor, {
+    documento: camposMesclados.documento, razaoSocial: camposMesclados.razaoSocial, telefone: camposMesclados.telefone,
+    email: camposMesclados.email, endereco: camposMesclados.endereco, cep: camposMesclados.cep,
+    contato: camposMesclados.contato, estado: camposMesclados.estado, cidade: camposMesclados.cidade,
+    tipoCliente: camposMesclados.tipoCliente || null, tags: tagsMescladas, notas: notasMescladas
+  });
+
+  // Cada duplicata é removida do estado local assim que sua própria etapa no
+  // banco confirma -- antes só tirava tudo do state.clientes depois do loop
+  // inteiro, então se a 2ª duplicata falhasse, a 1ª (já apagada de verdade no
+  // banco) continuava aparecendo normal na tela, e clicar nela pra editar
+  // dava "sucesso" numa linha que não existe mais (achado em revisão).
+  const mescladosComSucesso = [];
+  let falhou = null;
   for (const nomeAntigo of outros) {
     const [vendasRes, entregasRes] = await Promise.all([
       sb.from("vendas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo),
       sb.from("entregas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo)
     ]);
-    if (vendasRes.error || entregasRes.error) {
-      toast(`Erro ao atualizar vendas/pedidos de "${nomeAntigo}" — mesclagem interrompida.`);
-      return;
-    }
+    if (vendasRes.error || entregasRes.error) { falhou = nomeAntigo; break; }
+
     const { error: errDelete } = await sb.from("clientes").delete().eq("nome", nomeAntigo);
-    if (errDelete) { toast(`Erro ao remover cadastro duplicado "${nomeAntigo}": ` + errDelete.message); return; }
+    if (errDelete) { falhou = nomeAntigo; break; }
 
     state.vendas.forEach(v => { if (v.cliente === nomeAntigo) v.cliente = survivorNome; });
     state.entregas.forEach(e => { if (e.cliente === nomeAntigo) e.cliente = survivorNome; });
+    state.clientes = state.clientes.filter(c => c.nome !== nomeAntigo);
+    mescladosComSucesso.push(nomeAntigo);
   }
 
-  Object.assign(survivor, {
-    documento: camposMesclados.documento, razaoSocial: camposMesclados.razaoSocial, telefone: camposMesclados.telefone,
-    email: camposMesclados.email, endereco: camposMesclados.endereco, contato: camposMesclados.contato,
-    estado: camposMesclados.estado, cidade: camposMesclados.cidade, tags: tagsMescladas, notas: notasMescladas
-  });
-  state.clientes = state.clientes.filter(c => c.nome === survivorNome || !outros.includes(c.nome));
-
-  await registrarLog("clientes", survivorNome, "exclusao", motivo,
-    `Cadastros mesclados em "${survivorNome}": ${outros.join(", ")}`);
+  if (mescladosComSucesso.length) {
+    await registrarLog("clientes", survivorNome, "exclusao", motivo,
+      `Cadastros mesclados em "${survivorNome}": ${mescladosComSucesso.join(", ")}`);
+  }
 
   clientesSelecionadosParaMesclar.clear();
   fecharMesclarClientesModal();
   renderClientes();
   renderClienteSelect();
-  toast("Clientes mesclados com sucesso.");
+
+  if (falhou) {
+    toast(mescladosComSucesso.length
+      ? `Mesclagem parcial: "${mescladosComSucesso.join(", ")}" mesclado(s), mas falhou em "${falhou}" — repita a mesclagem pra terminar.`
+      : `Erro ao mesclar "${falhou}" — nada foi alterado.`);
+  } else {
+    toast("Clientes mesclados com sucesso.");
+  }
 }
 
 function getClienteStats(nome) {
@@ -4894,46 +4941,80 @@ function renderClienteNotas() {
   });
 }
 
+// tags/notas são um array JSON inteiro salvo de uma vez (não tem "append"
+// atômico na API REST) -- ler de state.clientes (que pode estar desatualizado
+// há segundos) e escrever o array inteiro de volta é um lost-update clássico:
+// duas ações quase juntas no mesmo cliente (dois cliques, dois usuários, Enter
+// duplicado) podiam se basear no mesmo array de partida e uma sobrescrever a
+// outra silenciosamente, cada uma mostrando "sucesso" (achado em revisão).
+// Mitigação em duas partes: (1) travar por nome de cliente, serializando ações
+// na mesma aba -- cobre o caso mais comum (clique duplo); (2) buscar o array
+// mais recente do banco bem antes de escrever, não confiar só no state local
+// -- encolhe bastante a janela de corrida entre dois usuários também.
+const clientesFieldLockAtivo = new Set();
+async function withClienteFieldLock(nome, fn) {
+  if (clientesFieldLockAtivo.has(nome)) { toast("Aguarde a ação anterior terminar."); return; }
+  clientesFieldLockAtivo.add(nome);
+  try { await fn(); } finally { clientesFieldLockAtivo.delete(nome); }
+}
+async function buscarTagsNotasAtuais(nome) {
+  const { data, error } = await sb.from("clientes").select("tags, notas").eq("nome", nome).single();
+  if (error || !data) return null;
+  return { tags: data.tags || [], notas: data.notas || [] };
+}
+
 async function adicionarTagCliente(nome, tag) {
   const t = (tag || "").trim();
   if (!t) return;
-  const c = getCliente(nome);
-  if (!c) return;
-  if ((c.tags || []).some(x => x.toLowerCase() === t.toLowerCase())) { toast("Essa tag já existe."); return; }
-  const novasTags = [...(c.tags || []), t];
-  const { error } = await sb.from("clientes").update({ tags: novasTags }).eq("nome", nome);
-  if (error) { toast("Erro ao salvar tag: " + error.message); return; }
-  c.tags = novasTags;
-  await registrarLog("clientes", nome, "edicao", "Ação automática", `Tag "${t}" adicionada ao cliente ${nome}`);
-  renderClienteTags();
-  renderClientes();
+  await withClienteFieldLock(nome, async () => {
+    const c = getCliente(nome);
+    if (!c) return;
+    const atuais = await buscarTagsNotasAtuais(nome);
+    const tagsBase = atuais ? atuais.tags : (c.tags || []);
+    if (tagsBase.some(x => x.toLowerCase() === t.toLowerCase())) { toast("Essa tag já existe."); return; }
+    const novasTags = [...tagsBase, t];
+    const { error } = await sb.from("clientes").update({ tags: novasTags }).eq("nome", nome);
+    if (error) { toast("Erro ao salvar tag: " + error.message); return; }
+    c.tags = novasTags;
+    await registrarLog("clientes", nome, "edicao", "Ação automática", `Tag "${t}" adicionada ao cliente ${nome}`);
+    renderClienteTags();
+    renderClientes();
+  });
 }
 
 async function removerTagCliente(nome, tag) {
-  const c = getCliente(nome);
-  if (!c) return;
-  const novasTags = (c.tags || []).filter(t => t !== tag);
-  const { error } = await sb.from("clientes").update({ tags: novasTags }).eq("nome", nome);
-  if (error) { toast("Erro ao remover tag: " + error.message); return; }
-  c.tags = novasTags;
-  await registrarLog("clientes", nome, "edicao", "Ação automática", `Tag "${tag}" removida do cliente ${nome}`);
-  renderClienteTags();
-  renderClientes();
+  await withClienteFieldLock(nome, async () => {
+    const c = getCliente(nome);
+    if (!c) return;
+    const atuais = await buscarTagsNotasAtuais(nome);
+    const tagsBase = atuais ? atuais.tags : (c.tags || []);
+    const novasTags = tagsBase.filter(t => t !== tag);
+    const { error } = await sb.from("clientes").update({ tags: novasTags }).eq("nome", nome);
+    if (error) { toast("Erro ao remover tag: " + error.message); return; }
+    c.tags = novasTags;
+    await registrarLog("clientes", nome, "edicao", "Ação automática", `Tag "${tag}" removida do cliente ${nome}`);
+    renderClienteTags();
+    renderClientes();
+  });
 }
 
 async function adicionarNotaCliente(nome, texto) {
   const t = (texto || "").trim();
   if (!t) return;
-  const c = getCliente(nome);
-  if (!c) return;
-  const novaNota = { id: uid("nota"), texto: t, data: new Date().toISOString(), autor: currentUser ? currentUser.email : null };
-  const novasNotas = [...(c.notas || []), novaNota];
-  const { error } = await sb.from("clientes").update({ notas: novasNotas }).eq("nome", nome);
-  if (error) { toast("Erro ao salvar nota: " + error.message); return; }
-  c.notas = novasNotas;
-  await registrarLog("clientes", nome, "edicao", "Ação automática", `Nota adicionada ao cliente ${nome}`);
-  renderClienteNotas();
-  toast("Nota adicionada.");
+  await withClienteFieldLock(nome, async () => {
+    const c = getCliente(nome);
+    if (!c) return;
+    const atuais = await buscarTagsNotasAtuais(nome);
+    const notasBase = atuais ? atuais.notas : (c.notas || []);
+    const novaNota = { id: uid("nota"), texto: t, data: new Date().toISOString(), autor: currentUser ? currentUser.email : null };
+    const novasNotas = [...notasBase, novaNota];
+    const { error } = await sb.from("clientes").update({ notas: novasNotas }).eq("nome", nome);
+    if (error) { toast("Erro ao salvar nota: " + error.message); return; }
+    c.notas = novasNotas;
+    await registrarLog("clientes", nome, "edicao", "Ação automática", `Nota adicionada ao cliente ${nome}`);
+    renderClienteNotas();
+    toast("Nota adicionada.");
+  });
 }
 
 async function removerNotaCliente(nome, notaId) {
@@ -4941,13 +5022,17 @@ async function removerNotaCliente(nome, notaId) {
   if (!c) return;
   const motivo = await motivoModal("Remover nota?", "Informe o motivo da remoção desta nota.");
   if (!motivo) return;
-  const novasNotas = (c.notas || []).filter(n => n.id !== notaId);
-  const { error } = await sb.from("clientes").update({ notas: novasNotas }).eq("nome", nome);
-  if (error) { toast("Erro ao remover nota: " + error.message); return; }
-  c.notas = novasNotas;
-  await registrarLog("clientes", nome, "exclusao", motivo, `Nota removida do cliente ${nome}`);
-  renderClienteNotas();
-  toast("Nota removida.");
+  await withClienteFieldLock(nome, async () => {
+    const atuais = await buscarTagsNotasAtuais(nome);
+    const notasBase = atuais ? atuais.notas : (c.notas || []);
+    const novasNotas = notasBase.filter(n => n.id !== notaId);
+    const { error } = await sb.from("clientes").update({ notas: novasNotas }).eq("nome", nome);
+    if (error) { toast("Erro ao remover nota: " + error.message); return; }
+    c.notas = novasNotas;
+    await registrarLog("clientes", nome, "exclusao", motivo, `Nota removida do cliente ${nome}`);
+    renderClienteNotas();
+    toast("Nota removida.");
+  });
 }
 
 // nome mantido por compatibilidade (ids clienteModal* espalhados pelo HTML/CSS) --
@@ -5008,6 +5093,16 @@ async function excluirClienteAtual() {
   const temVenda = state.vendas.some(v => v.cliente === nome);
   if (temVenda) {
     toast("Não é possível excluir: esse cliente já tem vendas registradas.");
+    return;
+  }
+  // faltava essa checagem -- pedido em Entregas nasce independente de venda
+  // (site/pedido-representante.js insere direto em entregas, muito antes de
+  // virar venda), então um cliente com pedido ativo no Kanban mas nenhuma
+  // venda concluída ainda passava batido e podia ser excluído, deixando o
+  // pedido com um nome de cliente que não existe mais (achado em revisão).
+  const temEntrega = state.entregas.some(e => e.cliente === nome);
+  if (temEntrega) {
+    toast("Não é possível excluir: esse cliente já tem pedido em Entregas.");
     return;
   }
   const motivo = await motivoModal("Excluir cliente?", `Remover "${nome}" do cadastro? Informe o motivo da exclusão.`);
@@ -5289,6 +5384,19 @@ function preencherEDestacar(id, valor) {
   setTimeout(() => el.classList.remove("auto-filled"), 900);
 }
 
+// Some os campos que só fazem sentido junto de um CNPJ/CEP específico -- usado
+// quando um NOVO lookup dá "não encontrado" (não num erro de rede, onde não dá
+// pra saber se o CNPJ/CEP em si tá errado). Sem isso, corrigir um CNPJ com
+// typo e a nova consulta não achar nada deixava razão social/estado/cidade/
+// endereço da consulta ANTERIOR (de outra empresa) preenchidos, fácil de
+// mandar sem perceber junto do documento corrigido (achado em revisão).
+function limparCamposAutopreenchidos(prefixo, campos) {
+  campos.forEach(campo => {
+    const el = document.getElementById(prefixo + campo);
+    if (el) el.value = "";
+  });
+}
+
 async function autoPreencherPorCnpj(prefixo) {
   const cap = prefixo.charAt(0).toUpperCase() + prefixo.slice(1);
   const docInput = document.getElementById(prefixo + "Documento");
@@ -5302,6 +5410,7 @@ async function autoPreencherPorCnpj(prefixo) {
     const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
     if (!resp.ok) {
       toast(resp.status === 404 ? "CNPJ não encontrado na Receita Federal." : "CNPJ inválido.");
+      limparCamposAutopreenchidos(prefixo, ["RazaoSocial", "Estado", "Cidade", "Endereco"]);
       return;
     }
     const d = await resp.json();
@@ -5336,9 +5445,9 @@ async function autoPreencherPorCep(prefixo) {
   if (spinner) spinner.classList.add("show");
   try {
     const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-    if (!resp.ok) { toast("CEP inválido."); return; }
+    if (!resp.ok) { toast("CEP inválido."); limparCamposAutopreenchidos(prefixo, ["Estado", "Cidade", "Endereco"]); return; }
     const d = await resp.json();
-    if (d.erro) { toast("CEP não encontrado."); return; }
+    if (d.erro) { toast("CEP não encontrado."); limparCamposAutopreenchidos(prefixo, ["Estado", "Cidade", "Endereco"]); return; }
     preencherEDestacar(prefixo + "Estado", d.uf);
     preencherEDestacar(prefixo + "Cidade", d.localidade);
     preencherEDestacar(prefixo + "Endereco", [d.logradouro, d.bairro].filter(Boolean).join(" - "));
@@ -6471,6 +6580,7 @@ async function renderHistorico() {
   const de = document.getElementById("logDe").value;
   const ate = document.getElementById("logAte").value;
   const motivo = document.getElementById("logFiltroMotivo").value;
+  const usuarioAtual = document.getElementById("logFiltroUsuario").value;
 
   let query = sb.from("log_alteracoes").select("*").order("created_at", { ascending: false }).limit(300);
   if (tabela !== "todos") query = query.eq("tabela", tabela);
@@ -6478,25 +6588,38 @@ async function renderHistorico() {
   if (de) query = query.gte("created_at", de);
   if (ate) query = query.lte("created_at", ate + "T23:59:59");
   if (motivo !== "todos") query = query.eq("motivo", motivo);
+  // filtro de usuário agora vai pro banco também (antes só filtrava depois do
+  // corte de 300 linhas -- se o usuário escolhido só tivesse edição mais
+  // antiga que a 300ª linha mais recente, "Nenhum registro encontrado"
+  // aparecia mesmo tendo registro de verdade, só que fora desse recorte;
+  // achado em revisão). O dropdown continua populado só com quem apareceu
+  // no recorte carregado -- limitação que já existia, não piorou.
+  if (usuarioAtual !== "todos") query = query.eq("user_email", usuarioAtual);
 
   const { data, error } = await query;
   if (error) { toast("Erro ao carregar histórico: " + error.message); return; }
 
   let rows = data || [];
+  const atingiuLimite = rows.length === 300;
 
   const usuarioSelect = document.getElementById("logFiltroUsuario");
-  const usuarioAnterior = usuarioSelect.value;
   const usuariosUnicos = Array.from(new Set(rows.map(r => r.user_email).filter(Boolean))).sort();
   usuarioSelect.innerHTML = `<option value="todos">Todos os usuários</option>` +
     usuariosUnicos.map(u => `<option value="${escapeAttr(u)}">${escapeHtml(u)}</option>`).join("");
-  usuarioSelect.value = usuariosUnicos.includes(usuarioAnterior) ? usuarioAnterior : "todos";
-  if (usuarioSelect.value !== "todos") {
-    rows = rows.filter(r => r.user_email === usuarioSelect.value);
+  usuarioSelect.value = usuariosUnicos.includes(usuarioAtual) ? usuarioAtual : "todos";
+
+  const grupoMotivosReais = document.getElementById("logFiltroMotivoReais");
+  if (grupoMotivosReais) {
+    const motivosReais = Array.from(new Set(rows.map(r => r.motivo).filter(Boolean))).sort();
+    grupoMotivosReais.innerHTML = motivosReais.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join("");
   }
 
   if (search) {
     rows = rows.filter(r => [r.descricao, r.motivo, r.user_email, r.tabela].join(" ").toLowerCase().includes(search));
   }
+
+  const avisoLimite = document.getElementById("logAvisoLimite");
+  if (avisoLimite) avisoLimite.style.display = atingiuLimite ? "" : "none";
 
   const tbody = document.getElementById("logTbody");
   const empty = document.getElementById("logEmpty");
@@ -6526,6 +6649,15 @@ async function renderHistorico() {
 function initHistorico() {
   const motivoSelect = document.getElementById("logFiltroMotivo");
   document.querySelectorAll("#motivoSugestoes optgroup").forEach(og => motivoSelect.appendChild(og.cloneNode(true)));
+  // grupo à parte, reconstruído a cada renderHistorico() com os motivos que
+  // realmente apareceram no recorte carregado -- as sugestões acima são só um
+  // texto-guia pra digitar na hora de agir, então "Ação automática" (o motivo
+  // mais comum do sistema, ~15+ lugares) nunca era uma opção selecionável
+  // aqui, só achável digitando na busca livre (achado em revisão).
+  const grupoReais = document.createElement("optgroup");
+  grupoReais.id = "logFiltroMotivoReais";
+  grupoReais.label = "Motivos usados";
+  motivoSelect.appendChild(grupoReais);
 
   document.getElementById("logSearch").addEventListener("input", renderHistorico);
   document.getElementById("logFiltroTabela").addEventListener("change", renderHistorico);
