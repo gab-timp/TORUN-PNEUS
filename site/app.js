@@ -3184,12 +3184,20 @@ function populateMesFiltro(selectId) {
   }
 }
 
-// Últimos N meses (chave "YYYY-MM") que têm pelo menos 1 venda, em ordem cronológica
-// crescente -- usado pelo card de Evolução Mensal, que mostra a trajetória inteira,
-// não um mês só (por isso não usa getVendasFiltradasPor/dashMesFiltro).
-function ultimosMesesComVendas(n = 6) {
-  const chaves = Array.from(new Set(state.vendas.map(v => (v.data || "").slice(0, 7)).filter(k => k.length === 7))).sort();
-  return chaves.slice(-n);
+// Ano exibido no card de Evolução Mensal -- o ano da venda mais recente, não
+// necessariamente o ano corrente do relógio (evita mostrar um ano todo zerado se a
+// base ainda não tem nenhuma venda nele, ex.: virou o ano e ainda não fechou pedido).
+// Cai no ano corrente se não houver venda nenhuma.
+function anoEvolucaoMensal() {
+  const chaves = Array.from(new Set(state.vendas.map(v => (v.data || "").slice(0, 4)).filter(a => a.length === 4))).sort();
+  return chaves.length ? chaves[chaves.length - 1] : String(new Date().getFullYear());
+}
+
+// Os 12 meses (chave "YYYY-MM") de um ano, Jan a Dez -- usado pelo card de Evolução
+// Mensal, que mostra o ano todo (não um mês só, por isso não usa
+// getVendasFiltradasPor/dashMesFiltro), incluindo meses sem venda ainda (zerados).
+function mesesDoAno(ano) {
+  return Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, "0")}`);
 }
 
 function getVendasFiltradasPor(selectId) {
@@ -3881,9 +3889,9 @@ function renderDashboard() {
   const estadosPorPneus = Object.entries(porEstado).sort((a, b) => b[1].pneus - a[1].pneus);
   const vendedoresPorComissao = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao);
 
-  // 0. Evolução mensal do faturamento -- independente do dashMesFiltro, sempre os
-  // últimos meses com venda (não "o mês selecionado"), pra mostrar a trajetória.
-  const mesesEvolucao = ultimosMesesComVendas(6);
+  // 0. Evolução mensal do faturamento -- independente do dashMesFiltro, sempre o
+  // ano todo (Jan a Dez, não "o mês selecionado"), pra mostrar a trajetória do ano.
+  const mesesEvolucao = mesesDoAno(anoEvolucaoMensal());
   const labelsEvolucao = mesesEvolucao.map(mes => {
     const [ano, m] = mes.split("-");
     return `${MES_ABREV[m] || m}/${ano.slice(2)}`;
@@ -3896,7 +3904,8 @@ function renderDashboard() {
     { type: "line", title: "Evolução Mensal do Faturamento", labels: labelsEvolucao, data: faturamentoPorMes, opts: { valueIsMoney: true } }
   );
   document.getElementById("footEvolucaoMensal").innerHTML = dashFooterHtml(
-    mesesEvolucao.map((mes, i) => ({ label: labelsEvolucao[i], value: faturamentoPorMes[i] })), { money: true, totalMode: "both" }
+    mesesEvolucao.map((mes, i) => ({ label: labelsEvolucao[i], value: faturamentoPorMes[i] })),
+    { money: true, totalMode: "both", maxRows: 12 }
   );
 
   // 1. Volume de pneus vendidos por estado
