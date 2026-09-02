@@ -3564,18 +3564,26 @@ function dashLineConfig(labels, data, { valueIsMoney = true } = {}) {
 function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMode = "sum" } = {}) {
   if (!rows.length) return `<div class="dash-footer-row"><span class="lbl">Sem dados no período</span></div>`;
 
+  // "both" mostra as duas linhas juntas (total em cima, média embaixo) -- usado na
+  // Evolução Mensal do Faturamento, que antes só mostrava a média geral, a pedido
+  // do usuário. "sum"/"avg" continuam mostrando só uma linha, sem mudar as outras
+  // telas que já usam essa função.
   let totalHtml = "";
   if (totalMode !== "none") {
     const soma = rows.reduce((a, r) => a + r.value, 0);
-    const totalValue = totalMode === "avg" ? soma / rows.length : soma;
-    const totalLabel = totalMode === "avg" ? "Média geral" : "Total";
-    const totalDisplay = money ? formatMoney(totalValue) : fmt(totalMode === "avg" ? +totalValue.toFixed(1) : totalValue);
-    totalHtml = `
-      <div class="dash-footer-row dash-footer-total">
-        <span class="lbl">${totalLabel}</span>
-        <span class="val">${totalDisplay}${suffix}</span>
-      </div>
-    `;
+    const media = soma / rows.length;
+    const linhas = [];
+    if (totalMode === "sum" || totalMode === "both") linhas.push(["Total", soma, false]);
+    if (totalMode === "avg" || totalMode === "both") linhas.push(["Média geral", media, true]);
+    totalHtml = linhas.map(([totalLabel, totalValue, ehMedia]) => {
+      const totalDisplay = money ? formatMoney(totalValue) : fmt(ehMedia ? +totalValue.toFixed(1) : totalValue);
+      return `
+        <div class="dash-footer-row dash-footer-total">
+          <span class="lbl">${totalLabel}</span>
+          <span class="val">${totalDisplay}${suffix}</span>
+        </div>
+      `;
+    }).join("");
   }
 
   const shown = rows.slice(0, maxRows);
@@ -3888,7 +3896,7 @@ function renderDashboard() {
     { type: "line", title: "Evolução Mensal do Faturamento", labels: labelsEvolucao, data: faturamentoPorMes, opts: { valueIsMoney: true } }
   );
   document.getElementById("footEvolucaoMensal").innerHTML = dashFooterHtml(
-    mesesEvolucao.map((mes, i) => ({ label: labelsEvolucao[i], value: faturamentoPorMes[i] })), { money: true, totalMode: "avg" }
+    mesesEvolucao.map((mes, i) => ({ label: labelsEvolucao[i], value: faturamentoPorMes[i] })), { money: true, totalMode: "both" }
   );
 
   // 1. Volume de pneus vendidos por estado
