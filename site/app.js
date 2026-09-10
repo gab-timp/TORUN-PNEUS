@@ -1938,18 +1938,18 @@ function renderCatalogo() {
     const saldoProduto = computeProdutoTotais(p.codigo).saldo;
     const statusSaldo = statusEstoque(saldoProduto);
 
-    // o pneu já passou pelo filtro (tem preço pro tipo de cliente em ALGUMA
-    // condição) -- mas pode não ter pra condição selecionada agora. Nesse caso
-    // troca a lista de preços por um aviso, em vez de mostrar 4x "—".
+    // o pneu já passou pelo filtro -- mas pode não ter preço pra condição exibida
+    // agora (na região filtrada, se houver). Nesse caso troca a lista por um aviso.
     const temPrecoNestaCondicao = getPrecosDoProduto(p.codigo, tipoCliente)
-      .some(x => x.condicaoPagamento === condicaoAtual);
-    // no card compacto mostra só as regiões que têm preço pra essa condição --
-    // linha "—" fica escondida (a pedido do usuário). A tabela completa em "Ver
-    // todos os prazos" continua mostrando "—".
+      .some(x => x.condicaoPagamento === condicaoAtual && (!regiao || x.regiao === regiao));
+    // Card compacto: só as regiões COM preço pra essa condição (linha "—"
+    // escondida, a pedido do usuário). Com região filtrada, mostra só ela.
+    // A tabela "Ver todos os prazos" continua mostrando tudo, com "—".
     const precoPorRegiao = temPrecoNestaCondicao ? CATALOGO_REGIOES
+      .filter(r => !regiao || r === regiao)
       .map(r => ({ r, preco: getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual) }))
       .filter(x => x.preco !== null)
-      .map(({ r, preco }) => `<div class="catalogo-prazo-row${regiao && r === regiao ? " atual" : ""}">
+      .map(({ r, preco }) => `<div class="catalogo-prazo-row">
         <span>${escapeHtml(r)}</span>
         <span class="mono">${formatMoney(preco)}</span>
       </div>`).join("") : "";
@@ -1993,7 +1993,7 @@ function renderCatalogo() {
         <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
         ${temPrecoNestaCondicao
           ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
-          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra condição "${escapeHtml(condicaoAtual)}". Veja "Ver todos os prazos" abaixo.</div>`}
+          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}
 
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-toggleprazos="${escapeAttr(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" data-prazoslista="${escapeAttr(p.codigo)}" style="display:${aberto ? "" : "none"};">
