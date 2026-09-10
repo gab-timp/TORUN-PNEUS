@@ -939,11 +939,17 @@
           <div class="field">
             <label>Condição de pagamento</label>
             <select id="catCondicao">
-              <option value="">Selecione…</option>
+              <option value="">Todas as condições</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Região</label>
+            <select id="catRegiao">
+              <option value="">Todas as regiões</option>
             </select>
           </div>
         </div>
-        <div class="note">A lista mostra só os pneus com preço cadastrado para o <b>tipo de cliente</b> selecionado (Consumo por padrão). Cada card traz o preço de todas as regiões para o tipo e a condição de pagamento escolhidos; clique em "Ver todos os prazos" pra abrir a tabela completa.</div>
+        <div class="note">A lista mostra só os pneus com preço cadastrado que bate com os filtros: <b>tipo de cliente</b> (sempre) + <b>condição de pagamento</b> e <b>região</b>, quando escolhidas. Cada card traz o preço de todas as regiões para o tipo e a condição exibidos, com a região filtrada destacada.</div>
       </div>
 
       <div class="catalogo-grid" id="catalogoGrid"></div>
@@ -2430,6 +2436,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=162"></script>
+<script src="app.js?v=163"></script>
 </body>
 </html>

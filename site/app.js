@@ -1720,7 +1720,11 @@ function populateCatalogoFiltroCategoria() {
 function populateCatalogoCondicao() {
   const selCondicao = document.getElementById("catCondicao");
   if (selCondicao.options.length <= 1) {
-    selCondicao.innerHTML = `<option value="">Selecione…</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+    selCondicao.innerHTML = `<option value="">Todas as condições</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+  }
+  const selRegiao = document.getElementById("catRegiao");
+  if (selRegiao && selRegiao.options.length <= 1) {
+    selRegiao.innerHTML = `<option value="">Todas as regiões</option>` + CATALOGO_REGIOES.map(r => `<option value="${escapeAttr(r)}">${escapeHtml(r)}</option>`).join("");
   }
 }
 
@@ -1880,6 +1884,7 @@ function renderCatalogo() {
   const search = (document.getElementById("catSearch").value || "").trim().toLowerCase();
   const categoria = document.getElementById("catFiltroCategoria").value;
   const condicao = document.getElementById("catCondicao").value;
+  const regiao = document.getElementById("catRegiao").value;
   const tipoCliente = document.getElementById("catTipoCliente").value || "CONSUMO";
 
   let rows = state.produtos.filter(p => computeProdutoTotais(p.codigo).saldo > 0);
@@ -1892,20 +1897,26 @@ function renderCatalogo() {
   }
   if (categoria) rows = rows.filter(p => p.categoria === categoria);
 
-  // Só mostra pneus com pelo menos um preço cadastrado pro tipo de cliente
-  // selecionado (basta ter em qualquer região/condição -- o card avisa à parte
-  // quando falta preço pra condição de pagamento escolhida). A pedido do usuário.
+  // Só mostra pneus com preço cadastrado que bata com TODOS os filtros de preço
+  // ativos: tipo de cliente (sempre) + condição de pagamento e/ou região (quando
+  // escolhidas -- "Todas" = não filtra por aquilo). O card avisa à parte quando
+  // não há filtro de condição e falta o preço da condição exibida por padrão.
   const rowsAntesFiltroPreco = rows.length;
-  rows = rows.filter(p => getPrecosDoProduto(p.codigo, tipoCliente).length > 0);
+  rows = rows.filter(p => getPrecosDoProduto(p.codigo, tipoCliente).some(x =>
+    (!condicao || x.condicaoPagamento === condicao) && (!regiao || x.regiao === regiao)
+  ));
 
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
   const grid = document.getElementById("catalogoGrid");
   const empty = document.getElementById("catalogoEmpty");
   if (rows.length === 0) {
+    let alvo = TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente;
+    if (condicao) alvo += ` · ${condicao}`;
+    if (regiao) alvo += ` · região ${regiao}`;
     grid.innerHTML = "";
     empty.textContent = rowsAntesFiltroPreco > 0
-      ? `Nenhum pneu com preço de ${TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente} cadastrado (entre os que batem com a busca e a categoria).`
+      ? `Nenhum pneu com preço de ${alvo} cadastrado (entre os que batem com a busca e a categoria).`
       : "Nenhum pneu em estoque encontrado.";
     empty.style.display = "block";
     return;
@@ -1934,7 +1945,8 @@ function renderCatalogo() {
       .some(x => x.condicaoPagamento === condicaoAtual);
     const precoPorRegiao = temPrecoNestaCondicao ? CATALOGO_REGIOES.map(r => {
       const preco = getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual);
-      return `<div class="catalogo-prazo-row">
+      const destaque = regiao && r === regiao ? " atual" : "";
+      return `<div class="catalogo-prazo-row${destaque}">
         <span>${escapeHtml(r)}</span>
         <span class="mono">${preco !== null ? formatMoney(preco) : "—"}</span>
       </div>`;
@@ -1976,7 +1988,7 @@ function renderCatalogo() {
         ` : ""}
 
         <div class="catalogo-card-divider"></div>
-        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}</div>
+        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
         ${temPrecoNestaCondicao
           ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
           : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra condição "${escapeHtml(condicaoAtual)}". Veja "Ver todos os prazos" abaixo.</div>`}
@@ -2174,6 +2186,7 @@ function initCatalogo() {
   document.getElementById("catSearch").addEventListener("input", renderCatalogo);
   document.getElementById("catFiltroCategoria").addEventListener("change", renderCatalogo);
   document.getElementById("catCondicao").addEventListener("change", renderCatalogo);
+  document.getElementById("catRegiao").addEventListener("change", renderCatalogo);
   document.getElementById("catTipoCliente").addEventListener("change", renderCatalogo);
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);
