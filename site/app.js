@@ -1943,14 +1943,16 @@ function renderCatalogo() {
     // troca a lista de preços por um aviso, em vez de mostrar 4x "—".
     const temPrecoNestaCondicao = getPrecosDoProduto(p.codigo, tipoCliente)
       .some(x => x.condicaoPagamento === condicaoAtual);
-    const precoPorRegiao = temPrecoNestaCondicao ? CATALOGO_REGIOES.map(r => {
-      const preco = getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual);
-      const destaque = regiao && r === regiao ? " atual" : "";
-      return `<div class="catalogo-prazo-row${destaque}">
+    // no card compacto mostra só as regiões que têm preço pra essa condição --
+    // linha "—" fica escondida (a pedido do usuário). A tabela completa em "Ver
+    // todos os prazos" continua mostrando "—".
+    const precoPorRegiao = temPrecoNestaCondicao ? CATALOGO_REGIOES
+      .map(r => ({ r, preco: getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual) }))
+      .filter(x => x.preco !== null)
+      .map(({ r, preco }) => `<div class="catalogo-prazo-row${regiao && r === regiao ? " atual" : ""}">
         <span>${escapeHtml(r)}</span>
-        <span class="mono">${preco !== null ? formatMoney(preco) : "—"}</span>
-      </div>`;
-    }).join("") : "";
+        <span class="mono">${formatMoney(preco)}</span>
+      </div>`).join("") : "";
 
     // slots da foto em destaque: 2 fotos dividem lado a lado, 1 ocupa tudo,
     // 0 mostra um placeholder neutro (sem foto de verdade ainda cadastrada).
