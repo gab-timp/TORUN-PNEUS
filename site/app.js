@@ -346,7 +346,10 @@ function getProduto(codigo) {
 const CATALOGO_BUCKET = "produtos-fotos";
 const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
-const TIPO_CLIENTE_OPCOES = ["REVENDA", "FROTA", "CONSUMO", "CONSUMO_DIFAL"];
+const TIPO_CLIENTE_OPCOES = ["REVENDA", "FROTA", "CONSUMO"];
+// CONSUMO_DIFAL saiu das opções selecionáveis (a pedido do usuário), mas o rótulo
+// fica: dado antigo (preços/clientes/pedidos já gravados com esse tipo) continua
+// aparecendo como "Consumo com DIFAL" em vez do código cru.
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota", CONSUMO: "Consumo", CONSUMO_DIFAL: "Consumo com DIFAL" };
 
 function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
