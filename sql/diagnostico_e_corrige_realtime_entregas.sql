@@ -1,9 +1,15 @@
 -- Diagnóstico + correção: cards de Entregas (Kanban) não atualizam sozinhos,
--- só quando a página é recarregada -- enquanto as outras telas (Estoque,
--- Produtos, Clientes, Faturamento) atualizam normalmente.
+-- só quando a página é recarregada.
 --
--- O código do app (subscribeRealtime() em site/app.js) trata "entregas" do
--- mesmo jeito que as outras tabelas -- não é bug de código.
+-- >>> RESULTADO DA INVESTIGAÇÃO: a causa raiz NÃO era do banco -- era o app
+-- registrando 9 postgres_changes no mesmo canal do Realtime (bug do
+-- realtime-js, bindings do fim da lista não recebem evento). Corrigido em
+-- site/app.js (subscribeRealtime -> um canal por tabela).
+--
+-- O passo 2 abaixo (replica identity full em entregas) foi aplicado assim
+-- mesmo e vale manter: a policy de SELECT de entregas filtra por linha
+-- (representante), e o Realtime precisa da linha antiga completa pra avaliar
+-- RLS em UPDATE/DELETE. Não resolveu sozinho, mas é o setup correto.
 --
 -- HIPÓTESE 1 (DESCARTADA): tabela fora da publicação supabase_realtime.
 --   `alter publication ... add table public.entregas` retornou "relation
