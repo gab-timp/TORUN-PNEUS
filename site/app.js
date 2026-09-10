@@ -1830,12 +1830,22 @@ function renderCatalogo() {
     );
   }
   if (categoria) rows = rows.filter(p => p.categoria === categoria);
+
+  // Só mostra pneus com pelo menos um preço cadastrado pro tipo de cliente
+  // selecionado (basta ter em qualquer região/condição -- o card avisa à parte
+  // quando falta preço pra condição de pagamento escolhida). A pedido do usuário.
+  const rowsAntesFiltroPreco = rows.length;
+  rows = rows.filter(p => getPrecosDoProduto(p.codigo, tipoCliente).length > 0);
+
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
   const grid = document.getElementById("catalogoGrid");
   const empty = document.getElementById("catalogoEmpty");
   if (rows.length === 0) {
     grid.innerHTML = "";
+    empty.textContent = rowsAntesFiltroPreco > 0
+      ? `Nenhum pneu com preço de ${TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente} cadastrado (entre os que batem com a busca e a categoria).`
+      : "Nenhum pneu em estoque encontrado.";
     empty.style.display = "block";
     return;
   }
@@ -1856,13 +1866,18 @@ function renderCatalogo() {
     const saldoProduto = computeProdutoTotais(p.codigo).saldo;
     const statusSaldo = statusEstoque(saldoProduto);
 
-    const precoPorRegiao = CATALOGO_REGIOES.map(r => {
+    // o pneu já passou pelo filtro (tem preço pro tipo de cliente em ALGUMA
+    // condição) -- mas pode não ter pra condição selecionada agora. Nesse caso
+    // troca a lista de preços por um aviso, em vez de mostrar 4x "—".
+    const temPrecoNestaCondicao = getPrecosDoProduto(p.codigo, tipoCliente)
+      .some(x => x.condicaoPagamento === condicaoAtual);
+    const precoPorRegiao = temPrecoNestaCondicao ? CATALOGO_REGIOES.map(r => {
       const preco = getPrecoProduto(p.codigo, r, tipoCliente, condicaoAtual);
       return `<div class="catalogo-prazo-row">
         <span>${escapeHtml(r)}</span>
         <span class="mono">${preco !== null ? formatMoney(preco) : "—"}</span>
       </div>`;
-    }).join("");
+    }).join("") : "";
 
     // slots da foto em destaque: 2 fotos dividem lado a lado, 1 ocupa tudo,
     // 0 mostra um placeholder neutro (sem foto de verdade ainda cadastrada).
@@ -1901,9 +1916,9 @@ function renderCatalogo() {
 
         <div class="catalogo-card-divider"></div>
         <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}</div>
-        <div class="catalogo-prazos-lista aberto">
-          ${precoPorRegiao}
-        </div>
+        ${temPrecoNestaCondicao
+          ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
+          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra condição "${escapeHtml(condicaoAtual)}". Veja "Ver todos os prazos" abaixo.</div>`}
 
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-toggleprazos="${escapeAttr(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" data-prazoslista="${escapeAttr(p.codigo)}" style="display:${aberto ? "" : "none"};">
