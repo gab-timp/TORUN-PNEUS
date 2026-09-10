@@ -6754,7 +6754,7 @@ function scheduleRerender() {
   rerenderTimer = setTimeout(rerenderViewAtual, 200);
 }
 
-let realtimeChannel = null;
+let realtimeChannels = [];
 let realtimeReconnectTimer = null;
 let realtimeReconnectTentativas = 0;
 
@@ -6769,43 +6769,71 @@ function iniciarFallbackRefresh() {
   realtimeFallbackTimer = setInterval(refreshAll, REALTIME_FALLBACK_REFRESH_MS);
 }
 
+// Aplica uma mudança do Realtime direto em state[table] (patch incremental,
+// sem refazer as consultas todas). Chamado pelo handler de cada canal.
+function aplicarMudancaRealtime({ table, key, fromRow }, payload) {
+  const list = state[table];
+  if (!list) return;
+  if (payload.eventType === "DELETE") {
+    state[table] = list.filter(x => x[key] !== payload.old[key]);
+  } else {
+    const row = fromRow(payload.new);
+    // acha pelo valor ANTIGO da chave (payload.old), não o novo -- em tabela
+    // com chave editável (produtos.codigo, clientes.nome), payload.new já
+    // vem com o valor trocado, e procurar por ele nunca acha a linha que já
+    // existe local -- duplicava em vez de substituir (achado em revisão).
+    const chaveAntiga = payload.old && payload.old[key] !== undefined ? payload.old[key] : row[key];
+    const idx = list.findIndex(x => x[key] === chaveAntiga);
+    if (idx === -1) list.push(row);
+    else list[idx] = row;
+  }
+  scheduleRerender();
+}
+
+// Reconexão de todo o conjunto de canais, agendada UMA vez por "onda" de falha
+// -- vários canais caindo juntos (ex: socket derrubado) chamam isto em sequência,
+// mas só a primeira chamada agenda; as outras veem o timer já de pé e saem, pra
+// não inflar o contador de backoff nem empilhar timeouts.
+function agendarReconexaoRealtime(motivo) {
+  if (realtimeReconnectTimer) return;
+  const espera = Math.min(60000, 5000 * Math.pow(2, realtimeReconnectTentativas));
+  realtimeReconnectTentativas++;
+  console.error(`Realtime desconectado (${motivo}) — reconectando em ${Math.round(espera / 1000)}s.`);
+  realtimeReconnectTimer = setTimeout(() => { realtimeReconnectTimer = null; subscribeRealtime(); }, espera);
+}
+
 function subscribeRealtime() {
   clearTimeout(realtimeReconnectTimer);
-  if (realtimeChannel) sb.removeChannel(realtimeChannel);
+  realtimeReconnectTimer = null;
+  realtimeChannels.forEach(ch => sb.removeChannel(ch));
+  realtimeChannels = [];
 
-  const channel = sb.channel("estoque-changes");
-  realtimeChannel = channel;
-  REALTIME_TABLES.forEach(({ table, key, fromRow }) => {
-    channel.on("postgres_changes", { event: "*", schema: "public", table }, (payload) => {
-      const list = state[table];
-      if (payload.eventType === "DELETE") {
-        state[table] = list.filter(x => x[key] !== payload.old[key]);
-      } else {
-        const row = fromRow(payload.new);
-        // acha pelo valor ANTIGO da chave (payload.old), não o novo -- em tabela
-        // com chave editável (produtos.codigo, clientes.nome), payload.new já
-        // vem com o valor trocado, e procurar por ele nunca acha a linha que já
-        // existe local -- duplicava em vez de substituir (achado em revisão).
-        const chaveAntiga = payload.old && payload.old[key] !== undefined ? payload.old[key] : row[key];
-        const idx = list.findIndex(x => x[key] === chaveAntiga);
-        if (idx === -1) list.push(row);
-        else list[idx] = row;
+  // UM CANAL POR TABELA -- de propósito, não junte de volta num canal só.
+  // O realtime-js tem um bug com vários postgres_changes no mesmo canal: os IDs
+  // que o servidor devolve pra cada assinatura desalinham quando são muitas, e
+  // os bindings do fim da lista nunca recebem evento nenhum. Sintoma real:
+  // Entregas (8ª de 9) e Notificações (9ª) não atualizavam em tempo real -- só
+  // no F5 ou no refresh de emergência de 5 min. Um canal com um binding só não
+  // tem como desalinhar. (vários issues em github.com/supabase/realtime-js)
+  let conectados = 0;
+  REALTIME_TABLES.forEach((def) => {
+    const channel = sb.channel(`rt-${def.table}`);
+    channel.on("postgres_changes", { event: "*", schema: "public", table: def.table },
+      (payload) => aplicarMudancaRealtime(def, payload));
+    channel.subscribe((status) => {
+      // callback de um canal de assinatura anterior, já substituída numa
+      // reconexão -- ignora pra não disparar reconexão em cascata.
+      if (!realtimeChannels.includes(channel)) return;
+      if (status === "SUBSCRIBED") {
+        realtimeReconnectTentativas = 0;
+        if (++conectados === REALTIME_TABLES.length) {
+          console.log("Realtime conectado — atualizações automáticas ativas.");
+        }
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        agendarReconexaoRealtime(`${def.table}: ${status}`);
       }
-      scheduleRerender();
     });
-  });
-  channel.subscribe((status) => {
-    if (status === "SUBSCRIBED") {
-      realtimeReconnectTentativas = 0;
-      console.log("Realtime conectado — atualizações automáticas ativas.");
-    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-      // Backoff exponencial (5s, 10s, 20s... até 60s) em vez de martelar toda hora --
-      // evita sobrecarregar uma conexão já instável. Zera de volta pra 5s assim que reconectar.
-      const espera = Math.min(60000, 5000 * Math.pow(2, realtimeReconnectTentativas));
-      realtimeReconnectTentativas++;
-      console.error(`Realtime desconectado: ${status} — tentando reconectar em ${Math.round(espera / 1000)}s.`);
-      realtimeReconnectTimer = setTimeout(subscribeRealtime, espera);
-    }
+    realtimeChannels.push(channel);
   });
 }
 
