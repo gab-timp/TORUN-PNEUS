@@ -478,7 +478,6 @@ body.is-admin .nav-item.admin-only{display:flex;}
   color:var(--ink);
 }
 .bell-btn .ic{width:17px; height:17px;}
-.bell-dot{position:absolute; top:8px; right:9px; width:7px; height:7px; border-radius:50%; background:var(--orange); border:2px solid var(--surface);}
 
 .bell-wrap{position:relative; flex:0 0 auto;}
 .bell-badge{
@@ -1088,10 +1087,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 
 .saldo-zero{color:var(--danger); font-weight:800;}
 .saldo-baixo{color:var(--orange);}
-.pill-empty{
-  background:var(--danger-pale); color:var(--danger); font-size:9.5px; font-weight:800;
-  padding:2px 7px; border-radius:10px; margin-left:6px; text-transform:uppercase;
-}
 
 .search-row{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
 .search-row input[type=text], .search-row input[type=date], .search-row select{
@@ -1132,22 +1127,16 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .dash-filter-item input{width:auto;}
 
-/* ---------------- ranking ---------------- */
+/* ---------------- ranking (formas de pagamento no Faturamento) ---------------- */
 .rank-list{display:flex; flex-direction:column; gap:10px;}
 .rank-row{
   display:flex; align-items:center; gap:12px;
 }
-.rank-pos{
-  width:26px;height:26px;border-radius:6px;background:var(--black); color:var(--orange);
-  display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-weight:700;font-size:12px;flex:0 0 auto;
-}
-.rank-row:nth-child(1) .rank-pos{background:var(--orange); color:#111;}
 .rank-main{flex:1;min-width:0;}
 .rank-label{display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; margin-bottom:4px;}
 .rank-label .n{font-family:'Space Mono',monospace; color:var(--orange-deep);}
 .rank-bar-track{height:8px; background:var(--paper-2); border-radius:6px; overflow:hidden;}
 .rank-bar-fill{height:100%; background:var(--orange); border-radius:6px;}
-.rank-sub{font-size:10.5px; color:var(--ink-soft); margin-top:3px;}
 
 /* célula de valor com barra proporcional embaixo -- tabelas de análise do Faturamento */
 .valor-bar-cell{display:flex; flex-direction:column; align-items:flex-end; gap:4px; min-width:110px;}
@@ -1328,9 +1317,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 
 .estoque-medida-click{cursor:pointer;}
 .estoque-medida-click:hover{color:var(--orange-deep); text-decoration:underline;}
-.dash-expand-hint{
-  font-size:9.5px; color:var(--ink-soft); text-align:center; margin-top:4px;
-}
 .dash-card-head{
   color:var(--ink);
   font-size:12.5px;
@@ -1717,9 +1703,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   display:flex; justify-content:space-between; align-items:center; gap:10px;
   padding:8px 10px; border:1px solid var(--line); border-radius:9px; margin-bottom:6px; font-size:12.5px;
 }
-.cliente-nome-click{cursor:pointer; text-decoration:underline; text-decoration-color:transparent; transition:color .12s ease;}
-.cliente-nome-click:hover{color:var(--orange-deep); text-decoration-color:currentColor;}
-
 .cliente-tags-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
 .cliente-tags-row:empty{margin-top:0;}
 .cliente-tag-pill{
@@ -1736,8 +1719,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   flex:1; border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:12.5px;
   background:var(--surface); color:var(--ink);
 }
-.cliente-tags-list-compact{display:flex; flex-wrap:wrap; gap:4px;}
-.cliente-tags-list-compact .cliente-tag-pill{padding:2px 7px; font-size:9.5px;}
 
 .cliente-nota-add{display:flex; gap:8px; margin-bottom:10px; align-items:flex-end;}
 .cliente-nota-add textarea{
@@ -2092,7 +2073,6 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .cte-tag.cliente-retira{background:#E4EEFD; color:#1D4FA8; border-color:#2F80ED;}
 .kanban-card.sortable-ghost{opacity:.35;}
 .kanban-card.sortable-chosen{box-shadow:var(--shadow-modal);}
-.kanban-cards.kanban-dragover{background:var(--orange-pale); border-radius:8px;}
 
 @media (max-width:900px){
   /* kanban no celular/tablet: encaixa numa coluna por vez ao deslizar, sem sobrar pedaço cortado na borda */
