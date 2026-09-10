@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=126">
+<link rel="stylesheet" href="styles.css?v=127">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -827,16 +827,8 @@
 
           <div class="form-section">
             <div class="form-section-label"><span class="n">6</span>Precificação (opcional)</div>
-            <div class="search-row" style="margin-bottom:10px;">
-              <select id="prodPrecoTipoCliente"></select>
-            </div>
-            <div class="table-wrap">
-              <table class="catalogo-preco-table catalogo-preco-table-edit">
-                <thead><tr><th>Condição</th><th>SC/RS</th><th>PR</th><th>MG</th><th>MT</th></tr></thead>
-                <tbody id="prodPrecoTableBody"></tbody>
-              </table>
-            </div>
-            <span class="note">Deixe em branco o que não for cadastrar preço agora — dá pra completar o preço depois pelo Catálogo.</span>
+            <div id="prodPrecoEditor"></div>
+            <span class="note">Preço por região e condição, uma tabela por tipo de cliente. Em branco = não cadastra agora (dá pra completar depois em Editar produto).</span>
           </div>
 
           <div class="form-actions">
@@ -1912,7 +1904,30 @@
         <input type="text" id="prodEditNcm" placeholder="4011.20.90">
       </div>
 
-      <div class="note" style="margin-top:2px;">Fotos e preços continuam pelo Catálogo — clique em "Ver no Catálogo" na tabela de produtos.</div>
+      <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></span><h4>Fotos (opcional)</h4></div>
+      <div class="catalogo-modal-foto-row">
+        <div class="catalogo-foto-slot">
+          <div class="catalogo-foto-preview" id="prodEditFotoPreview1"></div>
+          <div class="catalogo-foto-actions write-ui">
+            <button type="button" class="btn small outline" id="btnProdEditFoto1">⬆ Enviar/trocar</button>
+            <button type="button" class="btn small outline danger" id="btnProdEditRemoverFoto1" style="display:none;">Remover</button>
+            <input type="file" id="prodEditFotoInput1" accept="image/*" style="display:none;">
+          </div>
+        </div>
+        <div class="catalogo-foto-slot">
+          <div class="catalogo-foto-preview" id="prodEditFotoPreview2"></div>
+          <div class="catalogo-foto-actions write-ui">
+            <button type="button" class="btn small outline" id="btnProdEditFoto2">⬆ Enviar/trocar</button>
+            <button type="button" class="btn small outline danger" id="btnProdEditRemoverFoto2" style="display:none;">Remover</button>
+            <input type="file" id="prodEditFotoInput2" accept="image/*" style="display:none;">
+          </div>
+        </div>
+      </div>
+      <span class="note">A foto é enviada na hora — não precisa clicar em "Salvar alterações" pra ela valer.</span>
+
+      <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-tag"/></svg></span><h4>Precificação (opcional)</h4></div>
+      <div id="prodEditPrecoEditor"></div>
+      <span class="note">Preço por região e condição, uma tabela por tipo de cliente. Em branco = sem preço (apaga o que existia). Salva junto com "Salvar alterações".</span>
     </div>
     <div class="drawer-foot">
       <button type="button" class="btn outline" id="prodEditCancelar">Cancelar</button>
@@ -2356,7 +2371,6 @@
         <span class="status-pill pill-esgotado" id="catalogoModalSituacaoPill" style="display:none; flex:0 0 auto;">Descontinuado</span>
       </div>
       <div class="cliente-modal-head-actions">
-        <button type="button" class="btn small outline write-ui" id="btnEditarNoProduto">✎ Editar no cadastro de Produtos</button>
         <button type="button" class="btn small outline" id="catalogoModalClose">✕ Fechar</button>
       </div>
     </div>
@@ -2364,19 +2378,9 @@
     <div class="catalogo-modal-foto-row">
       <div class="catalogo-foto-slot">
         <div class="catalogo-foto-preview" id="catalogoModalFotoPreview1"></div>
-        <div class="catalogo-foto-actions write-ui">
-          <button type="button" class="btn small outline" id="btnCatalogoFoto1">⬆ Enviar/trocar</button>
-          <button type="button" class="btn small outline danger" id="btnCatalogoRemoverFoto1" style="display:none;">Remover</button>
-          <input type="file" id="catalogoFotoInput1" accept="image/*" style="display:none;">
-        </div>
       </div>
       <div class="catalogo-foto-slot">
         <div class="catalogo-foto-preview" id="catalogoModalFotoPreview2"></div>
-        <div class="catalogo-foto-actions write-ui">
-          <button type="button" class="btn small outline" id="btnCatalogoFoto2">⬆ Enviar/trocar</button>
-          <button type="button" class="btn small outline danger" id="btnCatalogoRemoverFoto2" style="display:none;">Remover</button>
-          <input type="file" id="catalogoFotoInput2" accept="image/*" style="display:none;">
-        </div>
       </div>
     </div>
 
@@ -2385,20 +2389,10 @@
     <div class="catalogo-modal-section">
       <div class="catalogo-modal-section-head">
         <h4>Preços por região e condição de pagamento</h4>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <select id="catalogoModalTipoCliente" style="font-size:12px;"></select>
-          <button type="button" class="btn small outline write-ui" id="btnEditarPrecosCatalogo">Editar preços</button>
-        </div>
+        <select id="catalogoModalTipoCliente" style="font-size:12px;"></select>
       </div>
       <div id="catalogoModalPrecoWrap" style="max-height:280px; overflow-y:auto;"></div>
-      <form id="formEditarPrecosCatalogo" class="write-ui" style="display:none;">
-        <div id="catalogoModalPrecoEditWrap" style="max-height:280px; overflow-y:auto;"></div>
-        <div class="note">Deixe em branco pra remover o preço daquela condição/região.</div>
-        <div class="form-actions">
-          <button type="button" class="btn outline" id="btnCancelarEdicaoPrecos">Cancelar</button>
-          <button type="submit" class="btn primary">Salvar preços</button>
-        </div>
-      </form>
+      <div class="note">Fotos e preços são editados no cadastro do produto — aba <b>Produtos</b>, botão do lápis.</div>
     </div>
   </div>
 </div>
@@ -2436,6 +2430,6 @@
 </div>
 
 <script src="seed.js?v=61"></script>
-<script src="app.js?v=161"></script>
+<script src="app.js?v=162"></script>
 </body>
 </html>

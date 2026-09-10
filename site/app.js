@@ -346,7 +346,7 @@ function getProduto(codigo) {
 const CATALOGO_BUCKET = "produtos-fotos";
 const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
-const TIPO_CLIENTE_OPCOES = ["REVENDA", "FROTA", "CONSUMO"];
+const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 // CONSUMO_DIFAL saiu das opções selecionáveis (a pedido do usuário), mas o rótulo
 // fica: dado antigo (preços/clientes/pedidos já gravados com esse tipo) continua
 // aparecendo como "Consumo com DIFAL" em vez do código cru.
@@ -1599,6 +1599,11 @@ function abrirProdutoEditDrawer(codigo) {
     hint.style.display = "none";
   }
 
+  atualizarFotosDrawer(codigo);
+  const precoEditor = document.getElementById("prodEditPrecoEditor");
+  precoEditor.innerHTML = buildPrecoEditorHtml(getPrecosDoProduto(codigo));
+  wirePrecoEditor(precoEditor);
+
   document.getElementById("prodEditOverlay").classList.add("show");
 }
 
@@ -1637,6 +1642,12 @@ async function salvarProdutoEdit() {
 
   await registrarLog("produtos", payload.codigo || codigoOriginal, "edicao", "Ação automática", `Produto editado: ${codigoOriginal}${payload.codigo && payload.codigo !== codigoOriginal ? ` → ${payload.codigo}` : ""}`);
 
+  // preços (todos os tipos de cliente, das 3 grades do editor)
+  const codigoFinal = payload.codigo || codigoOriginal;
+  const resPreco = await salvarPrecosProduto(document.getElementById("prodEditPrecoEditor"), codigoFinal);
+  if (!resPreco.ok) return; // salvarPrecosProduto já mostrou o toast do erro
+  if (resPreco.mexeu) await registrarLog("produtos", codigoFinal, "edicao", "Ação automática", `Preços atualizados: ${codigoFinal}`);
+
   const idx = state.produtos.findIndex(p => p.codigo === codigoOriginal);
   if (idx !== -1) {
     state.produtos[idx] = {
@@ -1659,6 +1670,24 @@ function initProdutoEdit() {
   document.getElementById("prodEditSalvar").addEventListener("click", salvarProdutoEdit);
   document.getElementById("prodEditOverlay").addEventListener("click", (e) => {
     if (e.target.id === "prodEditOverlay") fecharProdutoEditDrawer();
+  });
+
+  [1, 2].forEach(slot => {
+    document.getElementById(`btnProdEditFoto${slot}`).addEventListener("click", () => {
+      document.getElementById(`prodEditFotoInput${slot}`).click();
+    });
+    document.getElementById(`prodEditFotoInput${slot}`).addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";
+      const codigo = document.getElementById("prodEditCodigo").dataset.original;
+      if (file && codigo) await uploadFotoProduto(codigo, file, slot);
+    });
+    document.getElementById(`btnProdEditRemoverFoto${slot}`).addEventListener("click", async () => {
+      const codigo = document.getElementById("prodEditCodigo").dataset.original;
+      if (!codigo) return;
+      const ok = await confirmModal("Remover foto?", "Essa foto do produto será removida.");
+      if (ok) await removerFotoProduto(codigo, slot);
+    });
   });
   document.querySelectorAll("[data-prodsort]").forEach(th => {
     th.addEventListener("click", () => {
@@ -1697,7 +1726,7 @@ function populateCatalogoCondicao() {
 
 function populateCatalogoTipoCliente() {
   const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
-  [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente"), document.getElementById("prodPrecoTipoCliente")].forEach(sel => {
+  [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente")].forEach(sel => {
     if (sel && sel.options.length === 0) {
       sel.innerHTML = opcoesHtml;
       sel.value = "CONSUMO";
@@ -1721,54 +1750,83 @@ function buildPrecoMatrixHtml(codigo, tipoCliente) {
   </table></div>`;
 }
 
-function buildPrecoMatrixEditHtml(codigo, tipoCliente) {
-  const precos = getPrecosDoProduto(codigo, tipoCliente);
-  const linhas = CATALOGO_CONDICOES.map(cond => {
-    const cells = CATALOGO_REGIOES.map(r => {
-      const p = precos.find(x => x.regiao === r && x.condicaoPagamento === cond);
-      return `<td><input type="number" step="0.01" min="0" class="catalogo-preco-input" data-regiao="${escapeAttr(r)}" data-condicao="${escapeAttr(cond)}" value="${p ? p.preco : ""}" placeholder="—"></td>`;
+// ---------------- editor de preços (abas por tipo de cliente) ----------------
+// Um editor só, usado no drawer "Editar produto" E no form "Novo produto".
+// Renderiza as 3 grades (Consumo/Frota/Revenda), uma visível por vez; as
+// escondidas ficam no DOM com os valores digitados preservados, então salvar lê
+// as 3 de uma vez. `precosExistentes` = linhas de produtos_precos do produto
+// (array vazio quando é produto novo).
+function buildPrecoEditorHtml(precosExistentes) {
+  const tabs = TIPO_CLIENTE_OPCOES.map((tipo, i) =>
+    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(TIPO_CLIENTE_LABEL[tipo])}</button>`
+  ).join("");
+  const grades = TIPO_CLIENTE_OPCOES.map((tipo, i) => {
+    const precos = (precosExistentes || []).filter(p => p.tipoCliente === tipo);
+    const linhas = CATALOGO_CONDICOES.map(cond => {
+      const cells = CATALOGO_REGIOES.map(r => {
+        const p = precos.find(x => x.regiao === r && x.condicaoPagamento === cond);
+        return `<td><input type="number" step="0.01" min="0" class="catalogo-preco-input" data-regiao="${escapeAttr(r)}" data-condicao="${escapeAttr(cond)}" value="${p ? p.preco : ""}" placeholder="—"></td>`;
+      }).join("");
+      return `<tr><td class="mono">${escapeHtml(cond)}</td>${cells}</tr>`;
     }).join("");
-    return `<tr><td class="mono">${escapeHtml(cond)}</td>${cells}</tr>`;
+    return `<div class="preco-editor-grade" data-tipo="${escapeAttr(tipo)}"${i === 0 ? "" : " hidden"}>
+      <div class="table-wrap"><table class="catalogo-preco-table catalogo-preco-table-edit">
+        <thead><tr><th>Condição</th>${CATALOGO_REGIOES.map(r => `<th>${escapeHtml(r)}</th>`).join("")}</tr></thead>
+        <tbody>${linhas}</tbody>
+      </table></div>
+    </div>`;
   }).join("");
-  return `<div class="table-wrap"><table class="catalogo-preco-table catalogo-preco-table-edit">
-    <thead><tr><th>Condição</th>${CATALOGO_REGIOES.map(r => `<th>${escapeHtml(r)}</th>`).join("")}</tr></thead>
-    <tbody>${linhas}</tbody>
-  </table></div>`;
+  return `<div class="preco-editor-tabs">${tabs}</div>${grades}`;
 }
 
-// ---------------- "Novo produto": grade de preços em branco (produto ainda não existe, não tem preço nenhum) ----------------
-function buildPrecoMatrixNovoHtml() {
-  return CATALOGO_CONDICOES.map(cond => {
-    const cells = CATALOGO_REGIOES.map(r =>
-      `<td><input type="number" step="0.01" min="0" class="catalogo-preco-input" data-regiao="${escapeAttr(r)}" data-condicao="${escapeAttr(cond)}" placeholder="—"></td>`
-    ).join("");
-    return `<tr><td class="mono">${escapeHtml(cond)}</td>${cells}</tr>`;
-  }).join("");
-}
-
-function renderProdPrecoTable() {
-  const body = document.getElementById("prodPrecoTableBody");
-  if (body) body.innerHTML = buildPrecoMatrixNovoHtml();
-}
-
-async function persistirPrecosProdutoNovo(codigo) {
-  const tipoCliente = document.getElementById("prodPrecoTipoCliente").value || "CONSUMO";
-  const inputs = Array.from(document.querySelectorAll("#prodPrecoTableBody .catalogo-preco-input"));
-  const upserts = [];
-  for (const inp of inputs) {
-    const raw = inp.value.trim();
-    if (raw === "") continue;
-    const valor = parseFloat(raw.replace(",", "."));
-    if (!(valor >= 0)) continue;
-    upserts.push({
-      codigo, regiao: inp.dataset.regiao, tipo_cliente: tipoCliente, condicao_pagamento: inp.dataset.condicao,
-      preco: valor, atualizado_em: new Date().toISOString()
+function wirePrecoEditor(container) {
+  container.querySelectorAll(".preco-editor-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const tipo = tab.dataset.tipo;
+      container.querySelectorAll(".preco-editor-tab").forEach(t => t.classList.toggle("ativo", t === tab));
+      container.querySelectorAll(".preco-editor-grade").forEach(g => { g.hidden = g.dataset.tipo !== tipo; });
     });
+  });
+}
+
+// Lê as 3 grades e devolve o que mudou vs. o que já está em state pro produto.
+function coletarPrecosEditor(container, codigo) {
+  const upserts = [];
+  const remocoesIds = [];
+  TIPO_CLIENTE_OPCOES.forEach(tipo => {
+    const grade = container.querySelector(`.preco-editor-grade[data-tipo="${tipo}"]`);
+    if (!grade) return;
+    const existentes = getPrecosDoProduto(codigo, tipo);
+    grade.querySelectorAll(".catalogo-preco-input").forEach(inp => {
+      const regiao = inp.dataset.regiao, condicao = inp.dataset.condicao;
+      const existente = existentes.find(x => x.regiao === regiao && x.condicaoPagamento === condicao);
+      const raw = inp.value.trim();
+      if (raw === "") { if (existente) remocoesIds.push(existente.id); return; }
+      const valor = parseFloat(raw.replace(",", "."));
+      if (!(valor >= 0)) return;
+      if (!existente || existente.preco !== valor) {
+        upserts.push({ codigo, regiao, tipo_cliente: tipo, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
+      }
+    });
+  });
+  return { upserts, remocoesIds };
+}
+
+// Aplica no banco + atualiza state.produtos_precos. Devolve { ok, mexeu }.
+async function salvarPrecosProduto(container, codigo) {
+  const { upserts, remocoesIds } = coletarPrecosEditor(container, codigo);
+  if (!upserts.length && !remocoesIds.length) return { ok: true, mexeu: false };
+  if (upserts.length) {
+    const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
+    if (error) { toast("Erro ao salvar preços: " + error.message); return { ok: false, mexeu: false }; }
   }
-  if (!upserts.length) return false;
-  const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
-  if (error) { toast("Produto salvo, mas houve erro ao salvar os preços: " + error.message); return false; }
-  return true;
+  if (remocoesIds.length) {
+    const { error } = await sb.from("produtos_precos").delete().in("id", remocoesIds);
+    if (error) { toast("Erro ao remover preço: " + error.message); return { ok: false, mexeu: false }; }
+  }
+  const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+  state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
+  return { ok: true, mexeu: true };
 }
 
 // ---------------- "Novo produto": fotos ficam só em memória (arquivo escolhido) até o produto ser salvo com sucesso ----------------
@@ -1976,14 +2034,13 @@ function openCatalogoModal(codigo) {
   // "url === fotoUrl" pra decidir 0 ou 1, o que dava índice errado (fora dos
   // limites) quando a foto 1 não existia e a 2 sim.
   const fotosModal = [fotoUrl, fotoUrl2].filter(Boolean);
-  [[1, fotoUrl, p.fotoPath], [2, fotoUrl2, p.fotoPath2]].forEach(([slot, url, path]) => {
+  [[1, fotoUrl], [2, fotoUrl2]].forEach(([slot, url]) => {
     const previewEl = document.getElementById(`catalogoModalFotoPreview${slot}`);
     previewEl.classList.toggle("sem-foto", !url);
     previewEl.innerHTML = url
       ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(p.codigo)} - foto ${slot}">`
       : `<div class="catalogo-foto-placeholder">Sem foto</div>`;
     previewEl.onclick = url ? () => openCatalogoFotoLightbox(fotosModal, fotosModal.indexOf(url)) : null;
-    document.getElementById(`btnCatalogoRemoverFoto${slot}`).style.display = path ? "" : "none";
   });
 
   const specs = [
@@ -1999,18 +2056,12 @@ function openCatalogoModal(codigo) {
 
   populateCatalogoTipoCliente();
   renderCatalogoModalPrecos(codigo);
-  document.getElementById("formEditarPrecosCatalogo").style.display = "none";
-  document.getElementById("catalogoModalPrecoWrap").style.display = "";
-  document.getElementById("btnEditarPrecosCatalogo").style.display = "";
 
   document.getElementById("catalogoModalOverlay").classList.add("show");
 }
 
 function closeCatalogoModal() {
   document.getElementById("catalogoModalOverlay").classList.remove("show");
-  document.getElementById("formEditarPrecosCatalogo").style.display = "none";
-  document.getElementById("catalogoModalPrecoWrap").style.display = "";
-  document.getElementById("btnEditarPrecosCatalogo").style.display = "";
   catalogoEditingCodigo = null;
 }
 
@@ -2053,66 +2104,25 @@ function closeCatalogoFotoLightbox() {
   catalogoLightboxUrls = [];
 }
 
-async function salvarPrecosCatalogo(e) {
-  e.preventDefault();
-  if (!catalogoEditingCodigo) return;
-  const codigo = catalogoEditingCodigo;
-  const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
-  const existentes = getPrecosDoProduto(codigo, tipoCliente);
-  const inputs = Array.from(document.querySelectorAll("#catalogoModalPrecoEditWrap .catalogo-preco-input"));
+/* ---------------- fotos do produto (editadas no drawer "Editar produto") ---------------- */
 
-  const upserts = [];
-  const remocoes = [];
-  for (const inp of inputs) {
-    const regiao = inp.dataset.regiao;
-    const condicao = inp.dataset.condicao;
-    const existente = existentes.find(x => x.regiao === regiao && x.condicaoPagamento === condicao);
-    const raw = inp.value.trim();
-    if (raw === "") {
-      if (existente) remocoes.push(existente.id);
-      continue;
-    }
-    const valor = parseFloat(raw.replace(",", "."));
-    if (!(valor >= 0)) { toast(`Preço inválido em ${regiao} / ${condicao}.`); return; }
-    upserts.push({ codigo, regiao, tipo_cliente: tipoCliente, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
-  }
-
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  const labelOriginal = btn.textContent;
-  btn.textContent = "Salvando...";
-
-  if (upserts.length) {
-    const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
-    if (error) { toast("Erro ao salvar preços: " + error.message); btn.disabled = false; btn.textContent = labelOriginal; return; }
-  }
-  if (remocoes.length) {
-    const { error } = await sb.from("produtos_precos").delete().in("id", remocoes);
-    if (error) { toast("Erro ao remover preço: " + error.message); btn.disabled = false; btn.textContent = labelOriginal; return; }
-  }
-
-  const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
-  state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
-
-  btn.disabled = false;
-  btn.textContent = labelOriginal;
-  // "produtos_precos" não é um valor reconhecido pelo filtro de tabela do
-  // Histórico (só produtos/movimentos/fretes/clientes/vendas/previsoes/
-  // entregas) -- ficava invisível ao filtrar por "Produtos" e aparecia com o
-  // nome cru "produtos_precos" em "Todas as tabelas" (achado em revisão).
-  // Preço é uma edição do próprio produto, então loga como tal.
-  await registrarLog("produtos", codigo, "edicao", "Ação automática", `Preços atualizados: ${codigo}`);
-  toast("Preços atualizados.");
-  document.getElementById("formEditarPrecosCatalogo").style.display = "none";
-  document.getElementById("catalogoModalPrecoWrap").style.display = "";
-  document.getElementById("btnEditarPrecosCatalogo").style.display = "";
-  renderCatalogoModalPrecos(codigo);
-  renderCatalogo();
+// atualiza os 2 previews de foto do drawer + visibilidade do botão "Remover"
+function atualizarFotosDrawer(codigo) {
+  const p = getProduto(codigo);
+  if (!p) return;
+  [[1, p.fotoPath], [2, p.fotoPath2]].forEach(([slot, path]) => {
+    const url = fotoProdutoUrl(path);
+    const previewEl = document.getElementById(`prodEditFotoPreview${slot}`);
+    if (!previewEl) return;
+    previewEl.classList.toggle("sem-foto", !url);
+    previewEl.innerHTML = url
+      ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(p.codigo)} - foto ${slot}">`
+      : `<div class="catalogo-foto-placeholder">Sem foto</div>`;
+    document.getElementById(`btnProdEditRemoverFoto${slot}`).style.display = path ? "" : "none";
+  });
 }
 
-/* ---------------- catálogo: upload de foto ---------------- */
-
-async function uploadFotoCatalogo(codigo, file, slot) {
+async function uploadFotoProduto(codigo, file, slot) {
   if (file.size > 5 * 1024 * 1024) { toast("Imagem muito grande (máx. 5 MB)."); return; }
 
   const campo = slot === 2 ? "foto_path_2" : "foto_path";
@@ -2135,12 +2145,12 @@ async function uploadFotoCatalogo(codigo, file, slot) {
   if (pathAntigo) await sb.storage.from(CATALOGO_BUCKET).remove([pathAntigo]);
 
   await registrarLog("produtos", codigo, "edicao", "Ação automática", `Foto ${slot === 2 ? "2" : "1"} atualizada: ${codigo}`);
-  openCatalogoModal(codigo);
+  atualizarFotosDrawer(codigo);
   renderCatalogo();
   toast("Foto enviada.");
 }
 
-async function removerFotoCatalogo(codigo, slot) {
+async function removerFotoProduto(codigo, slot) {
   const campo = slot === 2 ? "foto_path_2" : "foto_path";
   const propState = slot === 2 ? "fotoPath2" : "fotoPath";
   const p = getProduto(codigo);
@@ -2155,7 +2165,7 @@ async function removerFotoCatalogo(codigo, slot) {
 
   p[propState] = null;
   await registrarLog("produtos", codigo, "edicao", "Ação automática", `Foto ${slot === 2 ? "2" : "1"} removida: ${codigo}`);
-  openCatalogoModal(codigo);
+  atualizarFotosDrawer(codigo);
   renderCatalogo();
   toast("Foto removida.");
 }
@@ -2174,51 +2184,15 @@ function initCatalogo() {
   document.getElementById("catalogoFotoLightboxNext").addEventListener("click", (e) => { e.stopPropagation(); catalogoFotoLightboxNext(); });
 
   document.getElementById("catalogoModalClose").addEventListener("click", closeCatalogoModal);
-  document.getElementById("btnEditarNoProduto").addEventListener("click", () => {
-    const codigo = catalogoEditingCodigo;
-    closeCatalogoModal();
-    if (codigo) abrirProdutoEditDrawer(codigo);
-  });
   document.getElementById("catalogoModalOverlay").addEventListener("click", (e) => {
     if (e.target.id === "catalogoModalOverlay") closeCatalogoModal();
   });
 
-  document.getElementById("btnEditarPrecosCatalogo").addEventListener("click", () => {
-    const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
-    document.getElementById("catalogoModalPrecoEditWrap").innerHTML = buildPrecoMatrixEditHtml(catalogoEditingCodigo, tipoCliente);
-    document.getElementById("catalogoModalPrecoWrap").style.display = "none";
-    document.getElementById("btnEditarPrecosCatalogo").style.display = "none";
-    document.getElementById("formEditarPrecosCatalogo").style.display = "";
-  });
-  document.getElementById("btnCancelarEdicaoPrecos").addEventListener("click", () => {
-    document.getElementById("formEditarPrecosCatalogo").style.display = "none";
-    document.getElementById("catalogoModalPrecoWrap").style.display = "";
-    document.getElementById("btnEditarPrecosCatalogo").style.display = "";
-  });
-  document.getElementById("formEditarPrecosCatalogo").addEventListener("submit", salvarPrecosCatalogo);
+  // O modal do Catálogo é só leitura -- preço e fotos são editados no drawer
+  // "Editar produto" (aba Produtos). Aqui o seletor de tipo de cliente só troca
+  // a tabela de preços exibida.
   document.getElementById("catalogoModalTipoCliente").addEventListener("change", () => {
-    if (!catalogoEditingCodigo) return;
-    renderCatalogoModalPrecos(catalogoEditingCodigo);
-    if (document.getElementById("formEditarPrecosCatalogo").style.display !== "none") {
-      const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
-      document.getElementById("catalogoModalPrecoEditWrap").innerHTML = buildPrecoMatrixEditHtml(catalogoEditingCodigo, tipoCliente);
-    }
-  });
-
-  [1, 2].forEach(slot => {
-    document.getElementById(`btnCatalogoFoto${slot}`).addEventListener("click", () => {
-      document.getElementById(`catalogoFotoInput${slot}`).click();
-    });
-    document.getElementById(`catalogoFotoInput${slot}`).addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      e.target.value = "";
-      if (file && catalogoEditingCodigo) await uploadFotoCatalogo(catalogoEditingCodigo, file, slot);
-    });
-    document.getElementById(`btnCatalogoRemoverFoto${slot}`).addEventListener("click", async () => {
-      if (!catalogoEditingCodigo) return;
-      const ok = await confirmModal("Remover foto?", "Essa foto do produto será removida do catálogo.");
-      if (ok) await removerFotoCatalogo(catalogoEditingCodigo, slot);
-    });
+    if (catalogoEditingCodigo) renderCatalogoModalPrecos(catalogoEditingCodigo);
   });
 }
 
@@ -5866,7 +5840,9 @@ function initForms() {
   });
 
   populateCatalogoTipoCliente();
-  renderProdPrecoTable();
+  const prodPrecoEditor = document.getElementById("prodPrecoEditor");
+  prodPrecoEditor.innerHTML = buildPrecoEditorHtml([]);
+  wirePrecoEditor(prodPrecoEditor);
   document.getElementById("btnProdFoto1").addEventListener("click", () => document.getElementById("prodFotoInput1").click());
   document.getElementById("btnProdFoto2").addEventListener("click", () => document.getElementById("prodFotoInput2").click());
   document.getElementById("prodFotoInput1").addEventListener("change", (e) => stageFotoProdutoNovo(1, e.target.files[0]));
@@ -5911,7 +5887,8 @@ function initForms() {
     let fotoPath = null, fotoPath2 = null;
     if (prodFotoFile1) fotoPath = await persistirFotoProdutoNovo(codigo, 1, prodFotoFile1);
     if (prodFotoFile2) fotoPath2 = await persistirFotoProdutoNovo(codigo, 2, prodFotoFile2);
-    const houvePrecos = await persistirPrecosProdutoNovo(codigo);
+    // preços das 3 grades (salvarPrecosProduto já atualiza state.produtos_precos)
+    await salvarPrecosProduto(document.getElementById("prodPrecoEditor"), codigo);
 
     state.produtos.push({
       codigo, medida, createdAt: new Date().toISOString(),
@@ -5919,18 +5896,13 @@ function initForms() {
       sulcoMm, largBandaMm, pesoKg, fotoPath, fotoPath2,
       marca, carcaca: carcaca || "", ncm, situacao
     });
-    if (houvePrecos) {
-      const { data: precosNovos } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
-      if (precosNovos && precosNovos.length) {
-        state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat(precosNovos.map(precoFromRow));
-      }
-    }
 
     e.target.reset();
     document.getElementById("prodSituacao").value = "ATIVO";
     resetFotosProdutoNovo();
-    renderProdPrecoTable();
-    if (document.getElementById("prodPrecoTipoCliente").options.length) document.getElementById("prodPrecoTipoCliente").value = "CONSUMO";
+    const prodPrecoEditor = document.getElementById("prodPrecoEditor");
+    prodPrecoEditor.innerHTML = buildPrecoEditorHtml([]);
+    wirePrecoEditor(prodPrecoEditor);
     btn.disabled = false;
     btn.textContent = labelOriginal;
     renderProdutos();
