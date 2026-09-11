@@ -1261,6 +1261,15 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .drawer-overlay.show .drawer{transform:translateX(0);}
 
+/* pop-up central grande: mesmo miolo do drawer (.drawer-simple-head/-body,
+   .drawer-foot, campos) só que centralizado na tela em vez de encaixado na
+   lateral -- usado no "Editar produto", que cresceu (specs + fotos + preço)
+   e ficou melhor como janela do que como gaveta. */
+.modal-popup-grande{
+  width:680px; max-width:92vw; max-height:88vh; padding:0;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+
 .chart-modal{
   background:var(--surface);
   border-top:4px solid var(--orange);
