@@ -2721,6 +2721,18 @@ function openPedidoModal(id) {
     document.getElementById("pedFormaPagamento").value = e.formaPagamento || "";
     document.getElementById("pedCondicaoPagamento").value = e.condicaoPagamento || "";
     document.getElementById("pedPrazoPagamento").value = e.prazoPagamento || "";
+    // pedido de antes do campo virar seletor pode ter um valor livre (ex:
+    // "PIX") que não bate com nenhuma das opções novas -- o select some ele
+    // (vira em branco), então mostra o valor antigo aqui do lado pra quem for
+    // editar saber o que era e escolher a opção mais parecida (achado numa
+    // conversa com o usuário: sem isso não tinha como saber o valor anterior).
+    const condHint = document.getElementById("pedCondicaoPagamentoHint");
+    if (e.condicaoPagamento && !CATALOGO_CONDICOES.includes(e.condicaoPagamento)) {
+      condHint.textContent = `Valor anterior: "${e.condicaoPagamento}" — não existe mais na lista, escolha a opção mais parecida.`;
+      condHint.style.display = "";
+    } else {
+      condHint.style.display = "none";
+    }
 
     document.getElementById("btnExcluirPedido").style.display = e.etapa === "PRE_VENDA" ? "inline-block" : "none";
     document.getElementById("btnCancelarPedido").style.display = (e.etapa !== "PRE_VENDA" && !e.cancelado) ? "inline-block" : "none";
@@ -2728,6 +2740,7 @@ function openPedidoModal(id) {
     editingPedidoUpdatedAt = null;
     document.getElementById("pedidoModalTitle").textContent = "Novo pedido";
     document.getElementById("formPedido").reset();
+    document.getElementById("pedCondicaoPagamentoHint").style.display = "none";
     document.getElementById("pedData").value = todayISO();
     document.getElementById("pedEtapa").value = "ENTRADA";
     document.getElementById("pedItens").innerHTML = "";
@@ -2885,6 +2898,11 @@ function initEntregas() {
   document.getElementById("btnAddItemPedido").addEventListener("click", () => {
     document.getElementById("pedItens").appendChild(createItemRow("pedItens", true));
     updateItemRemoveVisibility("pedItens");
+  });
+  // some o aviso de "valor anterior" assim que a pessoa escolhe uma opção da
+  // lista nova, sem precisar salvar primeiro
+  document.getElementById("pedCondicaoPagamento").addEventListener("change", () => {
+    document.getElementById("pedCondicaoPagamentoHint").style.display = "none";
   });
 
   document.getElementById("btnAnexarArquivo").addEventListener("click", () => {

@@ -834,7 +834,11 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .drawer-simple-close .ic{width:14px; height:14px;}
 .drawer-simple-body{flex:1; overflow-y:auto; padding:20px 22px; display:flex; flex-direction:column; gap:16px;}
 .drawer-field input:disabled{background:var(--paper-2); color:var(--ink-soft); cursor:not-allowed;}
-.drawer-field .hint{font-size:11px; color:var(--ink-soft); margin-top:6px; line-height:1.5;}
+.drawer-field .hint, .field .hint{font-size:11px; color:var(--ink-soft); margin-top:6px; line-height:1.5;}
+.field .hint.hint-aviso{
+  color:var(--warning); background:var(--warning-pale); border:1px solid var(--warning-border);
+  border-radius:7px; padding:6px 8px; margin-top:7px;
+}
 .drawer-avatar-wrap{position:relative; width:88px; height:88px; margin:0 auto 14px;}
 .drawer-avatar{
   width:88px; height:88px; border-radius:50%; background:linear-gradient(155deg, var(--orange), var(--orange-deep));
