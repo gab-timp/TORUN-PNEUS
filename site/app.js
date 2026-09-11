@@ -1792,9 +1792,15 @@ function wirePrecoEditor(container) {
 }
 
 // Lê as 3 grades e devolve o que mudou vs. o que já está em state pro produto.
+// `invalidos` lista as células com texto que não é preço válido (achado numa
+// revisão de lógica: antes da consolidação num editor só, preço inválido
+// travava o salvamento com um aviso -- na junção das 3 grades isso virou um
+// "if (!(valor >= 0)) return" mudo, que descartava o valor sem avisar
+// ninguém. Agora volta a bloquear e avisar, só que apontando a célula certa).
 function coletarPrecosEditor(container, codigo) {
   const upserts = [];
   const remocoesIds = [];
+  const invalidos = [];
   TIPO_CLIENTE_OPCOES.forEach(tipo => {
     const grade = container.querySelector(`.preco-editor-grade[data-tipo="${tipo}"]`);
     if (!grade) return;
@@ -1805,18 +1811,22 @@ function coletarPrecosEditor(container, codigo) {
       const raw = inp.value.trim();
       if (raw === "") { if (existente) remocoesIds.push(existente.id); return; }
       const valor = parseFloat(raw.replace(",", "."));
-      if (!(valor >= 0)) return;
+      if (!(valor >= 0)) { invalidos.push(`${TIPO_CLIENTE_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
       if (!existente || existente.preco !== valor) {
         upserts.push({ codigo, regiao, tipo_cliente: tipo, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
       }
     });
   });
-  return { upserts, remocoesIds };
+  return { upserts, remocoesIds, invalidos };
 }
 
 // Aplica no banco + atualiza state.produtos_precos. Devolve { ok, mexeu }.
 async function salvarPrecosProduto(container, codigo) {
-  const { upserts, remocoesIds } = coletarPrecosEditor(container, codigo);
+  const { upserts, remocoesIds, invalidos } = coletarPrecosEditor(container, codigo);
+  if (invalidos.length) {
+    toast(`Preço inválido em: ${invalidos.join(", ")}.`);
+    return { ok: false, mexeu: false };
+  }
   if (!upserts.length && !remocoesIds.length) return { ok: true, mexeu: false };
   if (upserts.length) {
     const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
