@@ -27,7 +27,7 @@ const UF_LIST = [
 ];
 
 const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
-const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
+const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 // CONSUMO_DIFAL saiu das opções, mas o rótulo fica pra dado antigo já gravado
 // (ver mesma nota em app.js).

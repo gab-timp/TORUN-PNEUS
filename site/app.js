@@ -343,7 +343,7 @@ function getProduto(codigo) {
 
 const CATALOGO_BUCKET = "produtos-fotos";
 const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
-const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "30/60", "30/60/90", "30/60/90/120", "30/60/90/120/150", "30/60/90/120/150/180"];
+const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 // CONSUMO_DIFAL saiu das opções selecionáveis (a pedido do usuário), mas o rótulo
 // fica: dado antigo (preços/clientes/pedidos já gravados com esse tipo) continua
