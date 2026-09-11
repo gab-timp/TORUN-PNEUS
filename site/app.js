@@ -1726,6 +1726,16 @@ function populateCatalogoCondicao() {
   }
 }
 
+// Condição de pagamento NEGOCIADA do pedido, no modal de Entregas -- campo
+// separado da condição da tabela de preço (que vem do Catálogo). Virou
+// seletor com a mesma lista de CATALOGO_CONDICOES, era texto livre.
+function populatePedCondicaoPagamento() {
+  const sel = document.getElementById("pedCondicaoPagamento");
+  if (sel && sel.options.length === 0) {
+    sel.innerHTML = `<option value="">—</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+  }
+}
+
 function populateCatalogoTipoCliente() {
   const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
   [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente")].forEach(sel => {
@@ -2660,6 +2670,7 @@ function renderCteToggle() {
 
 function openPedidoModal(id) {
   editingPedidoId = id || null;
+  populatePedCondicaoPagamento();
 
   if (id) {
     const e = state.entregas.find(x => x.id === id);
