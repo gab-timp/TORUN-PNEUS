@@ -293,9 +293,6 @@ async function afterLogin() {
   document.getElementById("preCadEstado").innerHTML = UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
   document.getElementById("repCatalogoRegiao").innerHTML = `<option value="">Selecione…</option>` + CATALOGO_REGIOES.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
   document.getElementById("repCatalogoCondicao").innerHTML = `<option value="">Selecione…</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-  // Condição de pagamento NEGOCIADA do pedido (campo separado da condição da
-  // tabela de preço acima) -- virou seletor com a mesma lista, era texto livre.
-  document.getElementById("repCondicaoPagamento").innerHTML = `<option value="">—</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   const tipoClienteOpcoesHtml = `<option value="">Selecione…</option>` + TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
   document.getElementById("repCatalogoTipoCliente").innerHTML = tipoClienteOpcoesHtml;
   document.getElementById("preCadTipoCliente").innerHTML = tipoClienteOpcoesHtml;
