@@ -381,11 +381,11 @@ function createItemRowRep() {
   tr.dataset.rowId = itemRowSeq;
   tr.innerHTML = `
     <td><select class="rep-item-produto">${produtoOptionsHTML()}</select></td>
-    <td><input type="number" class="rep-item-qtd" min="1" step="1" placeholder="Qtd"></td>
-    <td><input type="number" class="rep-item-valor" min="0" step="0.01" placeholder="0,00"></td>
-    <td><input type="number" class="rep-item-desconto" min="0" max="100" step="0.01" placeholder="0"></td>
-    <td class="rep-item-valor-total">${formatMoney(0)}</td>
-    <td><button type="button" class="btn outline rep-item-remove">×</button></td>
+    <td class="num"><input type="number" class="rep-item-qtd" min="1" step="1" placeholder="Qtd"></td>
+    <td class="num"><input type="number" class="rep-item-valor" min="0" step="0.01" placeholder="0,00"></td>
+    <td class="num"><input type="number" class="rep-item-desconto" min="0" max="100" step="0.01" placeholder="0"></td>
+    <td class="num rep-item-valor-total">${formatMoney(0)}</td>
+    <td><button type="button" class="rep-item-remove" title="Remover item">×</button></td>
   `;
   tr.querySelectorAll(".rep-item-qtd, .rep-item-valor, .rep-item-desconto").forEach(inp => {
     inp.addEventListener("input", recalcularTotais);

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=129">
-<link rel="stylesheet" href="pedido-representante.css?v=12">
+<link rel="stylesheet" href="pedido-representante.css?v=13">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -146,14 +146,18 @@
           <div class="note">Escolha a condição de pagamento pra completar o preenchimento do valor unitário ao selecionar um produto.</div>
         </div>
         <div class="rep-itens-table-wrap">
-          <table class="rep-itens-table">
+          <table class="rep-itens-table rep-itens-table-pedido">
+            <colgroup>
+              <col class="col-produto"><col class="col-qtd"><col class="col-valor">
+              <col class="col-desc"><col class="col-total"><col class="col-rm">
+            </colgroup>
             <thead>
               <tr>
                 <th>Código / Produto</th>
-                <th>Quantidade</th>
-                <th>Valor unitário (R$)</th>
-                <th>Desconto (%)</th>
-                <th>Valor total</th>
+                <th class="num">Quantidade</th>
+                <th class="num">Valor unitário (R$)</th>
+                <th class="num">Desconto (%)</th>
+                <th class="num">Valor total</th>
                 <th></th>
               </tr>
             </thead>
@@ -385,6 +389,6 @@
 <div id="printArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=26"></script>
+<script src="pedido-representante.js?v=27"></script>
 </body>
 </html>

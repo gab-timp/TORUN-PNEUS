@@ -137,17 +137,48 @@
 }
 .rep-doc-catalogo-precos .note{grid-column:1/-1; margin-top:2px;}
 
-.rep-itens-table-wrap{overflow-x:auto;}
+.rep-itens-table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px;}
 .rep-itens-table{width:100%; border-collapse:collapse; font-size:12.5px;}
 .rep-itens-table th{
-  text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em;
-  color:var(--ink-soft); border-bottom:1px solid var(--line-strong); padding:6px 8px;
+  text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:800;
+  color:var(--ink-soft); background:var(--paper); border-bottom:1px solid var(--line-strong); padding:10px 12px;
 }
-.rep-itens-table td{padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+.rep-itens-table th.num{text-align:right;}
+.rep-itens-table th:first-child{padding-left:14px;}
+.rep-itens-table td{padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:middle;}
+.rep-itens-table td:first-child{padding-left:14px;}
+.rep-itens-table td.num{text-align:right;}
+.rep-itens-table tbody tr:last-child td{border-bottom:none;}
 .rep-clickable-row{cursor:pointer;}
-.rep-clickable-row:hover td{background:var(--paper);}
-.rep-itens-table select, .rep-itens-table input{width:100%;}
+.rep-clickable-row:hover td{background:var(--paper-2);}
+.rep-itens-table-pedido tbody tr:hover td{background:var(--paper-2);}
+
+/* colunas da tabela de itens do pedido (a única com campos editáveis) --
+   código/produto ganha mais espaço, as numéricas ficam compactas */
+.rep-itens-table-pedido .col-produto{width:38%;}
+.rep-itens-table-pedido .col-qtd{width:11%;}
+.rep-itens-table-pedido .col-valor{width:16%;}
+.rep-itens-table-pedido .col-desc{width:11%;}
+.rep-itens-table-pedido .col-total{width:17%;}
+.rep-itens-table-pedido .col-rm{width:7%;}
+
+.rep-itens-table select, .rep-itens-table input{
+  width:100%; font-family:inherit; font-size:12.5px; padding:7px 9px;
+  border:1px solid var(--line); border-radius:7px; background:var(--paper); color:var(--ink);
+  outline:none; transition:border-color .15s ease, box-shadow .15s ease;
+}
+.rep-itens-table select:focus, .rep-itens-table input:focus{
+  border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);
+}
+.rep-itens-table input[type="number"]{text-align:right; font-family:'Space Mono',monospace;}
 .rep-item-valor-total{font-family:'Space Mono',monospace; font-weight:700; white-space:nowrap;}
+.rep-item-remove{
+  width:28px; height:28px; border:1px solid transparent; border-radius:50%; background:transparent;
+  color:var(--ink-soft); font-size:15px; line-height:1; cursor:pointer; display:flex;
+  align-items:center; justify-content:center; margin:0 auto;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.rep-item-remove:hover{background:var(--danger-pale); color:var(--danger); border-color:var(--danger-border);}
 
 .rep-doc-total-row{
   display:flex; justify-content:flex-end; gap:14px; align-items:baseline;
