@@ -736,7 +736,6 @@ function resetFormularioRep() {
   document.getElementById("repClienteGrid").style.display = "none";
   document.getElementById("repItensBox").style.display = "none";
   document.getElementById("repItens").innerHTML = "";
-  document.getElementById("repFinalidade").value = "INDUSTRIALIZAÇÃO";
   document.getElementById("repClienteErro").style.display = "none";
   document.getElementById("repNumeroPedido").textContent = "a gerar";
   clienteAtual = null;
@@ -830,7 +829,6 @@ async function salvarPedidoRep() {
     documento_cliente: clienteAtual.documento || null,
     destino: clienteAtual.endereco || null,
     condicao_frete: document.getElementById("repFrete").value.trim() || null,
-    finalidade: document.getElementById("repFinalidade").value.trim() || null,
     condicao_pagamento: document.getElementById("repCondicaoPagamento").value.trim() || null,
     forma_pagamento: document.getElementById("repFormaPagamento").value.trim() || null,
     prazo_pagamento: document.getElementById("repPrazoPagamento").value.trim() || null,
