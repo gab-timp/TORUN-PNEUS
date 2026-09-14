@@ -3982,8 +3982,17 @@ function renderDashboard() {
   // 5. Indicadores gerais — números isolados, escalas diferentes (R$, unidades) não cabem no mesmo eixo.
   // Faixa de destaque no topo do Dashboard (site/styles.css .dash-card-hero) -- ícone + delta
   // vs. mês anterior por tile (null quando "Todos os meses" ou sem venda no mês anterior).
+  // "Faturamento anual" é fixo -- não usa dashMesFiltro, sempre o ano da Evolução
+  // Mensal (mesmo cálculo de anoEvolucaoMensal()), pra nunca destoar do total do
+  // gráfico ao lado só porque alguém trocou o filtro de mês (dúvida real que já
+  // apareceu -- pedido do usuário pra deixar essa referência sempre visível).
+  const anoIndicadores = anoEvolucaoMensal();
+  const faturamentoAnual = state.vendas
+    .filter(v => (v.data || "").slice(0, 4) === anoIndicadores)
+    .reduce((a, v) => a + v.valorVenda, 0);
   document.getElementById("statsIndicadores").innerHTML = [
     { lbl: "Faturamento", val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
+    { lbl: `Faturamento anual (${anoIndicadores})`, val: formatMoney(faturamentoAnual), icone: "i-calendar", delta: "" },
     { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
     { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true) },
     { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) }

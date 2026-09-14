@@ -1456,7 +1456,11 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .dash-stat-grid{
   display:grid;
-  grid-template-columns:repeat(4,1fr);
+  /* auto-fit em vez de repeat(4,1fr) -- com 5 tiles (Faturamento anual fixo
+     somado aos 4 de sempre), 4 colunas fixas deixava o 5º sozinho numa linha
+     nova ocupando só 1/4 da largura, com 3 vazios do lado. Assim reflui pro
+     número de colunas que cabe, e a última linha estica pra preencher. */
+  grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
   gap:12px;
 }
 .dash-stat-tile{
@@ -1485,6 +1489,9 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   font-size:20px;
   margin-top:5px;
   line-height:1.15;
+  overflow-wrap:anywhere; /* valor alto (ex. faturamento anual) é um número sem
+    espaço pra quebrar -- sem isso ele vaza pra fora do tile em telas mais estreitas
+    agora que dash-stat-grid ficou responsivo (achado testando o tile novo) */
 }
 .dash-stat-tile .delta{
   font-family:'Space Mono',monospace;
@@ -1502,6 +1509,10 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   .dash-grid{grid-template-columns:1fr;}
   .dash-card-wide{grid-column:span 1;}
   .dash-stat-grid{grid-template-columns:1fr 1fr;}
+  /* são sempre 5 tiles (Faturamento/Faturamento anual/Pneus/Comissão/Frete) --
+     em 2 colunas o 5º ficaria sozinho com um vazio do lado; estica pra linha
+     toda em vez disso. */
+  .dash-stat-grid .dash-stat-tile:nth-child(5):last-child{grid-column:1/-1;}
 }
 
 /* ---------------- estoque previsto ---------------- */
