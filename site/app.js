@@ -3990,8 +3990,12 @@ function renderDashboard() {
   const faturamentoAnual = state.vendas
     .filter(v => (v.data || "").slice(0, 4) === anoIndicadores)
     .reduce((a, v) => a + v.valorVenda, 0);
+  // "Faturamento mensal" só quando o filtro é de fato um mês -- com "Todos os
+  // meses" (mesFiltroValue === "todos") o valor é um total geral, não mensal,
+  // então o rótulo volta a ser genérico pra não afirmar algo que não é verdade.
+  const labelFaturamento = mesFiltroValue && mesFiltroValue !== "todos" ? "Faturamento mensal" : "Faturamento";
   document.getElementById("statsIndicadores").innerHTML = [
-    { lbl: "Faturamento", val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
+    { lbl: labelFaturamento, val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
     { lbl: `Faturamento anual (${anoIndicadores})`, val: formatMoney(faturamentoAnual), icone: "i-calendar", delta: "" },
     { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
     { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true) },
