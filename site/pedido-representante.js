@@ -514,13 +514,17 @@ function renderRepCatalogo() {
     const temAlgumSpec = specs.some(([, v]) => v);
     const saldoProduto = computeSaldoProduto(p.codigo);
 
-    const precoPorRegiao = CATALOGO_REGIOES.map(r => {
-      const preco = getPrecoProdutoRep(p.codigo, r, tipoClienteAtual, condicaoAtual);
-      return `<div class="catalogo-prazo-row">
-        <span>${escapeHtml(r)}</span>
-        <span class="mono">${preco !== null ? formatMoney(preco) : "—"}</span>
-      </div>`;
-    }).join("");
+    // Card compacto: só as regiões COM preço pra essa condição (linha "—"
+    // escondida), mesmo padrão já aplicado no Catálogo interno (app.js
+    // renderCatalogo()). Sem preço nenhuma, mostra aviso em vez da lista vazia.
+    const precosCard = CATALOGO_REGIOES
+      .map(r => ({ r, preco: getPrecoProdutoRep(p.codigo, r, tipoClienteAtual, condicaoAtual) }))
+      .filter(x => x.preco !== null);
+    const temPrecoNestaCondicao = precosCard.length > 0;
+    const precoPorRegiao = precosCard.map(({ r, preco }) => `<div class="catalogo-prazo-row">
+      <span>${escapeHtml(r)}</span>
+      <span class="mono">${formatMoney(preco)}</span>
+    </div>`).join("");
 
     // foto em destaque no topo do card -- mesmo layout já aplicado no Catálogo
     // interno (site/app.js renderCatalogo()): 2 fotos dividem lado a lado, 1
@@ -558,9 +562,9 @@ function renderRepCatalogo() {
 
           <div class="catalogo-card-divider"></div>
           <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} · ${escapeHtml(condicaoAtual)}</div>
-          <div class="catalogo-prazos-lista aberto">
-            ${precoPorRegiao}
-          </div>
+          ${temPrecoNestaCondicao
+            ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
+            : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)}, mas não pra "${escapeHtml(condicaoAtual)}". Veja "Ver todos os prazos" abaixo.</div>`}
 
           <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
           <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
