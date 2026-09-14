@@ -372,8 +372,17 @@ function fotoAvatarUsuarioUrl(avatarPath) {
 }
 
 function extractMedidaBase(medida) {
-  const m = medida.match(/^\s*(\d{3}\/\d{2}\s?R\s?\d{1,2}(?:[.,]\d)?)/i);
-  return m ? m[1].replace(/\s+/g, "").toUpperCase() : "OUTRA";
+  // Formato radial padrão (carga/passeio), com prefixo "P" opcional (passeio,
+  // ex. P235/75R15) ignorado na base -- junta com a versão sem "P" -- e "Z"
+  // opcional antes do "R" (velocidade, ex. 205/55ZR16) mantido na base --
+  // fica separado da versão sem "Z".
+  const radial = medida.match(/^\s*P?\s*(\d{3}\/\d{2}\s?Z?R\s?\d{1,2}(?:[.,]\d)?)/i);
+  if (radial) return radial[1].replace(/\s+/g, "").toUpperCase();
+  // Formato OTR/agrícola, com hífen no lugar do "R" -- ex. "18.4-26" ou
+  // "600/55-26.5".
+  const otr = medida.match(/^\s*(\d{2,3}(?:[.,]\d)?(?:\/\d{2})?-\d{1,2}(?:[.,]\d)?)/);
+  if (otr) return otr[1].replace(/\s+/g, "").toUpperCase();
+  return "OUTRA";
 }
 
 function computeProdutoTotais(codigo) {
