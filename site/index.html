@@ -1690,6 +1690,33 @@
             <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
           </div>
         </div>
+
+        <div class="card report-card" data-report="frete">
+          <div class="card-head"><h2>Frete</h2></div>
+          <div class="note">Cotações, transportadora contratada e valor de frete — visão geral, por pedido ou por transportadora.</div>
+          <div class="form-row report-daterange">
+            <div class="field">
+              <label>De</label>
+              <input type="date" class="report-de">
+            </div>
+            <div class="field">
+              <label>Até</label>
+              <input type="date" class="report-ate">
+            </div>
+            <div class="field">
+              <label>Visualização</label>
+              <select class="report-agrupar">
+                <option value="">Visão geral (1 linha por pedido)</option>
+                <option value="pedido">Por pedido (todas as cotações)</option>
+                <option value="transportadora">Por transportadora</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2434,6 +2461,6 @@
   </div>
 </div>
 
-<script src="app.js?v=169"></script>
+<script src="app.js?v=170"></script>
 </body>
 </html>

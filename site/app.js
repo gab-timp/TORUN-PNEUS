@@ -6328,6 +6328,118 @@ const REPORT_DEFS = {
       ];
       return { columns, rows, summaryLines };
     }
+  },
+  frete: {
+    title: "Relatório de Frete",
+    hasDateRange: true,
+    // "agrupar" aqui é a "Visualização" (reaproveita o mesmo mecanismo do
+    // <select class="report-agrupar"> que o Estoque já usa) -- "" = visão
+    // geral, "pedido" = 1 linha por cotação, "transportadora" = agrupado.
+    build(de, ate, filtro, codigos, agrupar) {
+      const fretes = filtrarPorPeriodo(state.fretes, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
+
+      if (agrupar === "pedido") {
+        const columns = [
+          { key: "pedido", label: "Pedido" },
+          { key: "data", label: "Data" },
+          { key: "transportadora", label: "Transportadora" },
+          { key: "valor", label: "Valor do frete", money: true },
+          { key: "pct", label: "% sobre a NF" }
+        ];
+        const rows = [];
+        fretes.forEach(f => {
+          const cotacoes = f.cotacoes || [];
+          const min = cotacoes.length ? Math.min(...cotacoes.map(c => c.valorFrete)) : null;
+          cotacoes.forEach(c => {
+            const marcadores = [];
+            if (c.valorFrete === min) marcadores.push("mais barata");
+            if (c.id === f.contratadaId) marcadores.push("contratada");
+            rows.push({
+              pedido: f.referencia, data: formatDateBR(f.data),
+              transportadora: c.transportadora + (marcadores.length ? ` (${marcadores.join(", ")})` : ""),
+              valor: c.valorFrete,
+              pct: f.valorNF ? (c.valorFrete / f.valorNF * 100).toFixed(1).replace(".", ",") + "%" : "—"
+            });
+          });
+        });
+        const pedidosUnicos = new Set(fretes.map(f => f.referencia)).size;
+        const totalContratado = fretes.reduce((a, f) => {
+          const c = (f.cotacoes || []).find(x => x.id === f.contratadaId);
+          return a + (c ? c.valorFrete : 0);
+        }, 0);
+        const summaryLines = [
+          { label: "Cotações no período", value: fmt(rows.length) },
+          { label: "Pedidos únicos", value: fmt(pedidosUnicos) },
+          { label: "Valor total contratado", value: formatMoney(totalContratado), total: true }
+        ];
+        return { columns, rows, summaryLines };
+      }
+
+      if (agrupar === "transportadora") {
+        const agg = {};
+        fretes.forEach(f => (f.cotacoes || []).forEach(c => {
+          const key = (c.transportadora || "").trim() || "(sem nome)";
+          if (!agg[key]) agg[key] = { cotacoes: 0, vitorias: 0, valorTotal: 0 };
+          agg[key].cotacoes++;
+          if (c.id === f.contratadaId) { agg[key].vitorias++; agg[key].valorTotal += c.valorFrete; }
+        }));
+        const columns = [
+          { key: "transportadora", label: "Transportadora" },
+          { key: "cotacoes", label: "Cotações recebidas", numeric: true },
+          { key: "vitorias", label: "Vezes contratada", numeric: true },
+          { key: "taxa", label: "Taxa de contratação" },
+          { key: "valorTotal", label: "Valor total contratado", money: true }
+        ];
+        const rows = Object.entries(agg)
+          .sort((a, b) => b[1].vitorias - a[1].vitorias || b[1].cotacoes - a[1].cotacoes)
+          .map(([transportadora, d]) => ({
+            transportadora, cotacoes: d.cotacoes, vitorias: d.vitorias,
+            taxa: d.cotacoes ? Math.round(d.vitorias / d.cotacoes * 100) + "%" : "0%",
+            valorTotal: d.valorTotal
+          }));
+        const maisCotada = rows.length ? rows.slice().sort((a, b) => b.cotacoes - a.cotacoes)[0] : null;
+        const maisContratada = rows.find(r => r.vitorias > 0) || null; // já vem ordenado por vitórias
+        const summaryLines = [
+          { label: "Transportadoras no período", value: fmt(rows.length) },
+          ...(maisCotada ? [{ label: "Mais cotada", value: `${maisCotada.transportadora} (${maisCotada.cotacoes}x)` }] : []),
+          ...(maisContratada ? [{ label: "Mais contratada", value: `${maisContratada.transportadora} (${maisContratada.vitorias}x)`, total: true }] : [])
+        ];
+        return { columns, rows, summaryLines };
+      }
+
+      // visão geral -- padrão, 1 linha por pedido
+      const columns = [
+        { key: "pedido", label: "Pedido" },
+        { key: "data", label: "Data" },
+        { key: "destino", label: "Destino" },
+        { key: "valorNF", label: "Valor NF", money: true },
+        { key: "transportadora", label: "Transportadora" },
+        { key: "valorFrete", label: "Valor do frete", money: true },
+        { key: "pct", label: "% sobre a NF" },
+        { key: "status", label: "Status" }
+      ];
+      const rows = fretes.map(f => {
+        const contratada = (f.cotacoes || []).find(c => c.id === f.contratadaId);
+        return {
+          pedido: f.referencia, data: formatDateBR(f.data),
+          destino: [f.localidade, f.cep].filter(Boolean).join(" · ") || "—",
+          valorNF: f.valorNF,
+          transportadora: contratada ? contratada.transportadora : "—",
+          valorFrete: contratada ? contratada.valorFrete : null,
+          pct: contratada && f.valorNF ? (contratada.valorFrete / f.valorNF * 100).toFixed(1).replace(".", ",") + "%" : "—",
+          status: contratada ? "Contratado" : "Aguardando decisão"
+        };
+      });
+      const contratados = fretes.filter(f => f.contratadaId).length;
+      const totalFreteContratado = rows.reduce((a, r) => a + (r.valorFrete || 0), 0);
+      const summaryLines = [
+        { label: "Pedidos no período", value: fmt(fretes.length) },
+        { label: "Contratados", value: fmt(contratados) },
+        { label: "Aguardando decisão", value: fmt(fretes.length - contratados) },
+        { label: "Valor total de frete contratado", value: formatMoney(totalFreteContratado), total: true }
+      ];
+      return { columns, rows, summaryLines };
+    }
   }
 };
 
