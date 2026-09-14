@@ -402,14 +402,17 @@ function createItemRowRep() {
 }
 
 function preencherValorSugerido(tr, codigo) {
+  if (!codigo) return;
   const regiao = document.getElementById("repCatalogoRegiao").value;
   const tipoCliente = document.getElementById("repCatalogoTipoCliente").value;
   const condicao = document.getElementById("repCatalogoCondicao").value;
-  if (!codigo || !regiao || !tipoCliente || !condicao) return;
-  const preco = produtosPrecos.find(p =>
-    p.codigo === codigo && p.regiao === regiao && p.tipo_cliente === tipoCliente && p.condicao_pagamento === condicao);
-  // sem preço cadastrado pra essa combinação, limpa o campo — nunca deixa um valor
-  // de uma combinação anterior (regiao/tipo/condição diferente) parecer que é o certo
+  // sem os 3 filtros preenchidos, ou sem preço cadastrado pra essa combinação,
+  // limpa o campo -- nunca deixa um valor de uma combinação anterior (regiao/
+  // tipo/condição diferente, ou já desmarcada) parecer que ainda é o certo.
+  const preco = (regiao && tipoCliente && condicao)
+    ? produtosPrecos.find(p =>
+        p.codigo === codigo && p.regiao === regiao && p.tipo_cliente === tipoCliente && p.condicao_pagamento === condicao)
+    : null;
   tr.querySelector(".rep-item-valor").value = preco ? Number(preco.preco).toFixed(2) : "";
   recalcularTotais();
 }
