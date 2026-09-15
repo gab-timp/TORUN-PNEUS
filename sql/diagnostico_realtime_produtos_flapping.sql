@@ -29,7 +29,7 @@ where n.nspname = 'public' and c.relname = 'produtos';
 -- 3) Policies de RLS em "produtos" -- se a de SELECT filtrar por linha (em
 --    vez de liberar geral pra quem está autenticado), pode ser a mesma causa
 --    do item 2.
-select polname, cmd, qual, with_check
+select policyname, cmd, qual, with_check
 from pg_policies
 where schemaname = 'public' and tablename = 'produtos';
 
