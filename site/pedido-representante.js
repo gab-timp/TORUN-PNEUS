@@ -154,10 +154,99 @@ function initMinhasConfiguracoes() {
   });
 }
 
+/* ---------------- realtime (produtos / produtos_precos / movimentos / entregas) ---------------- */
+/* Mesmo padrão do app.js (subscribeRealtime()): UM CANAL POR TABELA, de
+   propósito -- o realtime-js tem um bug com várias assinaturas postgres_changes
+   no mesmo canal (os bindings do fim da lista nunca recebem evento). Só as 4
+   tabelas que esta tela realmente usa (produtos/produtos_precos/movimentos/
+   entregas) -- fretes/clientes/vendas/previsoes/notificacoes não aparecem em
+   nenhuma tela do representante, então não precisam de canal aqui. */
+
+const REALTIME_TABLES_REP = [
+  { table: "produtos", key: "codigo", getList: () => produtos, setList: (l) => { produtos = l; } },
+  { table: "produtos_precos", key: "id", getList: () => produtosPrecos, setList: (l) => { produtosPrecos = l; } },
+  { table: "movimentos", key: "id", getList: () => movimentos, setList: (l) => { movimentos = l; } },
+  { table: "entregas", key: "id", getList: () => entregas, setList: (l) => { entregas = l; } }
+];
+
+let realtimeChannelsRep = [];
+let realtimeReconnectTimerRep = null;
+let realtimeReconnectTentativasRep = 0;
+
+function agendarReconexaoRealtimeRep(motivo) {
+  if (realtimeReconnectTimerRep) return;
+  const espera = Math.min(60000, 5000 * Math.pow(2, realtimeReconnectTentativasRep));
+  realtimeReconnectTentativasRep++;
+  console.error(`Realtime desconectado (${motivo}) — reconectando em ${Math.round(espera / 1000)}s.`);
+  realtimeReconnectTimerRep = setTimeout(() => { realtimeReconnectTimerRep = null; subscribeRealtimeRep(); }, espera);
+}
+
+function subscribeRealtimeRep() {
+  clearTimeout(realtimeReconnectTimerRep);
+  realtimeReconnectTimerRep = null;
+  realtimeChannelsRep.forEach(ch => sb.removeChannel(ch));
+  realtimeChannelsRep = [];
+
+  let conectados = 0;
+  REALTIME_TABLES_REP.forEach((def) => {
+    const channel = sb.channel(`rt-rep-${def.table}`);
+    channel.on("postgres_changes", { event: "*", schema: "public", table: def.table },
+      (payload) => aplicarMudancaRealtimeRep(def, payload));
+    channel.subscribe((status) => {
+      if (!realtimeChannelsRep.includes(channel)) return;
+      if (status === "SUBSCRIBED") {
+        realtimeReconnectTentativasRep = 0;
+        if (++conectados === REALTIME_TABLES_REP.length) {
+          console.log("Realtime conectado — atualizações automáticas ativas.");
+        }
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        agendarReconexaoRealtimeRep(`${def.table}: ${status}`);
+      }
+    });
+    realtimeChannelsRep.push(channel);
+  });
+}
+
+let rerenderTimerRep = null;
+// Só re-renderiza as telas que já existem no DOM com o que já está em
+// produtos/produtosPrecos/movimentos/entregas -- barato o bastante aqui (volume
+// bem menor que o app principal) pra não precisar saber qual aba está ativa.
+function scheduleRerenderRep() {
+  clearTimeout(rerenderTimerRep);
+  rerenderTimerRep = setTimeout(() => {
+    renderRepEstoque();
+    renderRepCatalogo();
+    renderRepEntregas();
+    renderAcompanhamento();
+  }, 200);
+}
+
+function aplicarMudancaRealtimeRep(def, payload) {
+  const list = def.getList();
+  if (payload.eventType === "DELETE") {
+    def.setList(list.filter(x => x[def.key] !== payload.old[def.key]));
+  } else {
+    const row = payload.new;
+    // acha pelo valor ANTIGO da chave -- produtos.codigo é editável, então
+    // payload.new já vem com o valor novo (mesmo cuidado do app.js).
+    const chaveAntiga = payload.old && payload.old[def.key] !== undefined ? payload.old[def.key] : row[def.key];
+    const idx = list.findIndex(x => x[def.key] === chaveAntiga);
+    if (idx === -1) list.push(row);
+    else list[idx] = row;
+    def.setList(list);
+  }
+  // Pedido do próprio representante mudou de etapa -- dispara o popup na hora,
+  // não só na próxima visita (a comparação por localStorage abaixo continua
+  // existindo como rede de segurança pra quando a aba estava fechada).
+  if (def.table === "entregas" && currentUser) atualizarAlertaMudancaEtapa();
+  scheduleRerenderRep();
+}
+
 /* ---------------- aviso: minha proposta mudou de etapa (só popup, sem card fixo) ---------------- */
-/* Essa tela não tem realtime, então a comparação usa o que ficou salvo no navegador
-   da última vez que o representante abriu o sistema — assim o aviso aparece quando
-   ele volta e algum pedido dele avançou de etapa desde a última visita. */
+/* Com o realtime acima, o popup já dispara na hora quando um pedido do
+   representante muda de etapa enquanto a aba está aberta. A comparação por
+   localStorage abaixo é a rede de segurança pra quando a aba estava FECHADA --
+   assim o aviso também aparece ao reabrir o sistema depois de um tempo. */
 
 const ETAPAS_CONHECIDAS_KEY = "torun_etapas_conhecidas_v1";
 
@@ -264,8 +353,8 @@ async function afterLogin() {
 
   const [produtosRes, precosRes, movimentosRes, entregasRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, foto_path, foto_path_2").order("codigo"),
-    sb.from("produtos_precos").select("codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
-    sb.from("movimentos").select("codigo, tipo, quantidade"),
+    sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
+    sb.from("movimentos").select("id, codigo, tipo, quantidade"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
     sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
@@ -312,6 +401,7 @@ async function afterLogin() {
   renderRepEntregas();
   renderMeusPreCadastros();
   renderAcompanhamento();
+  subscribeRealtimeRep();
 }
 
 /* ---------------- cliente ---------------- */
