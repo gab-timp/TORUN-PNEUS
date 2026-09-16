@@ -138,6 +138,13 @@
 .rep-doc-catalogo-precos .note{grid-column:1/-1; margin-top:2px;}
 
 .rep-itens-table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px;}
+/* só a tabela de Itens do pedido (a única com o combobox de busca de produto)
+   precisa que a lista de sugestões "vaze" pra fora da tabela -- overflow-x:auto
+   força overflow-y a virar auto também (regra do CSS: um eixo "visible" e o
+   outro não vira "auto" nos dois), cortando o dropdown. As outras tabelas
+   (Estoque/Entregas/etc, fora de .rep-doc-itens-box) mantêm o scroll horizontal
+   de sempre. */
+.rep-doc-itens-box .rep-itens-table-wrap{overflow:visible;}
 .rep-itens-table{width:100%; border-collapse:collapse; font-size:12.5px;}
 .rep-itens-table th{
   text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:800;
@@ -179,6 +186,32 @@
   transition:background .15s ease, color .15s ease, border-color .15s ease;
 }
 .rep-item-remove:hover{background:var(--danger-pale); color:var(--danger); border-color:var(--danger-border);}
+
+/* busca de produto (Itens do pedido) -- campo de texto + lista de sugestões
+   filtrada por código OU medida, no lugar do <select> nativo com todos os
+   produtos (pedido do usuário: digitar o código pra achar a medida). Aprovado
+   por mockup Artifact antes de aplicar. */
+.produto-combo{position:relative;}
+.produto-combo-lista{
+  position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:30;
+  background:var(--surface); border:1px solid var(--line); border-radius:9px;
+  box-shadow:var(--shadow-modal, 0 12px 28px -10px rgba(0,0,0,.35));
+  max-height:230px; overflow-y:auto; padding:5px; display:none;
+}
+.produto-combo-lista.show{display:block;}
+.produto-combo-item{padding:9px 10px; border-radius:6px; cursor:pointer; display:flex; flex-direction:column; gap:2px;}
+.produto-combo-item:hover{background:var(--orange-pale);}
+/* o hover troca o texto pra --orange-deep (não deixa --ink/--ink-soft por
+   cima do fundo --orange-pale) -- --orange-pale não tem versão pro tema
+   escuro (é usada em selos/badges com texto --orange-deep fixo em cima em
+   todo o resto do site), então um texto claro-no-escuro por cima dele ficava
+   ilegível ao passar o mouse (achado real, reportado pelo usuário no mockup).
+   Mesmo padrão já usado em .status-pill/.kpi.accent/etc. */
+.produto-combo-item:hover .med, .produto-combo-item:hover .cod{color:var(--orange-deep);}
+.produto-combo-item .med{font-size:13.5px; font-weight:600; color:var(--ink); line-height:1.25;}
+.produto-combo-item .cod{font-family:'Space Mono',monospace; font-size:10.5px; font-weight:700; color:var(--ink-soft); letter-spacing:.02em;}
+.produto-combo-item mark{background:var(--orange-pale); color:var(--orange-deep); border-radius:2px; padding:0 1px; font-weight:800;}
+.produto-combo-empty{padding:10px; font-size:12px; color:var(--ink-soft); text-align:center;}
 
 .rep-doc-total-row{
   display:flex; justify-content:flex-end; gap:14px; align-items:baseline;

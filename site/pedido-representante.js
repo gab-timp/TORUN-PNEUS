@@ -459,10 +459,35 @@ async function buscarClienteRep() {
 
 /* ---------------- itens ---------------- */
 
-function produtoOptionsHTML() {
-  return `<option value="">Selecione...</option>` + produtos.map(p =>
-    `<option value="${escapeHtml(p.codigo)}">${escapeHtml(p.codigo)} — ${escapeHtml(p.medida)}</option>`
-  ).join("");
+// Destaca a parte do texto que bateu com o termo digitado (achado igual em
+// vários lugares do app -- busca simples de substring, não regex).
+function destacarBuscaProduto(texto, termo) {
+  if (!termo) return escapeHtml(texto);
+  const i = texto.toLowerCase().indexOf(termo.toLowerCase());
+  if (i === -1) return escapeHtml(texto);
+  return escapeHtml(texto.slice(0, i)) + "<mark>" + escapeHtml(texto.slice(i, i + termo.length)) + "</mark>" + escapeHtml(texto.slice(i + termo.length));
+}
+
+const PRODUTO_COMBO_LIMITE = 50;
+
+function renderProdutoComboLista(lista, termo) {
+  const t = termo.trim().toLowerCase();
+  const achados = t
+    ? produtos.filter(p => p.codigo.toLowerCase().includes(t) || p.medida.toLowerCase().includes(t))
+    : produtos;
+  if (achados.length === 0) {
+    lista.innerHTML = `<div class="produto-combo-empty">Nenhum produto encontrado.</div>`;
+    lista.classList.add("show");
+    return;
+  }
+  const cortado = achados.length > PRODUTO_COMBO_LIMITE;
+  lista.innerHTML = achados.slice(0, PRODUTO_COMBO_LIMITE).map(p => `
+    <div class="produto-combo-item" data-codigo="${escapeHtml(p.codigo)}" data-medida="${escapeHtml(p.medida)}">
+      <span class="med">${destacarBuscaProduto(p.medida, termo)}</span>
+      <span class="cod">${destacarBuscaProduto(p.codigo, termo)}</span>
+    </div>
+  `).join("") + (cortado ? `<div class="produto-combo-empty">+${achados.length - PRODUTO_COMBO_LIMITE} outros — digite mais pra refinar</div>` : "");
+  lista.classList.add("show");
 }
 
 function createItemRowRep() {
@@ -470,7 +495,13 @@ function createItemRowRep() {
   const tr = document.createElement("tr");
   tr.dataset.rowId = itemRowSeq;
   tr.innerHTML = `
-    <td><select class="rep-item-produto">${produtoOptionsHTML()}</select></td>
+    <td>
+      <div class="produto-combo">
+        <input type="text" class="rep-item-produto-busca" placeholder="Digite o código ou a medida..." autocomplete="off">
+        <input type="hidden" class="rep-item-produto">
+        <div class="produto-combo-lista"></div>
+      </div>
+    </td>
     <td class="num"><input type="number" class="rep-item-qtd" min="1" step="1" placeholder="Qtd"></td>
     <td class="num"><input type="number" class="rep-item-valor" min="0" step="0.01" placeholder="0,00"></td>
     <td class="num"><input type="number" class="rep-item-desconto" min="0" max="100" step="0.01" placeholder="0"></td>
@@ -487,12 +518,46 @@ function createItemRowRep() {
   tr.querySelector(".rep-item-valor").addEventListener("input", (e) => {
     e.target.dataset.manual = "1";
   });
-  tr.querySelector(".rep-item-produto").addEventListener("change", (e) => {
+
+  // Busca de produto: campo de texto (filtra por código OU medida) + lista de
+  // sugestões, em vez do <select> nativo com todos os produtos -- pedido do
+  // usuário, mais fácil de achar a medida digitando o código. `.rep-item-produto`
+  // (hidden) continua guardando só o código, igual antes -- todo o resto do
+  // código (preencherValorSugerido, salvarPedidoRep etc.) lê só esse .value,
+  // sem precisar saber que por trás agora é um campo de busca.
+  const buscaInput = tr.querySelector(".rep-item-produto-busca");
+  const codigoInput = tr.querySelector(".rep-item-produto");
+  const combolista = tr.querySelector(".produto-combo-lista");
+
+  function selecionarProduto(codigo, medida) {
+    buscaInput.value = `${codigo} — ${medida}`;
+    codigoInput.value = codigo;
+    combolista.classList.remove("show");
     // Trocou de produto na linha -- o valor manual antigo era de OUTRO pneu,
     // não faz sentido continuar "travado" pro produto novo.
     delete tr.querySelector(".rep-item-valor").dataset.manual;
-    preencherValorSugerido(tr, e.target.value);
+    preencherValorSugerido(tr, codigo);
+  }
+
+  buscaInput.addEventListener("input", () => {
+    codigoInput.value = "";
+    renderProdutoComboLista(combolista, buscaInput.value);
   });
+  buscaInput.addEventListener("focus", () => renderProdutoComboLista(combolista, buscaInput.value));
+  buscaInput.addEventListener("blur", () => {
+    // pequeno atraso pra deixar o "mousedown" da lista disparar antes do blur
+    // fechar tudo -- clicar numa opção conta como clique, não como "saiu do campo"
+    setTimeout(() => combolista.classList.remove("show"), 150);
+  });
+  buscaInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") combolista.classList.remove("show");
+  });
+  combolista.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".produto-combo-item");
+    if (!item) return;
+    selecionarProduto(item.dataset.codigo, item.dataset.medida);
+  });
+
   tr.querySelector(".rep-item-remove").addEventListener("click", () => {
     tr.remove();
     recalcularTotais();
