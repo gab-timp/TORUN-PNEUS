@@ -1193,7 +1193,7 @@ function renderMovimentosStats() {
   const manuais = janela.filter(m => !m.entregaId).length;
 
   const stats = [
-    { hero: true, lbl: "Saídas (30 dias)", val: saidasQtd > 0 ? `−${fmt(saidasQtd)} un.` : "0 un." },
+    { hero: true, lbl: "Saídas (30 dias)", val: `${fmt(saidasQtd)} un.` },
     { lbl: "Entradas hoje", val: `+${fmt(entradasHoje)}`, up: true },
     { lbl: "Saídas hoje", val: saidasHoje > 0 ? `−${fmt(saidasHoje)}` : "0" },
     { lbl: "Automáticas (30 dias)", val: fmt(automaticas), sub: "geradas por pedidos autorizados" },
