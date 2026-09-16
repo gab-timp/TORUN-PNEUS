@@ -1180,10 +1180,11 @@ function renderMovimentosStats() {
   const tz30 = de30.getTimezoneOffset() * 60000;
   const de30ISO = new Date(de30 - tz30).toISOString().slice(0, 10);
 
+  // "Saídas (30 dias)" é só o que saiu -- a pedido do usuário, não é mais um
+  // saldo líquido (entradas − saídas). Entradas continuam visíveis noutro
+  // tile ("Entradas hoje"), só não entram mais nessa conta.
   const janela = state.movimentos.filter(m => m.data >= de30ISO);
-  const entradasQtd = janela.filter(m => m.tipo === "entrada").reduce((a, m) => a + m.quantidade, 0);
   const saidasQtd = janela.filter(m => m.tipo !== "entrada").reduce((a, m) => a + m.quantidade, 0);
-  const saldo = entradasQtd - saidasQtd;
 
   const entradasHoje = state.movimentos.filter(m => m.tipo === "entrada" && m.data === hoje).reduce((a, m) => a + m.quantidade, 0);
   const saidasHoje = state.movimentos.filter(m => m.tipo !== "entrada" && m.data === hoje).reduce((a, m) => a + m.quantidade, 0);
@@ -1192,7 +1193,7 @@ function renderMovimentosStats() {
   const manuais = janela.filter(m => !m.entregaId).length;
 
   const stats = [
-    { hero: true, lbl: "Saldo (30 dias)", val: `${saldo >= 0 ? "+" : ""}${fmt(saldo)} un.`, sub: `${fmt(entradasQtd)} entradas · ${fmt(saidasQtd)} saídas` },
+    { hero: true, lbl: "Saídas (30 dias)", val: saidasQtd > 0 ? `−${fmt(saidasQtd)} un.` : "0 un." },
     { lbl: "Entradas hoje", val: `+${fmt(entradasHoje)}`, up: true },
     { lbl: "Saídas hoje", val: saidasHoje > 0 ? `−${fmt(saidasHoje)}` : "0" },
     { lbl: "Automáticas (30 dias)", val: fmt(automaticas), sub: "geradas por pedidos autorizados" },
