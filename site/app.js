@@ -1648,12 +1648,18 @@ async function salvarProdutoEdit() {
   const { error } = await sb.from("produtos").update(payload).eq("codigo", codigoOriginal);
   if (error) { toast("Erro ao salvar produto: " + error.message); return; }
 
+  // Atualiza a referência ANTES de qualquer outro await que possa falhar --
+  // se o preço adiante for inválido e a função voltar aqui, um reenvio
+  // precisa mirar o código NOVO (achado na revisão de código: antes ficava
+  // preso no código antigo, que já não existe mais na base depois do rename).
+  if (payload.codigo) codigoInput.dataset.original = payload.codigo;
+
   await registrarLog("produtos", payload.codigo || codigoOriginal, "edicao", "Ação automática", `Produto editado: ${codigoOriginal}${payload.codigo && payload.codigo !== codigoOriginal ? ` → ${payload.codigo}` : ""}`);
 
   // preços (todos os tipos de cliente, das 3 grades do editor)
   const codigoFinal = payload.codigo || codigoOriginal;
   const resPreco = await salvarPrecosProduto(document.getElementById("prodEditPrecoEditor"), codigoFinal);
-  if (!resPreco.ok) return; // salvarPrecosProduto já mostrou o toast do erro
+  if (!resPreco.ok) return; // erro de banco -- salvarPrecosProduto já mostrou o toast
   if (resPreco.mexeu) await registrarLog("produtos", codigoFinal, "edicao", "Ação automática", `Preços atualizados: ${codigoFinal}`);
 
   const idx = state.produtos.findIndex(p => p.codigo === codigoOriginal);
@@ -1669,7 +1675,9 @@ async function salvarProdutoEdit() {
   fecharProdutoEditDrawer();
   renderProdutos();
   renderCatalogo();
-  toast("Produto atualizado.");
+  toast(resPreco.invalidos.length
+    ? `Produto atualizado, mas preço inválido não foi salvo em: ${resPreco.invalidos.join(", ")}.`
+    : "Produto atualizado.");
 }
 
 function initProdutoEdit() {
@@ -1802,11 +1810,14 @@ function wirePrecoEditor(container) {
 }
 
 // Lê as 3 grades e devolve o que mudou vs. o que já está em state pro produto.
-// `invalidos` lista as células com texto que não é preço válido (achado numa
-// revisão de lógica: antes da consolidação num editor só, preço inválido
-// travava o salvamento com um aviso -- na junção das 3 grades isso virou um
-// "if (!(valor >= 0)) return" mudo, que descartava o valor sem avisar
-// ninguém. Agora volta a bloquear e avisar, só que apontando a célula certa).
+// `invalidos` lista as células com texto que não é preço válido -- essas
+// células ficam de fora de upserts/remocoesIds, mas NÃO bloqueiam as outras
+// (achado na revisão "pente fino": bloquear tudo por 1 célula ruim fazia o
+// fluxo de "Novo produto" criar o produto sem salvar preço NENHUM, nem os
+// válidos, e ainda mostrar "Produto adicionado." como se tivesse dado certo,
+// porque aquele caller não checava o retorno). salvarPrecosProduto salva o
+// que der e devolve `invalidos` pro chamador avisar especificamente o que
+// ficou de fora.
 function coletarPrecosEditor(container, codigo) {
   const upserts = [];
   const remocoesIds = [];
@@ -1830,25 +1841,28 @@ function coletarPrecosEditor(container, codigo) {
   return { upserts, remocoesIds, invalidos };
 }
 
-// Aplica no banco + atualiza state.produtos_precos. Devolve { ok, mexeu }.
+// Aplica no banco + atualiza state.produtos_precos. Devolve { ok, mexeu, invalidos }.
+// Célula inválida NUNCA bloqueia as outras -- salva o que der certo e devolve
+// `invalidos` pro chamador avisar o que ficou de fora (antes, 1 célula ruim
+// travava a grade inteira, inclusive as válidas -- achado na revisão de código).
 async function salvarPrecosProduto(container, codigo) {
   const { upserts, remocoesIds, invalidos } = coletarPrecosEditor(container, codigo);
-  if (invalidos.length) {
-    toast(`Preço inválido em: ${invalidos.join(", ")}.`);
-    return { ok: false, mexeu: false };
-  }
-  if (!upserts.length && !remocoesIds.length) return { ok: true, mexeu: false };
+  let mexeu = false;
   if (upserts.length) {
     const { error } = await sb.from("produtos_precos").upsert(upserts, { onConflict: "codigo,regiao,tipo_cliente,condicao_pagamento" });
-    if (error) { toast("Erro ao salvar preços: " + error.message); return { ok: false, mexeu: false }; }
+    if (error) { toast("Erro ao salvar preços: " + error.message); return { ok: false, mexeu: false, invalidos }; }
+    mexeu = true;
   }
   if (remocoesIds.length) {
     const { error } = await sb.from("produtos_precos").delete().in("id", remocoesIds);
-    if (error) { toast("Erro ao remover preço: " + error.message); return { ok: false, mexeu: false }; }
+    if (error) { toast("Erro ao remover preço: " + error.message); return { ok: false, mexeu: false, invalidos }; }
+    mexeu = true;
   }
-  const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
-  state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
-  return { ok: true, mexeu: true };
+  if (mexeu) {
+    const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+    state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
+  }
+  return { ok: true, mexeu, invalidos };
 }
 
 // ---------------- "Novo produto": fotos ficam só em memória (arquivo escolhido) até o produto ser salvo com sucesso ----------------
@@ -5934,7 +5948,7 @@ function initForms() {
     if (prodFotoFile1) fotoPath = await persistirFotoProdutoNovo(codigo, 1, prodFotoFile1);
     if (prodFotoFile2) fotoPath2 = await persistirFotoProdutoNovo(codigo, 2, prodFotoFile2);
     // preços das 3 grades (salvarPrecosProduto já atualiza state.produtos_precos)
-    await salvarPrecosProduto(document.getElementById("prodPrecoEditor"), codigo);
+    const resPreco = await salvarPrecosProduto(document.getElementById("prodPrecoEditor"), codigo);
 
     state.produtos.push({
       codigo, medida, createdAt: new Date().toISOString(),
@@ -5953,7 +5967,14 @@ function initForms() {
     btn.textContent = labelOriginal;
     renderProdutos();
     renderProdutoSelects();
-    toast("Produto adicionado.");
+    // se resPreco.ok for false, salvarPrecosProduto já mostrou o toast do erro --
+    // não sobrescreve com "Produto adicionado." (achado na revisão de código: antes
+    // isso rodava sempre, mesmo quando preço nenhum tinha sido salvo de verdade)
+    if (resPreco.ok) {
+      toast(resPreco.invalidos.length
+        ? `Produto adicionado, mas preço inválido não foi salvo em: ${resPreco.invalidos.join(", ")}.`
+        : "Produto adicionado.");
+    }
   });
 
   document.getElementById("venCancelEdit").addEventListener("click", (e) => {
