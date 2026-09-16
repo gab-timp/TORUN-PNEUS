@@ -390,7 +390,17 @@ function createItemRowRep() {
   tr.querySelectorAll(".rep-item-qtd, .rep-item-valor, .rep-item-desconto").forEach(inp => {
     inp.addEventListener("input", recalcularTotais);
   });
+  // Marca o valor como digitado à mão -- só dispara em digitação de verdade
+  // (setar .value por JS, como preencherValorSugerido faz, não dispara "input"),
+  // então dá pra distinguir sugestão automática de edição manual sem precisar
+  // rastrear estado à parte (achado em revisão de código).
+  tr.querySelector(".rep-item-valor").addEventListener("input", (e) => {
+    e.target.dataset.manual = "1";
+  });
   tr.querySelector(".rep-item-produto").addEventListener("change", (e) => {
+    // Trocou de produto na linha -- o valor manual antigo era de OUTRO pneu,
+    // não faz sentido continuar "travado" pro produto novo.
+    delete tr.querySelector(".rep-item-valor").dataset.manual;
     preencherValorSugerido(tr, e.target.value);
   });
   tr.querySelector(".rep-item-remove").addEventListener("click", () => {
@@ -403,6 +413,12 @@ function createItemRowRep() {
 
 function preencherValorSugerido(tr, codigo) {
   if (!codigo) return;
+  const valorInput = tr.querySelector(".rep-item-valor");
+  // Representante já digitou um valor à mão nessa linha -- não mexe. Sem isso,
+  // mudar região/tipo/condição enquanto ainda está preenchendo os filtros
+  // (comum -- ninguém preenche os 3 de uma vez) apagava o valor digitado, sem
+  // ter preço nenhum pra sugerir no lugar (achado em revisão de código).
+  if (valorInput.dataset.manual === "1") return;
   const regiao = document.getElementById("repCatalogoRegiao").value;
   const tipoCliente = document.getElementById("repCatalogoTipoCliente").value;
   const condicao = document.getElementById("repCatalogoCondicao").value;
@@ -413,7 +429,7 @@ function preencherValorSugerido(tr, codigo) {
     ? produtosPrecos.find(p =>
         p.codigo === codigo && p.regiao === regiao && p.tipo_cliente === tipoCliente && p.condicao_pagamento === condicao)
     : null;
-  tr.querySelector(".rep-item-valor").value = preco ? Number(preco.preco).toFixed(2) : "";
+  valorInput.value = preco ? Number(preco.preco).toFixed(2) : "";
   recalcularTotais();
 }
 
@@ -491,12 +507,23 @@ function renderRepCatalogo() {
     );
   }
   if (categoria) rows = rows.filter(p => p.categoria === categoria);
+  // Só lista produto com AO MENOS 1 preço cadastrado pro tipo de cliente
+  // escolhido (qualquer região/condição) -- mesmo filtro que o Catálogo
+  // interno já faz (app.js renderCatalogo()). Sem isso, um produto sem preço
+  // NENHUM pra esse tipo ainda aparecia no grid mostrando o aviso "Tem preço
+  // de X, mas não pra Y" -- afirmação falsa, já que não tem preço de X
+  // nenhum (achado em revisão de código).
+  const rowsAntesFiltroPreco = rows.length;
+  rows = rows.filter(p => produtosPrecos.some(x => x.codigo === p.codigo && x.tipo_cliente === tipoClienteAtual));
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
   const grid = document.getElementById("repCatalogoGrid");
   const empty = document.getElementById("repCatalogoEmpty");
   if (rows.length === 0) {
     grid.innerHTML = "";
+    empty.textContent = rowsAntesFiltroPreco > 0
+      ? `Nenhum pneu com preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} cadastrado (entre os que batem com a busca e a categoria).`
+      : "Nenhum produto em estoque encontrado.";
     empty.style.display = "block";
     return;
   }
