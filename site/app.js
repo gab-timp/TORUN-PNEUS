@@ -379,8 +379,10 @@ function extractMedidaBase(medida) {
   const radial = medida.match(/^\s*P?\s*(\d{3}\/\d{2}\s?Z?R\s?\d{1,2}(?:[.,]\d)?)/i);
   if (radial) return radial[1].replace(/\s+/g, "").toUpperCase();
   // Formato OTR/agrícola, com hífen no lugar do "R" -- ex. "18.4-26" ou
-  // "600/55-26.5".
-  const otr = medida.match(/^\s*(\d{2,3}(?:[.,]\d)?(?:\/\d{2})?-\d{1,2}(?:[.,]\d)?)/);
+  // "600/55-26.5". Largura de 1 dígito e com 2 casas decimais também é comum
+  // em pneu de caminhão (ex. "9.00-20", "10.00-20", "12.00-24") -- gap real
+  // achado na revisão de código, confirmado com dados de produção.
+  const otr = medida.match(/^\s*(\d{1,3}(?:[.,]\d{1,2})?(?:\/\d{2})?-\d{1,2}(?:[.,]\d)?)/);
   if (otr) return otr[1].replace(/\s+/g, "").toUpperCase();
   return "OUTRA";
 }
