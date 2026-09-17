@@ -1,15 +1,20 @@
 -- Limpeza do CONSUMO_DIFAL: já foi removido das opções do app (commit e88aed6,
 -- set/2026), mas o banco ainda aceitava esse valor nas 3 constraints abaixo.
 --
--- Diagnóstico rodado em produção (2026-09-16): clientes = 0, clientes_pendentes = 0,
--- produtos_precos = 1 (ASCEN00010 · SC/RS · A VISTA · R$5000, sem preço CONSUMO
--- conflitante pra esse mesmo produto/região/condição -- confirmado antes de mexer).
--- Só essa linha precisou de UPDATE; as outras 2 tabelas já estavam limpas.
+-- Diagnóstico rodado em produção (2026-09-17): clientes = 0, clientes_pendentes = 0,
+-- produtos_precos = 1 -- codigo ASCEN000103 (a grade do SQL Editor cortou o
+-- código na tela antes, "ASCEN00010", por isso um UPDATE ingênuo bateu de
+-- frente com o preço CONSUMO que já existia pro mesmo produto/região/condição).
 --
--- Idempotente -- pode rodar de novo sem problema (o UPDATE não acha mais nada
--- pra mudar na segunda vez, e os ALTER TABLE recriam a mesma constraint).
+-- ASCEN000103 · SC/RS · A VISTA já tinha DOIS preços: CONSUMO_DIFAL = R$5.000
+-- e CONSUMO = R$2.302 -- diferença grande de mais que o dobro, coerente com
+-- DIFAL sendo acréscimo de imposto interestadual. Confirmado com o usuário:
+-- apaga a linha DIFAL (obsoleta, CONSUMO_DIFAL não é mais selecionável há
+-- semanas) e mantém o CONSUMO de R$2.302 que já está em uso.
+--
+-- Idempotente -- pode rodar de novo sem problema.
 
-update produtos_precos set tipo_cliente = 'CONSUMO' where tipo_cliente = 'CONSUMO_DIFAL';
+delete from produtos_precos where tipo_cliente = 'CONSUMO_DIFAL';
 
 alter table clientes drop constraint if exists clientes_tipo_cliente_check;
 alter table clientes add constraint clientes_tipo_cliente_check check (
