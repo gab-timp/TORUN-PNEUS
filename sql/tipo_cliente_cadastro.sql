@@ -5,6 +5,12 @@
 --
 -- Aditivo e seguro — pode rodar a qualquer momento, não quebra nada que já existe.
 -- Rode no SQL Editor do Supabase.
+--
+-- ⚠️ SUPERADO em 2026-09-17: CONSUMO_DIFAL saiu das opções (commit e88aed6) e do
+-- banco (sql/remove_consumo_difal.sql apertou as duas constraints abaixo pra não
+-- aceitar mais esse valor). Não rode este arquivo de novo como está — ele volta
+-- a aceitar CONSUMO_DIFAL. Fica aqui só como histórico de quando essas colunas
+-- nasceram.
 
 alter table clientes add column if not exists tipo_cliente text;
 alter table clientes drop constraint if exists clientes_tipo_cliente_check;

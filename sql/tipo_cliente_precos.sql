@@ -12,6 +12,12 @@
 -- representantes estão com o sistema aberto.
 --
 -- Rode no SQL Editor do Supabase.
+--
+-- ⚠️ SUPERADO em 2026-09-17: CONSUMO_DIFAL saiu das opções (commit e88aed6) e do
+-- banco (sql/remove_consumo_difal.sql apertou a constraint abaixo pra não aceitar
+-- mais esse valor). Não rode este arquivo de novo como está — ele volta a aceitar
+-- CONSUMO_DIFAL. Fica aqui só como histórico de quando tipo_cliente nasceu nessa
+-- tabela.
 
 alter table produtos_precos add column if not exists tipo_cliente text;
 

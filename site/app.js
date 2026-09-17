@@ -345,10 +345,7 @@ const CATALOGO_BUCKET = "produtos-fotos";
 const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
-// CONSUMO_DIFAL saiu das opções selecionáveis (a pedido do usuário), mas o rótulo
-// fica: dado antigo (preços/clientes/pedidos já gravados com esse tipo) continua
-// aparecendo como "Consumo com DIFAL" em vez do código cru.
-const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo", CONSUMO_DIFAL: "Consumo com DIFAL" };
+const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
 
 function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
   const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipoCliente && x.condicaoPagamento === condicaoPagamento);
