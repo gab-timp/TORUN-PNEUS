@@ -71,6 +71,16 @@ function todayISO() {
   return new Date(d - tz).toISOString().slice(0, 10);
 }
 
+// "N dias atrás" em ISO local (mesma lógica de fuso que todayISO) -- usado
+// pro período padrão das listas pesadas (plano de capacidade, camada "fazer
+// em breve": Movimentações/Histórico carregavam tudo sem filtro padrão).
+function diasAtrasISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d - tz).toISOString().slice(0, 10);
+}
+
 function uid(prefix) {
   return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
@@ -5541,6 +5551,10 @@ function initForms() {
   document.getElementById("entData").value = todayISO();
   document.getElementById("saiData").value = todayISO();
   document.getElementById("venData").value = todayISO();
+  // período padrão dos últimos 45 dias -- lista não nasce mais mostrando tudo
+  // desde o início (plano de capacidade, camada "fazer em breve"); "Até" fica
+  // em aberto (sem limite superior = até hoje) e dá pra ampliar/limpar à vontade.
+  document.getElementById("movFiltroDe").value = diasAtrasISO(45);
   populateEstadoSelect();
   populateTipoClienteSelects();
 
@@ -6832,6 +6846,12 @@ async function renderHistorico() {
 }
 
 function initHistorico() {
+  // período padrão dos últimos 45 dias -- plano de capacidade, camada "fazer em
+  // breve". Aqui o filtro vira parte da query no banco (renderHistorico já usa
+  // .gte/.lte em created_at), então o padrão reduz consulta de verdade, não só
+  // o que é renderizado na tela. "Até" fica em aberto, dá pra ampliar/limpar.
+  document.getElementById("logDe").value = diasAtrasISO(45);
+
   const motivoSelect = document.getElementById("logFiltroMotivo");
   document.querySelectorAll("#motivoSugestoes optgroup").forEach(og => motivoSelect.appendChild(og.cloneNode(true)));
   // grupo à parte, reconstruído a cada renderHistorico() com os motivos que
