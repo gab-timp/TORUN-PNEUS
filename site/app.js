@@ -6519,7 +6519,12 @@ const REPORT_DEFS = {
     // <select class="report-agrupar"> que o Estoque já usa) -- "" = visão
     // geral, "pedido" = 1 linha por cotação, "transportadora" = agrupado.
     build(de, ate, filtro, codigos, agrupar) {
-      const fretes = filtrarPorPeriodo(state.fretes, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
+      // filtro "Só contratados" (select "Pedidos" do card): vale pra Visão geral e Por pedido.
+      // Por transportadora ignora -- restringir só a pedidos contratados inflaria a taxa de contratação.
+      const soContratados = filtro === "contratados";
+      const fretes = filtrarPorPeriodo(state.fretes, de, ate)
+        .filter(f => !soContratados || f.contratadaId)
+        .slice().sort((a, b) => a.data.localeCompare(b.data));
 
       // Visão geral e Por transportadora: o valor do frete é o LANÇADO NA VENDA (o mesmo que o
       // Dashboard soma). A cotação contratada só vira valor enquanto a venda ainda não existe.
@@ -6567,6 +6572,7 @@ const REPORT_DEFS = {
           return a + (c ? c.valorFrete : 0);
         }, 0);
         const summaryLines = [
+          ...(soContratados ? [{ label: "Filtro", value: "só pedidos contratados" }] : []),
           { label: "Cotações no período", value: fmt(rows.length) },
           { label: "Pedidos únicos", value: fmt(pedidosUnicos) },
           { label: "Valor total cotado (contratadas)", value: formatMoney(totalContratado), total: true }
@@ -6623,7 +6629,8 @@ const REPORT_DEFS = {
         { key: "pct", label: "% sobre a NF" },
         { key: "status", label: "Status" }
       ];
-      const rows = itens.map(({ f, lig, contratada, temVenda, freteVenda, dataRef }) => {
+      const itensVisao = soContratados ? itens.filter(i => i.contratada) : itens;
+      const rows = itensVisao.map(({ f, lig, contratada, temVenda, freteVenda, dataRef }) => {
         const cotado = contratada ? contratada.valorFrete : null;
         const valor = contratada && temVenda ? freteVenda : null;
         let status = "Aguardando decisão";
@@ -6640,9 +6647,9 @@ const REPORT_DEFS = {
           cotado, valorFrete: valor, pct: pct(valor, f.valorNF), status
         };
       });
-      const comVenda = itens.filter(i => i.contratada && i.temVenda).length;
-      const semVenda = itens.filter(i => i.contratada && !i.temVenda && !i.lig.duplicada);
-      const duplicadas = itens.filter(i => i.contratada && i.lig.duplicada).length;
+      const comVenda = itensVisao.filter(i => i.contratada && i.temVenda).length;
+      const semVenda = itensVisao.filter(i => i.contratada && !i.temVenda && !i.lig.duplicada);
+      const duplicadas = itensVisao.filter(i => i.contratada && i.lig.duplicada).length;
       // Totais calculados direto das vendas do período (data da venda) -- é exatamente a conta
       // do Dashboard ("Custo de frete"), então os dois números batem.
       const vendasPeriodo = filtrarPorPeriodo(state.vendas, de, ate);
@@ -6651,10 +6658,11 @@ const REPORT_DEFS = {
       const vendasSemCotacao = vendasPeriodo.filter(v => !vendasLigadas.has(v.id) && (v.valorFrete || 0) > 0);
       const summaryLines = [
         { label: "Critério de data do período", value: "data da venda (da cotação, se ainda sem venda)" },
-        { label: "Pedidos no período", value: fmt(itens.length) },
+        ...(soContratados ? [{ label: "Filtro", value: "só pedidos contratados" }] : []),
+        { label: "Pedidos no período", value: fmt(itensVisao.length) },
         { label: "Com venda lançada", value: fmt(comVenda) },
         { label: "Contratados, ainda sem venda", value: `${fmt(semVenda.length)} (${formatMoney(semVenda.reduce((a, i) => a + i.contratada.valorFrete, 0))} cotados)` },
-        { label: "Aguardando decisão", value: fmt(itens.filter(i => !i.contratada).length) },
+        ...(soContratados ? [] : [{ label: "Aguardando decisão", value: fmt(itens.filter(i => !i.contratada).length) }]),
         ...(duplicadas ? [{ label: "Cotações duplicadas", value: fmt(duplicadas) }] : []),
         { label: "Frete de vendas com cotação contratada", value: formatMoney(freteComCotacao) },
         { label: "Frete de vendas sem cotação", value: `${formatMoney(soma(vendasSemCotacao))} (${fmt(vendasSemCotacao.length)} ${vendasSemCotacao.length === 1 ? "venda" : "vendas"})` },
