@@ -7,8 +7,9 @@
 -- (ex: "4-4631" -> 4631, "4309-71" -> 4309, "3599/3601/3602" -> 3 NFs), porque a
 -- referência é texto livre e a venda guarda NF e pedido em campos separados.
 --   * NF: precisa ter 3+ dígitos e bater com vendas.numero_nf_venda (sem zeros à esquerda)
---   * Pedido: bate com vendas.numero_pedido, mas só se a venda estiver entre 30 dias
---     antes e 90 dias depois da cotação (evita casar pedido curto tipo "4" com venda errada)
+--   * Pedido: precisa ter 3+ dígitos e bater com vendas.numero_pedido, e a venda tem que
+--     estar entre 30 dias antes e 90 dias depois da cotação. (Antes aceitava pedido curto:
+--     "2-4547" casava o pedido "2" com outras vendas e aparecia como divergência falsa.)
 -- Referência com vários NFs soma o frete de todas as vendas encontradas antes de comparar.
 --
 -- Só leitura, nada é alterado. Troque a data em `params` pra olhar outro período
@@ -34,7 +35,7 @@ ligacao as (
   join vendas v on
        ( length(regexp_replace(coalesce(v.numero_nf_venda::text, ''), '\D', '', 'g')) >= 3
          and ltrim(regexp_replace(coalesce(v.numero_nf_venda::text, ''), '\D', '', 'g'), '0') = any (c.numeros) )
-    or ( ltrim(regexp_replace(coalesce(v.numero_pedido::text, ''), '\D', '', 'g'), '0') <> ''
+    or ( length(ltrim(regexp_replace(coalesce(v.numero_pedido::text, ''), '\D', '', 'g'), '0')) >= 3
          and ltrim(regexp_replace(coalesce(v.numero_pedido::text, ''), '\D', '', 'g'), '0') = any (c.numeros)
          and v.data::date between c.data_cotacao - 30 and c.data_cotacao + 90 )
 ),
