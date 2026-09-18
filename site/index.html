@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=130">
+<link rel="stylesheet" href="styles.css?v=131">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -196,7 +196,7 @@
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
       </div>
       <div class="viewer-badge">Modo somente leitura</div>
-      <button class="ghost-btn admin-only" id="btnExport" data-label="Exportar backup (JSON)">⬇ <span class="ghost-btn-label">Exportar backup (JSON)</span></button>
+      <button class="ghost-btn export-backup-allowed" id="btnExport" data-label="Exportar backup (JSON)">⬇ <span class="ghost-btn-label">Exportar backup (JSON)</span></button>
       <button class="ghost-btn admin-only" id="btnImport" data-label="Importar backup">⬆ <span class="ghost-btn-label">Importar backup</span></button>
       <button class="ghost-btn admin-only" id="btnReset" data-label="Restaurar dados iniciais">↻ <span class="ghost-btn-label">Restaurar dados iniciais</span></button>
       <button class="ghost-btn" id="btnLogout" data-label="Sair">⎋ <span class="ghost-btn-label">Sair</span></button>
@@ -2084,6 +2084,9 @@
       <label><input type="checkbox" id="usuarioEditPodeAutorizar"> Pode tirar pedidos de "Autorização de Gerência"</label>
     </div>
     <div class="field">
+      <label><input type="checkbox" id="usuarioEditPodeExportarBackup"> Pode exportar backup</label>
+    </div>
+    <div class="field">
       <label>Telas visíveis (todas marcadas = sem restrição)</label>
       <div id="usuarioEditVisibleViewsLista" style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px;"></div>
     </div>
@@ -2461,6 +2464,6 @@
   </div>
 </div>
 
-<script src="app.js?v=180"></script>
+<script src="app.js?v=181"></script>
 </body>
 </html>

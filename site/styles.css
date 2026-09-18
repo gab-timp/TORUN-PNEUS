@@ -143,6 +143,11 @@ body.is-viewer .write-ui{display:none !important;}
 .admin-only{display:none;}
 body.is-admin .admin-only{display:block;}
 
+/* admin OU quem tem a permissão granular pode_exportar_backup (sem precisar
+   virar admin completo -- só isso dá acesso à tela de Administração inteira) */
+.export-backup-allowed{display:none;}
+body.can-export-backup .export-backup-allowed{display:block;}
+
 /* restricao de edicao a tabelas especificas (usuario editor com editable_tables definido) */
 /* sem !important de propósito: precisa perder para estilos inline como o toggle do botão Excluir do pedido */
 body[data-editable-tables] .write-ui{display:none;}

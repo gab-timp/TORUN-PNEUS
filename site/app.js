@@ -10,6 +10,7 @@ let currentUserRole = "editor";
 let currentUserVisibleViews = null;
 let currentUserIsAdmin = false;
 let currentUserPodeAutorizarGerencia = false;
+let currentUserPodeExportarBackup = false;
 let currentUserEditableTables = null;
 let currentUserKanbanColapsadas = [];
 let currentUserNome = "";
@@ -262,7 +263,7 @@ async function loadState() {
       fetchComRetry(() => sb.from("vendas").select("*").order("data")),
       fetchComRetry(() => sb.from("previsoes").select("*")),
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
-      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
       fetchComRetry(() => sb.from("notificacoes").select("*").order("created_at", { ascending: false }).limit(50))
@@ -292,6 +293,7 @@ async function loadState() {
   currentUserVisibleViews = (roleRes.data && roleRes.data.visible_views) || null;
   currentUserIsAdmin = !!(roleRes.data && roleRes.data.is_admin);
   currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
+  currentUserPodeExportarBackup = !!(roleRes.data && roleRes.data.pode_exportar_backup);
   currentUserEditableTables = (roleRes.data && roleRes.data.editable_tables) || null;
   currentUserNome = (roleRes.data && roleRes.data.nome) || currentUser.email;
   currentUserTelefone = (roleRes.data && roleRes.data.telefone) || "";
@@ -308,6 +310,7 @@ async function loadState() {
   currentUserTamanhoLetra = (prefRes.data && prefRes.data.tamanho_letra) || null;
   document.body.classList.toggle("is-viewer", currentUserRole === "viewer");
   document.body.classList.toggle("is-admin", currentUserIsAdmin);
+  document.body.classList.toggle("can-export-backup", currentUserIsAdmin || currentUserPodeExportarBackup);
   if (currentUserEditableTables) {
     document.body.setAttribute("data-editable-tables", currentUserEditableTables.join(" "));
   } else {
@@ -7391,6 +7394,7 @@ function abrirUsuarioEditModal(userId) {
   document.getElementById("usuarioEditRole").value = u.role || "editor";
   document.getElementById("usuarioEditIsAdmin").checked = !!u.is_admin;
   document.getElementById("usuarioEditPodeAutorizar").checked = !!u.pode_autorizar_gerencia;
+  document.getElementById("usuarioEditPodeExportarBackup").checked = !!u.pode_exportar_backup;
   const visibleViews = u.visible_views || null;
   document.getElementById("usuarioEditVisibleViewsLista").innerHTML = ADMIN_VIEW_DEFS.map(v => `
     <label class="dash-filter-item">
@@ -7412,10 +7416,11 @@ async function salvarUsuarioEdit() {
   const role = document.getElementById("usuarioEditRole").value;
   const isAdmin = document.getElementById("usuarioEditIsAdmin").checked;
   const podeAutorizar = document.getElementById("usuarioEditPodeAutorizar").checked;
+  const podeExportarBackup = document.getElementById("usuarioEditPodeExportarBackup").checked;
   const checkboxes = Array.from(document.querySelectorAll("#usuarioEditVisibleViewsLista input"));
   const marcados = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.viewkey);
   const visibleViews = marcados.length === checkboxes.length ? null : marcados; // todos marcados = sem restrição
-  const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, visible_views: visibleViews };
+  const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, pode_exportar_backup: podeExportarBackup, visible_views: visibleViews };
   const { error } = await sb.from("user_roles").update(payload).eq("user_id", adminEditingUserId);
   if (error) { toast("Erro ao salvar usuário: " + error.message); return; }
   const u = adminUsuarios.find(x => x.user_id === adminEditingUserId);
