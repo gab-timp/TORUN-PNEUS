@@ -5369,11 +5369,22 @@ function renderVendas() {
   });
 }
 
+// limpa a marcação de "frete puxado da cotação" (usada pra não sobrescrever o que foi digitado à mão)
+function resetarFretePuxado() {
+  const frete = document.getElementById("venValorFrete");
+  const transp = document.getElementById("venTransportadora");
+  const hint = document.getElementById("venFreteCotacaoHint");
+  delete frete.dataset.auto;
+  delete transp.dataset.auto;
+  if (hint) hint.style.display = "none";
+}
+
 function startEditVenda(vendaId) {
   const v = state.vendas.find(x => x.id === vendaId);
   if (!v) return;
   editingVendaId = vendaId;
   editingVendaUpdatedAt = v.updatedAt;
+  resetarFretePuxado();
 
   document.getElementById("venData").value = v.data;
   document.getElementById("venPedido").value = v.numeroPedido || "";
@@ -5419,6 +5430,7 @@ function startEditVenda(vendaId) {
 function cancelEditVenda() {
   editingVendaId = null;
   editingVendaUpdatedAt = null;
+  resetarFretePuxado();
   document.getElementById("formVenda").reset();
   document.getElementById("venData").value = todayISO();
   document.getElementById("venTransportadora").disabled = false;
@@ -6005,8 +6017,49 @@ function initForms() {
     const disabled = e.target.checked;
     transp.disabled = disabled;
     frete.disabled = disabled;
-    if (disabled) { transp.value = ""; frete.value = ""; }
+    if (disabled) { transp.value = ""; frete.value = ""; resetarFretePuxado(); }
   });
+
+  // Frete puxado da cotação contratada: a cotação é lançada primeiro, com o nº do pedido; ao
+  // informar esse pedido (ou NF) na venda, valor do frete e transportadora vêm sozinhos.
+  // Nunca sobrescreve valor digitado à mão (dataset.auto marca o que foi preenchido daqui).
+  const freteInput = document.getElementById("venValorFrete");
+  const transpInput = document.getElementById("venTransportadora");
+  const freteHint = document.getElementById("venFreteCotacaoHint");
+  const mostrarHintFrete = (msg) => { freteHint.textContent = msg; freteHint.style.display = msg ? "" : "none"; };
+  const puxarFretePelaCotacao = () => {
+    if (document.getElementById("venClienteRetira").checked) return;
+    if (freteInput.value && freteInput.dataset.auto !== "1") return;
+    const achada = cotacaoContratadaParaVenda(document.getElementById("venPedido").value, document.getElementById("venNF").value);
+    if (!achada) {
+      if (freteInput.dataset.auto === "1") { freteInput.value = ""; if (transpInput.dataset.auto === "1") transpInput.value = ""; }
+      resetarFretePuxado();
+      return;
+    }
+    const { frete, cotacao } = achada;
+    const refAlvo = refDocCanonica(frete.referencia);
+    // outra venda do mesmo pedido/NF já carrega esse frete (ex: pedido faturado em 2 NFs) --
+    // preencher de novo contaria a cotação duas vezes
+    const jaTemFrete = state.vendas.some(v => v.id !== editingVendaId && v.valorFrete > 0 &&
+      [refDocCanonica(v.numeroPedido), refDocCanonica(v.numeroNFVenda)].includes(refAlvo));
+    if (jaTemFrete) {
+      if (freteInput.dataset.auto === "1") freteInput.value = "";
+      resetarFretePuxado();
+      mostrarHintFrete(`Já existe venda do pedido ${frete.referencia} com frete lançado — não preenchi o frete pra não contar a cotação duas vezes.`);
+      return;
+    }
+    freteInput.value = cotacao.valorFrete;
+    freteInput.dataset.auto = "1";
+    if (!transpInput.value.trim() || transpInput.dataset.auto === "1") {
+      transpInput.value = cotacao.transportadora || "";
+      transpInput.dataset.auto = "1";
+    }
+    mostrarHintFrete(`Frete puxado da cotação contratada do pedido ${frete.referencia}: ${formatMoney(cotacao.valorFrete)}${cotacao.transportadora ? ` · ${cotacao.transportadora}` : ""}. Dá pra ajustar se o valor real for outro.`);
+  };
+  document.getElementById("venPedido").addEventListener("change", puxarFretePelaCotacao);
+  document.getElementById("venNF").addEventListener("change", puxarFretePelaCotacao);
+  freteInput.addEventListener("input", () => { delete freteInput.dataset.auto; mostrarHintFrete(""); });
+  transpInput.addEventListener("input", () => { delete transpInput.dataset.auto; });
 
   const comissaoBaseAtual = () => {
     // comissão sempre sai do valor da venda, nunca do valor recebido (Boleto Trademaster inclusive)
@@ -6130,6 +6183,7 @@ function initForms() {
     if (error) { toast("Erro ao registrar venda: " + error.message); return; }
     state.vendas.push(vendaFromRow(inserido[0]));
     e.target.reset();
+    resetarFretePuxado();
     document.getElementById("venData").value = todayISO();
     document.getElementById("venTransportadora").disabled = false;
     document.getElementById("venValorFrete").disabled = false;
@@ -6180,6 +6234,75 @@ function filtrarPorPeriodo(lista, de, ate) {
     if (ate && item.data > ate) return false;
     return true;
   });
+}
+
+/* ---------------- Frete: ligação entre cotação contratada e venda ----------------
+   O frete "de verdade" é o que está lançado na venda (é o que o Dashboard soma). A cotação
+   contratada serve pra achar e preencher esse valor. Padrão novo: `fretes.referencia` = nº do
+   pedido, e a venda com o mesmo `numero_pedido` puxa o frete da cotação. Cotações antigas
+   (referência = NF, "pedido-NF", "PED. 148"...) continuam sendo achadas pelo NF/pedido dentro
+   do texto da referência. */
+
+// "PED. 148" / "ped 148" / "NF 4217" -> "148" / "4217"; número puro perde zeros à esquerda.
+function refDocCanonica(s) {
+  let t = String(s == null ? "" : s).trim().toUpperCase();
+  t = t.replace(/^(PEDIDO|PED|NF-?E|NF)\.?\s*/, "").trim();
+  return /^\d+$/.test(t) ? t.replace(/^0+(?=\d)/, "") : t;
+}
+function soDigitosSemZeros(s) {
+  return String(s == null ? "" : s).replace(/\D/g, "").replace(/^0+/, "");
+}
+function numerosNaReferencia(ref) {
+  return (String(ref || "").match(/\d+/g) || []).map(n => n.replace(/^0+/, "")).filter(Boolean);
+}
+// venda entre 30 dias antes e 90 dias depois da cotação -- só vale pra ligação por PEDIDO
+// (pedido pode repetir/reiniciar; o NF é único e não precisa de janela)
+function vendaDentroDaJanela(dataVenda, dataCotacao) {
+  if (!dataVenda || !dataCotacao) return false;
+  const dias = Math.round((Date.parse(dataVenda) - Date.parse(dataCotacao)) / 86400000);
+  return dias >= -30 && dias <= 90;
+}
+function cotacaoContratada(f) {
+  return (f.cotacoes || []).find(c => c.id === f.contratadaId) || null;
+}
+function vendaLigadaACotacao(v, f) {
+  const ref = refDocCanonica(f.referencia);
+  const nf = refDocCanonica(v.numeroNFVenda);
+  const pedido = refDocCanonica(v.numeroPedido);
+  const nums = numerosNaReferencia(f.referencia);
+  const nfDig = soDigitosSemZeros(v.numeroNFVenda);
+  const pedDig = soDigitosSemZeros(v.numeroPedido);
+  if (ref && nf && ref === nf) return true;
+  if (nfDig.length >= 3 && nums.includes(nfDig)) return true;
+  if (!vendaDentroDaJanela(v.data, f.data)) return false;
+  if (ref && pedido && ref === pedido) return true;
+  if (pedDig.length >= 3 && nums.includes(pedDig)) return true;
+  return false;
+}
+// Cada cotação contratada -> vendas dela. Uma venda fica com UMA cotação só (a mais antiga):
+// se outra cotação contratada aponta pra mesma venda, ela vira `duplicada` (o relatório não
+// soma o frete duas vezes).
+function ligarCotacoesAVendas() {
+  const contratadas = state.fretes.filter(f => cotacaoContratada(f))
+    .slice().sort((a, b) => (a.data + (a.createdAt || "")).localeCompare(b.data + (b.createdAt || "")));
+  const usadas = new Set();
+  const mapa = new Map();
+  contratadas.forEach(f => {
+    const candidatas = state.vendas.filter(v => vendaLigadaACotacao(v, f));
+    const livres = candidatas.filter(v => !usadas.has(v.id));
+    livres.forEach(v => usadas.add(v.id));
+    mapa.set(f.id, { vendas: livres, duplicada: candidatas.length > 0 && livres.length === 0 });
+  });
+  return { mapa, usadas };
+}
+// Pra venda nova: cotação contratada cuja referência é exatamente esse pedido (ou NF).
+// Se houver mais de uma, vale a mais recente.
+function cotacaoContratadaParaVenda(pedido, nf) {
+  const alvos = [refDocCanonica(pedido), refDocCanonica(nf)].filter(Boolean);
+  if (!alvos.length) return null;
+  const achadas = state.fretes.filter(f => cotacaoContratada(f) && alvos.includes(refDocCanonica(f.referencia)))
+    .sort((a, b) => (b.data + (b.createdAt || "")).localeCompare(a.data + (a.createdAt || "")));
+  return achadas.length ? { frete: achadas[0], cotacao: cotacaoContratada(achadas[0]) } : null;
 }
 
 function codigosResumo(codigos) {
@@ -6398,6 +6521,22 @@ const REPORT_DEFS = {
     build(de, ate, filtro, codigos, agrupar) {
       const fretes = filtrarPorPeriodo(state.fretes, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
 
+      // Visão geral e Por transportadora: o valor do frete é o LANÇADO NA VENDA (o mesmo que o
+      // Dashboard soma). A cotação contratada só vira valor enquanto a venda ainda não existe.
+      // A data que vale pro período é a da venda quando há (mesmo critério do Dashboard, que
+      // filtra o mês pela venda); sem venda, a da cotação.
+      const { mapa: ligacoes, usadas: vendasLigadas } = ligarCotacoesAVendas();
+      const itens = state.fretes.map(f => {
+        const lig = ligacoes.get(f.id) || { vendas: [], duplicada: false };
+        const contratada = cotacaoContratada(f);
+        const temVenda = lig.vendas.length > 0;
+        const freteVenda = lig.vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
+        const dataRef = temVenda ? lig.vendas.map(v => v.data).sort()[0] : f.data;
+        return { f, lig, contratada, temVenda, freteVenda, dataRef };
+      }).filter(i => !(de && i.dataRef < de) && !(ate && i.dataRef > ate))
+        .sort((a, b) => a.dataRef.localeCompare(b.dataRef));
+      const pct = (valor, base) => valor != null && base ? (valor / base * 100).toFixed(1).replace(".", ",") + "%" : "—";
+
       if (agrupar === "pedido") {
         const columns = [
           { key: "pedido", label: "Pedido" },
@@ -6430,25 +6569,29 @@ const REPORT_DEFS = {
         const summaryLines = [
           { label: "Cotações no período", value: fmt(rows.length) },
           { label: "Pedidos únicos", value: fmt(pedidosUnicos) },
-          { label: "Valor total contratado", value: formatMoney(totalContratado), total: true }
+          { label: "Valor total cotado (contratadas)", value: formatMoney(totalContratado), total: true }
         ];
         return { columns, rows, summaryLines };
       }
 
       if (agrupar === "transportadora") {
         const agg = {};
-        fretes.forEach(f => (f.cotacoes || []).forEach(c => {
+        itens.forEach(({ f, lig, temVenda, freteVenda }) => (f.cotacoes || []).forEach(c => {
           const key = (c.transportadora || "").trim() || "(sem nome)";
           if (!agg[key]) agg[key] = { cotacoes: 0, vitorias: 0, valorTotal: 0 };
           agg[key].cotacoes++;
-          if (c.id === f.contratadaId) { agg[key].vitorias++; agg[key].valorTotal += c.valorFrete; }
+          if (c.id === f.contratadaId) {
+            agg[key].vitorias++;
+            // venda quando existe; cotação duplicada não soma (a venda já entrou pela outra)
+            agg[key].valorTotal += lig.duplicada ? 0 : (temVenda ? freteVenda : c.valorFrete);
+          }
         }));
         const columns = [
           { key: "transportadora", label: "Transportadora" },
           { key: "cotacoes", label: "Cotações recebidas", numeric: true },
           { key: "vitorias", label: "Vezes contratada", numeric: true },
           { key: "taxa", label: "Taxa de contratação" },
-          { key: "valorTotal", label: "Valor total contratado", money: true }
+          { key: "valorTotal", label: "Valor total do frete", money: true }
         ];
         const rows = Object.entries(agg)
           .sort((a, b) => b[1].vitorias - a[1].vitorias || b[1].cotacoes - a[1].cotacoes)
@@ -6460,6 +6603,7 @@ const REPORT_DEFS = {
         const maisCotada = rows.length ? rows.slice().sort((a, b) => b.cotacoes - a.cotacoes)[0] : null;
         const maisContratada = rows.find(r => r.vitorias > 0) || null; // já vem ordenado por vitórias
         const summaryLines = [
+          { label: "Critério do valor", value: "frete lançado na venda (cotação, se ainda sem venda)" },
           { label: "Transportadoras no período", value: fmt(rows.length) },
           ...(maisCotada ? [{ label: "Mais cotada", value: `${maisCotada.transportadora} (${maisCotada.cotacoes}x)` }] : []),
           ...(maisContratada ? [{ label: "Mais contratada", value: `${maisContratada.transportadora} (${maisContratada.vitorias}x)`, total: true }] : [])
@@ -6474,29 +6618,47 @@ const REPORT_DEFS = {
         { key: "destino", label: "Destino" },
         { key: "valorNF", label: "Valor NF", money: true },
         { key: "transportadora", label: "Transportadora" },
-        { key: "valorFrete", label: "Valor do frete", money: true },
+        { key: "cotado", label: "Frete cotado", money: true },
+        { key: "valorFrete", label: "Frete na venda", money: true },
         { key: "pct", label: "% sobre a NF" },
         { key: "status", label: "Status" }
       ];
-      const rows = fretes.map(f => {
-        const contratada = (f.cotacoes || []).find(c => c.id === f.contratadaId);
+      const rows = itens.map(({ f, lig, contratada, temVenda, freteVenda, dataRef }) => {
+        const cotado = contratada ? contratada.valorFrete : null;
+        const valor = contratada && temVenda ? freteVenda : null;
+        let status = "Aguardando decisão";
+        if (contratada) {
+          if (lig.duplicada) status = "Cotação duplicada (a venda já está ligada a outra cotação)";
+          else if (!temVenda) status = "Contratado — sem venda ainda";
+          else status = Math.abs(freteVenda - cotado) > 0.005 ? "Com venda — frete diferente do cotado" : "Com venda";
+        }
         return {
-          pedido: f.referencia, data: formatDateBR(f.data),
+          pedido: f.referencia, data: formatDateBR(dataRef),
           destino: [f.localidade, f.cep].filter(Boolean).join(" · ") || "—",
           valorNF: f.valorNF,
           transportadora: contratada ? contratada.transportadora : "—",
-          valorFrete: contratada ? contratada.valorFrete : null,
-          pct: contratada && f.valorNF ? (contratada.valorFrete / f.valorNF * 100).toFixed(1).replace(".", ",") + "%" : "—",
-          status: contratada ? "Contratado" : "Aguardando decisão"
+          cotado, valorFrete: valor, pct: pct(valor, f.valorNF), status
         };
       });
-      const contratados = fretes.filter(f => f.contratadaId).length;
-      const totalFreteContratado = rows.reduce((a, r) => a + (r.valorFrete || 0), 0);
+      const comVenda = itens.filter(i => i.contratada && i.temVenda).length;
+      const semVenda = itens.filter(i => i.contratada && !i.temVenda && !i.lig.duplicada);
+      const duplicadas = itens.filter(i => i.contratada && i.lig.duplicada).length;
+      // Totais calculados direto das vendas do período (data da venda) -- é exatamente a conta
+      // do Dashboard ("Custo de frete"), então os dois números batem.
+      const vendasPeriodo = filtrarPorPeriodo(state.vendas, de, ate);
+      const soma = lista => lista.reduce((a, v) => a + (v.valorFrete || 0), 0);
+      const freteComCotacao = soma(vendasPeriodo.filter(v => vendasLigadas.has(v.id)));
+      const vendasSemCotacao = vendasPeriodo.filter(v => !vendasLigadas.has(v.id) && (v.valorFrete || 0) > 0);
       const summaryLines = [
-        { label: "Pedidos no período", value: fmt(fretes.length) },
-        { label: "Contratados", value: fmt(contratados) },
-        { label: "Aguardando decisão", value: fmt(fretes.length - contratados) },
-        { label: "Valor total de frete contratado", value: formatMoney(totalFreteContratado), total: true }
+        { label: "Critério de data do período", value: "data da venda (da cotação, se ainda sem venda)" },
+        { label: "Pedidos no período", value: fmt(itens.length) },
+        { label: "Com venda lançada", value: fmt(comVenda) },
+        { label: "Contratados, ainda sem venda", value: `${fmt(semVenda.length)} (${formatMoney(semVenda.reduce((a, i) => a + i.contratada.valorFrete, 0))} cotados)` },
+        { label: "Aguardando decisão", value: fmt(itens.filter(i => !i.contratada).length) },
+        ...(duplicadas ? [{ label: "Cotações duplicadas", value: fmt(duplicadas) }] : []),
+        { label: "Frete de vendas com cotação contratada", value: formatMoney(freteComCotacao) },
+        { label: "Frete de vendas sem cotação", value: `${formatMoney(soma(vendasSemCotacao))} (${fmt(vendasSemCotacao.length)} ${vendasSemCotacao.length === 1 ? "venda" : "vendas"})` },
+        { label: "Total de frete lançado nas vendas (igual ao Dashboard)", value: formatMoney(freteComCotacao + soma(vendasSemCotacao)), total: true }
       ];
       return { columns, rows, summaryLines };
     }

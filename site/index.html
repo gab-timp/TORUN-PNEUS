@@ -976,8 +976,8 @@
         <form id="formFrete">
           <div class="form-row">
             <div class="field">
-              <label>Referência (NF ou pedido)</label>
-              <input type="text" id="freteRef" placeholder="Ex: 4999 ou PED. 148" required>
+              <label>Nº do pedido</label>
+              <input type="text" id="freteRef" placeholder="Ex: 148" required>
             </div>
             <div class="field">
               <label>CEP</label>
@@ -1226,6 +1226,7 @@
             <div class="field">
               <label>Valor do frete (R$)</label>
               <input type="number" id="venValorFrete" min="0" step="0.01" placeholder="0,00">
+              <span class="note" id="venFreteCotacaoHint" style="display:none;"></span>
             </div>
             <div class="field grow">
               <label>Observação (opcional)</label>
@@ -1693,7 +1694,7 @@
 
         <div class="card report-card" data-report="frete">
           <div class="card-head"><h2>Frete</h2></div>
-          <div class="note">Cotações, transportadora contratada e valor de frete — visão geral, por pedido ou por transportadora.</div>
+          <div class="note">Cotações, transportadora contratada e valor de frete — visão geral, por pedido ou por transportadora. O valor do frete é o lançado na venda (o mesmo do Dashboard); a cotação só aparece como valor enquanto a venda não existe.</div>
           <div class="form-row report-daterange">
             <div class="field">
               <label>De</label>
@@ -2464,6 +2465,6 @@
   </div>
 </div>
 
-<script src="app.js?v=181"></script>
+<script src="app.js?v=183"></script>
 </body>
 </html>
