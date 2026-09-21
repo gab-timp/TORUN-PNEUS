@@ -2417,12 +2417,63 @@ function limparImpressaoCatalogo() {
   catalogoPdfBlobUrls = [];
 }
 
-async function gerarCatalogoPdf() {
+// Pop-up "Gerar catálogo em PDF": escolha dos tipos de pneu (categorias) que entram. Conta os pneus
+// como a lista da tela (busca aplicada, Descontinuado fora), mas sem o filtro de Categoria da tela --
+// é aqui que se escolhe; se a tela está filtrada por uma categoria, só ela vem pré-marcada.
+function abrirCatalogoPdfModal() {
+  const search = (document.getElementById("catSearch").value || "").trim().toLowerCase();
+  const produtos = catalogoProdutosVisiveis(search, "");
+  if (produtos.length === 0) { toast("Nenhum pneu na lista para gerar o catálogo."); return; }
+
+  const porTipo = new Map();
+  produtos.forEach(p => {
+    const { ordem, rotulo } = catalogoPdfCategoria(p);
+    if (!porTipo.has(rotulo)) porTipo.set(rotulo, { ordem, rotulo, qtd: 0 });
+    porTipo.get(rotulo).qtd++;
+  });
+  // os tipos do sistema aparecem sempre (esmaecidos se não tiverem pneu na lista); outros só se tiverem
+  Object.values(CATEGORIA_LABEL).forEach((rotulo, i) => {
+    if (!porTipo.has(rotulo)) porTipo.set(rotulo, { ordem: i, rotulo, qtd: 0 });
+  });
+  const tipos = [...porTipo.values()].sort((a, b) => a.ordem - b.ordem || a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+
+  const filtroTela = document.getElementById("catFiltroCategoria").value;
+  const soEste = filtroTela ? catalogoPdfCategoria({ categoria: filtroTela }).rotulo : null;
+
+  document.getElementById("catalogoPdfLista").innerHTML = tipos.map(t => `
+    <label class="catpdf-linha${t.qtd === 0 ? " vazia" : ""}">
+      <input type="checkbox" data-rotulo="${escapeAttr(t.rotulo)}" data-qtd="${t.qtd}" ${t.qtd === 0 ? "disabled" : (!soEste || t.rotulo === soEste ? "checked" : "")}>
+      <span class="nome">${escapeHtml(t.rotulo)}</span>
+      <span class="qtd">${fmt(t.qtd)} ${t.qtd === 1 ? "pneu" : "pneus"}</span>
+    </label>`).join("");
+  atualizarCatalogoPdfResumo();
+  document.getElementById("catalogoPdfOverlay").classList.add("show");
+}
+
+function fecharCatalogoPdfModal() {
+  document.getElementById("catalogoPdfOverlay").classList.remove("show");
+}
+
+function catalogoPdfCaixas() {
+  return [...document.querySelectorAll("#catalogoPdfLista input[type=checkbox]")];
+}
+
+function atualizarCatalogoPdfResumo() {
+  const marcadas = catalogoPdfCaixas().filter(c => c.checked);
+  const total = marcadas.reduce((soma, c) => soma + Number(c.dataset.qtd), 0);
+  document.getElementById("catalogoPdfResumo").innerHTML = marcadas.length
+    ? `<span class="num">${fmt(total)}</span> ${total === 1 ? "pneu" : "pneus"} em <span class="num">${fmt(marcadas.length)}</span> ${marcadas.length === 1 ? "tipo" : "tipos"}`
+    : "Nenhum tipo marcado";
+  document.getElementById("catalogoPdfGerar").disabled = marcadas.length === 0;
+}
+
+// rotulos = Set com os tipos (rótulos normalizados de catalogoPdfCategoria) que entram; sem ele, todos
+async function gerarCatalogoPdf(rotulos) {
   const btn = document.getElementById("btnCatalogoPdf");
   if (btn.disabled) return;
   const search = (document.getElementById("catSearch").value || "").trim().toLowerCase();
-  const categoria = document.getElementById("catFiltroCategoria").value;
-  const produtos = catalogoProdutosVisiveis(search, categoria);
+  const produtos = catalogoProdutosVisiveis(search, "")
+    .filter(p => !rotulos || rotulos.has(catalogoPdfCategoria(p).rotulo));
   if (produtos.length === 0) { toast("Nenhum pneu na lista para gerar o catálogo."); return; }
 
   const rotuloOriginal = btn.textContent;
@@ -2619,7 +2670,26 @@ function initCatalogo() {
   document.getElementById("catCondicao").addEventListener("change", renderCatalogo);
   document.getElementById("catRegiao").addEventListener("change", renderCatalogo);
   document.getElementById("catTipoCliente").addEventListener("change", renderCatalogo);
-  document.getElementById("btnCatalogoPdf").addEventListener("click", gerarCatalogoPdf);
+  document.getElementById("btnCatalogoPdf").addEventListener("click", abrirCatalogoPdfModal);
+  document.getElementById("catalogoPdfLista").addEventListener("change", atualizarCatalogoPdfResumo);
+  document.getElementById("catalogoPdfTodos").addEventListener("click", () => {
+    catalogoPdfCaixas().forEach(c => { if (!c.disabled) c.checked = true; });
+    atualizarCatalogoPdfResumo();
+  });
+  document.getElementById("catalogoPdfLimpar").addEventListener("click", () => {
+    catalogoPdfCaixas().forEach(c => { c.checked = false; });
+    atualizarCatalogoPdfResumo();
+  });
+  document.getElementById("catalogoPdfCancelar").addEventListener("click", fecharCatalogoPdfModal);
+  document.getElementById("catalogoPdfOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "catalogoPdfOverlay") fecharCatalogoPdfModal();
+  });
+  document.getElementById("catalogoPdfGerar").addEventListener("click", () => {
+    const rotulos = new Set(catalogoPdfCaixas().filter(c => c.checked).map(c => c.dataset.rotulo));
+    if (rotulos.size === 0) return;
+    fecharCatalogoPdfModal();
+    gerarCatalogoPdf(rotulos);
+  });
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);
   document.getElementById("catalogoFotoLightboxOverlay").addEventListener("click", (e) => {

@@ -1960,6 +1960,27 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .cat-tipo-chip.tem{background:var(--status-good-pale); border-color:var(--status-good-border); color:var(--status-good-deep);}
 .cat-dica{margin-top:10px; font-size:11.5px; line-height:1.4; color:var(--ink-soft);}
 
+/* pop-up "Gerar catálogo em PDF": escolha dos tipos de pneu (abrirCatalogoPdfModal em app.js) */
+.catpdf-topo{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 0 8px;}
+.catpdf-rotulo{font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);}
+.catpdf-acoes{display:flex; gap:6px;}
+.catpdf-lista{border:1px solid var(--line); border-radius:10px; overflow:hidden; margin:0 0 12px;}
+.catpdf-linha{
+  display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; font-size:13.5px;
+  border-bottom:1px solid var(--line); background:var(--surface);
+}
+.catpdf-linha:last-child{border-bottom:none;}
+.catpdf-linha:hover{background:var(--tint-orange);}
+.catpdf-linha input{width:auto; margin:0; accent-color:var(--orange); flex:0 0 auto;}
+.catpdf-linha .nome{flex:1; font-weight:600;}
+.catpdf-linha .qtd{font-family:'Space Mono',monospace; font-size:12px; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
+.catpdf-linha.vazia{cursor:default; opacity:.5;}
+.catpdf-linha.vazia:hover{background:var(--surface);}
+.catpdf-resumo{font-size:13px; color:var(--ink-soft); margin:0 0 4px;}
+.catpdf-resumo .num{font-family:'Space Mono',monospace; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums;}
+.catpdf-nota{font-size:11.5px; color:var(--ink-soft); line-height:1.45; margin:0 0 16px;}
+#catalogoPdfGerar:disabled, #btnCatalogoPdf:disabled{opacity:.5; cursor:not-allowed;}
+
 /* editor de preços com abas por tipo de cliente -- usado no drawer "Editar
    produto" e no form "Novo produto" (buildPrecoEditorHtml em app.js) */
 .preco-editor-tabs{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;}
