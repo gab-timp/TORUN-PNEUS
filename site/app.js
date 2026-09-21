@@ -1943,7 +1943,10 @@ function renderCatalogo() {
   const regiao = document.getElementById("catRegiao").value;
   const tipoCliente = document.getElementById("catTipoCliente").value || "CONSUMO";
 
-  let rows = state.produtos.filter(p => computeProdutoTotais(p.codigo).saldo > 0);
+  // Vendedor (papel "representante") só vê o que tem em estoque; os demais usuários veem o
+  // catálogo inteiro, inclusive o que está sem estoque (o card mostra "Sem estoque").
+  const soComEstoque = currentUserRole === "representante";
+  let rows = state.produtos.filter(p => !soComEstoque || computeProdutoTotais(p.codigo).saldo > 0);
   if (search) {
     rows = rows.filter(p =>
       p.codigo.toLowerCase().includes(search) ||
@@ -1973,7 +1976,7 @@ function renderCatalogo() {
     grid.innerHTML = "";
     empty.textContent = rowsAntesFiltroPreco > 0
       ? `Nenhum pneu com preço de ${alvo} cadastrado (entre os que batem com a busca e a categoria).`
-      : "Nenhum pneu em estoque encontrado.";
+      : (soComEstoque ? "Nenhum pneu em estoque encontrado." : "Nenhum pneu encontrado.");
     empty.style.display = "block";
     return;
   }
@@ -2024,7 +2027,7 @@ function renderCatalogo() {
         <div class="catalogo-foto-hero">${fotoHeroHtml}</div>
         <div class="catalogo-foto-overlay-top">
           ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria)}</span>` : "<span></span>"}
-          <span class="status-pill pill-${statusSaldo}">${fmt(saldoProduto)} un.</span>
+          <span class="status-pill pill-${statusSaldo}">${saldoProduto > 0 ? `${fmt(saldoProduto)} un.` : "Sem estoque"}</span>
         </div>
         <button type="button" class="catalogo-card-editbtn write-ui" data-editcard="${escapeAttr(p.codigo)}" title="Ver no Catálogo (fotos e preços)">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg>
