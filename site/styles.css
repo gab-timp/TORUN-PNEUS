@@ -1681,7 +1681,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   display:flex; flex-direction:column; border:1px solid #dad8d0; border-radius:10px; overflow:hidden;
   background:#fff; break-inside:avoid; page-break-inside:avoid;
 }
-.pc-foto{position:relative; height:120px; background:#efeee9; display:flex; gap:2px;}
+.pc-foto{position:relative; height:112px; background:#efeee9; display:flex; gap:2px;}
 .pc-slot{flex:1; min-width:0; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#efeee9;}
 .pc-slot img{width:100%; height:100%; object-fit:cover; display:block;}
 .pc-slot .ic{width:44px; height:44px; color:#b9b7ae;}
@@ -1697,7 +1697,7 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .pc-modelo{font-size:15px; font-weight:800; line-height:1.2; color:#0b0b0b;}
 .pc-medida{font-size:13.5px; font-weight:700; color:#c64f0c;}
 .pc-specs{
-  display:grid; grid-template-columns:repeat(3,1fr); gap:6px 8px; margin-top:7px; padding-top:7px;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:6px 8px; margin-top:7px; padding-top:7px;
   border-top:1px dashed #dad8d0;
 }
 .pc-specs .l{display:block; font-size:8.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#5a5a55;}
@@ -1706,11 +1706,18 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 /* rodapé com nome e nº da página: só nos navegadores que suportam caixas de margem em @page
    (Chrome/Edge recentes); nos outros a página sai igual, só sem rodapé */
 @page catalogo{
+  size:A4;
   margin:12mm 12mm 16mm;
+  /* caixas do topo vazias: sem elas o Chrome imprime a data e o título da página no cabeçalho */
+  @top-left{content:"";}
+  @top-center{content:"";}
+  @top-right{content:"";}
   @bottom-left{content:"TORUN PNEUS · Catálogo de pneus"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
   @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
 }
 @media print{
+  /* o fundo do app (cinza-claro) sairia na página inteira quando "Gráficos de segundo plano" está ligado */
+  body.imprimindo-catalogo{background:#fff !important;}
   /* o app inteiro continua ocupando espaço (só ficava invisível) e, com o Catálogo aberto, isso
      gerava dezenas de páginas em branco depois do PDF -- então some de vez enquanto imprime o catálogo */
   body.imprimindo-catalogo > *:not(#reportPrintArea){display:none !important;}
