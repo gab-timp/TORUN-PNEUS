@@ -2260,8 +2260,113 @@ function buildCatalogoPdfHtml(produtos, fotos) {
     </div>`;
 }
 
+// Paginação do catálogo. O navegador quebra a página onde a linha de cards não cabe, e isso deixava:
+// categorias misturadas na mesma página, 1 card sozinho no topo de uma página e espaço em branco no
+// fim de várias. Aqui as páginas são montadas à mão, com a altura real de cada linha de cards:
+// - cada categoria começa numa página nova;
+// - as linhas vão enchendo a página; se a última página da categoria ficar com 1 card só, ela recebe a
+//   última linha da página anterior;
+// - em página bem cheia, a sobra de altura é dividida entre as linhas (a faixa de fotos cresce até
+//   50px, ficando mais parecida com a moldura da tela) em vez de ficar em branco no fim.
+const CATALOGO_PDF_PAGINA_ALTURA = 1006; // px úteis da página A4 (297mm - 12mm - 16mm de margem = 1016px, com folga)
+const CATALOGO_PDF_LARGURA = 703;        // px úteis da página A4 (210mm - 2 x 12mm)
+const CATALOGO_PDF_COLUNAS = 3;
+const CATALOGO_PDF_VAO_LINHAS = 12;      // igual ao gap do .pc-grade em styles.css
+const CATALOGO_PDF_FOTO_EXTRA_MAX = 50;
+const CATALOGO_PDF_FOTO_ALTURA = 150;    // igual ao .pc-foto em styles.css
+
+async function paginarCatalogoPdf(area) {
+  const raiz = area.querySelector(".print-catalogo");
+  const medir = (el) => {
+    const cs = getComputedStyle(el);
+    return el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  };
+  // mede com a área fora da tela mas com o layout real (mesma largura útil da página)
+  area.style.cssText = `display:block; position:absolute; left:-10000px; top:0; width:${CATALOGO_PDF_LARGURA}px; visibility:hidden;`;
+  // a altura dos cards depende das fontes: o navegador só pede a fonte quando o texto entra em layout,
+  // então força o layout, carrega as fontes usadas e só então mede (com a fonte reserva o texto
+  // quebrava em outros pontos e a paginação estourava a página)
+  void area.offsetHeight;
+  if (document.fonts && document.fonts.load) {
+    await Promise.all(["400 12px Inter", "700 12px Inter", "800 12px Inter", "400 10px 'Space Mono'", "700 10px 'Space Mono'"]
+      .map(f => document.fonts.load(f).catch(() => {})));
+  }
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+  const alturaTopo = medir(raiz.querySelector(".pc-topo"));
+  const grupos = [...raiz.querySelectorAll(".pc-grupo")].map(sec => {
+    const cab = sec.querySelector(".pc-cat");
+    const cards = [...sec.querySelectorAll(".pc-card")];
+    const linhas = [];
+    for (let i = 0; i < cards.length; i += CATALOGO_PDF_COLUNAS) {
+      const cs = cards.slice(i, i + CATALOGO_PDF_COLUNAS);
+      linhas.push({ cards: cs, h: Math.max(...cs.map(c => c.offsetHeight)), extra: 0 });
+    }
+    return { cab, linhas, alturaCab: medir(cab) };
+  });
+
+  const paginas = [];
+  grupos.forEach((g, gi) => {
+    const capacidade = (continuacao) => CATALOGO_PDF_PAGINA_ALTURA - g.alturaCab - (!continuacao && gi === 0 ? alturaTopo : 0);
+    const nova = (continuacao) => ({ g, continuacao, linhas: [], usado: 0, cap: capacidade(continuacao) });
+    const doGrupo = [nova(false)];
+    g.linhas.forEach(l => {
+      let atual = doGrupo[doGrupo.length - 1];
+      if (atual.linhas.length && atual.usado + CATALOGO_PDF_VAO_LINHAS + l.h > atual.cap) {
+        atual = nova(true);
+        doGrupo.push(atual);
+      }
+      atual.usado += (atual.linhas.length ? CATALOGO_PDF_VAO_LINHAS : 0) + l.h;
+      atual.linhas.push(l);
+    });
+    // 1 card sozinho na última página: traz a última linha da página anterior pra ela
+    const ult = doGrupo[doGrupo.length - 1], ant = doGrupo[doGrupo.length - 2];
+    if (ant && ult.linhas.length === 1 && ult.linhas[0].cards.length === 1 && ant.linhas.length > 1) {
+      const mov = ant.linhas[ant.linhas.length - 1];
+      if (ult.usado + CATALOGO_PDF_VAO_LINHAS + mov.h <= ult.cap) {
+        ant.linhas.pop();
+        ant.usado -= CATALOGO_PDF_VAO_LINHAS + mov.h;
+        ult.linhas.unshift(mov);
+        ult.usado += CATALOGO_PDF_VAO_LINHAS + mov.h;
+      }
+    }
+    // página bem cheia: reparte a sobra entre as linhas (a foto cresce)
+    doGrupo.forEach(p => {
+      const sobra = p.cap - p.usado;
+      if (p.linhas.length && sobra > 0 && p.usado / p.cap >= 0.6) {
+        const extra = Math.floor(Math.min(sobra / p.linhas.length, CATALOGO_PDF_FOTO_EXTRA_MAX));
+        p.linhas.forEach(l => { l.extra = extra; });
+      }
+    });
+    paginas.push(...doGrupo);
+  });
+
+  // remonta o DOM: uma <section class="pc-pagina"> por página, com os mesmos cards
+  raiz.querySelectorAll(".pc-grupo").forEach(sec => sec.remove());
+  paginas.forEach(p => {
+    const pagina = document.createElement("section");
+    pagina.className = "pc-pagina";
+    const cab = p.g.cab.cloneNode(true);
+    if (p.continuacao) {
+      cab.querySelector("h2").textContent += " (continuação)";
+      cab.querySelector("span").textContent = "";
+    }
+    const grade = document.createElement("div");
+    grade.className = "pc-grade";
+    p.linhas.forEach(l => l.cards.forEach(c => {
+      if (l.extra) c.querySelector(".pc-foto").style.height = (CATALOGO_PDF_FOTO_ALTURA + l.extra) + "px";
+      grade.appendChild(c);
+    }));
+    pagina.append(cab, grade);
+    raiz.appendChild(pagina);
+  });
+  area.style.cssText = ""; // volta ao CSS normal (a área só aparece na impressão)
+  return paginas.length;
+}
+
 function limparImpressaoCatalogo() {
   document.body.classList.remove("imprimindo-catalogo");
+  document.body.style.zoom = ""; // volta ao tamanho de letra escolhido pelo usuário
   document.getElementById("reportPrintArea").innerHTML = "";
 }
 
@@ -2282,8 +2387,12 @@ async function gerarCatalogoPdf() {
       btn.textContent = `Preparando fotos… ${feitas}/${total}`;
     });
     const area = document.getElementById("reportPrintArea");
-    area.innerHTML = buildCatalogoPdfHtml(produtos, fotos);
+    // tamanho de letra do app (zoom no body) fora enquanto mede e imprime: senão a paginação, medida em
+    // px, não bate com a página impressa
+    document.body.style.zoom = "1";
     document.body.classList.add("imprimindo-catalogo"); // esconde o app na impressão (senão sai página em branco)
+    area.innerHTML = buildCatalogoPdfHtml(produtos, fotos);
+    await paginarCatalogoPdf(area);
     // só abre a impressão quando o logo e as fotos estiverem decodificados (com teto de tempo: se a
     // aba estiver em segundo plano o navegador pode segurar o decode, e a impressão não pode ficar presa)
     const esperaLimite = new Promise(resolve => setTimeout(resolve, 10000));

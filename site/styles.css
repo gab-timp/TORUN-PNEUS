@@ -1683,6 +1683,9 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   display:flex; flex-direction:column; border:1px solid #dad8d0; border-radius:10px; overflow:hidden;
   background:#fff; break-inside:avoid; page-break-inside:avoid;
 }
+/* páginas montadas por paginarCatalogoPdf (app.js): cada categoria e cada continuação numa página nova */
+.pc-pagina + .pc-pagina{break-before:page; page-break-before:always;}
+.pc-pagina .pc-grade{margin-bottom:0;}
 /* faixa das fotos com a mesma proporção da moldura do card da tela (190px de altura num card de
    ~285px = 2/3 da largura; aqui 226px de card -> 150px), então o PDF enquadra e corta igual à tela */
 .pc-foto{position:relative; height:150px; background:#efeee9; display:flex; gap:2px;}
