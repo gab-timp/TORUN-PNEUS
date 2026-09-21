@@ -2153,11 +2153,14 @@ function renderCatalogo() {
 const CATALOGO_PDF_FOTO_LARGURA = 640;       // px da cópia reduzida de cada foto no PDF
 const CATALOGO_PDF_FOTO_TIMEOUT_MS = 25000;  // tempo máximo esperando uma foto abrir
 const CATALOGO_PDF_FOTOS_EM_PARALELO = 6;
-// Largura de um card no PDF (A4 com 12mm de margem, 2 colunas) e limites da altura da faixa de
-// fotos -- a altura se ajusta ao formato das fotos do card, dentro desses limites.
-const CATALOGO_PDF_LARGURA_CARD = 344;
-const CATALOGO_PDF_FOTO_ALT_MIN = 112;
-const CATALOGO_PDF_FOTO_ALT_MAX = 168;
+// Grid do PDF: 3 cards por linha. Um card é estreito (A4 com 12mm de margem = 703px, menos 2 vãos de
+// 12px, dividido por 3) porque as fotos em pé são muito altas e estreitas (uns 9:20): num card largo
+// um par delas deixava mais de metade da faixa em cinza. A altura da faixa de fotos se ajusta ao
+// formato das fotos do card, dentro desses limites.
+const CATALOGO_PDF_COLUNAS = 3;
+const CATALOGO_PDF_LARGURA_CARD = 226;
+const CATALOGO_PDF_FOTO_ALT_MIN = 96;
+const CATALOGO_PDF_FOTO_ALT_MAX = 172;
 
 // Abre uma foto pra confirmar que ela carrega. Tenta primeiro a cópia reduzida (transformação de
 // imagem do Supabase Storage -- as fotos originais são guardadas como foram enviadas, podem ter
@@ -2220,7 +2223,7 @@ function buildCatalogoPdfHtml(produtos, fotos) {
   // Encaixe das fotos: cada uma ocupa uma largura proporcional ao seu formato (flex-grow = largura/
   // altura x 1000 -- multiplicado porque, com soma de flex-grow menor que 1, o flex só reparte essa
   // fração do espaço e a foto sozinha e em pé ficava encolhida num canto) e a faixa tem a altura em que as fotos lado a lado preenchem o card exatamente, sem
-  // corte e sem sobra. A altura é limitada (mínimo/máximo) e é a mesma pros 2 cards da mesma linha
+  // corte e sem sobra. A altura é limitada (mínimo/máximo) e é a mesma pros cards da mesma linha
   // do grid, pra o texto de baixo ficar alinhado; se o limite entrar em ação, sobra só uma faixa
   // cinza pequena.
   const alturaIdealFotos = (p) => {
@@ -2253,11 +2256,11 @@ function buildCatalogoPdfHtml(produtos, fotos) {
 
   const secoes = grupos.map(g => {
     const itens = g.itens.slice().sort((a, b) => cmp(a.marca, b.marca) || cmp(a.medida, b.medida) || cmp(a.codigo, b.codigo));
-    // o grid tem 2 colunas: os cards 0-1, 2-3... dividem a mesma linha e, portanto, a mesma altura de foto
+    // os cards 0-2, 3-5... dividem a mesma linha do grid e, portanto, a mesma altura de foto
     const ideais = itens.map(alturaIdealFotos);
     const alturaDaLinha = (i) => {
-      const par = i - (i % 2);
-      const ideal = Math.max(ideais[par], ideais[par + 1] || 0);
+      const inicio = i - (i % CATALOGO_PDF_COLUNAS);
+      const ideal = Math.max(...ideais.slice(inicio, inicio + CATALOGO_PDF_COLUNAS));
       return Math.round(Math.min(CATALOGO_PDF_FOTO_ALT_MAX, Math.max(CATALOGO_PDF_FOTO_ALT_MIN, ideal)));
     };
     return `
