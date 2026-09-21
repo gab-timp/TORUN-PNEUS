@@ -5878,7 +5878,7 @@ function initForms() {
     const data = document.getElementById("freteData").value || todayISO();
     const obs = document.getElementById("freteObs").value.trim();
 
-    if (!referencia) { toast("Informe a referência (NF ou pedido)."); return; }
+    if (!referencia) { toast("Informe o número do pedido."); return; }
 
     const rows = Array.from(document.querySelectorAll("#freteItens .item-row"));
     const cotacoes = [];
@@ -7440,13 +7440,14 @@ function closeMinhasConfiguracoesModal() {
 async function salvarPerfil() {
   const novoNome = document.getElementById("minhasConfigNome").value.trim();
   const novoTelefone = document.getElementById("minhasConfigTelefone").value.trim();
-  if (!novoNome) { toast("O nome não pode ficar em branco."); return; }
+  if (!novoNome) { toast("O nome não pode ficar em branco."); return false; }
   const { error } = await sb.rpc("atualizar_meu_perfil", { novo_nome: novoNome, novo_telefone: novoTelefone || null });
-  if (error) { toast("Erro ao salvar perfil: " + error.message); return; }
+  if (error) { toast("Erro ao salvar perfil: " + error.message); return false; }
   currentUserNome = novoNome;
   currentUserTelefone = novoTelefone;
   updateSidebarUserChip();
   toast("Perfil atualizado.");
+  return true;
 }
 
 async function salvarPreferenciasNotificacao(prefs) {
@@ -7471,7 +7472,12 @@ async function uploadAvatar(file) {
   const { error: uploadError } = await sb.storage.from(AVATAR_BUCKET).upload(path, file);
   if (uploadError) { toast("Erro ao enviar foto: " + uploadError.message); return; }
   const { error } = await sb.rpc("atualizar_meu_avatar", { novo_avatar_path: path });
-  if (error) { toast("Erro ao salvar foto: " + error.message); return; }
+  if (error) {
+    // o arquivo já subiu mas o caminho não foi gravado -- não deixa foto órfã no bucket
+    await sb.storage.from(AVATAR_BUCKET).remove([path]);
+    toast("Erro ao salvar foto: " + error.message);
+    return;
+  }
   currentUserAvatarPath = path;
   if (pathAntigo) await sb.storage.from(AVATAR_BUCKET).remove([pathAntigo]);
   renderMinhasConfigAvatarPreview();
@@ -7495,7 +7501,7 @@ function initMinhasConfiguracoes() {
     if (file) await uploadAvatar(file);
   });
   document.getElementById("minhasConfigSalvar").addEventListener("click", async () => {
-    await salvarPerfil();
+    const perfilOk = await salvarPerfil();
     await salvarPreferenciasNotificacao({
       notif_estoque_baixo: document.getElementById("minhasConfigNotifEstoqueBaixo").checked,
       notif_nova_proposta: document.getElementById("minhasConfigNotifProposta").checked,
@@ -7504,7 +7510,8 @@ function initMinhasConfiguracoes() {
       notif_previsto_chegando: document.getElementById("minhasConfigNotifPrevisto").checked,
       notif_precadastro_novo: document.getElementById("minhasConfigNotifPrecadastro").checked
     });
-    closeMinhasConfiguracoesModal();
+    // se o perfil não salvou, deixa a tela aberta pro erro não passar batido
+    if (perfilOk) closeMinhasConfiguracoesModal();
   });
 }
 
