@@ -1946,7 +1946,10 @@ function renderCatalogo() {
   // Vendedor (papel "representante") só vê o que tem em estoque; os demais usuários veem o
   // catálogo inteiro, inclusive o que está sem estoque (o card mostra "Sem estoque").
   const soComEstoque = currentUserRole === "representante";
-  let rows = state.produtos.filter(p => !soComEstoque || computeProdutoTotais(p.codigo).saldo > 0);
+  // Pneu marcado como Descontinuado fica fora do catálogo (é assim que se tira uma marca/linha
+  // da lista sem apagar o cadastro nem o histórico).
+  let rows = state.produtos.filter(p =>
+    p.situacao !== "DESCONTINUADO" && (!soComEstoque || computeProdutoTotais(p.codigo).saldo > 0));
   if (search) {
     rows = rows.filter(p =>
       p.codigo.toLowerCase().includes(search) ||
@@ -1956,14 +1959,21 @@ function renderCatalogo() {
   }
   if (categoria) rows = rows.filter(p => p.categoria === categoria);
 
-  // Só mostra pneus com preço cadastrado que bata com TODOS os filtros de preço
+  // Pneu com preço só aparece se tiver preço que bata com TODOS os filtros de preço
   // ativos: tipo de cliente (sempre) + condição de pagamento e/ou região (quando
   // escolhidas -- "Todas" = não filtra por aquilo). O card avisa à parte quando
   // não há filtro de condição e falta o preço da condição exibida por padrão.
+  // Já o pneu que ainda não tem NENHUM preço (em nenhum tipo de cliente) aparece
+  // com o aviso "Sem preço cadastrado" -- senão os que nunca foram precificados
+  // (ex: os que estavam sem estoque) sumiam do catálogo. Com filtro de condição ou
+  // região ligado ele não pode bater com o filtro, então sai da lista.
+  const codigosComPreco = new Set(state.produtos_precos.map(x => x.codigo));
   const rowsAntesFiltroPreco = rows.length;
-  rows = rows.filter(p => getPrecosDoProduto(p.codigo, tipoCliente).some(x =>
-    (!condicao || x.condicaoPagamento === condicao) && (!regiao || x.regiao === regiao)
-  ));
+  rows = rows.filter(p => !codigosComPreco.has(p.codigo)
+    ? (!condicao && !regiao)
+    : getPrecosDoProduto(p.codigo, tipoCliente).some(x =>
+        (!condicao || x.condicaoPagamento === condicao) && (!regiao || x.regiao === regiao)
+      ));
 
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
@@ -1999,6 +2009,7 @@ function renderCatalogo() {
 
     // o pneu já passou pelo filtro -- mas pode não ter preço pra condição exibida
     // agora (na região filtrada, se houver). Nesse caso troca a lista por um aviso.
+    const semPrecoNenhum = !codigosComPreco.has(p.codigo);
     const temPrecoNestaCondicao = getPrecosDoProduto(p.codigo, tipoCliente)
       .some(x => x.condicaoPagamento === condicaoAtual && (!regiao || x.regiao === regiao));
     // Card compacto: só as regiões COM preço pra essa condição (linha "—"
@@ -2049,6 +2060,7 @@ function renderCatalogo() {
         ` : ""}
 
         <div class="catalogo-card-divider"></div>
+        ${semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : `
         <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
         ${temPrecoNestaCondicao
           ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
@@ -2057,7 +2069,7 @@ function renderCatalogo() {
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-toggleprazos="${escapeAttr(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" data-prazoslista="${escapeAttr(p.codigo)}" style="display:${aberto ? "" : "none"};">
           ${aberto ? buildPrecoMatrixHtml(p.codigo, tipoCliente) : ""}
-        </div>
+        </div>`}
         </div>
       </div>
     `;
