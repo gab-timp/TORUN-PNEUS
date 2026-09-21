@@ -2147,8 +2147,9 @@ function renderCatalogo() {
 
 /* ---------------- Catálogo em PDF (sem preço) ---------------- */
 // Mesmo mecanismo dos relatórios: monta a página em #reportPrintArea e abre a impressão do
-// navegador ("Salvar como PDF"). Entram os pneus da lista (respeitando busca e categoria da tela,
-// mas não tipo de cliente/condição/região, já que o PDF não tem preço), agrupados por categoria.
+// navegador ("Salvar como PDF"). O botão abre um pop-up onde se escolhem os tipos de pneu; entram os
+// pneus da lista da tela com a busca aplicada (mas não tipo de cliente/condição/região, já que o PDF
+// não tem preço), só dos tipos marcados, agrupados por categoria.
 
 const CATALOGO_PDF_FOTO_LARGURA = 640;       // px da cópia pedida ao Supabase Storage (se a transformação de imagem estiver ativa)
 const CATALOGO_PDF_FOTO_LADO_MAX = 640;      // px do maior lado de cada foto no PDF
