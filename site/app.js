@@ -276,17 +276,29 @@ async function loadState() {
   ESTOQUE_BAIXO_LIMITE = (configuracoesSite && configuracoesSite.estoque_baixo_limite) || 20;
   const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
   let falhaCritica = false;
+  let falhaPerfil = null;
   results.forEach((r, i) => {
     if (r.error) {
       console.error(`Erro ao carregar ${labels[i]}:`, r.error);
       toast(`Erro ao carregar ${labels[i]} do servidor.`);
       if (labels[i] === "produtos" || labels[i] === "movimentos") falhaCritica = true;
+      if (labels[i] === "papel do usuário") falhaPerfil = r.error;
     }
   });
   if (falhaCritica) {
     await confirmModal(
       "Falha ao carregar dados de estoque",
       "Não foi possível carregar produtos/movimentações após várias tentativas. Os números de estoque e relatórios podem aparecer errados (zerados). Recarregue a página antes de continuar."
+    );
+  }
+  // Sem o perfil de acesso o sistema cai nos padrões (nome = e-mail, papel Editor, sem foto, sem
+  // restrição de telas, sem admin) e parece tudo normal -- o toast acima some em 2,6s no meio do
+  // carregamento. Aviso que fica na tela (achado: coluna nova pedida no select antes de existir no
+  // banco derrubava a leitura do perfil de todo mundo e ninguém percebeu).
+  if (falhaPerfil) {
+    await confirmModal(
+      "Falha ao carregar seu perfil de acesso",
+      `Não foi possível ler seu cadastro de permissões. Nome, foto, papel e telas liberadas podem aparecer errados (como Editor, sem restrição), e administradores perdem o acesso à Administração. Recarregue a página; se continuar assim, avise um administrador. Detalhe técnico: ${falhaPerfil.message || falhaPerfil}`
     );
   }
   currentUserRole = (roleRes.data && roleRes.data.role) || "editor";
