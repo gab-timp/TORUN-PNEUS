@@ -1936,6 +1936,27 @@ async function persistirFotoProdutoNovo(codigo, slot, file) {
   return path;
 }
 
+// Pneus que o Catálogo considera antes dos filtros de preço/tipo de cliente -- usado pela lista
+// da tela e pelo PDF, pra os dois nunca divergirem.
+// Vendedor (papel "representante") só vê o que tem em estoque; os demais usuários veem o catálogo
+// inteiro, inclusive o que está sem estoque (o card mostra "Sem estoque").
+// Pneu marcado como Descontinuado fica fora (é assim que se tira uma marca/linha da lista sem
+// apagar o cadastro nem o histórico).
+function catalogoProdutosVisiveis(search, categoria) {
+  const soComEstoque = currentUserRole === "representante";
+  let rows = state.produtos.filter(p =>
+    p.situacao !== "DESCONTINUADO" && (!soComEstoque || computeProdutoTotais(p.codigo).saldo > 0));
+  if (search) {
+    rows = rows.filter(p =>
+      p.codigo.toLowerCase().includes(search) ||
+      p.medida.toLowerCase().includes(search) ||
+      (p.modelo || "").toLowerCase().includes(search)
+    );
+  }
+  if (categoria) rows = rows.filter(p => p.categoria === categoria);
+  return rows;
+}
+
 function renderCatalogo() {
   populateCatalogoFiltroCategoria();
   populateCatalogoCondicao();
@@ -1952,21 +1973,8 @@ function renderCatalogo() {
   const tipoCliente = todosTipos ? "CONSUMO" : tipoSelecionado;
   const tipoFiltro = todosTipos ? "" : tipoCliente;
 
-  // Vendedor (papel "representante") só vê o que tem em estoque; os demais usuários veem o
-  // catálogo inteiro, inclusive o que está sem estoque (o card mostra "Sem estoque").
   const soComEstoque = currentUserRole === "representante";
-  // Pneu marcado como Descontinuado fica fora do catálogo (é assim que se tira uma marca/linha
-  // da lista sem apagar o cadastro nem o histórico).
-  let rows = state.produtos.filter(p =>
-    p.situacao !== "DESCONTINUADO" && (!soComEstoque || computeProdutoTotais(p.codigo).saldo > 0));
-  if (search) {
-    rows = rows.filter(p =>
-      p.codigo.toLowerCase().includes(search) ||
-      p.medida.toLowerCase().includes(search) ||
-      (p.modelo || "").toLowerCase().includes(search)
-    );
-  }
-  if (categoria) rows = rows.filter(p => p.categoria === categoria);
+  let rows = catalogoProdutosVisiveis(search, categoria);
 
   // Pneu com preço só aparece se tiver preço que bata com TODOS os filtros de preço
   // ativos: tipo de cliente (sempre) + condição de pagamento e/ou região (quando
@@ -2137,6 +2145,157 @@ function renderCatalogo() {
   });
 }
 
+/* ---------------- Catálogo em PDF (sem preço) ---------------- */
+// Mesmo mecanismo dos relatórios: monta a página em #reportPrintArea e abre a impressão do
+// navegador ("Salvar como PDF"). Entram os pneus da lista (respeitando busca e categoria da tela,
+// mas não tipo de cliente/condição/região, já que o PDF não tem preço), agrupados por categoria.
+
+const CATALOGO_PDF_FOTO_LARGURA = 640;       // px da cópia reduzida de cada foto no PDF
+const CATALOGO_PDF_FOTO_TIMEOUT_MS = 25000;  // tempo máximo esperando uma foto abrir
+const CATALOGO_PDF_FOTOS_EM_PARALELO = 6;
+
+// Abre uma foto pra confirmar que ela carrega. Tenta primeiro a cópia reduzida (transformação de
+// imagem do Supabase Storage -- as fotos originais são guardadas como foram enviadas, podem ter
+// vários MB, e o PDF ficaria pesado demais) e, se ela falhar, a original. Devolve a URL que abriu,
+// ou null se nenhuma abriu (o card sai sem essa foto).
+async function carregarFotoParaPdf(fotoPath) {
+  const abre = (url) => new Promise(resolve => {
+    if (!url) { resolve(false); return; }
+    const img = new Image();
+    const timer = setTimeout(() => resolve(false), CATALOGO_PDF_FOTO_TIMEOUT_MS);
+    img.onload = () => { clearTimeout(timer); resolve(true); };
+    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    img.src = url;
+  });
+  const { data } = sb.storage.from(CATALOGO_BUCKET).getPublicUrl(fotoPath, {
+    transform: { width: CATALOGO_PDF_FOTO_LARGURA, quality: 70 }
+  });
+  const reduzida = data ? data.publicUrl : null;
+  if (await abre(reduzida)) return reduzida;
+  const original = fotoProdutoUrl(fotoPath);
+  if (await abre(original)) return original;
+  return null;
+}
+
+// paths -> Map(path -> url que abriu | null), com poucas fotos por vez pra não saturar a conexão
+async function carregarFotosParaPdf(paths, onProgresso) {
+  const unicas = [...new Set(paths)];
+  const resultado = new Map();
+  let proxima = 0, feitas = 0;
+  const trabalhador = async () => {
+    while (proxima < unicas.length) {
+      const path = unicas[proxima++];
+      resultado.set(path, await carregarFotoParaPdf(path));
+      feitas++;
+      onProgresso(feitas, unicas.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CATALOGO_PDF_FOTOS_EM_PARALELO, unicas.length) }, trabalhador));
+  return resultado;
+}
+
+// categoria na ordem do sistema (Passeio, Cargas/TBR, Agrícola/Florestal, Outro); categoria fora
+// da lista vem depois e "sem categoria" por último
+function catalogoPdfCategoria(p) {
+  const bruta = (p.categoria || "").trim();
+  if (!bruta) return { ordem: 99, rotulo: "Sem categoria" };
+  const rotulo = CATEGORIA_NORM_LOOKUP[normalizarCategoria(bruta)] || bruta;
+  const idx = Object.values(CATEGORIA_LABEL).indexOf(rotulo);
+  return { ordem: idx === -1 ? 50 : idx, rotulo };
+}
+
+function buildCatalogoPdfHtml(produtos, fotos) {
+  const porCategoria = new Map();
+  produtos.forEach(p => {
+    const { ordem, rotulo } = catalogoPdfCategoria(p);
+    if (!porCategoria.has(rotulo)) porCategoria.set(rotulo, { ordem, rotulo, itens: [] });
+    porCategoria.get(rotulo).itens.push(p);
+  });
+  const cmp = (a, b) => (a || "").localeCompare(b || "", "pt-BR", { numeric: true, sensitivity: "base" });
+  const grupos = [...porCategoria.values()].sort((a, b) => a.ordem - b.ordem || cmp(a.rotulo, b.rotulo));
+
+  const cardHtml = (p) => {
+    const urls = [p.fotoPath, p.fotoPath2].map(path => path ? fotos.get(path) : null).filter(Boolean);
+    const slots = urls.length
+      ? urls.map(u => `<div class="pc-slot"><img src="${escapeAttr(u)}" alt="${escapeAttr(p.codigo)}"></div>`).join("")
+      : `<div class="pc-slot"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></div>`;
+    const disponivel = computeProdutoTotais(p.codigo).saldo > 0;
+    const specs = [
+      ["PR / Lonas", p.pr], ["Cintas", p.cintas], ["Cap. carga", p.capCarga],
+      ["PSI", p.psi], ["Sulco (mm)", p.sulcoMm], ["Peso (kg)", p.pesoKg]
+    ].filter(([, v]) => v);
+    return `
+      <div class="pc-card">
+        <div class="pc-foto">${slots}<span class="pc-chip${disponivel ? " ok" : ""}">${disponivel ? "Disponível" : "Sob consulta"}</span></div>
+        <div class="pc-corpo">
+          <div class="pc-linha"><span class="pc-marca">${escapeHtml(p.marca || "")}</span><span class="pc-cod">${escapeHtml(p.codigo)}</span></div>
+          <div class="pc-modelo">${escapeHtml(p.modelo || p.codigo)}</div>
+          <div class="pc-medida">${escapeHtml(p.medida)}</div>
+          ${specs.length ? `<div class="pc-specs">${specs.map(([l, v]) => `<div><span class="l">${escapeHtml(l)}</span><span class="v">${escapeHtml(v)}</span></div>`).join("")}</div>` : ""}
+        </div>
+      </div>`;
+  };
+
+  const secoes = grupos.map(g => {
+    const itens = g.itens.slice().sort((a, b) => cmp(a.marca, b.marca) || cmp(a.medida, b.medida) || cmp(a.codigo, b.codigo));
+    return `
+      <section class="pc-grupo">
+        <div class="pc-cat"><h2>${escapeHtml(g.rotulo)}</h2><span>${fmt(itens.length)} ${itens.length === 1 ? "pneu" : "pneus"}</span></div>
+        <div class="pc-grade">${itens.map(cardHtml).join("")}</div>
+      </section>`;
+  }).join("");
+
+  return `
+    <div class="print-catalogo">
+      <div class="pc-topo">
+        <img src="assets/logo-light.png" class="pc-logo" alt="Torun Pneus">
+        <div>
+          <h1>Catálogo de pneus</h1>
+          <div class="pc-sub">Atualizado em ${formatDateBR(todayISO())}<br>Valores e condições de pagamento sob consulta.</div>
+        </div>
+      </div>
+      ${secoes}
+    </div>`;
+}
+
+function limparImpressaoCatalogo() {
+  document.body.classList.remove("imprimindo-catalogo");
+  document.getElementById("reportPrintArea").innerHTML = "";
+}
+
+async function gerarCatalogoPdf() {
+  const btn = document.getElementById("btnCatalogoPdf");
+  if (btn.disabled) return;
+  const search = (document.getElementById("catSearch").value || "").trim().toLowerCase();
+  const categoria = document.getElementById("catFiltroCategoria").value;
+  const produtos = catalogoProdutosVisiveis(search, categoria);
+  if (produtos.length === 0) { toast("Nenhum pneu na lista para gerar o catálogo."); return; }
+
+  const rotuloOriginal = btn.textContent;
+  btn.disabled = true;
+  try {
+    const paths = produtos.flatMap(p => [p.fotoPath, p.fotoPath2]).filter(Boolean);
+    btn.textContent = paths.length ? "Preparando fotos…" : "Gerando…";
+    const fotos = await carregarFotosParaPdf(paths, (feitas, total) => {
+      btn.textContent = `Preparando fotos… ${feitas}/${total}`;
+    });
+    const area = document.getElementById("reportPrintArea");
+    area.innerHTML = buildCatalogoPdfHtml(produtos, fotos);
+    document.body.classList.add("imprimindo-catalogo"); // esconde o app na impressão (senão sai página em branco)
+    // só abre a impressão quando o logo e as fotos estiverem decodificados
+    await Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve())));
+    window.addEventListener("afterprint", limparImpressaoCatalogo, { once: true });
+    window.print();
+  } catch (err) {
+    console.error("Erro ao gerar o catálogo em PDF:", err);
+    limparImpressaoCatalogo();
+    toast("Não foi possível gerar o PDF do catálogo: " + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = rotuloOriginal;
+  }
+}
+
 function renderCatalogoModalPrecos(codigo) {
   const tipoCliente = document.getElementById("catalogoModalTipoCliente").value || "CONSUMO";
   document.getElementById("catalogoModalPrecoWrap").innerHTML = buildPrecoMatrixHtml(codigo, tipoCliente);
@@ -2297,6 +2456,7 @@ function initCatalogo() {
   document.getElementById("catCondicao").addEventListener("change", renderCatalogo);
   document.getElementById("catRegiao").addEventListener("change", renderCatalogo);
   document.getElementById("catTipoCliente").addEventListener("change", renderCatalogo);
+  document.getElementById("btnCatalogoPdf").addEventListener("click", gerarCatalogoPdf);
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);
   document.getElementById("catalogoFotoLightboxOverlay").addEventListener("click", (e) => {
@@ -6786,6 +6946,7 @@ function buildReportPrintHtml(def, de, ate, data) {
 function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2) {
   const def = REPORT_DEFS[reportKey];
   const data = def.build(de, ate, filtro, codigo, agrupar, filtro2);
+  document.body.classList.remove("imprimindo-catalogo"); // caso a impressão do catálogo tenha sido interrompida
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
   window.print();
 }
@@ -6981,6 +7142,7 @@ function buildDashPrintHtml(cardKey) {
 
 function gerarPdfDashboard(cardKey) {
   const area = document.getElementById("reportPrintArea");
+  document.body.classList.remove("imprimindo-catalogo"); // caso a impressão do catálogo tenha sido interrompida
   area.innerHTML = buildDashPrintHtml(cardKey);
   const img = area.querySelector(".print-dash-img");
   if (img && !img.complete) {

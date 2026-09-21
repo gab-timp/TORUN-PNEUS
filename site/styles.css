@@ -1659,6 +1659,63 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .print-report-summary-row.total{font-weight:800; font-size:14px; border-bottom:2px solid #0b0b0b; margin-top:4px;}
 
 .print-dash-img{max-width:100%; display:block; margin:0 auto;}
+
+/* ---- Catálogo em PDF (sem preço) -- buildCatalogoPdfHtml em app.js ----
+   Papel é sempre branco (cores fixas, fora do tema) e o navegador por padrão não imprime cor de
+   fundo, então print-color-adjust:exact garante os chips e o fundo das fotos. */
+.print-catalogo{font-family:'Inter',sans-serif; color:#0b0b0b; page:catalogo;}
+.print-catalogo, .print-catalogo *{-webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing:border-box;}
+.pc-topo{display:flex; align-items:center; gap:18px; border-bottom:3px solid #FF6A13; padding-bottom:14px; margin-bottom:20px;}
+.pc-logo{height:54px; display:block;}
+.pc-topo h1{font-size:22px; margin:0 0 3px; color:#0b0b0b; letter-spacing:-.01em;}
+.pc-sub{font-size:12px; color:#5a5a55; line-height:1.45;}
+.pc-cat{
+  display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  border-bottom:1px solid #dad8d0; padding-bottom:6px; margin:0 0 12px;
+  break-after:avoid; page-break-after:avoid;
+}
+.pc-cat h2{font-size:16px; margin:0; letter-spacing:.02em; text-transform:uppercase; font-weight:800; color:#0b0b0b;}
+.pc-cat span{font-size:11.5px; color:#5a5a55;}
+.pc-grade{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;}
+.pc-card{
+  display:flex; flex-direction:column; border:1px solid #dad8d0; border-radius:10px; overflow:hidden;
+  background:#fff; break-inside:avoid; page-break-inside:avoid;
+}
+.pc-foto{position:relative; height:120px; background:#efeee9; display:flex; gap:2px;}
+.pc-slot{flex:1; min-width:0; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#efeee9;}
+.pc-slot img{width:100%; height:100%; object-fit:cover; display:block;}
+.pc-slot .ic{width:44px; height:44px; color:#b9b7ae;}
+.pc-chip{
+  position:absolute; top:8px; right:8px; font-size:10px; font-weight:800; letter-spacing:.03em;
+  padding:3px 9px; border-radius:20px; background:#efeee9; color:#5a5a55;
+}
+.pc-chip.ok{background:#dff3e6; color:#0e5c29;}
+.pc-corpo{padding:10px 12px 11px; display:flex; flex-direction:column; gap:3px; flex:1;}
+.pc-linha{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+.pc-marca{font-size:10.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#5a5a55;}
+.pc-cod{font-family:'Space Mono',monospace; font-size:10.5px; color:#5a5a55;}
+.pc-modelo{font-size:15px; font-weight:800; line-height:1.2; color:#0b0b0b;}
+.pc-medida{font-size:13.5px; font-weight:700; color:#c64f0c;}
+.pc-specs{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:6px 8px; margin-top:7px; padding-top:7px;
+  border-top:1px dashed #dad8d0;
+}
+.pc-specs .l{display:block; font-size:8.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#5a5a55;}
+.pc-specs .v{display:block; font-family:'Space Mono',monospace; font-size:11px; font-weight:700; color:#0b0b0b;}
+
+/* rodapé com nome e nº da página: só nos navegadores que suportam caixas de margem em @page
+   (Chrome/Edge recentes); nos outros a página sai igual, só sem rodapé */
+@page catalogo{
+  margin:12mm 12mm 16mm;
+  @bottom-left{content:"TORUN PNEUS · Catálogo de pneus"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
+  @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
+}
+@media print{
+  /* o app inteiro continua ocupando espaço (só ficava invisível) e, com o Catálogo aberto, isso
+     gerava dezenas de páginas em branco depois do PDF -- então some de vez enquanto imprime o catálogo */
+  body.imprimindo-catalogo > *:not(#reportPrintArea){display:none !important;}
+  body.imprimindo-catalogo #reportPrintArea{position:static;}
+}
 .print-dash-mapa{max-width:360px; margin:0 auto;}
 .print-dash-mapa .dash-mapa-wrap{height:auto;}
 .print-dash-mapa .dash-mapa-svg{width:100%; height:auto;}

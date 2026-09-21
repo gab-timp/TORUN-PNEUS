@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=132">
+<link rel="stylesheet" href="styles.css?v=133">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -916,6 +916,9 @@
         <div>
           <h1>Catálogo</h1>
           <div class="sub">Pneus com especificações técnicas e preço por região e condição de pagamento, com o saldo em estoque de cada um (inclui os sem estoque).</div>
+        </div>
+        <div class="page-head-actions">
+          <button type="button" class="btn primary" id="btnCatalogoPdf" title="Gera o catálogo em PDF, sem preço, com os pneus da lista (respeita a busca e a categoria)">Gerar PDF</button>
         </div>
       </div>
 
@@ -2473,6 +2476,6 @@
   </div>
 </div>
 
-<script src="app.js?v=190"></script>
+<script src="app.js?v=191"></script>
 </body>
 </html>
