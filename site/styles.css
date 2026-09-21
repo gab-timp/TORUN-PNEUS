@@ -1676,16 +1676,20 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 .pc-cat h2{font-size:16px; margin:0; letter-spacing:.02em; text-transform:uppercase; font-weight:800; color:#0b0b0b;}
 .pc-cat span{font-size:11.5px; color:#5a5a55;}
+/* 3 cards por linha: as fotos em pé são muito altas e estreitas (uns 9:20), e num card largo um par
+   delas sobrava em cinza. Card de ~226px (A4 com 12mm de margem = 703px, menos 2 vãos, dividido por 3) */
 .pc-grade{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:18px;}
 .pc-card{
   display:flex; flex-direction:column; border:1px solid #dad8d0; border-radius:10px; overflow:hidden;
   background:#fff; break-inside:avoid; page-break-inside:avoid;
 }
-.pc-foto{position:relative; height:96px; background:#efeee9; display:flex; gap:2px;}
+/* faixa das fotos com a mesma proporção da moldura do card da tela (190px de altura num card de
+   ~285px = 2/3 da largura; aqui 226px de card -> 150px), então o PDF enquadra e corta igual à tela */
+.pc-foto{position:relative; height:150px; background:#efeee9; display:flex; gap:2px;}
 .pc-slot{flex:1; min-width:0; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#efeee9;}
-/* foto inteira e centralizada no quadro (contain), com o fundo cinza nas sobras -- com "cover" o
-   pneu perdia topo/base/lateral nas fotos em pé */
-.pc-slot img{width:100%; height:100%; object-fit:contain; object-position:center; display:block;}
+/* a foto preenche a moldura e fica centralizada (cover), igual ao card da tela, sem faixa cinza.
+   Com "contain" as fotos em pé (muito altas e estreitas) ficavam com faixas cinza grandes dos lados */
+.pc-slot img{width:100%; height:100%; object-fit:cover; object-position:center; display:block;}
 .pc-slot .ic{width:44px; height:44px; color:#b9b7ae;}
 .pc-chip{
   position:absolute; top:6px; right:6px; font-size:8.5px; font-weight:800; letter-spacing:.03em;
