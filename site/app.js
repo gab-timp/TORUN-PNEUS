@@ -2150,15 +2150,53 @@ function renderCatalogo() {
 // navegador ("Salvar como PDF"). Entram os pneus da lista (respeitando busca e categoria da tela,
 // mas não tipo de cliente/condição/região, já que o PDF não tem preço), agrupados por categoria.
 
-const CATALOGO_PDF_FOTO_LARGURA = 640;       // px da cópia reduzida de cada foto no PDF
+const CATALOGO_PDF_FOTO_LARGURA = 640;       // px da cópia pedida ao Supabase Storage (se a transformação de imagem estiver ativa)
+const CATALOGO_PDF_FOTO_LADO_MAX = 640;      // px do maior lado de cada foto no PDF
+const CATALOGO_PDF_FOTO_QUALIDADE = 0.78;    // qualidade do JPEG gerado
 const CATALOGO_PDF_FOTO_TIMEOUT_MS = 25000;  // tempo máximo esperando uma foto abrir
-const CATALOGO_PDF_FOTOS_EM_PARALELO = 6;
-// Abre uma foto pra confirmar que ela carrega. Tenta primeiro a cópia reduzida (transformação de
-// imagem do Supabase Storage -- as fotos originais são guardadas como foram enviadas, podem ter
-// vários MB, e o PDF ficaria pesado demais) e, se ela falhar, a original. Devolve a URL que abriu,
-// ou null se nenhuma abriu (o card sai sem essa foto).
-async function carregarFotoParaPdf(fotoPath) {
-  const abre = (url) => new Promise(resolve => {
+const CATALOGO_PDF_FOTOS_EM_PARALELO = 4;
+let catalogoPdfBlobUrls = [];                // fotos reduzidas em memória; liberadas no fim da impressão
+
+// Baixa a foto e a reencoda no navegador como JPEG de no máximo CATALOGO_PDF_FOTO_LADO_MAX px no maior
+// lado. Sempre reencoda, mesmo foto pequena: o PDF do navegador embute JPEG como está (leve), mas
+// PNG/WebP ele guarda sem perda -- com fotos de celular (e a cópia WebP do Supabase) o arquivo de um
+// catálogo passou de 60MB. Devolve uma URL blob: ou null se não deu pra ler (rede, CORS, formato).
+async function reduzirFotoParaPdf(url) {
+  if (!url) return null;
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), CATALOGO_PDF_FOTO_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, { signal: controle.signal });
+    if (!resp.ok) return null;
+    const bmp = await createImageBitmap(await resp.blob()); // já respeita a rotação EXIF
+    try {
+      const escala = Math.min(1, CATALOGO_PDF_FOTO_LADO_MAX / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bmp.width * escala));
+      canvas.height = Math.max(1, Math.round(bmp.height * escala));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; // JPEG não tem transparência
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const jpeg = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", CATALOGO_PDF_FOTO_QUALIDADE));
+      if (!jpeg) return null;
+      const blobUrl = URL.createObjectURL(jpeg);
+      catalogoPdfBlobUrls.push(blobUrl);
+      return blobUrl;
+    } finally {
+      bmp.close();
+    }
+  } catch (err) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Abre uma foto pra confirmar que ela carrega, sem reduzir (último recurso)
+function fotoAbre(url) {
+  return new Promise(resolve => {
     if (!url) { resolve(false); return; }
     const img = new Image();
     const timer = setTimeout(() => resolve(false), CATALOGO_PDF_FOTO_TIMEOUT_MS);
@@ -2166,13 +2204,24 @@ async function carregarFotoParaPdf(fotoPath) {
     img.onerror = () => { clearTimeout(timer); resolve(false); };
     img.src = url;
   });
+}
+
+// Tenta primeiro a cópia reduzida do Supabase Storage (baixa bem menos, se a transformação de imagem
+// estiver ativa no projeto) e, se ela falhar, a original; qualquer uma sai reduzida e em JPEG. Se o
+// navegador não deixar ler a foto (ex: CORS), usa a URL direta, sem reduzir. Devolve a URL a usar, ou
+// null se nenhuma abriu (o card sai sem essa foto).
+async function carregarFotoParaPdf(fotoPath) {
   const { data } = sb.storage.from(CATALOGO_BUCKET).getPublicUrl(fotoPath, {
     transform: { width: CATALOGO_PDF_FOTO_LARGURA, quality: 70 }
   });
-  const reduzida = data ? data.publicUrl : null;
-  if (await abre(reduzida)) return reduzida;
-  const original = fotoProdutoUrl(fotoPath);
-  if (await abre(original)) return original;
+  const candidatas = [data ? data.publicUrl : null, fotoProdutoUrl(fotoPath)];
+  for (const url of candidatas) {
+    const reduzida = await reduzirFotoParaPdf(url);
+    if (reduzida) return reduzida;
+  }
+  for (const url of candidatas) {
+    if (await fotoAbre(url)) return url;
+  }
   return null;
 }
 
@@ -2346,11 +2395,7 @@ async function paginarCatalogoPdf(area) {
   paginas.forEach(p => {
     const pagina = document.createElement("section");
     pagina.className = "pc-pagina";
-    const cab = p.g.cab.cloneNode(true);
-    if (p.continuacao) {
-      cab.querySelector("h2").textContent += " (continuação)";
-      cab.querySelector("span").textContent = "";
-    }
+    const cab = p.g.cab.cloneNode(true); // toda página da categoria repete o mesmo título, sem marca de continuação
     const grade = document.createElement("div");
     grade.className = "pc-grade";
     p.linhas.forEach(l => l.cards.forEach(c => {
@@ -2368,6 +2413,8 @@ function limparImpressaoCatalogo() {
   document.body.classList.remove("imprimindo-catalogo");
   document.body.style.zoom = ""; // volta ao tamanho de letra escolhido pelo usuário
   document.getElementById("reportPrintArea").innerHTML = "";
+  catalogoPdfBlobUrls.forEach(u => URL.revokeObjectURL(u)); // libera as fotos reduzidas da memória
+  catalogoPdfBlobUrls = [];
 }
 
 async function gerarCatalogoPdf() {
