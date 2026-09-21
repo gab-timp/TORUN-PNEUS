@@ -2153,31 +2153,33 @@ function renderCatalogo() {
 const CATALOGO_PDF_FOTO_LARGURA = 640;       // px da cópia reduzida de cada foto no PDF
 const CATALOGO_PDF_FOTO_TIMEOUT_MS = 25000;  // tempo máximo esperando uma foto abrir
 const CATALOGO_PDF_FOTOS_EM_PARALELO = 6;
+// Largura de um card no PDF (A4 com 12mm de margem, 2 colunas) e limites da altura da faixa de
+// fotos -- a altura se ajusta ao formato das fotos do card, dentro desses limites.
+const CATALOGO_PDF_LARGURA_CARD = 344;
+const CATALOGO_PDF_FOTO_ALT_MIN = 112;
+const CATALOGO_PDF_FOTO_ALT_MAX = 168;
 
 // Abre uma foto pra confirmar que ela carrega. Tenta primeiro a cópia reduzida (transformação de
 // imagem do Supabase Storage -- as fotos originais são guardadas como foram enviadas, podem ter
-// vários MB, e o PDF ficaria pesado demais) e, se ela falhar, a original. Devolve a URL que abriu,
-// ou null se nenhuma abriu (o card sai sem essa foto).
+// vários MB, e o PDF ficaria pesado demais) e, se ela falhar, a original. Devolve { url, w, h } (o
+// tamanho serve pra encaixar a foto no card sem cortar), ou null se nenhuma abriu (o card sai sem
+// essa foto).
 async function carregarFotoParaPdf(fotoPath) {
   const abre = (url) => new Promise(resolve => {
-    if (!url) { resolve(false); return; }
+    if (!url) { resolve(null); return; }
     const img = new Image();
-    const timer = setTimeout(() => resolve(false), CATALOGO_PDF_FOTO_TIMEOUT_MS);
-    img.onload = () => { clearTimeout(timer); resolve(true); };
-    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    const timer = setTimeout(() => resolve(null), CATALOGO_PDF_FOTO_TIMEOUT_MS);
+    img.onload = () => { clearTimeout(timer); resolve({ url, w: img.naturalWidth || 1, h: img.naturalHeight || 1 }); };
+    img.onerror = () => { clearTimeout(timer); resolve(null); };
     img.src = url;
   });
   const { data } = sb.storage.from(CATALOGO_BUCKET).getPublicUrl(fotoPath, {
     transform: { width: CATALOGO_PDF_FOTO_LARGURA, quality: 70 }
   });
-  const reduzida = data ? data.publicUrl : null;
-  if (await abre(reduzida)) return reduzida;
-  const original = fotoProdutoUrl(fotoPath);
-  if (await abre(original)) return original;
-  return null;
+  return (await abre(data ? data.publicUrl : null)) || (await abre(fotoProdutoUrl(fotoPath)));
 }
 
-// paths -> Map(path -> url que abriu | null), com poucas fotos por vez pra não saturar a conexão
+// paths -> Map(path -> { url, w, h } | null), com poucas fotos por vez pra não saturar a conexão
 async function carregarFotosParaPdf(paths, onProgresso) {
   const unicas = [...new Set(paths)];
   const resultado = new Map();
@@ -2214,10 +2216,23 @@ function buildCatalogoPdfHtml(produtos, fotos) {
   const cmp = (a, b) => (a || "").localeCompare(b || "", "pt-BR", { numeric: true, sensitivity: "base" });
   const grupos = [...porCategoria.values()].sort((a, b) => a.ordem - b.ordem || cmp(a.rotulo, b.rotulo));
 
-  const cardHtml = (p) => {
-    const urls = [p.fotoPath, p.fotoPath2].map(path => path ? fotos.get(path) : null).filter(Boolean);
-    const slots = urls.length
-      ? urls.map(u => `<div class="pc-slot"><img src="${escapeAttr(u)}" alt="${escapeAttr(p.codigo)}"></div>`).join("")
+  const fotosDoPneu = (p) => [p.fotoPath, p.fotoPath2].map(path => path ? fotos.get(path) : null).filter(Boolean);
+  // Encaixe das fotos: cada uma ocupa uma largura proporcional ao seu formato (flex-grow = largura/
+  // altura x 1000 -- multiplicado porque, com soma de flex-grow menor que 1, o flex só reparte essa
+  // fração do espaço e a foto sozinha e em pé ficava encolhida num canto) e a faixa tem a altura em que as fotos lado a lado preenchem o card exatamente, sem
+  // corte e sem sobra. A altura é limitada (mínimo/máximo) e é a mesma pros 2 cards da mesma linha
+  // do grid, pra o texto de baixo ficar alinhado; se o limite entrar em ação, sobra só uma faixa
+  // cinza pequena.
+  const alturaIdealFotos = (p) => {
+    const fs = fotosDoPneu(p);
+    if (!fs.length) return 0;
+    return CATALOGO_PDF_LARGURA_CARD / fs.reduce((soma, f) => soma + f.w / f.h, 0);
+  };
+
+  const cardHtml = (p, alturaFoto) => {
+    const fs = fotosDoPneu(p);
+    const slots = fs.length
+      ? fs.map(f => `<div class="pc-slot" style="flex-grow:${Math.round((f.w / f.h) * 1000)}"><img src="${escapeAttr(f.url)}" alt="${escapeAttr(p.codigo)}"></div>`).join("")
       : `<div class="pc-slot"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></div>`;
     const disponivel = computeProdutoTotais(p.codigo).saldo > 0;
     const specs = [
@@ -2226,7 +2241,7 @@ function buildCatalogoPdfHtml(produtos, fotos) {
     ].filter(([, v]) => v);
     return `
       <div class="pc-card">
-        <div class="pc-foto">${slots}<span class="pc-chip${disponivel ? " ok" : ""}">${disponivel ? "Disponível" : "Sob consulta"}</span></div>
+        <div class="pc-foto" style="height:${alturaFoto}px">${slots}<span class="pc-chip${disponivel ? " ok" : ""}">${disponivel ? "Disponível" : "Sob consulta"}</span></div>
         <div class="pc-corpo">
           <div class="pc-linha"><span class="pc-marca">${escapeHtml(p.marca || "")}</span><span class="pc-cod">${escapeHtml(p.codigo)}</span></div>
           <div class="pc-modelo">${escapeHtml(p.modelo || p.codigo)}</div>
@@ -2238,10 +2253,17 @@ function buildCatalogoPdfHtml(produtos, fotos) {
 
   const secoes = grupos.map(g => {
     const itens = g.itens.slice().sort((a, b) => cmp(a.marca, b.marca) || cmp(a.medida, b.medida) || cmp(a.codigo, b.codigo));
+    // o grid tem 2 colunas: os cards 0-1, 2-3... dividem a mesma linha e, portanto, a mesma altura de foto
+    const ideais = itens.map(alturaIdealFotos);
+    const alturaDaLinha = (i) => {
+      const par = i - (i % 2);
+      const ideal = Math.max(ideais[par], ideais[par + 1] || 0);
+      return Math.round(Math.min(CATALOGO_PDF_FOTO_ALT_MAX, Math.max(CATALOGO_PDF_FOTO_ALT_MIN, ideal)));
+    };
     return `
       <section class="pc-grupo">
         <div class="pc-cat"><h2>${escapeHtml(g.rotulo)}</h2><span>${fmt(itens.length)} ${itens.length === 1 ? "pneu" : "pneus"}</span></div>
-        <div class="pc-grade">${itens.map(cardHtml).join("")}</div>
+        <div class="pc-grade">${itens.map((p, i) => cardHtml(p, alturaDaLinha(i))).join("")}</div>
       </section>`;
   }).join("");
 
@@ -2282,8 +2304,13 @@ async function gerarCatalogoPdf() {
     const area = document.getElementById("reportPrintArea");
     area.innerHTML = buildCatalogoPdfHtml(produtos, fotos);
     document.body.classList.add("imprimindo-catalogo"); // esconde o app na impressão (senão sai página em branco)
-    // só abre a impressão quando o logo e as fotos estiverem decodificados
-    await Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve())));
+    // só abre a impressão quando o logo e as fotos estiverem decodificados (com teto de tempo: se a
+    // aba estiver em segundo plano o navegador pode segurar o decode, e a impressão não pode ficar presa)
+    const esperaLimite = new Promise(resolve => setTimeout(resolve, 10000));
+    await Promise.race([
+      Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve()))),
+      esperaLimite
+    ]);
     window.addEventListener("afterprint", limparImpressaoCatalogo, { once: true });
     window.print();
   } catch (err) {
