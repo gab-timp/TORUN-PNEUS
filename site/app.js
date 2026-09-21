@@ -1743,6 +1743,7 @@ function initProdutoEdit() {
 
 let catalogoEditingCodigo = null;
 const catalogoPrazosAbertos = new Set();
+const CATALOGO_TODOS_TIPOS = "TODOS"; // valor do filtro "Tipo de cliente" que lista todos os pneus
 
 function populateCatalogoFiltroCategoria() {
   const sel = document.getElementById("catFiltroCategoria");
@@ -1770,9 +1771,12 @@ function populateCatalogoCondicao() {
 
 function populateCatalogoTipoCliente() {
   const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
-  [document.getElementById("catTipoCliente"), document.getElementById("catalogoModalTipoCliente")].forEach(sel => {
+  // "Todos os tipos" só existe no filtro da lista (mostra todos os pneus, sem valores); o
+  // seletor do modal precisa de um tipo concreto pra montar a grade de preços.
+  [[document.getElementById("catTipoCliente"), `<option value="${CATALOGO_TODOS_TIPOS}">Todos os tipos</option>`],
+   [document.getElementById("catalogoModalTipoCliente"), ""]].forEach(([sel, extra]) => {
     if (sel && sel.options.length === 0) {
-      sel.innerHTML = opcoesHtml;
+      sel.innerHTML = extra + opcoesHtml;
       sel.value = "CONSUMO";
     }
   });
@@ -1941,7 +1945,12 @@ function renderCatalogo() {
   const categoria = document.getElementById("catFiltroCategoria").value;
   const condicao = document.getElementById("catCondicao").value;
   const regiao = document.getElementById("catRegiao").value;
-  const tipoCliente = document.getElementById("catTipoCliente").value || "CONSUMO";
+  const tipoSelecionado = document.getElementById("catTipoCliente").value || "CONSUMO";
+  // "Todos os tipos": lista todos os pneus e o card mostra em quais tipos há preço, sem
+  // valores. Nesse modo o tipo concreto abaixo nunca é usado pra ler preço (tipoFiltro = "").
+  const todosTipos = tipoSelecionado === CATALOGO_TODOS_TIPOS;
+  const tipoCliente = todosTipos ? "CONSUMO" : tipoSelecionado;
+  const tipoFiltro = todosTipos ? "" : tipoCliente;
 
   // Vendedor (papel "representante") só vê o que tem em estoque; os demais usuários veem o
   // catálogo inteiro, inclusive o que está sem estoque (o card mostra "Sem estoque").
@@ -1971,21 +1980,38 @@ function renderCatalogo() {
   const rowsAntesFiltroPreco = rows.length;
   rows = rows.filter(p => !codigosComPreco.has(p.codigo)
     ? (!condicao && !regiao)
-    : getPrecosDoProduto(p.codigo, tipoCliente).some(x =>
+    : getPrecosDoProduto(p.codigo, tipoFiltro).some(x =>
         (!condicao || x.condicaoPagamento === condicao) && (!regiao || x.regiao === regiao)
       ));
 
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
+  // Contador: quantos pneus a lista mostra, de quantos batem com a busca e a categoria. Serve pra
+  // conferir de relance se algum pneu está ficando de fora e por quê.
+  const semPrecoMostrados = rows.filter(p => !codigosComPreco.has(p.codigo)).length;
+  const ocultos = rowsAntesFiltroPreco - rows.length;
+  const partesContador = [`Mostrando <span class="num">${fmt(rows.length)}</span> de <span class="num">${fmt(rowsAntesFiltroPreco)}</span> pneus`];
+  if (semPrecoMostrados) partesContador.push(`<span class="num">${fmt(semPrecoMostrados)}</span> sem preço cadastrado`);
+  if (ocultos) {
+    partesContador.push(`<span class="aviso-oculto">${condicao || regiao
+      ? `${fmt(ocultos)} sem preço que bata com os filtros de preço`
+      : `${fmt(ocultos)} ${ocultos === 1 ? "tem" : "têm"} preço só de outro tipo de cliente — escolha "Todos os tipos" para ver`}</span>`);
+  }
+  document.getElementById("catalogoContador").innerHTML = partesContador.map(t => `<span>${t}</span>`).join("");
+
   const grid = document.getElementById("catalogoGrid");
   const empty = document.getElementById("catalogoEmpty");
   if (rows.length === 0) {
-    let alvo = TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente;
-    if (condicao) alvo += ` · ${condicao}`;
-    if (regiao) alvo += ` · região ${regiao}`;
+    const alvoPartes = [];
+    if (!todosTipos) alvoPartes.push(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente);
+    if (condicao) alvoPartes.push(condicao);
+    if (regiao) alvoPartes.push(`região ${regiao}`);
+    const alvo = alvoPartes.join(" · ");
     grid.innerHTML = "";
     empty.textContent = rowsAntesFiltroPreco > 0
-      ? `Nenhum pneu com preço de ${alvo} cadastrado (entre os que batem com a busca e a categoria).`
+      ? (todosTipos
+          ? `Nenhum pneu com preço cadastrado para ${alvo} (entre os que batem com a busca e a categoria).`
+          : `Nenhum pneu com preço de ${alvo} cadastrado (entre os que batem com a busca e a categoria).`)
       : (soComEstoque ? "Nenhum pneu em estoque encontrado." : "Nenhum pneu encontrado.");
     empty.style.display = "block";
     return;
@@ -2010,6 +2036,13 @@ function renderCatalogo() {
     // o pneu já passou pelo filtro -- mas pode não ter preço pra condição exibida
     // agora (na região filtrada, se houver). Nesse caso troca a lista por um aviso.
     const semPrecoNenhum = !codigosComPreco.has(p.codigo);
+    // modo "Todos os tipos": um chip por tipo de cliente, marcado quando o pneu tem preço daquele
+    // tipo (respeitando os filtros de condição/região, se ligados) -- igual à regra da lista.
+    const chipsTipos = todosTipos ? TIPO_CLIENTE_OPCOES.map(t => {
+      const tem = getPrecosDoProduto(p.codigo, t).some(x =>
+        (!condicao || x.condicaoPagamento === condicao) && (!regiao || x.regiao === regiao));
+      return `<span class="cat-tipo-chip${tem ? " tem" : ""}">${tem ? "✓ " : "— "}${escapeHtml(TIPO_CLIENTE_LABEL[t])}</span>`;
+    }).join("") : "";
     const temPrecoNestaCondicao = getPrecosDoProduto(p.codigo, tipoCliente)
       .some(x => x.condicaoPagamento === condicaoAtual && (!regiao || x.regiao === regiao));
     // Card compacto: só as regiões COM preço pra essa condição (linha "—"
@@ -2060,8 +2093,11 @@ function renderCatalogo() {
         ` : ""}
 
         <div class="catalogo-card-divider"></div>
-        ${semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : `
-        <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
+        ${semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : todosTipos ? `
+        <div class="catalogo-preco-condicao">Preços cadastrados</div>
+        <div class="cat-tipos">${chipsTipos}</div>
+        <div class="cat-dica">Escolha um tipo de cliente acima para ver os valores.</div>` : `
+        <div class="catalogo-preco-condicao">Preço —${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
         ${temPrecoNestaCondicao
           ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
           : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}

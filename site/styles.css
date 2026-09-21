@@ -1872,6 +1872,20 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   margin-top:12px; padding:8px 10px; border-radius:8px; font-size:11.5px; line-height:1.4;
   background:var(--warning-pale); border:1px solid var(--warning-border); color:var(--warning);
 }
+/* contador acima da lista e chips de tipo de cliente do modo "Todos os tipos" */
+.cat-contador{
+  display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline;
+  margin:2px 0 12px; font-size:12.5px; color:var(--ink-soft);
+}
+.cat-contador .num{font-family:'Space Mono',monospace; font-weight:700; color:var(--ink);}
+.cat-contador .aviso-oculto{color:var(--orange-deep); font-weight:600;}
+.cat-tipos{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.cat-tipo-chip{
+  display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px;
+  font-size:11px; font-weight:700; border:1px solid var(--line); color:var(--ink-soft); background:var(--paper);
+}
+.cat-tipo-chip.tem{background:var(--status-good-pale); border-color:var(--status-good-border); color:var(--status-good-deep);}
+.cat-dica{margin-top:10px; font-size:11.5px; line-height:1.4; color:var(--ink-soft);}
 
 /* editor de preços com abas por tipo de cliente -- usado no drawer "Editar
    produto" e no form "Novo produto" (buildPrecoEditorHtml em app.js) */

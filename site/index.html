@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=131">
+<link rel="stylesheet" href="styles.css?v=132">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -948,9 +948,10 @@
             </select>
           </div>
         </div>
-        <div class="note">Os pneus com preço aparecem quando o preço bate com os filtros: <b>tipo de cliente</b> (sempre) + <b>condição de pagamento</b> e <b>região</b>, quando escolhidas. Pneu que ainda não tem preço nenhum aparece com o aviso "Sem preço cadastrado" (some se você filtrar por condição ou região). Pneu <b>Descontinuado</b> não aparece.</div>
+        <div class="note">Com um tipo de cliente escolhido, a lista traz os pneus com preço daquele tipo (e da <b>condição de pagamento</b> e da <b>região</b>, quando escolhidas) e o card mostra os valores. Em <b>Todos os tipos</b> a lista traz todos os pneus e cada card mostra em quais tipos o pneu tem preço. Pneu que ainda não tem preço nenhum aparece com o aviso "Sem preço cadastrado" (some se você filtrar por condição ou região). Pneu <b>Descontinuado</b> não aparece.</div>
       </div>
 
+      <div class="cat-contador" id="catalogoContador" aria-live="polite"></div>
       <div class="catalogo-grid" id="catalogoGrid"></div>
       <div class="empty-state" id="catalogoEmpty" style="display:none;">Nenhum pneu encontrado.</div>
     </section>
@@ -2472,6 +2473,6 @@
   </div>
 </div>
 
-<script src="app.js?v=189"></script>
+<script src="app.js?v=190"></script>
 </body>
 </html>
