@@ -688,6 +688,16 @@ function primeiraViewPermitida() {
 }
 
 function setView(view) {
+  // sair de Coleta com um romaneio aberto (ex: clicou em "Estoque" sem clicar em "Voltar pra
+  // lista") sem isso deixava coletaEditingId pendurado -- ao voltar depois pra Coleta pelo menu, a
+  // pessoa caía direto de volta no mesmo romaneio (às vezes com o quadro de assinatura quebrado, já
+  // que o resize da janela nesse meio-tempo redimensionava um canvas escondido) em vez da lista
+  // (achado em revisão)
+  if (view !== "coleta" && coletaEditingId) {
+    coletaEditingId = null;
+    document.getElementById("coletaDetalheWrap").style.display = "none";
+    document.getElementById("coletaListaWrap").style.display = "block";
+  }
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === view));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + view));
   if (view === "dashboard") renderDashboard();
@@ -3023,7 +3033,6 @@ function resetFreteItens() {
 // do sistema) -- só transportadora e data (gravadas no INSERT) sobrevivem.
 
 const ROMANEIO_BUCKET = "romaneios-assinaturas";
-const COLETA_ETAPAS_ELEGIVEIS = ["SEPARACAO", "AGUARDANDO_COLETA", "COLETA"];
 let coletaEditingId = null;
 
 function coletaBuscaTexto(e, r) {
@@ -3031,10 +3040,23 @@ function coletaBuscaTexto(e, r) {
     .filter(Boolean).join(" ").toLowerCase();
 }
 
+function coletaRomaneioAtual() {
+  return state.romaneios.find(x => x.id === coletaEditingId);
+}
+
+// Etapas do Kanban em que já faz sentido carregar o caminhão -- fatia de ETAPAS_PEDIDO (definido
+// mais abaixo, na seção de Entregas) em vez de copiar as 3 etapas à mão, pra nunca desalinhar se o
+// pipeline mudar. Só pode ser lido de dentro de uma função: ETAPAS_PEDIDO ainda não existe aqui no
+// topo do arquivo, só depois que o script inteiro carrega (e a UI só chama isso bem depois disso).
+function coletaEtapasElegiveis() {
+  return ETAPAS_PEDIDO.slice(ETAPAS_PEDIDO.indexOf("SEPARACAO"), ETAPAS_PEDIDO.indexOf("COLETA") + 1);
+}
+
 // Pedidos que ainda não têm romaneio ativo, nas etapas em que já faz sentido carregar o caminhão.
 function entregasProntasParaColeta() {
+  const etapas = coletaEtapasElegiveis();
   return state.entregas.filter(e =>
-    !e.cancelado && e.numeroNF && COLETA_ETAPAS_ELEGIVEIS.includes(e.etapa) &&
+    !e.cancelado && e.numeroNF && etapas.includes(e.etapa) &&
     !state.romaneios.some(r => r.entregaId === e.id && !r.cancelado)
   );
 }
@@ -3058,7 +3080,7 @@ function renderColeta() {
   `).join("");
   document.getElementById("coletaPendentesVazio").style.display = pendentes.length ? "none" : "block";
   listaPendentes.querySelectorAll("[data-gerarromaneio]").forEach(btn => {
-    btn.addEventListener("click", () => criarRomaneioParaPedido(btn.dataset.gerarromaneio));
+    btn.addEventListener("click", () => criarRomaneioParaPedido(btn.dataset.gerarromaneio, btn));
   });
 
   const gerados = state.romaneios.filter(r => !r.cancelado)
@@ -3083,16 +3105,28 @@ function renderColeta() {
   });
 }
 
-async function criarRomaneioParaPedido(entregaId) {
+// `btn` é opcional (só quando chamado do clique na lista) -- trava contra clique duplo, que sem
+// isso disparava 2 INSERTs pro mesmo pedido antes do primeiro re-renderizar a lista, e a pessoa via
+// o erro cru do Postgres da constraint única (achado em revisão).
+async function criarRomaneioParaPedido(entregaId, btn) {
   const entrega = state.entregas.find(e => e.id === entregaId);
   if (!entrega) return;
+  if (btn) btn.disabled = true;
   const { data, error } = await sb.from("romaneios").insert({
     entrega_id: entregaId,
     transportadora: entrega.transportadora || "",
     data_coleta: todayISO(),
     created_by: currentUser ? currentUser.id : null
   }).select().single();
-  if (error) { toast("Erro ao gerar romaneio: " + error.message); return; }
+  if (error) {
+    const duplicado = /duplicate key|unique constraint/i.test(error.message || "");
+    toast(duplicado
+      ? "Esse pedido já tem um romaneio em andamento -- a lista foi atualizada."
+      : "Erro ao gerar romaneio: " + error.message);
+    if (duplicado) renderColeta(); // outra pessoa/aba já criou o romaneio -- some da lista de pendentes
+    else if (btn) btn.disabled = false;
+    return;
+  }
   const novo = romaneioFromRow(data);
   state.romaneios.push(novo);
   await registrarLog("romaneios", novo.id, "edicao", "Ação automática",
@@ -3133,6 +3167,10 @@ async function abrirRomaneioDetalhe(romaneioId) {
 
   document.getElementById("romaneioAcoesAntes").style.display = travado ? "none" : "flex";
   document.getElementById("romaneioAcoesDepois").style.display = travado ? "block" : "none";
+  // depois de assinado a coleta já aconteceu de verdade -- "cancelar" ia devolver o pedido pra
+  // "prontos pra carregar" como se nada tivesse saído, com a assinatura já feita órfã no Storage
+  // (achado em revisão)
+  document.getElementById("btnCancelarRomaneio").style.display = travado ? "none" : "";
   if (travado) {
     document.getElementById("romAssinadoInfo").textContent =
       `Assinado em ${new Date(r.assinadoEm).toLocaleString("pt-BR")}${r.motoristaNome ? " por " + r.motoristaNome : ""}.`;
@@ -3146,8 +3184,11 @@ async function abrirRomaneioDetalhe(romaneioId) {
 }
 
 async function cancelarRomaneioAtual() {
-  const r = state.romaneios.find(x => x.id === coletaEditingId);
+  const r = coletaRomaneioAtual();
   if (!r) return;
+  // reforço server-independente do botão escondido acima (abrirRomaneioDetalhe) -- cancelar um
+  // romaneio já assinado não devia ser possível por aqui de jeito nenhum
+  if (r.assinadoEm) { toast("Romaneio já assinado -- não é possível cancelar por aqui."); return; }
   const motivo = await motivoModal("Cancelar romaneio?",
     "O pedido volta pra lista de \"Pedidos prontos pra carregar\", pra gerar outro romaneio se precisar. Informe o motivo.");
   if (!motivo) return;
@@ -3224,7 +3265,10 @@ async function prepararCanvasAssinatura(r, travado) {
 function initAssinaturaCanvas() {
   const canvas = document.getElementById("assinaturaCanvas");
   window.addEventListener("resize", () => {
-    const r = state.romaneios.find(x => x.id === coletaEditingId);
+    // sai logo se a tela de Coleta nem está aberta (é o caso a quase todo instante da sessão) --
+    // sem isso, cada resize da janela inteira varria state.romaneios à toa (achado em revisão)
+    if (!coletaEditingId) return;
+    const r = coletaRomaneioAtual();
     if (r && !r.assinadoEm) resizeAssinaturaCanvas(); // redesenhar do zero é aceitável (assina de novo)
   });
   const pos = (e) => { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
@@ -3245,9 +3289,17 @@ function initAssinaturaCanvas() {
 }
 
 async function salvarEAssinarRomaneio() {
-  const r = state.romaneios.find(x => x.id === coletaEditingId);
+  const r = coletaRomaneioAtual();
   const e = r && state.entregas.find(x => x.id === r.entregaId);
   if (!r || !e) return;
+  // outra aba/pessoa pode ter cancelado esse mesmo romaneio enquanto esta tela ficou aberta (ex:
+  // motorista demorou pra assinar) -- sem essa checagem, assinar reviveria um romaneio cancelado
+  // (achado em revisão)
+  if (r.cancelado) {
+    toast("Este romaneio foi cancelado nesse meio-tempo -- volte pra lista e gere um novo.");
+    voltarColetaLista();
+    return;
+  }
   const transportadora = document.getElementById("romTransportadora").value.trim();
   const motorista = document.getElementById("romMotorista").value.trim();
   const documento = document.getElementById("romDocumento").value.trim();
@@ -3327,25 +3379,45 @@ function buildRomaneioPrintHtml(r, e, assinaturaUrl) {
     </div>`;
 }
 
+function limparImpressaoRomaneio() {
+  document.body.classList.remove("imprimindo-doc");
+  document.getElementById("reportPrintArea").innerHTML = "";
+}
+
 async function gerarRomaneioPdf(romaneioId) {
   const r = state.romaneios.find(x => x.id === romaneioId);
   const e = r && state.entregas.find(x => x.id === r.entregaId);
   if (!r || !e) return;
-  let assinaturaUrl = null;
-  if (r.assinaturaPath) {
-    const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 60);
-    if (!error && data) assinaturaUrl = data.signedUrl;
+  const btn = document.getElementById("btnBaixarRomaneioPdf");
+  const rotuloOriginal = btn.textContent;
+  btn.disabled = true;
+  try {
+    let assinaturaUrl = null;
+    if (r.assinaturaPath) {
+      const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 60);
+      if (!error && data) assinaturaUrl = data.signedUrl;
+    }
+    const area = document.getElementById("reportPrintArea");
+    document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
+    document.body.classList.add("imprimindo-doc");
+    area.innerHTML = buildRomaneioPrintHtml(r, e, assinaturaUrl);
+    // mesmo teto de 10s do Catálogo: aba em segundo plano pode segurar o decode() indefinidamente,
+    // e a impressão não pode ficar presa esperando (achado em revisão -- aqui não tinha teto nenhum)
+    const esperaLimite = new Promise(resolve => setTimeout(resolve, 10000));
+    await Promise.race([
+      Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve()))),
+      esperaLimite
+    ]);
+    window.addEventListener("afterprint", limparImpressaoRomaneio, { once: true });
+    window.print();
+  } catch (err) {
+    console.error("Erro ao gerar o PDF do romaneio:", err);
+    limparImpressaoRomaneio();
+    toast("Não foi possível gerar o PDF do romaneio: " + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = rotuloOriginal;
   }
-  const area = document.getElementById("reportPrintArea");
-  document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
-  document.body.classList.add("imprimindo-doc");
-  area.innerHTML = buildRomaneioPrintHtml(r, e, assinaturaUrl);
-  await Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve())));
-  window.addEventListener("afterprint", () => {
-    document.body.classList.remove("imprimindo-doc");
-    area.innerHTML = "";
-  }, { once: true });
-  window.print();
 }
 
 /* ---- flecha "Fretes" -> mostra/esconde "Coleta" aninhada no menu ---- */
@@ -7855,7 +7927,8 @@ function initDashPdfButtons() {
 
 const LOG_TABELA_LABEL = {
   movimentos: "Movimentações", produtos: "Produtos", fretes: "Fretes",
-  clientes: "Clientes", vendas: "Vendas", previsoes: "Estoque previsto", entregas: "Entregas"
+  clientes: "Clientes", vendas: "Vendas", previsoes: "Estoque previsto", entregas: "Entregas",
+  romaneios: "Coleta"
 };
 const LOG_ACAO_LABEL = { edicao: "Edição", exclusao: "Exclusão" };
 
