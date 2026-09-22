@@ -1811,16 +1811,19 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   display:block; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
   color:var(--ink-soft); margin-bottom:8px;
 }
+/* fundo e tinta sempre fixos (papel claro / traço escuro), sem seguir --paper/--ink do tema --
+   a assinatura vira PNG e vai pro PDF impresso, então precisa nascer com a mesma cara em
+   qualquer tema, senão um traço claro (legível no escuro) some no papel branco do PDF */
 .romaneio-canvas-box{
-  position:relative; height:200px; border:1.5px dashed var(--line-strong); border-radius:12px;
-  background:var(--paper); overflow:hidden; touch-action:none;
+  position:relative; height:200px; border:1.5px dashed #111111; border-radius:12px;
+  background:#F7F7F5; overflow:hidden; touch-action:none;
 }
 .romaneio-canvas-box canvas{display:block; width:100%; height:100%; touch-action:none; cursor:crosshair;}
 .romaneio-canvas-box img{width:100%; height:100%; object-fit:contain; display:block;}
-.romaneio-canvas-linha{position:absolute; left:24px; right:24px; bottom:46px; border-top:1px solid var(--line-strong); opacity:.35; pointer-events:none;}
+.romaneio-canvas-linha{position:absolute; left:24px; right:24px; bottom:46px; border-top:1px solid #111111; opacity:.35; pointer-events:none;}
 .romaneio-canvas-hint{
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  font-size:12.5px; color:var(--ink-soft); pointer-events:none; text-align:center; padding:0 20px;
+  font-size:12.5px; color:#6B6B6B; pointer-events:none; text-align:center; padding:0 20px;
 }
 .romaneio-canvas-box.travado{border-style:solid; cursor:default;}
 

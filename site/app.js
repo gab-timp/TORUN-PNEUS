@@ -3258,9 +3258,9 @@ function resizeAssinaturaCanvas() {
   romCtx.lineWidth = 2.4;
   romCtx.lineCap = "round";
   romCtx.lineJoin = "round";
-  // lê a cor do tema atual (--ink) em vez de fixar uma -- no escuro a tinta precisa ser clara
-  const corTema = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
-  romCtx.strokeStyle = corTema || "#161616";
+  // tinta sempre escura, nunca segue --ink do tema -- a assinatura vira PNG e vai pro PDF
+  // impresso (papel branco), então um traço claro (pensado pro fundo escuro) ficaria invisível
+  romCtx.strokeStyle = "#161616";
 }
 
 function limparCanvasAssinatura() {
