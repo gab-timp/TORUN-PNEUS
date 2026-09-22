@@ -223,6 +223,16 @@ function produtoFromRow(r) {
     marca: r.marca || "", carcaca: r.carcaca || "", ncm: r.ncm || "", situacao: r.situacao || "ATIVO"
   };
 }
+function romaneioFromRow(r) {
+  return {
+    id: r.id, entregaId: r.entrega_id, transportadora: r.transportadora || "",
+    motoristaNome: r.motorista_nome || "", motoristaDocumento: r.motorista_documento || "",
+    veiculoPlaca: r.veiculo_placa || "", dataColeta: r.data_coleta || "",
+    assinaturaPath: r.assinatura_path || null, assinadoEm: r.assinado_em || null,
+    cancelado: !!r.cancelado, canceladoMotivo: r.cancelado_motivo || "", canceladoEm: r.cancelado_em || null,
+    createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
 function precoFromRow(r) {
   return { id: r.id, codigo: r.codigo, regiao: r.regiao, tipoCliente: r.tipo_cliente, condicaoPagamento: r.condicao_pagamento, preco: Number(r.preco) };
 }
@@ -263,6 +273,7 @@ async function loadState() {
       fetchComRetry(() => sb.from("vendas").select("*").order("data")),
       fetchComRetry(() => sb.from("previsoes").select("*")),
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
+      fetchComRetry(() => sb.from("romaneios").select("*").order("created_at", { ascending: false })),
       fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
@@ -270,11 +281,11 @@ async function loadState() {
     ]),
     fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
   ]);
-  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, roleRes, prefRes, preCadRes, notifRes] = results;
+  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
   configuracoesSite = configRes.data || null;
   ESTOQUE_BAIXO_LIMITE = (configuracoesSite && configuracoesSite.estoque_baixo_limite) || 20;
-  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
+  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "romaneios", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
   let falhaCritica = false;
   let falhaPerfil = null;
   results.forEach((r, i) => {
@@ -348,6 +359,7 @@ async function loadState() {
     vendas: (vendasRes.data || []).map(vendaFromRow),
     previsoes: (previsoesRes.data || []).map(previstoFromRow),
     entregas: (entregasRes.data || []).map(entregaFromRow),
+    romaneios: (romaneiosRes.data || []).map(romaneioFromRow),
     clientesPendentes: preCadRes.data || [],
     notificacoes: (notifRes.data || []).map(notificacaoFromRow)
   };
@@ -685,6 +697,7 @@ function setView(view) {
   if (view === "produtos") renderProdutos();
   if (view === "catalogo") renderCatalogo();
   if (view === "fretes") renderFretes();
+  if (view === "coleta") renderColeta();
   if (view === "entregas") { renderClienteSelect(); renderFaturamentoDatalists(); renderEntregas(); }
   if (view === "faturamento") { renderClienteSelect(); renderFaturamentoDatalists(); renderFaturamento(); renderVendas(); }
   if (view === "clientes") renderClientes();
@@ -2411,7 +2424,7 @@ async function paginarCatalogoPdf(area) {
 }
 
 function limparImpressaoCatalogo() {
-  document.body.classList.remove("imprimindo-catalogo");
+  document.body.classList.remove("imprimindo-doc");
   document.body.style.zoom = ""; // volta ao tamanho de letra escolhido pelo usuário
   document.getElementById("reportPrintArea").innerHTML = "";
   catalogoPdfBlobUrls.forEach(u => URL.revokeObjectURL(u)); // libera as fotos reduzidas da memória
@@ -2489,7 +2502,7 @@ async function gerarCatalogoPdf(rotulos) {
     // tamanho de letra do app (zoom no body) fora enquanto mede e imprime: senão a paginação, medida em
     // px, não bate com a página impressa
     document.body.style.zoom = "1";
-    document.body.classList.add("imprimindo-catalogo"); // esconde o app na impressão (senão sai página em branco)
+    document.body.classList.add("imprimindo-doc"); // esconde o app na impressão (senão sai página em branco)
     area.innerHTML = buildCatalogoPdfHtml(produtos, fotos);
     await paginarCatalogoPdf(area);
     // só abre a impressão quando o logo e as fotos estiverem decodificados (com teto de tempo: se a
@@ -2993,6 +3006,367 @@ function resetFreteItens() {
   container.appendChild(createFreteItemRow());
   container.appendChild(createFreteItemRow());
   updateFreteItemRemoveVisibility();
+}
+
+/* ---------------- render: COLETA (ROMANEIO) ---------------- */
+// "Coleta" fica aninhada embaixo de "Fretes" no menu (atrás da flecha, ver
+// initFretesColetaToggle), mas é uma view própria (data-view="coleta"), não uma subaba dentro da
+// tela de Fretes -- Fretes continua uma tela normal, sem nada disso dentro dela.
+//
+// Um romaneio por Nota Fiscal (decisão do usuário): a linha em `romaneios` nasce no clique de
+// "Gerar romaneio" (INSERT já com created_by, transportadora e data de hoje pré-preenchidos) e só
+// fica de verdade "Assinado" depois de romCtx/assinaturaCanvas terem um traço e
+// salvarEAssinarRomaneio() gravar a imagem + travar os campos. Se alguém sai da tela antes de
+// assinar, o rascunho continua em "Romaneios gerados" como "Aguardando assinatura" (o pedido NÃO
+// volta pra "prontos pra carregar" -- só cancelando o rascunho libera outro), mas motorista/
+// documento/placa digitados sem salvar se perdem (não tem autosave a cada tecla, igual ao resto
+// do sistema) -- só transportadora e data (gravadas no INSERT) sobrevivem.
+
+const ROMANEIO_BUCKET = "romaneios-assinaturas";
+const COLETA_ETAPAS_ELEGIVEIS = ["SEPARACAO", "AGUARDANDO_COLETA", "COLETA"];
+let coletaEditingId = null;
+
+function coletaBuscaTexto(e, r) {
+  return [e.numeroNF, e.numeroPedido, e.cliente, e.destino, e.transportadora, r && r.motoristaNome, r && r.veiculoPlaca]
+    .filter(Boolean).join(" ").toLowerCase();
+}
+
+// Pedidos que ainda não têm romaneio ativo, nas etapas em que já faz sentido carregar o caminhão.
+function entregasProntasParaColeta() {
+  return state.entregas.filter(e =>
+    !e.cancelado && e.numeroNF && COLETA_ETAPAS_ELEGIVEIS.includes(e.etapa) &&
+    !state.romaneios.some(r => r.entregaId === e.id && !r.cancelado)
+  );
+}
+
+function renderColeta() {
+  const termo = (document.getElementById("coletaBusca").value || "").trim().toLowerCase();
+
+  const pendentes = entregasProntasParaColeta()
+    .filter(e => !termo || coletaBuscaTexto(e).includes(termo))
+    .sort((a, b) => (a.data || "").localeCompare(b.data || ""));
+  const listaPendentes = document.getElementById("coletaListaPendentes");
+  listaPendentes.innerHTML = pendentes.map(e => `
+    <div class="romaneio-row">
+      <div class="romaneio-row-main">
+        <span class="romaneio-row-nf">NF ${escapeHtml(e.numeroNF)}${e.numeroPedido ? " · Ped. " + escapeHtml(e.numeroPedido) : ""}</span>
+        <span class="romaneio-row-cliente">${escapeHtml(e.cliente || "—")}${e.destino ? " — " + escapeHtml(e.destino) : ""}</span>
+      </div>
+      <span class="romaneio-row-transp">${escapeHtml(e.transportadora || "—")}</span>
+      <button type="button" class="btn primary small write-ui" data-gerarromaneio="${escapeAttr(e.id)}">Gerar romaneio</button>
+    </div>
+  `).join("");
+  document.getElementById("coletaPendentesVazio").style.display = pendentes.length ? "none" : "block";
+  listaPendentes.querySelectorAll("[data-gerarromaneio]").forEach(btn => {
+    btn.addEventListener("click", () => criarRomaneioParaPedido(btn.dataset.gerarromaneio));
+  });
+
+  const gerados = state.romaneios.filter(r => !r.cancelado)
+    .map(r => ({ r, e: state.entregas.find(x => x.id === r.entregaId) }))
+    .filter(x => x.e)
+    .filter(x => !termo || coletaBuscaTexto(x.e, x.r).includes(termo))
+    .sort((a, b) => (b.r.createdAt || "").localeCompare(a.r.createdAt || ""));
+  const listaGerados = document.getElementById("coletaListaGerados");
+  listaGerados.innerHTML = gerados.map(({ r, e }) => `
+    <div class="romaneio-row">
+      <div class="romaneio-row-main">
+        <span class="romaneio-row-nf">NF ${escapeHtml(e.numeroNF)}${e.numeroPedido ? " · Ped. " + escapeHtml(e.numeroPedido) : ""}</span>
+        <span class="romaneio-row-cliente">${escapeHtml(e.cliente || "—")}${e.destino ? " — " + escapeHtml(e.destino) : ""}</span>
+      </div>
+      <span class="status-pill ${r.assinadoEm ? "pill-normal" : "pill-atencao"}">${r.assinadoEm ? "Assinado" : "Aguardando assinatura"}</span>
+      <button type="button" class="btn small outline" data-verromaneio="${escapeAttr(r.id)}">${r.assinadoEm ? "Ver" : "Continuar"}</button>
+    </div>
+  `).join("");
+  document.getElementById("coletaGeradosVazio").style.display = gerados.length ? "none" : "block";
+  listaGerados.querySelectorAll("[data-verromaneio]").forEach(btn => {
+    btn.addEventListener("click", () => abrirRomaneioDetalhe(btn.dataset.verromaneio));
+  });
+}
+
+async function criarRomaneioParaPedido(entregaId) {
+  const entrega = state.entregas.find(e => e.id === entregaId);
+  if (!entrega) return;
+  const { data, error } = await sb.from("romaneios").insert({
+    entrega_id: entregaId,
+    transportadora: entrega.transportadora || "",
+    data_coleta: todayISO(),
+    created_by: currentUser ? currentUser.id : null
+  }).select().single();
+  if (error) { toast("Erro ao gerar romaneio: " + error.message); return; }
+  const novo = romaneioFromRow(data);
+  state.romaneios.push(novo);
+  await registrarLog("romaneios", novo.id, "edicao", "Ação automática",
+    `Romaneio criado pro pedido NF ${entrega.numeroNF || entrega.numeroPedido || "—"}`);
+  abrirRomaneioDetalhe(novo.id);
+}
+
+function voltarColetaLista() {
+  coletaEditingId = null;
+  document.getElementById("coletaDetalheWrap").style.display = "none";
+  document.getElementById("coletaListaWrap").style.display = "block";
+  renderColeta();
+}
+
+async function abrirRomaneioDetalhe(romaneioId) {
+  const r = state.romaneios.find(x => x.id === romaneioId);
+  const e = r && state.entregas.find(x => x.id === r.entregaId);
+  if (!r || !e) { toast("Romaneio não encontrado."); return; }
+  coletaEditingId = romaneioId;
+
+  document.getElementById("romResumo").innerHTML = `
+    <div><span class="lbl">Cliente</span><span class="val">${escapeHtml(e.cliente || "—")}</span></div>
+    <div><span class="lbl">Destino</span><span class="val">${escapeHtml(e.destino || "—")}</span></div>
+    <div><span class="lbl">Nota Fiscal</span><span class="val mono">${escapeHtml(e.numeroNF || "—")}</span></div>
+  `;
+
+  const travado = !!r.assinadoEm;
+  document.getElementById("romTransportadora").value = r.transportadora || "";
+  document.getElementById("romMotorista").value = r.motoristaNome || "";
+  document.getElementById("romDocumento").value = r.motoristaDocumento || "";
+  document.getElementById("romPlaca").value = r.veiculoPlaca || "";
+  document.getElementById("romData").value = r.dataColeta || "";
+  document.querySelectorAll(".romaneio-form input").forEach(el => { el.disabled = travado; });
+
+  const pill = document.getElementById("romStatusPill");
+  pill.className = "status-pill " + (travado ? "pill-normal" : "pill-atencao");
+  pill.textContent = travado ? "Assinado" : "Aguardando assinatura";
+
+  document.getElementById("romaneioAcoesAntes").style.display = travado ? "none" : "flex";
+  document.getElementById("romaneioAcoesDepois").style.display = travado ? "block" : "none";
+  if (travado) {
+    document.getElementById("romAssinadoInfo").textContent =
+      `Assinado em ${new Date(r.assinadoEm).toLocaleString("pt-BR")}${r.motoristaNome ? " por " + r.motoristaNome : ""}.`;
+  }
+
+  await prepararCanvasAssinatura(r, travado);
+
+  document.getElementById("coletaListaWrap").style.display = "none";
+  document.getElementById("coletaDetalheWrap").style.display = "block";
+  window.scrollTo(0, 0);
+}
+
+async function cancelarRomaneioAtual() {
+  const r = state.romaneios.find(x => x.id === coletaEditingId);
+  if (!r) return;
+  const motivo = await motivoModal("Cancelar romaneio?",
+    "O pedido volta pra lista de \"Pedidos prontos pra carregar\", pra gerar outro romaneio se precisar. Informe o motivo.");
+  if (!motivo) return;
+  const { data: rowAtualizada, error } = await sb.from("romaneios").update({
+    cancelado: true, cancelado_motivo: motivo, cancelado_em: new Date().toISOString(),
+    cancelado_por: currentUser ? currentUser.id : null
+  }).eq("id", r.id).select().single();
+  if (error) { toast("Erro ao cancelar: " + error.message); return; }
+  Object.assign(r, romaneioFromRow(rowAtualizada));
+  const e = state.entregas.find(x => x.id === r.entregaId);
+  await registrarLog("romaneios", r.id, "exclusao", motivo,
+    `Romaneio cancelado — NF ${e ? (e.numeroNF || "—") : "—"}`);
+  toast("Romaneio cancelado.");
+  voltarColetaLista();
+}
+
+/* ---- assinatura (canvas desenhável) ---- */
+
+let romCtx = null, romDrawing = false, romHasStroke = false, romLast = null;
+
+function resizeAssinaturaCanvas() {
+  const canvas = document.getElementById("assinaturaCanvas");
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  romCtx = canvas.getContext("2d");
+  romCtx.setTransform(1, 0, 0, 1, 0, 0);
+  romCtx.scale(dpr, dpr);
+  romCtx.lineWidth = 2.4;
+  romCtx.lineCap = "round";
+  romCtx.lineJoin = "round";
+  // lê a cor do tema atual (--ink) em vez de fixar uma -- no escuro a tinta precisa ser clara
+  const corTema = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
+  romCtx.strokeStyle = corTema || "#161616";
+}
+
+function limparCanvasAssinatura() {
+  const canvas = document.getElementById("assinaturaCanvas");
+  resizeAssinaturaCanvas();
+  romCtx.clearRect(0, 0, canvas.width, canvas.height);
+  romHasStroke = false;
+}
+
+// mostra o quadro pra desenhar (romaneio novo) ou a imagem já salva (romaneio assinado, inclusive
+// reaberto por "Ver" na lista) -- URL assinada porque o bucket é privado, igual aos anexos de Entregas
+async function prepararCanvasAssinatura(r, travado) {
+  const box = document.getElementById("romCanvasBox");
+  box.classList.toggle("travado", travado);
+  box.style.borderColor = "";
+  const imgAntiga = box.querySelector("img");
+  if (imgAntiga) imgAntiga.remove();
+  const canvas = document.getElementById("assinaturaCanvas");
+  const hint = document.getElementById("romCanvasHint");
+  if (travado) {
+    canvas.style.display = "none";
+    hint.style.display = "none";
+    if (r.assinaturaPath) {
+      const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 300);
+      if (!error && data) {
+        const img = document.createElement("img");
+        img.src = data.signedUrl;
+        img.alt = "Assinatura do motorista";
+        box.appendChild(img);
+      }
+    }
+  } else {
+    canvas.style.display = "block";
+    limparCanvasAssinatura();
+    hint.style.display = "flex";
+  }
+}
+
+function initAssinaturaCanvas() {
+  const canvas = document.getElementById("assinaturaCanvas");
+  window.addEventListener("resize", () => {
+    const r = state.romaneios.find(x => x.id === coletaEditingId);
+    if (r && !r.assinadoEm) resizeAssinaturaCanvas(); // redesenhar do zero é aceitável (assina de novo)
+  });
+  const pos = (e) => { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
+  canvas.addEventListener("pointerdown", (e) => {
+    romDrawing = true; romHasStroke = true; romLast = pos(e);
+    // captura o ponteiro pra continuar recebendo pointermove mesmo se o dedo/mouse sair do quadro
+    // no meio do traço -- só um reforço, então uma falha aqui não pode travar o desenho
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    document.getElementById("romCanvasHint").style.display = "none";
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!romDrawing) return;
+    const p = pos(e);
+    romCtx.beginPath(); romCtx.moveTo(romLast.x, romLast.y); romCtx.lineTo(p.x, p.y); romCtx.stroke();
+    romLast = p;
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => canvas.addEventListener(ev, () => { romDrawing = false; }));
+}
+
+async function salvarEAssinarRomaneio() {
+  const r = state.romaneios.find(x => x.id === coletaEditingId);
+  const e = r && state.entregas.find(x => x.id === r.entregaId);
+  if (!r || !e) return;
+  const transportadora = document.getElementById("romTransportadora").value.trim();
+  const motorista = document.getElementById("romMotorista").value.trim();
+  const documento = document.getElementById("romDocumento").value.trim();
+  const placa = document.getElementById("romPlaca").value.trim();
+  const data = document.getElementById("romData").value;
+  if (!motorista || !documento || !placa || !data) {
+    toast("Preencha motorista, documento, placa e data antes de assinar.");
+    return;
+  }
+  if (!romHasStroke) {
+    const box = document.getElementById("romCanvasBox");
+    box.style.borderColor = "var(--danger-border)";
+    setTimeout(() => { box.style.borderColor = ""; }, 900);
+    toast("Peça pro motorista assinar antes de confirmar.");
+    return;
+  }
+
+  const btn = document.getElementById("btnConfirmarAssinatura");
+  const rotuloOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Salvando…";
+  try {
+    const canvas = document.getElementById("assinaturaCanvas");
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Não foi possível gerar a imagem da assinatura.");
+    const path = `${r.id}/assinatura-${Date.now()}.png`;
+    const { error: uploadError } = await sb.storage.from(ROMANEIO_BUCKET).upload(path, blob, { contentType: "image/png" });
+    if (uploadError) throw uploadError;
+    const { data: rowAtualizada, error } = await sb.from("romaneios").update({
+      transportadora, motorista_nome: motorista, motorista_documento: documento,
+      veiculo_placa: placa, data_coleta: data, assinatura_path: path, assinado_em: new Date().toISOString()
+    }).eq("id", r.id).select().single();
+    if (error) throw error;
+    Object.assign(r, romaneioFromRow(rowAtualizada));
+    await registrarLog("romaneios", r.id, "edicao", "Ação automática",
+      `Romaneio assinado — NF ${e.numeroNF || "—"}, motorista ${motorista}`);
+    toast("Romaneio assinado.");
+    await abrirRomaneioDetalhe(r.id);
+    renderColeta();
+  } catch (err) {
+    console.error("Erro ao assinar romaneio:", err);
+    toast("Não foi possível assinar o romaneio: " + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = rotuloOriginal;
+  }
+}
+
+/* ---- PDF do romaneio (mesmo mecanismo do Catálogo/relatórios: #reportPrintArea + window.print()) ---- */
+
+function buildRomaneioPrintHtml(r, e, assinaturaUrl) {
+  const campo = (l, v, full) => `<div${full ? ' class="full"' : ""}><span class="l">${escapeHtml(l)}</span><span class="v">${v}</span></div>`;
+  return `
+    <div class="print-romaneio">
+      <div class="pr-topo">
+        <img src="assets/logo-light.png" class="pr-logo" alt="Torun Pneus">
+        <div>
+          <h1>Romaneio de Coleta</h1>
+          <div class="pr-sub">Gerado em ${formatDateBR(todayISO())} às ${new Date().toLocaleTimeString("pt-BR")}</div>
+        </div>
+      </div>
+      <div class="pr-campos">
+        ${campo("Nota Fiscal", `<span class="mono">${escapeHtml(e.numeroNF || "—")}</span>`)}
+        ${campo("Pedido", escapeHtml(e.numeroPedido || "—"))}
+        ${campo("Cliente", escapeHtml(e.cliente || "—") + (e.destino ? " — " + escapeHtml(e.destino) : ""), true)}
+        ${campo("Transportadora", escapeHtml(r.transportadora || "—"))}
+        ${campo("Data da coleta", r.dataColeta ? formatDateBR(r.dataColeta) : "—")}
+        ${campo("Motorista", escapeHtml(r.motoristaNome || "—"))}
+        ${campo("Documento", escapeHtml(r.motoristaDocumento || "—"))}
+        ${campo("Placa do veículo", escapeHtml(r.veiculoPlaca || "—"), true)}
+      </div>
+      <div class="pr-assinatura">
+        <span class="l">Assinatura do motorista</span>
+        ${assinaturaUrl ? `<img src="${escapeAttr(assinaturaUrl)}" alt="Assinatura">` : ""}
+        <div class="pr-assinatura-meta">Assinado em ${r.assinadoEm ? new Date(r.assinadoEm).toLocaleString("pt-BR") : "—"}</div>
+      </div>
+    </div>`;
+}
+
+async function gerarRomaneioPdf(romaneioId) {
+  const r = state.romaneios.find(x => x.id === romaneioId);
+  const e = r && state.entregas.find(x => x.id === r.entregaId);
+  if (!r || !e) return;
+  let assinaturaUrl = null;
+  if (r.assinaturaPath) {
+    const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 60);
+    if (!error && data) assinaturaUrl = data.signedUrl;
+  }
+  const area = document.getElementById("reportPrintArea");
+  document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
+  document.body.classList.add("imprimindo-doc");
+  area.innerHTML = buildRomaneioPrintHtml(r, e, assinaturaUrl);
+  await Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve())));
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("imprimindo-doc");
+    area.innerHTML = "";
+  }, { once: true });
+  window.print();
+}
+
+/* ---- flecha "Fretes" -> mostra/esconde "Coleta" aninhada no menu ---- */
+
+const FRETES_COLETA_KEY = "torun_fretes_coleta_recolhido_v1";
+function initFretesColetaToggle() {
+  const grupo = document.getElementById("navFretesGrupo");
+  const toggle = document.getElementById("btnToggleColeta");
+  let recolhidoSalvo = false;
+  try { recolhidoSalvo = localStorage.getItem(FRETES_COLETA_KEY) === "1"; } catch (e) {}
+  if (recolhidoSalvo) {
+    grupo.classList.add("recolhido");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.title = "Mostrar Coleta";
+  }
+  toggle.addEventListener("click", () => {
+    const recolhido = grupo.classList.toggle("recolhido");
+    toggle.setAttribute("aria-expanded", String(!recolhido));
+    toggle.title = recolhido ? "Mostrar Coleta" : "Ocultar Coleta";
+    try { localStorage.setItem(FRETES_COLETA_KEY, recolhido ? "1" : "0"); } catch (e) {}
+  });
 }
 
 /* ---------------- render: ENTREGAS (KANBAN) ---------------- */
@@ -5149,7 +5523,13 @@ function buscaGeralResultados(query) {
       (v.cliente || "").toLowerCase().includes(q) ||
       (v.vendedor || "").toLowerCase().includes(q))
     .slice(0, 4);
-  return { produtos, clientes, entregas, vendas };
+  // romaneio não tem NF/cliente próprios -- eles moram no pedido ligado (entrega_id)
+  const romaneios = state.romaneios
+    .filter(r => !r.cancelado)
+    .map(r => ({ r, e: state.entregas.find(x => x.id === r.entregaId) }))
+    .filter(x => x.e && coletaBuscaTexto(x.e, x.r).includes(q))
+    .slice(0, 4);
+  return { produtos, clientes, entregas, vendas, romaneios };
 }
 
 function marcarTrechoBusca(texto, query) {
@@ -5170,6 +5550,7 @@ function irParaResultadoBusca(view, id) {
   if (view === "clientes") openClienteModal(id);
   if (view === "entregas") openPedidoModal(id);
   if (view === "faturamento") startEditVenda(id);
+  if (view === "coleta") abrirRomaneioDetalhe(id);
 }
 
 function renderBuscaGeral() {
@@ -5185,8 +5566,8 @@ function renderBuscaGeral() {
     return;
   }
 
-  const { produtos, clientes, entregas, vendas } = resultados;
-  if (produtos.length + clientes.length + entregas.length + vendas.length === 0) {
+  const { produtos, clientes, entregas, vendas, romaneios } = resultados;
+  if (produtos.length + clientes.length + entregas.length + vendas.length + romaneios.length === 0) {
     list.innerHTML = `<div class="search-empty">Nada encontrado pra "${escapeHtml(q.trim())}".</div>`;
     dropdown.classList.add("show");
     return;
@@ -5247,6 +5628,22 @@ function renderBuscaGeral() {
         <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg></span>
         <span class="search-item-body">
           <span class="search-item-titulo">${titulo} · ${escapeHtml(v.cliente || "")}</span>
+          <span class="search-item-desc">${desc}</span>
+        </span>
+      </div>
+    `;
+    }).join("");
+  }
+  if (romaneios.length) {
+    if (produtos.length || clientes.length || entregas.length || vendas.length) html += `<div class="search-divider"></div>`;
+    html += `<div class="search-group-head">Coleta</div>` + romaneios.map(({ r, e }) => {
+      const titulo = "NF " + marcarTrechoBusca(e.numeroNF || "", q);
+      const desc = [r.assinadoEm ? "Assinado" : "Aguardando assinatura", r.motoristaNome ? marcarTrechoBusca(r.motoristaNome, q) : ""].filter(Boolean).join(" · ");
+      return `
+      <div class="search-item" data-buscaview="coleta" data-buscaid="${escapeAttr(r.id)}">
+        <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-clipboard-check"/></svg></span>
+        <span class="search-item-body">
+          <span class="search-item-titulo">${titulo} · ${escapeHtml(e.cliente || "")}</span>
           <span class="search-item-desc">${desc}</span>
         </span>
       </div>
@@ -7238,7 +7635,7 @@ function buildReportPrintHtml(def, de, ate, data) {
 function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2) {
   const def = REPORT_DEFS[reportKey];
   const data = def.build(de, ate, filtro, codigo, agrupar, filtro2);
-  document.body.classList.remove("imprimindo-catalogo"); // caso a impressão do catálogo tenha sido interrompida
+  document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
   window.print();
 }
@@ -7434,7 +7831,7 @@ function buildDashPrintHtml(cardKey) {
 
 function gerarPdfDashboard(cardKey) {
   const area = document.getElementById("reportPrintArea");
-  document.body.classList.remove("imprimindo-catalogo"); // caso a impressão do catálogo tenha sido interrompida
+  document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
   area.innerHTML = buildDashPrintHtml(cardKey);
   const img = area.querySelector(".print-dash-img");
   if (img && !img.complete) {
@@ -7608,6 +8005,7 @@ const REALTIME_TABLES = [
   { table: "vendas", key: "id", fromRow: vendaFromRow },
   { table: "previsoes", key: "id", fromRow: previstoFromRow },
   { table: "entregas", key: "id", fromRow: entregaFromRow },
+  { table: "romaneios", key: "id", fromRow: romaneioFromRow },
   { table: "notificacoes", key: "id", fromRow: notificacaoFromRow }
 ];
 
@@ -7745,6 +8143,19 @@ async function init() {
   ["freteFiltroStatus", "freteFiltroDe", "freteFiltroAte"].forEach(id => {
     document.getElementById(id).addEventListener("change", renderFretes);
   });
+
+  document.getElementById("coletaBusca").addEventListener("input", renderColeta);
+  document.getElementById("btnColetaVoltar").addEventListener("click", voltarColetaLista);
+  document.getElementById("btnCancelarRomaneio").addEventListener("click", cancelarRomaneioAtual);
+  document.getElementById("btnLimparAssinatura").addEventListener("click", () => {
+    limparCanvasAssinatura();
+    document.getElementById("romCanvasHint").style.display = "flex";
+  });
+  document.getElementById("btnConfirmarAssinatura").addEventListener("click", salvarEAssinarRomaneio);
+  document.getElementById("btnBaixarRomaneioPdf").addEventListener("click", () => gerarRomaneioPdf(coletaEditingId));
+  initAssinaturaCanvas();
+  initFretesColetaToggle();
+
   document.getElementById("cliSearch").addEventListener("input", renderClientes);
   document.getElementById("cliFiltroTag").addEventListener("change", renderClientes);
   // filtro único da tela de Faturamento (ver getVendasFiltradas()) -- qualquer um
@@ -8051,6 +8462,7 @@ const ADMIN_VIEW_DEFS = [
   { key: "produtos", label: "Produtos" },
   { key: "catalogo", label: "Catálogo" },
   { key: "fretes", label: "Fretes" },
+  { key: "coleta", label: "Coleta" },
   { key: "entregas", label: "Entregas" },
   { key: "relatorios", label: "Relatórios" },
   { key: "historico", label: "Histórico" }

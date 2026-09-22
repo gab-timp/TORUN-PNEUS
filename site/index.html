@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=141">
+<link rel="stylesheet" href="styles.css?v=142">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -124,6 +124,9 @@
       <g id="i-user" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.7" r="3.2"/><path d="M3.3 16.5c.7-3.5 2.9-5.3 6.7-5.3s6 1.8 6.7 5.3"/></g>
       <g id="i-palette" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 0 0 15c1 0 1.6-.7 1.6-1.5 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.5A3.3 3.3 0 0 0 17 9.3C17 5.5 13.9 2.5 10 2.5Z"/><circle cx="6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="5.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="6.5" r=".9" fill="currentColor" stroke="none"/></g>
       <g id="i-pencil" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12.3 3.3 16.7 7.7 7 17.4 2.5 18l.6-4.5Z"/><path d="M10.9 4.7 15.3 9.1"/></g>
+      <g id="i-clipboard-check" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4.5" y="4" width="11" height="13.5" rx="1.6"/><rect x="7.5" y="2.3" width="5" height="3" rx="1"/><path d="m7.2 10.8 2.3 2.3 3.8-4.4"/>
+      </g>
     </defs>
   </svg>
 
@@ -167,9 +170,19 @@
         <button class="nav-item" data-view="clientes" data-label="Clientes">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
         </button>
-        <button class="nav-item" data-view="fretes" data-label="Fretes">
-          <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Fretes
-        </button>
+        <div class="nav-fretes-grupo" id="navFretesGrupo">
+          <div class="nav-item-row">
+            <button class="nav-item" data-view="fretes" data-label="Fretes" style="flex:1;">
+              <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Fretes
+            </button>
+            <button type="button" class="nav-expand-toggle" id="btnToggleColeta" aria-expanded="true" aria-label="Mostrar Coleta" title="Mostrar Coleta">
+              <svg class="ic" viewBox="0 0 20 20"><use href="#i-chevron"/></svg>
+            </button>
+          </div>
+          <button class="nav-item nav-item-nested" data-view="coleta" data-label="Coleta">
+            <svg class="ic" viewBox="0 0 20 20"><use href="#i-clipboard-check"/></svg> Coleta
+          </button>
+        </div>
         <button class="nav-item" data-view="entregas" data-label="Entregas">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg> Entregas
         </button>
@@ -1037,6 +1050,101 @@
         </div>
         <div id="freteList"></div>
         <div class="empty-state" id="freteEmpty" style="display:none;">Nenhuma cotação registrada ainda.</div>
+      </div>
+    </section>
+
+    <!-- ======================= VIEW: COLETA (ROMANEIO) ======================= -->
+    <section id="view-coleta" class="view" data-table="romaneios">
+      <div id="coletaListaWrap">
+        <div class="page-head">
+          <div>
+            <h1>Coleta</h1>
+            <div class="sub">Romaneios de coleta, um por Nota Fiscal — o motorista assina no aparelho na hora do carregamento. Usa os pedidos já cadastrados em Fretes/Entregas.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="search-row">
+            <input type="text" id="coletaBusca" placeholder="Buscar por NF, pedido, cliente ou transportadora…">
+          </div>
+
+          <div id="coletaSecaoPendentes">
+            <div class="coleta-subtitulo">Pedidos prontos pra carregar</div>
+            <div class="romaneio-lista" id="coletaListaPendentes"></div>
+            <div class="empty-state" id="coletaPendentesVazio" style="display:none;">Nenhum pedido encontrado.</div>
+          </div>
+
+          <div id="coletaSecaoGerados" style="margin-top:22px;">
+            <div class="coleta-subtitulo">Romaneios gerados</div>
+            <div class="romaneio-lista" id="coletaListaGerados"></div>
+            <div class="empty-state" id="coletaGeradosVazio" style="display:none;">Nenhum romaneio encontrado.</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="coletaDetalheWrap" style="display:none;">
+        <div class="page-head">
+          <div>
+            <button type="button" class="voltar-link" id="btnColetaVoltar">← Voltar pra lista</button>
+            <h1 style="font-size:19px; margin-top:4px;">Romaneio de Coleta</h1>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button type="button" class="btn small outline danger write-ui" id="btnCancelarRomaneio">Cancelar romaneio</button>
+            <span class="status-pill" id="romStatusPill"></span>
+          </div>
+        </div>
+
+        <div class="card" style="padding:18px 18px 20px;">
+          <div class="romaneio-resumo" id="romResumo"></div>
+
+          <div class="romaneio-form">
+            <div class="form-row">
+              <div class="field grow">
+                <label for="romTransportadora">Transportadora</label>
+                <input type="text" id="romTransportadora">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field grow">
+                <label for="romMotorista">Motorista</label>
+                <input type="text" id="romMotorista" placeholder="Nome do motorista">
+              </div>
+              <div class="field">
+                <label for="romDocumento">Documento</label>
+                <input type="text" id="romDocumento" placeholder="CPF ou RG">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="romPlaca">Placa do veículo</label>
+                <input type="text" id="romPlaca" placeholder="Ex: ABC1D23">
+              </div>
+              <div class="field">
+                <label for="romData">Data da coleta</label>
+                <input type="date" id="romData">
+              </div>
+            </div>
+          </div>
+
+          <div class="romaneio-assinatura-wrap">
+            <label>Assinatura do motorista</label>
+            <div class="romaneio-canvas-box" id="romCanvasBox">
+              <canvas id="assinaturaCanvas"></canvas>
+              <div class="romaneio-canvas-linha"></div>
+              <div class="romaneio-canvas-hint" id="romCanvasHint">Toque e arraste aqui pra assinar</div>
+            </div>
+            <div id="romaneioAcoesAntes" class="form-actions write-ui" style="justify-content:space-between; margin-top:12px;">
+              <button type="button" class="btn outline" id="btnLimparAssinatura">Limpar</button>
+              <button type="button" class="btn primary" id="btnConfirmarAssinatura">Gerar e assinar romaneio</button>
+            </div>
+            <div id="romaneioAcoesDepois" style="display:none; margin-top:12px;">
+              <div class="note" id="romAssinadoInfo" style="margin-bottom:10px;"></div>
+              <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" class="btn primary" id="btnBaixarRomaneioPdf">Baixar PDF</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2508,6 +2616,6 @@
   </div>
 </div>
 
-<script src="app.js?v=201"></script>
+<script src="app.js?v=202"></script>
 </body>
 </html>

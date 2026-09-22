@@ -158,6 +158,7 @@ body[data-editable-tables~="clientes"] [data-table="clientes"] .write-ui{display
 body[data-editable-tables~="vendas"] [data-table="vendas"] .write-ui{display:revert;}
 body[data-editable-tables~="previsoes"] [data-table="previsoes"] .write-ui{display:revert;}
 body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display:revert;}
+body[data-editable-tables~="romaneios"] [data-table="romaneios"] .write-ui{display:revert;}
 
 .loading-box{
   display:flex;
@@ -282,6 +283,27 @@ body[data-editable-tables~="entregas"] [data-table="entregas"] .write-ui{display
    duas classes juntas pra garantir prioridade, independente da ordem. */
 .nav-item.admin-only{display:none;}
 body.is-admin .nav-item.admin-only{display:flex;}
+
+/* "Fretes" com uma flecha própria que revela "Coleta" aninhado embaixo -- Fretes continua um
+   nav-item normal e clicável (não é subaba, é vizinho no menu); a flecha só abre/fecha o item
+   embaixo. Estado (aberto/fechado) persiste por usuário -- ver initFretesColetaToggle() em app.js. */
+.nav-item-row{display:flex; align-items:stretch; gap:2px;}
+.nav-expand-toggle{
+  flex:0 0 auto; width:30px; display:flex; align-items:center; justify-content:center;
+  background:none; border:none; border-radius:8px; color:rgba(255,255,255,.4); cursor:pointer;
+}
+.nav-expand-toggle:hover{background:rgba(255,255,255,.08); color:var(--white);}
+.nav-expand-toggle .ic{width:11px; height:11px; transition:transform .15s ease;}
+.nav-fretes-grupo.recolhido .nav-expand-toggle .ic{transform:rotate(-90deg);}
+.nav-fretes-grupo.recolhido .nav-item-nested{display:none;}
+.nav-item-nested{padding-left:34px !important;}
+/* sidebar recolhida pra barra de ícones (modo desktop): sem espaço pra indentar ou pra flecha --
+   "Coleta" some do fluxo normal (nav-fretes-grupo/nav-item-row viram display:contents) e passa a
+   aparecer sempre como um ícone empilhado igual aos outros, independente do estado da flecha */
+.sidebar.collapsed .nav-fretes-grupo,
+.sidebar.collapsed .nav-item-row{display:contents;}
+.sidebar.collapsed .nav-expand-toggle{display:none;}
+.sidebar.collapsed .nav-item-nested{padding-left:10px !important; display:flex !important;}
 
 .sidebar-foot{
   margin-top:28px;
@@ -1726,12 +1748,82 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 }
 @media print{
   /* o fundo do app (cinza-claro) sairia na página inteira quando "Gráficos de segundo plano" está ligado */
-  body.imprimindo-catalogo{background:#fff !important;}
-  /* o app inteiro continua ocupando espaço (só ficava invisível) e, com o Catálogo aberto, isso
-     gerava dezenas de páginas em branco depois do PDF -- então some de vez enquanto imprime o catálogo */
-  body.imprimindo-catalogo > *:not(#reportPrintArea){display:none !important;}
-  body.imprimindo-catalogo #reportPrintArea{position:static;}
+  body.imprimindo-doc{background:#fff !important;}
+  /* o app inteiro continua ocupando espaço (só ficava invisível) e, com a tela de baixo aberta, isso
+     gerava dezenas de páginas em branco depois do PDF -- então some de vez enquanto imprime */
+  body.imprimindo-doc > *:not(#reportPrintArea){display:none !important;}
+  body.imprimindo-doc #reportPrintArea{position:static;}
 }
+
+/* ---- Romaneio de Coleta em PDF -- buildRomaneioPrintHtml em app.js ---- */
+.print-romaneio{font-family:'Inter',sans-serif; color:#0b0b0b; page:romaneio; max-width:480px; margin:0 auto;}
+.pr-topo{display:flex; align-items:center; gap:16px; border-bottom:3px solid #FF6A13; padding-bottom:14px; margin-bottom:22px;}
+.pr-logo{height:50px; display:block;}
+.pr-topo h1{font-size:20px; margin:0 0 3px; color:#0b0b0b; letter-spacing:-.01em;}
+.pr-sub{font-size:11.5px; color:#5a5a55;}
+.pr-campos{display:grid; grid-template-columns:1fr 1fr; gap:14px 20px; margin-bottom:26px;}
+.pr-campos .full{grid-column:1 / -1;}
+.pr-campos .l{display:block; font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#5a5a55;}
+.pr-campos .v{display:block; margin-top:3px; font-size:14.5px; font-weight:700; color:#0b0b0b;}
+.pr-assinatura{border-top:1px solid #dad8d0; padding-top:16px;}
+.pr-assinatura .l{font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#5a5a55; margin-bottom:10px; display:block;}
+.pr-assinatura img{display:block; max-width:100%; max-height:160px;}
+.pr-assinatura-meta{margin-top:8px; font-size:10.5px; color:#5a5a55;}
+@page romaneio{
+  size:A4;
+  margin:16mm;
+  @top-left{content:"";} @top-center{content:"";} @top-right{content:"";}
+  @bottom-left{content:"TORUN PNEUS · Romaneio de Coleta"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
+  @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
+}
+
+/* ---- tela de Coleta (fora da impressão) -- renderColeta()/abrirRomaneioDetalhe() em app.js ---- */
+.coleta-subtitulo{
+  font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);
+  margin-bottom:8px;
+}
+.romaneio-lista{display:flex; flex-direction:column; gap:8px;}
+.romaneio-row{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:11px 14px; background:var(--paper); border:1px solid var(--line); border-radius:10px;
+}
+.romaneio-row-main{display:flex; flex-direction:column; gap:2px; min-width:180px; flex:1 1 220px;}
+.romaneio-row-nf{font-family:'Space Mono',monospace; font-weight:700; font-size:13px;}
+.romaneio-row-cliente{font-size:12px; color:var(--ink-soft);}
+.romaneio-row-transp{font-size:12px; color:var(--ink-soft); flex:0 0 auto;}
+
+.voltar-link{
+  background:none; border:none; padding:0; margin:0; font:inherit; font-size:12.5px;
+  color:var(--ink-soft); cursor:pointer;
+}
+.voltar-link:hover{color:var(--orange-deep); text-decoration:underline;}
+
+.romaneio-resumo{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px 20px;
+  padding:14px 16px; background:var(--paper); border:1px solid var(--line); border-radius:10px; margin-bottom:18px;
+}
+.romaneio-resumo .lbl{display:block; font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);}
+.romaneio-resumo .val{display:block; margin-top:2px; font-weight:700; font-size:13.5px;}
+.romaneio-resumo .val.mono{font-family:'Space Mono',monospace;}
+
+.romaneio-assinatura-wrap{margin-top:6px;}
+.romaneio-assinatura-wrap > label{
+  display:block; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--ink-soft); margin-bottom:8px;
+}
+.romaneio-canvas-box{
+  position:relative; height:200px; border:1.5px dashed var(--line-strong); border-radius:12px;
+  background:var(--paper); overflow:hidden; touch-action:none;
+}
+.romaneio-canvas-box canvas{display:block; width:100%; height:100%; touch-action:none; cursor:crosshair;}
+.romaneio-canvas-box img{width:100%; height:100%; object-fit:contain; display:block;}
+.romaneio-canvas-linha{position:absolute; left:24px; right:24px; bottom:46px; border-top:1px solid var(--line-strong); opacity:.35; pointer-events:none;}
+.romaneio-canvas-hint{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:12.5px; color:var(--ink-soft); pointer-events:none; text-align:center; padding:0 20px;
+}
+.romaneio-canvas-box.travado{border-style:solid; cursor:default;}
+
 .print-dash-mapa{max-width:360px; margin:0 auto;}
 .print-dash-mapa .dash-mapa-wrap{height:auto;}
 .print-dash-mapa .dash-mapa-svg{width:100%; height:auto;}
