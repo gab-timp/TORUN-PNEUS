@@ -3083,25 +3083,38 @@ function renderColeta() {
     btn.addEventListener("click", () => criarRomaneioParaPedido(btn.dataset.gerarromaneio, btn));
   });
 
-  const gerados = state.romaneios.filter(r => !r.cancelado)
+  // cancelado também aparece aqui (antes só sumia) -- senão não tinha como um admin achar e excluir
+  const gerados = state.romaneios
     .map(r => ({ r, e: state.entregas.find(x => x.id === r.entregaId) }))
     .filter(x => x.e)
     .filter(x => !termo || coletaBuscaTexto(x.e, x.r).includes(termo))
     .sort((a, b) => (b.r.createdAt || "").localeCompare(a.r.createdAt || ""));
   const listaGerados = document.getElementById("coletaListaGerados");
-  listaGerados.innerHTML = gerados.map(({ r, e }) => `
+  listaGerados.innerHTML = gerados.map(({ r, e }) => {
+    const statusClasse = r.cancelado ? "pill-esgotado" : r.assinadoEm ? "pill-normal" : "pill-atencao";
+    const statusTexto = r.cancelado ? "Cancelado" : r.assinadoEm ? "Assinado" : "Aguardando assinatura";
+    // cancelado não abre mais pra edição (não tem o que assinar) -- só resta, pra admin, excluir de
+    // vez; pra quem não é admin a linha fica só de registro, sem nenhuma ação
+    const acao = r.cancelado
+      ? (currentUserIsAdmin ? `<button type="button" class="btn small danger" data-excluirromaneio="${escapeAttr(r.id)}">Excluir</button>` : "")
+      : `<button type="button" class="btn small outline" data-verromaneio="${escapeAttr(r.id)}">${r.assinadoEm ? "Ver" : "Continuar"}</button>`;
+    return `
     <div class="romaneio-row">
       <div class="romaneio-row-main">
         <span class="romaneio-row-nf">NF ${escapeHtml(e.numeroNF)}${e.numeroPedido ? " · Ped. " + escapeHtml(e.numeroPedido) : ""}</span>
         <span class="romaneio-row-cliente">${escapeHtml(e.cliente || "—")}${e.destino ? " — " + escapeHtml(e.destino) : ""}</span>
       </div>
-      <span class="status-pill ${r.assinadoEm ? "pill-normal" : "pill-atencao"}">${r.assinadoEm ? "Assinado" : "Aguardando assinatura"}</span>
-      <button type="button" class="btn small outline" data-verromaneio="${escapeAttr(r.id)}">${r.assinadoEm ? "Ver" : "Continuar"}</button>
+      <span class="status-pill ${statusClasse}">${statusTexto}</span>
+      ${acao}
     </div>
-  `).join("");
+  `;
+  }).join("");
   document.getElementById("coletaGeradosVazio").style.display = gerados.length ? "none" : "block";
   listaGerados.querySelectorAll("[data-verromaneio]").forEach(btn => {
     btn.addEventListener("click", () => abrirRomaneioDetalhe(btn.dataset.verromaneio));
+  });
+  listaGerados.querySelectorAll("[data-excluirromaneio]").forEach(btn => {
+    btn.addEventListener("click", () => excluirRomaneio(btn.dataset.excluirromaneio));
   });
 }
 
@@ -3203,6 +3216,30 @@ async function cancelarRomaneioAtual() {
     `Romaneio cancelado — NF ${e ? (e.numeroNF || "—") : "—"}`);
   toast("Romaneio cancelado.");
   voltarColetaLista();
+}
+
+// Excluir de vez (só admin, só em romaneio já cancelado -- reforçado pela RLS em
+// sql/romaneio_excluir_admin.sql, não só pelo botão escondido). "Cancelar" continua sendo o único
+// jeito de "remover" um romaneio pela lista normal; isso aqui é só pra limpar lixo de teste/engano.
+async function excluirRomaneio(romaneioId) {
+  const r = state.romaneios.find(x => x.id === romaneioId);
+  if (!r) return;
+  if (!r.cancelado) { toast("Só é possível excluir um romaneio já cancelado."); return; }
+  const e = state.entregas.find(x => x.id === r.entregaId);
+  const motivo = await motivoModal("Excluir romaneio?",
+    "Isso apaga o registro de vez, sem volta -- diferente de cancelar. Informe o motivo.");
+  if (!motivo) return;
+  if (r.assinaturaPath) { // defensivo: hoje um cancelado nunca chega a ter assinatura salva
+    const { error: removeError } = await sb.storage.from(ROMANEIO_BUCKET).remove([r.assinaturaPath]);
+    if (removeError) console.error("Erro ao remover assinatura do romaneio excluído:", removeError);
+  }
+  const { error } = await sb.from("romaneios").delete().eq("id", romaneioId);
+  if (error) { toast("Erro ao excluir: " + error.message); return; }
+  state.romaneios = state.romaneios.filter(x => x.id !== romaneioId);
+  await registrarLog("romaneios", romaneioId, "exclusao", motivo,
+    `Romaneio excluído de vez — NF ${e ? (e.numeroNF || "—") : "—"}`);
+  toast("Romaneio excluído.");
+  renderColeta();
 }
 
 /* ---- assinatura (canvas desenhável) ---- */
