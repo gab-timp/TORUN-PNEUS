@@ -7,12 +7,16 @@
 -- aconteceu com pode_exportar_backup (ver memória "SQL antes do deploy").
 --
 -- Depois deste arquivo, ainda falta criar o bucket manualmente no Dashboard -- ver passo 4 abaixo.
+--
+-- CORRIGIDO (21/09): entrega_id era "uuid" na primeira versão -- entregas.id é "text" nesse banco
+-- (não uuid nativo), então o CREATE TABLE falhava com "incompatible types: uuid and text" antes de
+-- criar qualquer coisa. Rode este arquivo inteiro do zero.
 
 -- 1) Tabela ------------------------------------------------------------------
 
 create table if not exists romaneios (
   id uuid primary key default gen_random_uuid(),
-  entrega_id uuid not null references entregas(id) on delete cascade,
+  entrega_id text not null references entregas(id) on delete cascade,
   transportadora text not null default '',
   motorista_nome text not null default '',
   motorista_documento text not null default '',
