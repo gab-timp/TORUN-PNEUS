@@ -2074,6 +2074,16 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .anexo-nome:hover{color:var(--orange-deep);}
 .anexo-tamanho{color:var(--ink-soft); font-size:10.5px; flex:0 0 auto;}
 
+/* NF clicável na tabela de Faturamento, quando o pedido correspondente em Entregas tem
+   arquivo anexado (ex: o PDF da NF) -- abrirNfAnexadaDaVenda() em app.js */
+.nf-anexo-link{
+  display:inline-flex; align-items:center; gap:4px; font:inherit; background:none; border:none;
+  padding:0; margin:0; color:var(--ink); cursor:pointer;
+  text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;
+}
+.nf-anexo-link:hover{color:var(--orange-deep);}
+.nf-anexo-link .ic{width:12px; height:12px; flex:0 0 auto; opacity:.7;}
+
 /* ---------------- kanban ---------------- */
 .kanban-col[data-etapa="PRE_VENDA"]{ --col-accent:#78716C; --col-deep:#44403C; --col-pale:#EFECEA; }
 .kanban-col[data-etapa="ENTRADA"]{ --col-accent:#2F80ED; --col-deep:#1D4FA8; --col-pale:#E4EEFD; }

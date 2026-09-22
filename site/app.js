@@ -5785,11 +5785,18 @@ function renderVendas() {
   }
   empty.style.display = "none";
 
-  tbody.innerHTML = rows.map(v => `
+  tbody.innerHTML = rows.map(v => {
+    // NF clicável só quando o pedido correspondente em Entregas tem algo anexado (ex: o PDF da NF)
+    const entregaAnexos = v.numeroNFVenda || v.numeroPedido ? ((entregaDaVenda(v) || {}).anexos || []) : [];
+    const nfHtml = !v.numeroNFVenda ? "—"
+      : entregaAnexos.length
+        ? `<button type="button" class="nf-anexo-link" data-vernf="${v.id}" title="Abrir anexo do pedido (${entregaAnexos.length > 1 ? entregaAnexos.length + " arquivos" : entregaAnexos[0].nome})">${escapeHtml(v.numeroNFVenda)}<svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg></button>`
+        : escapeHtml(v.numeroNFVenda);
+    return `
     <tr>
       <td class="mono">${formatDateBR(v.data)}</td>
       <td>${escapeHtml(v.cliente)}</td>
-      <td class="mono">${escapeHtml(v.numeroNFVenda || "—")}${v.numeroPedido ? `<div class="muted" style="font-size:11px;">Ped. ${escapeHtml(v.numeroPedido)}</div>` : ""}</td>
+      <td class="mono">${nfHtml}${v.numeroPedido ? `<div class="muted" style="font-size:11px;">Ped. ${escapeHtml(v.numeroPedido)}</div>` : ""}</td>
       <td>${escapeHtml(v.vendedor || "—")}</td>
       <td class="num mono">${fmt(v.quantidadePneus)}</td>
       <td class="num mono">${formatMoney(v.valorVenda)}</td>
@@ -5803,10 +5810,18 @@ function renderVendas() {
         </span>
       </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   document.querySelectorAll("[data-editvenda]").forEach(btn => {
     btn.addEventListener("click", () => startEditVenda(btn.dataset.editvenda));
+  });
+
+  document.querySelectorAll("[data-vernf]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      abrirNfAnexadaDaVenda(btn.dataset.vernf);
+    });
   });
 
   document.querySelectorAll("[data-delvenda]").forEach(btn => {
@@ -6762,6 +6777,49 @@ function cotacaoContratadaParaVenda(pedido, nf) {
   return achadas.length ? { frete: achadas[0], cotacao: cotacaoContratada(achadas[0]) } : null;
 }
 
+// Acha o pedido (Entregas) que corresponde a uma venda -- pra abrir, no Faturamento, o que foi
+// anexado lá (ex: o PDF da NF). NF é único, então casa direto sem janela de data; pedido pode
+// repetir/reiniciar (mesma ressalva da ligação de frete acima), então só casa dentro de uma janela
+// de ~3 meses. Se mais de um pedido bater (ex: NF repetida por engano), prioriza o que tem anexo.
+function entregaDaVenda(v) {
+  const nf = refDocCanonica(v.numeroNFVenda);
+  const pedido = refDocCanonica(v.numeroPedido);
+  const porNF = nf ? state.entregas.filter(e => refDocCanonica(e.numeroNF) === nf) : [];
+  const candidatas = porNF.length ? porNF
+    : (pedido ? state.entregas.filter(e => refDocCanonica(e.numeroPedido) === pedido && vendaDentroDaJanela(v.data, e.data)) : []);
+  if (!candidatas.length) return null;
+  return candidatas.slice().sort((a, b) => {
+    const comAnexoA = (a.anexos || []).length > 0, comAnexoB = (b.anexos || []).length > 0;
+    if (comAnexoA !== comAnexoB) return comAnexoA ? -1 : 1;
+    return (b.data || "").localeCompare(a.data || "");
+  })[0];
+}
+
+// Clique no número da NF na tabela de Faturamento: com 1 anexo no pedido, abre direto (mesmo caminho
+// de abrirAnexoPedido); com mais de 1 (pode não ser só a NF -- boleto, foto etc.), deixa escolher.
+async function abrirNfAnexadaDaVenda(vendaId) {
+  const v = state.vendas.find(x => x.id === vendaId);
+  const entrega = v && entregaDaVenda(v);
+  const anexos = (entrega && entrega.anexos) || [];
+  if (anexos.length === 0) return; // defensivo: o link só aparece quando há anexo
+  if (anexos.length === 1) { await abrirAnexoPedido(anexos[0].path); return; }
+  document.getElementById("nfAnexoTitulo").textContent = `Anexos do pedido ${entrega.numeroNF || entrega.numeroPedido || "—"}`;
+  const lista = document.getElementById("nfAnexoLista");
+  lista.innerHTML = anexos.map(a => `
+    <div class="anexo-row">
+      <span class="anexo-nome" data-abrirnfanexo="${escapeAttr(a.path)}">${escapeHtml(a.nome)}</span>
+      <span class="anexo-tamanho">${formatFileSize(a.tamanho)}</span>
+    </div>
+  `).join("");
+  lista.querySelectorAll("[data-abrirnfanexo]").forEach(el => {
+    el.addEventListener("click", () => {
+      abrirAnexoPedido(el.dataset.abrirnfanexo);
+      document.getElementById("nfAnexoOverlay").classList.remove("show");
+    });
+  });
+  document.getElementById("nfAnexoOverlay").classList.add("show");
+}
+
 function codigosResumo(codigos) {
   if (!Array.isArray(codigos)) return null;
   const total = state.produtos.length;
@@ -7712,6 +7770,13 @@ async function init() {
   document.getElementById("processoModalClose").addEventListener("click", closeProcessoModal);
   document.getElementById("processoModalOverlay").addEventListener("click", (e) => {
     if (e.target.id === "processoModalOverlay") closeProcessoModal();
+  });
+
+  document.getElementById("nfAnexoFechar").addEventListener("click", () => {
+    document.getElementById("nfAnexoOverlay").classList.remove("show");
+  });
+  document.getElementById("nfAnexoOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "nfAnexoOverlay") document.getElementById("nfAnexoOverlay").classList.remove("show");
   });
 
   document.getElementById("btnEditarCliente").addEventListener("click", abrirEdicaoCliente);
