@@ -40,10 +40,20 @@ function renderTimeline(eventos) {
   }).join("");
 }
 
+// o selo do topo é um resumo curto -- o texto completo do evento (às vezes uma frase de
+// CT-e bem longa, copiada direto pelo pessoal da operação) continua inteiro na linha do tempo
+function resumoCurto(texto, max) {
+  if (!texto || texto.length <= max) return texto;
+  const cortado = texto.slice(0, max);
+  const ultimoEspaco = cortado.lastIndexOf(" ");
+  return (ultimoEspaco > max * 0.6 ? cortado.slice(0, ultimoEspaco) : cortado).trim() + "…";
+}
+
 function renderResultado(pedido) {
   const el = document.getElementById("rstResultado");
   const eventos = pedido.eventos || [];
   const statusAtual = eventos.length ? eventos[eventos.length - 1].texto : "Em processamento";
+  const statusResumo = resumoCurto(statusAtual, 40);
   const dataPrevista = formatDateBR(pedido.data_prevista);
 
   el.innerHTML = `
@@ -53,7 +63,7 @@ function renderResultado(pedido) {
           <div class="rst-card-nf-lbl">Nota fiscal</div>
           <div class="rst-card-nf">${escapeHtml(pedido.numero_nf)}</div>
         </div>
-        <span class="rst-pill">${escapeHtml(statusAtual)}</span>
+        <span class="rst-pill" title="${escapeHtml(statusAtual)}">${escapeHtml(statusResumo)}</span>
       </div>
       <div class="rst-divisor"></div>
       <div>
