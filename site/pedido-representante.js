@@ -12,6 +12,7 @@ let produtos = [];
 let produtosPrecos = [];
 let movimentos = [];
 let entregas = [];
+let vendas = [];
 let meusPreCadastros = [];
 let clienteAtual = null;
 let ultimoPedidoSalvo = null;
@@ -349,11 +350,12 @@ async function afterLogin() {
   currentUserNome = roleData.nome || currentUser.email;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
 
-  const [produtosRes, precosRes, movimentosRes, entregasRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
+  const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, foto_path, foto_path_2").order("codigo"),
     sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
-    sb.from("movimentos").select("id, codigo, tipo, quantidade"),
+    sb.from("movimentos").select("id, codigo, tipo, quantidade, data, entrega_id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
+    sb.from("vendas").select("id, data, numero_nf_venda, cliente, quantidade_pneus, valor_venda, vendedor, comissao").order("data", { ascending: false }),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
     sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
     sb.from("configuracoes_site").select("proposta_validade_dias").maybeSingle()
@@ -362,10 +364,12 @@ async function afterLogin() {
   if (precosRes.error) toast("Erro ao carregar tabela de preços.");
   if (movimentosRes.error) toast("Erro ao carregar movimentações de estoque.");
   if (entregasRes.error) toast("Erro ao carregar entregas.");
+  if (vendasRes.error) toast("Erro ao carregar vendas (meu desempenho ficará incompleto).");
   produtos = produtosRes.data || [];
   produtosPrecos = precosRes.data || [];
   movimentos = movimentosRes.data || [];
   entregas = entregasRes.data || [];
+  vendas = vendasRes.data || [];
   meusPreCadastros = preCadastrosRes.data || [];
   currentUserTema = (prefRes.data && prefRes.data.tema) || null;
   currentUserNotifMudancaEtapa = prefRes.data ? prefRes.data.notif_mudanca_etapa !== false : true;
@@ -394,6 +398,7 @@ async function afterLogin() {
   initPreCadastroForm();
   initThemeToggle();
   initMinhasConfiguracoes();
+  initRepDashboard();
   renderRepEstoque();
   renderRepCatalogo();
   renderRepEntregas();
@@ -1056,7 +1061,7 @@ async function salvarPedidoRep() {
 
 const REP_TAB_IDS = {
   pedido: "repTabPedido", estoque: "repTabEstoque", catalogo: "repTabCatalogo", entregas: "repTabEntregas",
-  precadastro: "repTabPreCadastro", acompanhamento: "repTabAcompanhamento"
+  precadastro: "repTabPreCadastro", acompanhamento: "repTabAcompanhamento", dashboard: "repTabDashboard"
 };
 
 function initRepTabs() {
@@ -1071,8 +1076,236 @@ function initRepTabs() {
       });
       if (alvo === "acompanhamento") renderAcompanhamento();
       if (alvo === "catalogo") renderRepCatalogo();
+      if (alvo === "dashboard") renderRepDashboard();
     });
   });
+}
+
+/* ---------------- meu desempenho (dashboard do vendedor) ---------------- */
+
+// vendas.vendedor é texto livre digitado pela equipe interna ao faturar -- não tem vínculo
+// direto com o login. Liga pelo nome batendo (sem diferenciar maiúsc./minúsc. ou espaço),
+// mesmo risco de digitação que já existe hoje em qualquer relatório por vendedor.
+function minhasVendas() {
+  const meuNome = (currentUserNome || "").trim().toLowerCase();
+  return vendas.filter(v => (v.vendedor || "").trim().toLowerCase() === meuNome);
+}
+
+let repDashMesAtual = null;
+
+function formatMesLabel(mesIso) {
+  const nomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const [ano, mes] = mesIso.split("-");
+  return `${nomes[parseInt(mes, 10) - 1]}/${ano.slice(2)}`;
+}
+
+function initRepDashboard() {
+  document.getElementById("btnRepDashVoltar").addEventListener("click", () => {
+    document.getElementById("repDashDetalheWrap").style.display = "none";
+    document.getElementById("repDashListaWrap").style.display = "";
+  });
+  document.getElementById("repDashMesFiltro").addEventListener("change", (e) => {
+    repDashMesAtual = e.target.value;
+    renderRepDashboard();
+  });
+}
+
+// eixo Y da evolução: arredonda o teto pra um número redondo acima do maior valor do ano,
+// senão a grade fica com valores estranhos tipo "R$ 68.400,00" numa linha
+function tetoArredondado(valor) {
+  if (valor <= 0) return 100;
+  const ordem = Math.pow(10, Math.floor(Math.log10(valor)));
+  return Math.ceil(valor / ordem) * ordem;
+}
+
+function buildEvolucaoSvg(pontos, ano) {
+  const teto = tetoArredondado(Math.max(...pontos.map(p => p.valor), 1));
+  const passos = 4;
+  const largura = 900, alturaBase = 220, alturaTexto = 240, margemEsq = 60, margemDir = 40;
+  const passoX = (largura - margemEsq - margemDir) / (pontos.length - 1);
+  const nomesMes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const anoCurto = String(ano).slice(2);
+  const hoje = new Date();
+  const mesAtualChave = String(hoje.getMonth() + 1).padStart(2, "0");
+  const anoAtualReal = String(hoje.getFullYear());
+
+  const coords = pontos.map((p, i) => ({
+    x: margemEsq + i * passoX,
+    y: alturaBase - (p.valor / teto) * (alturaBase - 20),
+    ...p
+  }));
+
+  const linhaPoints = coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+  const areaPath = `M${coords[0].x.toFixed(1)},${alturaBase} L` +
+    coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" L") +
+    ` L${coords[coords.length - 1].x.toFixed(1)},${alturaBase} Z`;
+
+  let gridEEixos = "";
+  for (let i = 0; i <= passos; i++) {
+    const valor = (teto / passos) * i;
+    const y = alturaBase - (valor / teto) * (alturaBase - 20);
+    gridEEixos += `<line x1="${margemEsq}" y1="${y.toFixed(1)}" x2="${largura - margemDir}" y2="${y.toFixed(1)}" stroke="#EFEEEA" stroke-width="1"/>`;
+    gridEEixos += `<text x="${margemEsq - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#6B6B6B" font-family="'Space Mono',monospace">${escapeHtml(formatMoney(valor))}</text>`;
+  }
+
+  const dots = coords.map(c =>
+    `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="4" fill="#FFFFFF" stroke="#FF6A13" stroke-width="2.5"/>`
+  ).join("");
+  const mesLabels = coords.map(c => {
+    const ehAtual = c.mes === mesAtualChave && String(ano) === anoAtualReal;
+    return `<text x="${c.x.toFixed(1)}" y="${alturaTexto}" text-anchor="middle" font-size="11" fill="${ehAtual ? "#161616" : "#6B6B6B"}" font-weight="${ehAtual ? "700" : "400"}">${nomesMes[parseInt(c.mes, 10) - 1]}/${anoCurto}</text>`;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 900 250" width="100%" height="220" style="overflow:visible;">
+      <defs>
+        <linearGradient id="repDashAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#FF6A13" stop-opacity="0.32"/>
+          <stop offset="100%" stop-color="#FF6A13" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+      ${gridEEixos}
+      <path d="${areaPath}" fill="url(#repDashAreaGrad)"/>
+      <polyline points="${linhaPoints}" fill="none" stroke="#FF6A13" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+      ${mesLabels}
+    </svg>
+  `;
+}
+
+function renderRepDashboard() {
+  document.getElementById("repDashDetalheWrap").style.display = "none";
+  document.getElementById("repDashListaWrap").style.display = "";
+  document.getElementById("repDashSaudacao").textContent = `Olá, ${currentUserNome}`;
+
+  const minhas = minhasVendas();
+  const mesesDisponiveis = Array.from(new Set(minhas.map(v => (v.data || "").slice(0, 7)))).sort().reverse();
+  const selectMes = document.getElementById("repDashMesFiltro");
+
+  if (mesesDisponiveis.length === 0) {
+    selectMes.innerHTML = `<option value="">Sem vendas ainda</option>`;
+    document.getElementById("repDashKpis").innerHTML = `<div class="muted" style="padding:16px 0;">Nenhuma venda registrada com seu nome ainda.</div>`;
+    document.getElementById("repDashEvolucaoChart").innerHTML = "";
+    document.getElementById("repDashEvolucaoTotal").textContent = formatMoney(0);
+    document.getElementById("repDashClientesLista").innerHTML = "";
+    return;
+  }
+  if (!repDashMesAtual || !mesesDisponiveis.includes(repDashMesAtual)) repDashMesAtual = mesesDisponiveis[0];
+  selectMes.innerHTML = mesesDisponiveis.map(m =>
+    `<option value="${m}" ${m === repDashMesAtual ? "selected" : ""}>${formatMesLabel(m)}</option>`
+  ).join("");
+
+  const anoAtual = repDashMesAtual.slice(0, 4);
+  const vendasDoMes = minhas.filter(v => (v.data || "").slice(0, 7) === repDashMesAtual);
+  const vendasDoAno = minhas.filter(v => (v.data || "").slice(0, 4) === anoAtual);
+
+  const faturamentoMes = vendasDoMes.reduce((a, v) => a + Number(v.valor_venda || 0), 0);
+  const faturamentoAno = vendasDoAno.reduce((a, v) => a + Number(v.valor_venda || 0), 0);
+  const comissaoMes = vendasDoMes.reduce((a, v) => a + Number(v.comissao || 0), 0);
+  const pneusMes = vendasDoMes.reduce((a, v) => a + Number(v.quantidade_pneus || 0), 0);
+
+  document.getElementById("repDashKpis").innerHTML = [
+    { lbl: "Faturamento do mês", val: formatMoney(faturamentoMes) },
+    { lbl: "Faturamento no ano", val: formatMoney(faturamentoAno) },
+    { lbl: "Comissão do mês", val: formatMoney(comissaoMes), accent: true },
+    { lbl: "Pneus vendidos (mês)", val: `${fmt(pneusMes)} un.` }
+  ].map(k => `
+    <div class="kpi ${k.accent ? "accent" : ""}">
+      <div class="lbl">${k.lbl}</div>
+      <div class="val">${k.val}</div>
+    </div>
+  `).join("");
+
+  const porMes = {};
+  vendasDoAno.forEach(v => {
+    const mes = (v.data || "").slice(5, 7);
+    porMes[mes] = (porMes[mes] || 0) + Number(v.valor_venda || 0);
+  });
+  const pontosEvolucao = [];
+  for (let m = 1; m <= 12; m++) {
+    const chave = String(m).padStart(2, "0");
+    pontosEvolucao.push({ mes: chave, valor: porMes[chave] || 0 });
+  }
+  document.getElementById("repDashEvolucaoChart").innerHTML = buildEvolucaoSvg(pontosEvolucao, anoAtual);
+  document.getElementById("repDashEvolucaoTotal").textContent = formatMoney(faturamentoAno);
+
+  const porCliente = {};
+  minhas.forEach(v => {
+    if (!porCliente[v.cliente]) porCliente[v.cliente] = { qtd: 0, faturamento: 0 };
+    porCliente[v.cliente].qtd += 1;
+    porCliente[v.cliente].faturamento += Number(v.valor_venda || 0);
+  });
+  const clientesOrdenados = Object.entries(porCliente).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  document.getElementById("repDashClientesLista").innerHTML = clientesOrdenados.length === 0
+    ? `<div class="muted" style="padding:12px 0;">Nenhum cliente ainda.</div>`
+    : clientesOrdenados.map(([nome, d]) => `
+      <button type="button" class="rep-dash-cliente-row" data-repdashcliente="${escapeHtml(nome)}">
+        <span class="rep-dash-cliente-info">
+          <span class="nome">${escapeHtml(nome)}</span>
+          <span class="qtd">${d.qtd} compra${d.qtd === 1 ? "" : "s"}</span>
+        </span>
+        <span class="valor mono">${formatMoney(d.faturamento)}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    `).join("");
+  document.querySelectorAll("[data-repdashcliente]").forEach(btn => {
+    btn.addEventListener("click", () => abrirRepDashClienteDetalhe(btn.dataset.repdashcliente));
+  });
+}
+
+// medida mais comprada por um cliente: não dá pra tirar de "vendas" (só guarda quantidade
+// total, não por medida) -- vem de movimentos (baixa de estoque real) ligados à entrega
+// daquele cliente com o mesmo vendedor, igual ao Dashboard interno faz pra "Pneus Mais Vendidos"
+function abrirRepDashClienteDetalhe(clienteNome) {
+  document.getElementById("repDashListaWrap").style.display = "none";
+  document.getElementById("repDashDetalheWrap").style.display = "";
+
+  const minhasDoCliente = minhasVendas().filter(v => v.cliente === clienteNome);
+  const faturamentoTotal = minhasDoCliente.reduce((a, v) => a + Number(v.valor_venda || 0), 0);
+
+  const meuNome = (currentUserNome || "").trim().toLowerCase();
+  const idsEntregasDoCliente = new Set(
+    entregas.filter(e => e.cliente === clienteNome && (e.vendedor || "").trim().toLowerCase() === meuNome).map(e => e.id)
+  );
+  const porMedida = {};
+  movimentos.filter(m => m.tipo === "venda" && idsEntregasDoCliente.has(m.entrega_id)).forEach(m => {
+    const p = produtos.find(x => x.codigo === m.codigo);
+    const medida = (p && p.medida) || "—";
+    porMedida[medida] = (porMedida[medida] || 0) + Number(m.quantidade || 0);
+  });
+  const medidasOrdenadas = Object.entries(porMedida).sort((a, b) => b[1] - a[1]);
+  const maxMedida = medidasOrdenadas.length ? medidasOrdenadas[0][1] : 1;
+
+  const ultimasCompras = [...minhasDoCliente].sort((a, b) => (b.data || "").localeCompare(a.data || "")).slice(0, 5);
+
+  document.getElementById("repDashDetalheConteudo").innerHTML = `
+    <div class="rep-dash-detalhe-head">
+      <div class="nome">${escapeHtml(clienteNome)}</div>
+      <div class="sub">${minhasDoCliente.length} compra${minhasDoCliente.length === 1 ? "" : "s"} · ${formatMoney(faturamentoTotal)} no total</div>
+    </div>
+    <div class="rep-dash-card">
+      <div class="rep-dash-card-head"><span>Medidas que mais compra</span></div>
+      ${medidasOrdenadas.length === 0
+        ? `<div class="muted" style="padding:12px 0;">Sem histórico de medida vinculado ainda.</div>`
+        : `<div class="rank-list">${medidasOrdenadas.map(([medida, qtd]) => `
+          <div class="rank-row">
+            <div class="rank-main">
+              <div class="rank-label"><span class="mono">${escapeHtml(medida)}</span><span class="n">${fmt(qtd)} un.</span></div>
+              <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.max(4, (qtd / maxMedida) * 100)}%"></div></div>
+            </div>
+          </div>
+        `).join("")}</div>`}
+    </div>
+    <div class="rep-dash-card">
+      <div class="rep-dash-card-head"><span>Últimas compras</span></div>
+      ${ultimasCompras.map(v => `
+        <div class="rep-dash-compra-row">
+          <span class="mono">${formatDateBR(v.data)} · NF ${escapeHtml(v.numero_nf_venda || "—")}</span>
+          <span class="mono">${formatMoney(v.valor_venda)}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 /* ---------------- estoque (somente leitura) ---------------- */
