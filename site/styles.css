@@ -2169,6 +2169,16 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .anexo-nome:hover{color:var(--orange-deep);}
 .anexo-tamanho{color:var(--ink-soft); font-size:10.5px; flex:0 0 auto;}
 
+.rastreio-link-box{
+  display:flex; align-items:center; gap:8px; margin-bottom:8px;
+  padding:8px 10px; background:var(--paper); border:1px solid var(--line); border-radius:8px;
+  font-size:11.5px; color:var(--ink-soft);
+}
+.rastreio-link-box .mono{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink);}
+.rastreio-form{display:flex; gap:8px; align-items:center;}
+.rastreio-form input[type="text"]{flex:1;}
+.rastreio-form input[type="datetime-local"]{flex:0 0 180px;}
+
 /* NF clicável na tabela de Faturamento, quando o pedido correspondente em Entregas tem
    arquivo anexado (ex: o PDF da NF) -- abrirNfAnexadaDaVenda() em app.js */
 .nf-anexo-link{

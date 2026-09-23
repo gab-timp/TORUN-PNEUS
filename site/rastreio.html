@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TORUN PNEUS · Rastreio de pedido</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="rastreio.css?v=1">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="rst-page">
+  <header class="rst-topo">
+    <img src="assets/logo-light.png" alt="Torun Pneus" class="rst-logo">
+    <h1>Rastreie seu pedido</h1>
+    <p>Informe o número da nota fiscal e o CNPJ ou CPF do destinatário.</p>
+  </header>
+
+  <form class="rst-form" id="rstForm">
+    <div class="rst-campo">
+      <label for="rstNf">Número da NF</label>
+      <input type="text" id="rstNf" inputmode="numeric" placeholder="Ex: 4521" required>
+    </div>
+    <div class="rst-campo">
+      <label for="rstDocumento">CNPJ ou CPF do destinatário</label>
+      <input type="text" id="rstDocumento" inputmode="numeric" placeholder="Só números ou com pontuação" required>
+    </div>
+    <button type="submit" id="rstBtnBuscar">Rastrear pedido</button>
+  </form>
+
+  <div id="rstResultado"></div>
+
+  <footer class="rst-rodape">TORUN PNEUS · Atualizado pela nossa equipe de logística</footer>
+</div>
+
+<script src="rastreio.js?v=1"></script>
+</body>
+</html>

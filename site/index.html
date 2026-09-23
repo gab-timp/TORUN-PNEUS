@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=143">
+<link rel="stylesheet" href="styles.css?v=144">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1861,6 +1861,7 @@
           <option value="previsoes">Estoque previsto</option>
           <option value="entregas">Entregas</option>
           <option value="romaneios">Coleta</option>
+          <option value="rastreio_eventos">Rastreio</option>
         </select>
         <select id="logFiltroAcao">
           <option value="todos">Edição e exclusão</option>
@@ -2524,6 +2525,23 @@
         <button type="button" class="btn small outline write-ui" id="btnAnexarArquivo" style="margin-top:8px;">+ Anexar arquivo</button>
       </div>
 
+      <div class="field" style="margin-bottom:12px;">
+        <label>Rastreio (linha do tempo pro cliente)</label>
+        <div class="muted" style="font-size:11px; margin-bottom:6px;">Cada evento aparece na hora na página pública de rastreio, que o cliente consulta pela NF + CNPJ/CPF.</div>
+        <div id="pedRastreioHint" class="muted" style="font-size:12px;">Salve o pedido antes de lançar eventos de rastreio.</div>
+        <div id="pedRastreioLinkBox" class="rastreio-link-box" style="display:none;">
+          <span>Link pro cliente</span>
+          <span id="pedRastreioLinkTexto" class="mono"></span>
+          <button type="button" class="btn small outline" id="btnCopiarLinkRastreio">Copiar</button>
+        </div>
+        <div id="pedRastreioForm" class="rastreio-form" style="display:none;">
+          <input type="text" id="pedRastreioTexto" class="write-ui" placeholder="Ex: Saiu para entrega em Itajaí/SC">
+          <input type="datetime-local" id="pedRastreioData" class="write-ui">
+          <button type="button" class="btn small outline write-ui" id="btnAdicionarRastreio">+ Adicionar</button>
+        </div>
+        <div id="pedRastreioList" class="anexos-list" style="margin-top:8px;"></div>
+      </div>
+
       <div class="form-actions pedido-modal-actions">
         <button type="button" class="btn danger write-ui" id="btnExcluirPedido" style="display:none;">Excluir</button>
         <button type="button" class="btn danger write-ui" id="btnCancelarPedido" style="display:none;">Cancelar pedido</button>
@@ -2617,6 +2635,6 @@
   </div>
 </div>
 
-<script src="app.js?v=205"></script>
+<script src="app.js?v=206"></script>
 </body>
 </html>

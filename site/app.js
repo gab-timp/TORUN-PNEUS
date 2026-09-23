@@ -233,6 +233,9 @@ function romaneioFromRow(r) {
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
+function rastreioEventoFromRow(r) {
+  return { id: r.id, entregaId: r.entrega_id, texto: r.texto || "", ocorridoEm: r.ocorrido_em, createdAt: r.created_at };
+}
 function precoFromRow(r) {
   return { id: r.id, codigo: r.codigo, regiao: r.regiao, tipoCliente: r.tipo_cliente, condicaoPagamento: r.condicao_pagamento, preco: Number(r.preco) };
 }
@@ -274,6 +277,7 @@ async function loadState() {
       fetchComRetry(() => sb.from("previsoes").select("*")),
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
       fetchComRetry(() => sb.from("romaneios").select("*").order("created_at", { ascending: false })),
+      fetchComRetry(() => sb.from("rastreio_eventos").select("*").order("ocorrido_em", { ascending: true })),
       fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
@@ -281,11 +285,11 @@ async function loadState() {
     ]),
     fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
   ]);
-  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, roleRes, prefRes, preCadRes, notifRes] = results;
+  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, rastreioEventosRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
   configuracoesSite = configRes.data || null;
   ESTOQUE_BAIXO_LIMITE = (configuracoesSite && configuracoesSite.estoque_baixo_limite) || 20;
-  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "romaneios", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
+  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "romaneios", "eventos de rastreio", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
   let falhaCritica = false;
   let falhaPerfil = null;
   results.forEach((r, i) => {
@@ -360,6 +364,7 @@ async function loadState() {
     previsoes: (previsoesRes.data || []).map(previstoFromRow),
     entregas: (entregasRes.data || []).map(entregaFromRow),
     romaneios: (romaneiosRes.data || []).map(romaneioFromRow),
+    rastreio_eventos: (rastreioEventosRes.data || []).map(rastreioEventoFromRow),
     clientesPendentes: preCadRes.data || [],
     notificacoes: (notifRes.data || []).map(notificacaoFromRow)
   };
@@ -3715,6 +3720,7 @@ function openPedidoModal(id) {
   }
 
   renderAnexosPedido();
+  renderRastreioPedido();
   document.getElementById("pedidoModalOverlay").classList.add("show");
 }
 
@@ -3827,6 +3833,102 @@ async function abrirAnexoPedido(path) {
   window.open(data.signedUrl, "_blank");
 }
 
+/* ---------------- rastreio público (linha do tempo do pedido, Entregas) ---------------- */
+
+function renderRastreioPedido() {
+  const hint = document.getElementById("pedRastreioHint");
+  const form = document.getElementById("pedRastreioForm");
+  const list = document.getElementById("pedRastreioList");
+  const linkBox = document.getElementById("pedRastreioLinkBox");
+  const linkTexto = document.getElementById("pedRastreioLinkTexto");
+
+  if (!editingPedidoId) {
+    hint.style.display = "block";
+    form.style.display = "none";
+    linkBox.style.display = "none";
+    list.innerHTML = "";
+    return;
+  }
+  hint.style.display = "none";
+  form.style.display = "";
+
+  const alvo = state.entregas.find(x => x.id === editingPedidoId);
+  if (alvo && alvo.numeroNF) {
+    linkBox.style.display = "";
+    linkTexto.textContent = `${location.origin}/rastreio.html?nf=${encodeURIComponent(alvo.numeroNF)}`;
+  } else {
+    linkBox.style.display = "none";
+  }
+
+  const eventos = state.rastreio_eventos
+    .filter(x => x.entregaId === editingPedidoId)
+    .sort((a, b) => (b.ocorridoEm || "").localeCompare(a.ocorridoEm || ""));
+  if (eventos.length === 0) {
+    list.innerHTML = `<div class="muted" style="font-size:12px;">Nenhum evento lançado ainda.</div>`;
+    return;
+  }
+  list.innerHTML = eventos.map(ev => `
+    <div class="anexo-row">
+      <span style="flex:1; min-width:0;">${escapeHtml(ev.texto)}</span>
+      <span class="anexo-tamanho mono">${ev.ocorridoEm ? new Date(ev.ocorridoEm).toLocaleString("pt-BR") : "—"}</span>
+      <button type="button" class="btn small danger write-ui" data-removerrastreio="${escapeAttr(ev.id)}">✕</button>
+    </div>
+  `).join("");
+  list.querySelectorAll("[data-removerrastreio]").forEach(btn => {
+    btn.addEventListener("click", () => removerRastreioEvento(btn.dataset.removerrastreio));
+  });
+}
+
+async function adicionarRastreioEvento() {
+  if (!editingPedidoId) { toast("Salve o pedido antes de lançar um evento de rastreio."); return; }
+  const input = document.getElementById("pedRastreioTexto");
+  const dataInput = document.getElementById("pedRastreioData");
+  const texto = input.value.trim();
+  if (!texto) { toast("Descreva o evento antes de adicionar."); return; }
+  const ocorridoEm = dataInput.value ? new Date(dataInput.value).toISOString() : new Date().toISOString();
+
+  const { data, error } = await sb.from("rastreio_eventos").insert({
+    entrega_id: editingPedidoId, texto, ocorrido_em: ocorridoEm,
+    created_by: currentUser ? currentUser.id : null
+  }).select().single();
+  if (error) { toast("Erro ao adicionar evento: " + error.message); return; }
+
+  state.rastreio_eventos.push(rastreioEventoFromRow(data));
+  const alvo = state.entregas.find(x => x.id === editingPedidoId);
+  await registrarLog("rastreio_eventos", data.id, "edicao", "Ação automática",
+    `Evento de rastreio adicionado — NF ${alvo ? (alvo.numeroNF || "—") : "—"}: ${texto}`);
+  input.value = "";
+  dataInput.value = "";
+  toast("Evento adicionado.");
+  renderRastreioPedido();
+}
+
+async function removerRastreioEvento(eventoId) {
+  const ev = state.rastreio_eventos.find(x => x.id === eventoId);
+  if (!ev) return;
+  const motivo = await motivoModal("Remover evento de rastreio?",
+    "Ele some da página pública na hora. Informe o motivo.");
+  if (!motivo) return;
+  const { error } = await sb.from("rastreio_eventos").delete().eq("id", eventoId);
+  if (error) { toast("Erro ao remover: " + error.message); return; }
+  state.rastreio_eventos = state.rastreio_eventos.filter(x => x.id !== eventoId);
+  const alvo = state.entregas.find(x => x.id === ev.entregaId);
+  await registrarLog("rastreio_eventos", eventoId, "exclusao", motivo,
+    `Evento de rastreio removido — NF ${alvo ? (alvo.numeroNF || "—") : "—"}: ${ev.texto}`);
+  toast("Evento removido.");
+  renderRastreioPedido();
+}
+
+function copiarLinkRastreio() {
+  const alvo = state.entregas.find(x => x.id === editingPedidoId);
+  if (!alvo || !alvo.numeroNF) { toast("Preencha e salve a NF antes de copiar o link."); return; }
+  const link = `${location.origin}/rastreio.html?nf=${encodeURIComponent(alvo.numeroNF)}`;
+  navigator.clipboard.writeText(link).then(
+    () => toast("Link copiado."),
+    () => toast("Não foi possível copiar. Link: " + link)
+  );
+}
+
 function initKanbanBoardDragScroll() {
   const board = document.getElementById("kanbanBoard");
   let arrastando = false;
@@ -3870,6 +3972,9 @@ function initEntregas() {
     e.target.value = "";
     if (file) await uploadAnexoPedido(file);
   });
+
+  document.getElementById("btnAdicionarRastreio").addEventListener("click", adicionarRastreioEvento);
+  document.getElementById("btnCopiarLinkRastreio").addEventListener("click", copiarLinkRastreio);
 
   document.getElementById("pedCteToggle").addEventListener("click", async () => {
     const idxAtual = CTE_STATUS_ORDEM.indexOf(editingPedidoCteStatus);
@@ -7965,7 +8070,7 @@ function initDashPdfButtons() {
 const LOG_TABELA_LABEL = {
   movimentos: "Movimentações", produtos: "Produtos", fretes: "Fretes",
   clientes: "Clientes", vendas: "Vendas", previsoes: "Estoque previsto", entregas: "Entregas",
-  romaneios: "Coleta"
+  romaneios: "Coleta", rastreio_eventos: "Rastreio"
 };
 const LOG_ACAO_LABEL = { edicao: "Edição", exclusao: "Exclusão" };
 
@@ -8116,6 +8221,7 @@ const REALTIME_TABLES = [
   { table: "previsoes", key: "id", fromRow: previstoFromRow },
   { table: "entregas", key: "id", fromRow: entregaFromRow },
   { table: "romaneios", key: "id", fromRow: romaneioFromRow },
+  { table: "rastreio_eventos", key: "id", fromRow: rastreioEventoFromRow },
   { table: "notificacoes", key: "id", fromRow: notificacaoFromRow }
 ];
 
