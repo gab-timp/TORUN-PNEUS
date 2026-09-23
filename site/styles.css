@@ -952,6 +952,23 @@ body.is-admin .nav-item.admin-only{display:flex;}
   color:var(--ink);
   outline:none;
 }
+.divisao-pagamento-box{
+  margin-top:10px; background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:12px;
+}
+.item-row.divisao-row .divisao-forma{
+  flex:1 1 200px; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+  font-size:13.5px; background:var(--surface); color:var(--ink); outline:none;
+}
+.item-row.divisao-row .divisao-valor{
+  flex:0 0 140px; width:140px; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+  font-size:13.5px; background:var(--surface); color:var(--ink); outline:none; font-family:'Space Mono',monospace;
+}
+.divisao-pagamento-resumo{margin-top:10px; padding-top:10px; border-top:1px solid var(--line);}
+.divisao-resumo-linha{display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-soft);}
+.divisao-resumo-linha .mono{font-weight:700; color:var(--ink);}
+.divisao-resumo-status{margin-top:4px; font-size:12px; font-weight:700;}
+.divisao-resumo-status.ok{color:var(--status-good);}
+.divisao-resumo-status.erro{color:var(--danger);}
 .item-row .item-processo{
   flex:0 0 130px;
   width:130px;

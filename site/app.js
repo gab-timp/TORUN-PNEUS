@@ -140,7 +140,8 @@ function vendaToRow(v) {
     valor_venda: v.valorVenda, forma_pagamento: v.formaPagamento || null, vendedor: v.vendedor || null,
     comissao_percentual: v.comissaoPercentual || 0, comissao: v.comissao || 0,
     valor_frete: v.valorFrete, transportadora: v.transportadora || null, obs: v.obs || null,
-    valor_recebido: v.valorRecebido != null ? v.valorRecebido : null, parcelas: v.parcelas != null ? v.parcelas : null
+    valor_recebido: v.valorRecebido != null ? v.valorRecebido : null, parcelas: v.parcelas != null ? v.parcelas : null,
+    pagamentos_divididos: v.pagamentosDivididos && v.pagamentosDivididos.length ? v.pagamentosDivididos : null
   };
 }
 function vendaFromRow(r) {
@@ -153,6 +154,7 @@ function vendaFromRow(r) {
     transportadora: r.transportadora, obs: r.obs || "",
     valorRecebido: r.valor_recebido != null ? Number(r.valor_recebido) : null,
     parcelas: r.parcelas || null,
+    pagamentosDivididos: r.pagamentos_divididos || null,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -4968,8 +4970,7 @@ function renderDashboard() {
     porTransp[transp].qtd += 1;
     porTransp[transp].frete += v.valorFrete || 0;
 
-    const forma = v.formaPagamento || "(não informado)";
-    porForma[forma] = (porForma[forma] || 0) + v.valorVenda;
+    acumularPorFormaPagamento(porForma, v);
 
     if (!porCliente[v.cliente]) porCliente[v.cliente] = { faturamento: 0, pneus: 0, qtd: 0 };
     porCliente[v.cliente].faturamento += v.valorVenda;
@@ -5299,10 +5300,7 @@ function renderFaturamento() {
 
   // formas de pagamento
   const porForma = {};
-  vendas.forEach(v => {
-    const key = v.formaPagamento || "(não informado)";
-    porForma[key] = (porForma[key] || 0) + v.valorVenda;
-  });
+  vendas.forEach(v => acumularPorFormaPagamento(porForma, v));
   const formas = Object.entries(porForma).sort((a, b) => b[1] - a[1]);
   const maxForma = formas.length ? formas[0][1] : 1;
   document.getElementById("fatFormaPagList").innerHTML = formas.length === 0
@@ -6419,7 +6417,7 @@ function renderVendas() {
       <td class="mono">${nfHtml}${v.numeroPedido ? `<div class="muted" style="font-size:11px;">Ped. ${escapeHtml(v.numeroPedido)}</div>` : ""}</td>
       <td>${escapeHtml(v.vendedor || "—")}</td>
       <td class="num mono">${fmt(v.quantidadePneus)}</td>
-      <td class="num mono">${formatMoney(v.valorVenda)}</td>
+      <td class="num mono">${formatMoney(v.valorVenda)}${v.pagamentosDivididos && v.pagamentosDivididos.length ? `<div class="muted" style="font-size:11px;">Dividido em ${v.pagamentosDivididos.length} formas</div>` : ""}</td>
       <td class="num mono">${formatMoney(v.comissao || 0)}${v.comissaoPercentual ? `<div class="muted" style="font-size:11px;">${v.comissaoPercentual.toFixed(2).replace(".", ",")}%</div>` : ""}</td>
       <td>${escapeHtml(v.transportadora || "—")}</td>
       <td class="muted">${escapeHtml(v.obs || "—")}</td>
@@ -6459,6 +6457,105 @@ function renderVendas() {
       toast("Venda excluída.");
     });
   });
+}
+
+/* ---------------- divisão opcional de pagamento (venda em mais de uma forma) ---------------- */
+
+// soma o valor de uma venda no total "por forma de pagamento" -- respeita a divisão quando ela
+// existir (cada parte na sua forma), senão joga o valor inteiro na forma única, como sempre foi.
+// Uma função só, usada pelo Dashboard e por Faturamento, pra não desalinhar as duas contas.
+function acumularPorFormaPagamento(porForma, v) {
+  if (v.pagamentosDivididos && v.pagamentosDivididos.length) {
+    v.pagamentosDivididos.forEach(p => {
+      const forma = p.forma_pagamento || "(não informado)";
+      porForma[forma] = (porForma[forma] || 0) + p.valor;
+    });
+  } else {
+    const forma = v.formaPagamento || "(não informado)";
+    porForma[forma] = (porForma[forma] || 0) + v.valorVenda;
+  }
+}
+
+function createDivisaoRow(forma, valor) {
+  const row = document.createElement("div");
+  row.className = "item-row divisao-row";
+  row.innerHTML = `
+    <select class="divisao-forma" required>
+      <option value="">Selecione...</option>
+      <option value="PIX">PIX</option>
+      <option value="CARTÃO">CARTÃO</option>
+      <option value="BOLETO PRÓPRIO">BOLETO PRÓPRIO</option>
+      <option value="BOLETO TRADEMASTER">BOLETO TRADEMASTER</option>
+    </select>
+    <input type="number" class="divisao-valor" min="0" step="0.01" placeholder="Valor (R$)" required>
+    <button type="button" class="btn small danger item-remove" title="Remover">✕</button>
+  `;
+  if (forma) row.querySelector(".divisao-forma").value = forma;
+  if (valor != null) row.querySelector(".divisao-valor").value = valor;
+  row.querySelector(".item-remove").addEventListener("click", () => {
+    row.remove();
+    atualizarResumoDivisaoPagamento();
+  });
+  row.querySelector(".divisao-valor").addEventListener("input", atualizarResumoDivisaoPagamento);
+  row.querySelector(".divisao-forma").addEventListener("change", atualizarResumoDivisaoPagamento);
+  return row;
+}
+
+function atualizarResumoDivisaoPagamento() {
+  const resumo = document.getElementById("venDivisaoResumo");
+  if (!resumo) return;
+  const linhas = Array.from(document.querySelectorAll("#venDivisaoLista .divisao-row"));
+  const soma = linhas.reduce((acc, row) => acc + (parseFloat(row.querySelector(".divisao-valor").value) || 0), 0);
+  const total = parseFloat(document.getElementById("venValor").value) || 0;
+  const diferenca = total - soma;
+  const bate = linhas.length > 0 && soma > 0 && Math.abs(diferenca) < 0.01;
+  resumo.innerHTML = `
+    <div class="divisao-resumo-linha">
+      <span>Somado nas formas acima</span>
+      <span class="mono">${formatMoney(soma)}</span>
+    </div>
+    <div class="divisao-resumo-status ${bate ? "ok" : "erro"}">
+      ${linhas.length === 0 ? "Adicione ao menos uma forma."
+        : bate ? "✓ Confere com o valor da venda"
+        : diferenca > 0 ? `Falta ${formatMoney(diferenca)} pra completar o valor da venda.`
+        : `Passou ${formatMoney(-diferenca)} do valor da venda.`}
+    </div>
+  `;
+}
+
+function resetDivisaoPagamento() {
+  document.getElementById("venDividirPagamento").checked = false;
+  document.getElementById("venDivisaoBox").style.display = "none";
+  document.getElementById("venDivisaoLista").innerHTML = "";
+  document.getElementById("venDivisaoResumo").innerHTML = "";
+}
+
+// lê a divisão do formulário pro submit -- devolve null (sem divisão, comportamento de sempre)
+// ou a lista validada; toca toast e devolve undefined se algo não bate, pra bloquear o salvar.
+function coletarDivisaoPagamento() {
+  if (!document.getElementById("venDividirPagamento").checked) return null;
+  const linhas = Array.from(document.querySelectorAll("#venDivisaoLista .divisao-row"));
+  if (linhas.length === 0) {
+    toast("Adicione ao menos uma forma de pagamento na divisão, ou desmarque a opção.");
+    return undefined;
+  }
+  const pagamentos = [];
+  for (const row of linhas) {
+    const forma = row.querySelector(".divisao-forma").value;
+    const valorRaw = row.querySelector(".divisao-valor").value;
+    if (!forma || !valorRaw) {
+      toast("Preencha forma e valor em todas as linhas da divisão.");
+      return undefined;
+    }
+    pagamentos.push({ forma_pagamento: forma, valor: parseFloat(valorRaw) });
+  }
+  const soma = pagamentos.reduce((a, p) => a + p.valor, 0);
+  const total = parseFloat(document.getElementById("venValor").value) || 0;
+  if (Math.abs(soma - total) > 0.01) {
+    toast(`A soma da divisão (${formatMoney(soma)}) precisa bater com o valor da venda (${formatMoney(total)}).`);
+    return undefined;
+  }
+  return pagamentos;
 }
 
 // limpa a marcação de "frete puxado da cotação" (usada pra não sobrescrever o que foi digitado à mão)
@@ -6512,6 +6609,15 @@ function startEditVenda(vendaId) {
   document.getElementById("venValorFrete").value = v.valorFrete != null ? v.valorFrete : "";
   document.getElementById("venObs").value = v.obs || "";
 
+  resetDivisaoPagamento();
+  if (v.pagamentosDivididos && v.pagamentosDivididos.length) {
+    document.getElementById("venDividirPagamento").checked = true;
+    document.getElementById("venDivisaoBox").style.display = "";
+    const lista = document.getElementById("venDivisaoLista");
+    v.pagamentosDivididos.forEach(p => lista.appendChild(createDivisaoRow(p.forma_pagamento, p.valor)));
+    atualizarResumoDivisaoPagamento();
+  }
+
   document.getElementById("venFormTitle").textContent = "Editar venda";
   document.getElementById("venEditBanner").style.display = "block";
   document.getElementById("btnSubmitVenda").textContent = "Salvar alterações";
@@ -6523,6 +6629,7 @@ function cancelEditVenda() {
   editingVendaId = null;
   editingVendaUpdatedAt = null;
   resetarFretePuxado();
+  resetDivisaoPagamento();
   document.getElementById("formVenda").reset();
   document.getElementById("venData").value = todayISO();
   document.getElementById("venTransportadora").disabled = false;
@@ -7193,6 +7300,21 @@ function initForms() {
     atualizarComissaoCalc();
   });
 
+  document.getElementById("venDividirPagamento").addEventListener("change", (e) => {
+    document.getElementById("venDivisaoBox").style.display = e.target.checked ? "" : "none";
+    const lista = document.getElementById("venDivisaoLista");
+    if (e.target.checked && lista.children.length === 0) {
+      lista.appendChild(createDivisaoRow());
+      lista.appendChild(createDivisaoRow());
+    }
+    atualizarResumoDivisaoPagamento();
+  });
+  document.getElementById("btnAddDivisaoPagamento").addEventListener("click", () => {
+    document.getElementById("venDivisaoLista").appendChild(createDivisaoRow());
+    atualizarResumoDivisaoPagamento();
+  });
+  document.getElementById("venValor").addEventListener("input", atualizarResumoDivisaoPagamento);
+
   document.getElementById("formVenda").addEventListener("submit", async (e) => {
     e.preventDefault();
     const cliente = document.getElementById("venCliente").value.trim();
@@ -7217,6 +7339,9 @@ function initForms() {
     const comissaoPctRaw = document.getElementById("venComissaoPct").value;
     const comissaoPercentual = comissaoPctRaw ? parseFloat(comissaoPctRaw) : 0;
     const comissaoBase = valorVenda; // comissão sempre sai do valor da venda, nunca do valor recebido
+    const pagamentosDivididos = coletarDivisaoPagamento();
+    if (pagamentosDivididos === undefined) return;
+
     const valorFreteRaw = document.getElementById("venValorFrete").value;
     const dadosVenda = {
       data: document.getElementById("venData").value || todayISO(),
@@ -7234,7 +7359,8 @@ function initForms() {
       transportadora: clienteRetira ? "Cliente retira" : (document.getElementById("venTransportadora").value.trim() || null),
       obs: document.getElementById("venObs").value.trim(),
       valorRecebido,
-      parcelas: temParcelas && parcelasRaw ? parcelasRaw : null
+      parcelas: temParcelas && parcelasRaw ? parcelasRaw : null,
+      pagamentosDivididos
     };
 
     if (editingVendaId) {
@@ -7276,6 +7402,7 @@ function initForms() {
     state.vendas.push(vendaFromRow(inserido[0]));
     e.target.reset();
     resetarFretePuxado();
+    resetDivisaoPagamento();
     document.getElementById("venData").value = todayISO();
     document.getElementById("venTransportadora").disabled = false;
     document.getElementById("venValorFrete").disabled = false;
