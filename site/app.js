@@ -4993,7 +4993,7 @@ function renderDashboard() {
   // o estado/vendedor com o maior valor DAQUELE card podia ficar escondido dentro
   // de "+N outros" só porque não era o maior em faturamento (achado em revisão).
   const estadosPorPneus = Object.entries(porEstado).sort((a, b) => b[1].pneus - a[1].pneus);
-  const vendedoresPorComissao = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao);
+  const vendedoresPorComissao = Object.entries(porVendedor).filter(([, d]) => d.comissao > 0).sort((a, b) => b[1].comissao - a[1].comissao);
 
   // 0. Evolução mensal do faturamento -- independente do dashMesFiltro, sempre o
   // ano todo (Jan a Dez, não "o mês selecionado"), pra mostrar a trajetória do ano.
@@ -5032,20 +5032,20 @@ function renderDashboard() {
     rankingMedida.map(([medida, qtd]) => ({ label: medida, value: qtd })), { horizontal: true, valueIsMoney: false, suffix: " un." }
   );
 
-  // 2. Faturamento por representante -- tabela rica (Vendas + Comissão) quando o
-  // estilo escolhido for "tabela"; em barra/rosca usa só nome+faturamento como
-  // qualquer outro card variável.
+  // 2. Faturamento por representante -- tabela rica (Vendas) quando o estilo escolhido for
+  // "tabela"; em barra/rosca usa só nome+faturamento como qualquer outro card variável.
+  // Comissão saiu daqui a pedido do usuário -- quem quiser ver comissão usa o card
+  // dedicado "Comissão por Representante" (key comissaoRepresentante), logo abaixo.
   renderDashCardVariavel("faturamentoRepresentante", "bodyFaturamentoRepresentante", "chartFaturamentoRepresentante",
     vendedores.map(([nome, d]) => ({ label: nome, value: d.faturamento })),
     {
       valueIsMoney: true,
       tabelaRica: {
-        rows: vendedores.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento, comissao: d.comissao })),
+        rows: vendedores.map(([nome, d]) => ({ nome, qtd: d.qtd, faturamento: d.faturamento })),
         columns: [
           { key: "nome", label: "Representante", type: "name" },
           { key: "qtd", label: "Vendas", type: "num" },
-          { key: "faturamento", label: "Faturamento", type: "bar", money: true },
-          { key: "comissao", label: "Comissão", type: "num", money: true }
+          { key: "faturamento", label: "Faturamento", type: "bar", money: true }
         ]
       }
     }
