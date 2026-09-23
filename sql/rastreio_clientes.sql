@@ -62,6 +62,7 @@ as $$
     and trim(e.numero_nf) = trim(p_nf)
     and regexp_replace(coalesce(e.documento_cliente, ''), '\D', '', 'g') = regexp_replace(p_documento, '\D', '', 'g')
     and not e.cancelado
+  order by e.created_at desc nulls last
   limit 1;
 $$;
 

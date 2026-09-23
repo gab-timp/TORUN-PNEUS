@@ -4068,6 +4068,15 @@ function initEntregas() {
       prazoPagamento: document.getElementById("pedPrazoPagamento").value.trim()
     };
 
+    // documento_cliente não tem campo próprio na tela (só o portal do representante preenche
+    // direto) -- sem ele o Rastreio nunca acha esse pedido pro cliente. Puxa do cadastro em
+    // Clientes pelo nome sempre que houver, sem sobrescrever um valor já existente com vazio
+    // se o nome não bater com nenhum cadastro ou o cadastro não tiver documento.
+    const clienteCadastro = getCliente(dados.cliente);
+    if (clienteCadastro && clienteCadastro.documento) {
+      dados.documentoCliente = clienteCadastro.documento;
+    }
+
     if (dados.etapa === "FINALIZADOS") {
       const faltando = pedidoCamposFaltando(dados);
       if (faltando.length > 0) {
