@@ -213,7 +213,6 @@ let rerenderTimerRep = null;
 function scheduleRerenderRep() {
   clearTimeout(rerenderTimerRep);
   rerenderTimerRep = setTimeout(() => {
-    renderRepEstoque();
     renderRepCatalogo();
     renderRepEntregas();
     renderAcompanhamento();
@@ -392,14 +391,12 @@ async function afterLogin() {
   document.getElementById("repShell").style.display = "block";
   initForm();
   initRepTabs();
-  initRepEstoque();
   initRepCatalogo();
   initRepEntregas();
   initPreCadastroForm();
   initThemeToggle();
   initMinhasConfiguracoes();
   initRepDashboard();
-  renderRepEstoque();
   renderRepCatalogo();
   renderRepEntregas();
   renderMeusPreCadastros();
@@ -1050,7 +1047,6 @@ async function salvarPedidoRep() {
   document.getElementById("formPedidoRepresentante").style.display = "none";
   document.getElementById("repConfirmacao").style.display = "flex";
   document.getElementById("repConfirmacaoReserva").style.display = "none";
-  renderRepEstoque();
   entregas.unshift(payload);
   renderRepEntregas();
   acompanhamentoSelecionadoId = payload.id;
@@ -1060,7 +1056,7 @@ async function salvarPedidoRep() {
 /* ---------------- abas ---------------- */
 
 const REP_TAB_IDS = {
-  pedido: "repTabPedido", estoque: "repTabEstoque", catalogo: "repTabCatalogo", entregas: "repTabEntregas",
+  pedido: "repTabPedido", catalogo: "repTabCatalogo", entregas: "repTabEntregas",
   precadastro: "repTabPreCadastro", acompanhamento: "repTabAcompanhamento", dashboard: "repTabDashboard"
 };
 
@@ -1308,34 +1304,12 @@ function abrirRepDashClienteDetalhe(clienteNome) {
   `;
 }
 
-/* ---------------- estoque (somente leitura) ---------------- */
+/* ---------------- saldo de produto (usado no Catálogo) ---------------- */
 
 function computeSaldoProduto(codigo) {
   return movimentos
     .filter(m => m.codigo === codigo)
     .reduce((saldo, m) => saldo + (m.tipo === "entrada" ? Number(m.quantidade) : -Number(m.quantidade)), 0);
-}
-
-function initRepEstoque() {
-  document.getElementById("repEstoqueSearch").addEventListener("input", renderRepEstoque);
-}
-
-function renderRepEstoque() {
-  const search = (document.getElementById("repEstoqueSearch").value || "").trim().toLowerCase();
-  let rows = produtos.map(p => ({ codigo: p.codigo, medida: p.medida, saldo: computeSaldoProduto(p.codigo) }));
-  if (search) {
-    rows = rows.filter(r => [r.codigo, r.medida].join(" ").toLowerCase().includes(search));
-  }
-  rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
-
-  document.getElementById("repEstoqueEmpty").style.display = rows.length ? "none" : "block";
-  document.getElementById("repEstoqueTbody").innerHTML = rows.map(r => `
-    <tr>
-      <td class="mono">${escapeHtml(r.codigo)}</td>
-      <td>${escapeHtml(r.medida)}</td>
-      <td class="num mono">${fmt(r.saldo)}</td>
-    </tr>
-  `).join("");
 }
 
 /* ---------------- entregas (somente leitura) ---------------- */
