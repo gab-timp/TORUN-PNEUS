@@ -56,6 +56,13 @@
   padding:24px 16px 60px;
 }
 
+.rep-page.rep-page-wide{max-width:1240px;}
+
+/* .kpis (styles.css) estica os cards pra sempre preencher a fileira toda --
+   com só 4 KPIs (contra 6-8 do Dashboard interno), isso vira card enorme e
+   quase vazio numa tela larga. Trava um teto só aqui no portal do representante. */
+.rep-page .kpis{grid-template-columns:repeat(auto-fit,minmax(180px,240px));}
+
 .rep-section-card{
   background:var(--surface); border:1px solid var(--line); border-radius:12px;
   padding:20px; margin-bottom:20px;
