@@ -415,9 +415,10 @@ async function afterLogin() {
   document.getElementById("preCadTipoCliente").innerHTML = tipoClienteOpcoesHtml;
 
   document.getElementById("loadingScreen").style.display = "none";
-  document.getElementById("repShell").style.display = "block";
+  document.getElementById("repShell").style.display = "flex";
   initForm();
   initRepTabs();
+  initMobileMenuRep();
   initRepCatalogo();
   initRepEntregas();
   initPreCadastroForm();
@@ -1729,9 +1730,9 @@ const REP_TAB_IDS = {
 };
 
 function initRepTabs() {
-  document.querySelectorAll(".rep-tab").forEach(tab => {
+  document.querySelectorAll("#repSidebar [data-reptab]").forEach(tab => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".rep-tab").forEach(t => t.classList.toggle("active", t === tab));
+      document.querySelectorAll("#repSidebar [data-reptab]").forEach(t => t.classList.toggle("active", t === tab));
       const alvo = tab.dataset.reptab;
       Object.entries(REP_TAB_IDS).forEach(([nome, id]) => {
         const el = document.getElementById(id);
@@ -1741,8 +1742,19 @@ function initRepTabs() {
       if (alvo === "faturamento") renderRepFaturamento();
       if (alvo === "catalogo") renderRepCatalogo();
       if (alvo === "dashboard") renderRepDashboard();
+      setMobileMenuRep(false);
     });
   });
+}
+
+function setMobileMenuRep(open) {
+  document.getElementById("repSidebar").classList.toggle("open", open);
+  document.getElementById("repMobileMenuBackdrop").classList.toggle("show", open);
+}
+
+function initMobileMenuRep() {
+  document.getElementById("repMobileMenuBtn").addEventListener("click", () => setMobileMenuRep(true));
+  document.getElementById("repMobileMenuBackdrop").addEventListener("click", () => setMobileMenuRep(false));
 }
 
 /* ---------------- meu desempenho (dashboard do vendedor) ---------------- */
