@@ -2217,6 +2217,11 @@ const ANEXOS_BUCKET = "entregas-anexos";
 
 function renderReservaEConfirmarVenda(pedido) {
   const souDono = pedido.created_by === currentUser.id;
+  // pedidos lançados direto pela equipe interna (sem passar pelo portal) têm created_by de
+  // outra pessoa, mas ainda são vendas do representante -- libera ver o anexo por esse critério
+  // também (igual o resto do app faz pra faturamento/comissão), só não libera anexar/editar.
+  const souVendedor = (pedido.vendedor || "").trim().toLowerCase() === (currentUserNome || "").trim().toLowerCase();
+  const podeVerAnexos = souDono || souVendedor;
 
   document.getElementById("repEntregaConfirmarVendaWrap").style.display =
     (souDono && pedido.etapa === "PRE_VENDA") ? "flex" : "none";
@@ -2237,8 +2242,9 @@ function renderReservaEConfirmarVenda(pedido) {
   }
 
   const anexosWrap = document.getElementById("repEntregaAnexosWrap");
-  anexosWrap.style.display = souDono ? "block" : "none";
-  if (souDono) renderAnexosEntregaRep(pedido);
+  anexosWrap.style.display = podeVerAnexos ? "block" : "none";
+  document.getElementById("btnAnexarEntregaRep").style.display = souDono ? "" : "none";
+  if (podeVerAnexos) renderAnexosEntregaRep(pedido);
 }
 
 async function confirmarVendaRep(id) {
