@@ -956,6 +956,332 @@ function closeCatalogoFotoLightbox() {
   catalogoLightboxUrls = [];
 }
 
+/* ---------------- Catálogo em PDF (sem preço) ---------------- */
+// Mesmo mecanismo do Catálogo interno (app.js): monta a página em #reportPrintArea e abre a
+// impressão do navegador ("Salvar como PDF"). Pop-up escolhe os tipos de pneu; entram os pneus
+// da lista da tela com a busca aplicada, agrupados por categoria.
+
+const CATALOGO_PDF_FOTO_LARGURA = 640;
+const CATALOGO_PDF_FOTO_LADO_MAX = 640;
+const CATALOGO_PDF_FOTO_QUALIDADE = 0.78;
+const CATALOGO_PDF_FOTO_TIMEOUT_MS = 25000;
+const CATALOGO_PDF_FOTOS_EM_PARALELO = 4;
+let catalogoPdfBlobUrls = [];
+
+async function reduzirFotoParaPdf(url) {
+  if (!url) return null;
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), CATALOGO_PDF_FOTO_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, { signal: controle.signal });
+    if (!resp.ok) return null;
+    const bmp = await createImageBitmap(await resp.blob());
+    try {
+      const escala = Math.min(1, CATALOGO_PDF_FOTO_LADO_MAX / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bmp.width * escala));
+      canvas.height = Math.max(1, Math.round(bmp.height * escala));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const jpeg = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", CATALOGO_PDF_FOTO_QUALIDADE));
+      if (!jpeg) return null;
+      const blobUrl = URL.createObjectURL(jpeg);
+      catalogoPdfBlobUrls.push(blobUrl);
+      return blobUrl;
+    } finally {
+      bmp.close();
+    }
+  } catch (err) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function fotoAbre(url) {
+  return new Promise(resolve => {
+    if (!url) { resolve(false); return; }
+    const img = new Image();
+    const timer = setTimeout(() => resolve(false), CATALOGO_PDF_FOTO_TIMEOUT_MS);
+    img.onload = () => { clearTimeout(timer); resolve(true); };
+    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    img.src = url;
+  });
+}
+
+async function carregarFotoParaPdf(fotoPath) {
+  const { data } = sb.storage.from(CATALOGO_BUCKET).getPublicUrl(fotoPath, {
+    transform: { width: CATALOGO_PDF_FOTO_LARGURA, quality: 70 }
+  });
+  const candidatas = [data ? data.publicUrl : null, fotoProdutoUrlRep(fotoPath)];
+  for (const url of candidatas) {
+    const reduzida = await reduzirFotoParaPdf(url);
+    if (reduzida) return reduzida;
+  }
+  for (const url of candidatas) {
+    if (await fotoAbre(url)) return url;
+  }
+  return null;
+}
+
+async function carregarFotosParaPdf(paths, onProgresso) {
+  const unicas = [...new Set(paths)];
+  const resultado = new Map();
+  let proxima = 0, feitas = 0;
+  const trabalhador = async () => {
+    while (proxima < unicas.length) {
+      const path = unicas[proxima++];
+      resultado.set(path, await carregarFotoParaPdf(path));
+      feitas++;
+      onProgresso(feitas, unicas.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CATALOGO_PDF_FOTOS_EM_PARALELO, unicas.length) }, trabalhador));
+  return resultado;
+}
+
+function catalogoPdfCategoria(p) {
+  const bruta = (p.categoria || "").trim();
+  if (!bruta) return { ordem: 99, rotulo: "Sem categoria" };
+  const rotulo = CATEGORIA_NORM_LOOKUP[normalizarCategoria(bruta)] || bruta;
+  const idx = Object.values(CATEGORIA_LABEL).indexOf(rotulo);
+  return { ordem: idx === -1 ? 50 : idx, rotulo };
+}
+
+function buildCatalogoPdfHtml(produtosLista, fotos) {
+  const porCategoria = new Map();
+  produtosLista.forEach(p => {
+    const { ordem, rotulo } = catalogoPdfCategoria(p);
+    if (!porCategoria.has(rotulo)) porCategoria.set(rotulo, { ordem, rotulo, itens: [] });
+    porCategoria.get(rotulo).itens.push(p);
+  });
+  const cmp = (a, b) => (a || "").localeCompare(b || "", "pt-BR", { numeric: true, sensitivity: "base" });
+  const grupos = [...porCategoria.values()].sort((a, b) => a.ordem - b.ordem || cmp(a.rotulo, b.rotulo));
+
+  const cardHtml = (p) => {
+    const urls = [p.foto_path, p.foto_path_2].map(path => path ? fotos.get(path) : null).filter(Boolean);
+    const slots = urls.length
+      ? urls.map(u => `<div class="pc-slot"><img src="${escapeHtml(u)}" alt="${escapeHtml(p.codigo)}"></div>`).join("")
+      : `<div class="pc-slot"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg></div>`;
+    const disponivel = computeSaldoProduto(p.codigo) > 0;
+    const specs = [
+      ["PR / Lonas", p.pr], ["Cintas", p.cintas], ["Cap. carga", p.cap_carga],
+      ["PSI", p.psi], ["Sulco (mm)", p.sulco_mm], ["Peso (kg)", p.peso_kg]
+    ].filter(([, v]) => v);
+    return `
+      <div class="pc-card">
+        <div class="pc-foto">${slots}<span class="pc-chip${disponivel ? " ok" : ""}">${disponivel ? "Disponível" : "Sob consulta"}</span></div>
+        <div class="pc-corpo">
+          <div class="pc-linha"><span class="pc-marca">${escapeHtml(p.marca || "")}</span><span class="pc-cod">${escapeHtml(p.codigo)}</span></div>
+          <div class="pc-modelo">${escapeHtml(p.modelo || p.codigo)}</div>
+          <div class="pc-medida">${escapeHtml(p.medida)}</div>
+          ${specs.length ? `<div class="pc-specs">${specs.map(([l, v]) => `<div><span class="l">${escapeHtml(l)}</span><span class="v">${escapeHtml(v)}</span></div>`).join("")}</div>` : ""}
+        </div>
+      </div>`;
+  };
+
+  const secoes = grupos.map(g => {
+    const itens = g.itens.slice().sort((a, b) => cmp(a.marca, b.marca) || cmp(a.medida, b.medida) || cmp(a.codigo, b.codigo));
+    return `
+      <section class="pc-grupo">
+        <div class="pc-cat"><h2>${escapeHtml(g.rotulo)}</h2><span>${fmt(itens.length)} ${itens.length === 1 ? "pneu" : "pneus"}</span></div>
+        <div class="pc-grade">${itens.map(cardHtml).join("")}</div>
+      </section>`;
+  }).join("");
+
+  return `
+    <div class="print-catalogo">
+      <div class="pc-topo">
+        <img src="assets/logo-light.png" class="pc-logo" alt="Torun Pneus">
+        <div>
+          <h1>Catálogo de pneus</h1>
+          <div class="pc-sub">Atualizado em ${formatDateBR(todayISO())}<br>Valores e condições de pagamento sob consulta.</div>
+        </div>
+      </div>
+      ${secoes}
+    </div>`;
+}
+
+const CATALOGO_PDF_PAGINA_ALTURA = 1006;
+const CATALOGO_PDF_LARGURA = 703;
+const CATALOGO_PDF_COLUNAS = 3;
+const CATALOGO_PDF_VAO_LINHAS = 12;
+const CATALOGO_PDF_FOTO_EXTRA_MAX = 50;
+const CATALOGO_PDF_FOTO_ALTURA = 150;
+
+async function paginarCatalogoPdf(area) {
+  const raiz = area.querySelector(".print-catalogo");
+  const medir = (el) => {
+    const cs = getComputedStyle(el);
+    return el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  };
+  area.style.cssText = `display:block; position:absolute; left:-10000px; top:0; width:${CATALOGO_PDF_LARGURA}px; visibility:hidden;`;
+  void area.offsetHeight;
+  if (document.fonts && document.fonts.load) {
+    await Promise.all(["400 12px Inter", "700 12px Inter", "800 12px Inter", "400 10px 'Space Mono'", "700 10px 'Space Mono'"]
+      .map(f => document.fonts.load(f).catch(() => {})));
+  }
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+  const alturaTopo = medir(raiz.querySelector(".pc-topo"));
+  const grupos = [...raiz.querySelectorAll(".pc-grupo")].map(sec => {
+    const cab = sec.querySelector(".pc-cat");
+    const cards = [...sec.querySelectorAll(".pc-card")];
+    const linhas = [];
+    for (let i = 0; i < cards.length; i += CATALOGO_PDF_COLUNAS) {
+      const cs = cards.slice(i, i + CATALOGO_PDF_COLUNAS);
+      linhas.push({ cards: cs, h: Math.max(...cs.map(c => c.offsetHeight)), extra: 0 });
+    }
+    return { cab, linhas, alturaCab: medir(cab) };
+  });
+
+  const paginas = [];
+  grupos.forEach((g, gi) => {
+    const capacidade = (continuacao) => CATALOGO_PDF_PAGINA_ALTURA - g.alturaCab - (!continuacao && gi === 0 ? alturaTopo : 0);
+    const nova = (continuacao) => ({ g, continuacao, linhas: [], usado: 0, cap: capacidade(continuacao) });
+    const doGrupo = [nova(false)];
+    g.linhas.forEach(l => {
+      let atual = doGrupo[doGrupo.length - 1];
+      if (atual.linhas.length && atual.usado + CATALOGO_PDF_VAO_LINHAS + l.h > atual.cap) {
+        atual = nova(true);
+        doGrupo.push(atual);
+      }
+      atual.usado += (atual.linhas.length ? CATALOGO_PDF_VAO_LINHAS : 0) + l.h;
+      atual.linhas.push(l);
+    });
+    const ult = doGrupo[doGrupo.length - 1], ant = doGrupo[doGrupo.length - 2];
+    if (ant && ult.linhas.length === 1 && ult.linhas[0].cards.length === 1 && ant.linhas.length > 1) {
+      const mov = ant.linhas[ant.linhas.length - 1];
+      if (ult.usado + CATALOGO_PDF_VAO_LINHAS + mov.h <= ult.cap) {
+        ant.linhas.pop();
+        ant.usado -= CATALOGO_PDF_VAO_LINHAS + mov.h;
+        ult.linhas.unshift(mov);
+        ult.usado += CATALOGO_PDF_VAO_LINHAS + mov.h;
+      }
+    }
+    doGrupo.forEach(p => {
+      const sobra = p.cap - p.usado;
+      if (p.linhas.length && sobra > 0 && p.usado / p.cap >= 0.6) {
+        const extra = Math.floor(Math.min(sobra / p.linhas.length, CATALOGO_PDF_FOTO_EXTRA_MAX));
+        p.linhas.forEach(l => { l.extra = extra; });
+      }
+    });
+    paginas.push(...doGrupo);
+  });
+
+  raiz.querySelectorAll(".pc-grupo").forEach(sec => sec.remove());
+  paginas.forEach(p => {
+    const pagina = document.createElement("section");
+    pagina.className = "pc-pagina";
+    const cab = p.g.cab.cloneNode(true);
+    const grade = document.createElement("div");
+    grade.className = "pc-grade";
+    p.linhas.forEach(l => l.cards.forEach(c => {
+      if (l.extra) c.querySelector(".pc-foto").style.height = (CATALOGO_PDF_FOTO_ALTURA + l.extra) + "px";
+      grade.appendChild(c);
+    }));
+    pagina.append(cab, grade);
+    raiz.appendChild(pagina);
+  });
+  area.style.cssText = "";
+  return paginas.length;
+}
+
+function limparImpressaoCatalogo() {
+  document.body.classList.remove("imprimindo-doc");
+  document.body.style.zoom = "";
+  document.getElementById("reportPrintArea").innerHTML = "";
+  catalogoPdfBlobUrls.forEach(u => URL.revokeObjectURL(u));
+  catalogoPdfBlobUrls = [];
+}
+
+function abrirCatalogoPdfModal() {
+  const search = (document.getElementById("repCatSearch").value || "").trim().toLowerCase();
+  const lista = catalogoProdutosVisiveisRep(search, "");
+  if (lista.length === 0) { toast("Nenhum pneu na lista para gerar o catálogo."); return; }
+
+  const porTipo = new Map();
+  lista.forEach(p => {
+    const { ordem, rotulo } = catalogoPdfCategoria(p);
+    if (!porTipo.has(rotulo)) porTipo.set(rotulo, { ordem, rotulo, qtd: 0 });
+    porTipo.get(rotulo).qtd++;
+  });
+  Object.values(CATEGORIA_LABEL).forEach((rotulo, i) => {
+    if (!porTipo.has(rotulo)) porTipo.set(rotulo, { ordem: i, rotulo, qtd: 0 });
+  });
+  const tipos = [...porTipo.values()].sort((a, b) => a.ordem - b.ordem || a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+
+  const filtroTela = document.getElementById("repCatFiltroCategoria").value;
+  const soEste = filtroTela ? catalogoPdfCategoria({ categoria: filtroTela }).rotulo : null;
+
+  document.getElementById("repCatalogoPdfLista").innerHTML = tipos.map(t => `
+    <label class="catpdf-linha${t.qtd === 0 ? " vazia" : ""}">
+      <input type="checkbox" data-rotulo="${escapeHtml(t.rotulo)}" data-qtd="${t.qtd}" ${t.qtd === 0 ? "disabled" : (!soEste || t.rotulo === soEste ? "checked" : "")}>
+      <span class="nome">${escapeHtml(t.rotulo)}</span>
+      <span class="qtd">${fmt(t.qtd)} ${t.qtd === 1 ? "pneu" : "pneus"}</span>
+    </label>`).join("");
+  atualizarCatalogoPdfResumo();
+  document.getElementById("repCatalogoPdfOverlay").classList.add("show");
+}
+
+function fecharCatalogoPdfModal() {
+  document.getElementById("repCatalogoPdfOverlay").classList.remove("show");
+}
+
+function catalogoPdfCaixas() {
+  return [...document.querySelectorAll("#repCatalogoPdfLista input[type=checkbox]")];
+}
+
+function atualizarCatalogoPdfResumo() {
+  const marcadas = catalogoPdfCaixas().filter(c => c.checked);
+  const total = marcadas.reduce((soma, c) => soma + Number(c.dataset.qtd), 0);
+  document.getElementById("repCatalogoPdfResumo").innerHTML = marcadas.length
+    ? `<span class="num">${fmt(total)}</span> ${total === 1 ? "pneu" : "pneus"} em <span class="num">${fmt(marcadas.length)}</span> ${marcadas.length === 1 ? "tipo" : "tipos"}`
+    : "Nenhum tipo marcado";
+  document.getElementById("repCatalogoPdfGerar").disabled = marcadas.length === 0;
+}
+
+async function gerarCatalogoPdf(rotulos) {
+  const btn = document.getElementById("btnRepCatalogoPdf");
+  if (btn.disabled) return;
+  const search = (document.getElementById("repCatSearch").value || "").trim().toLowerCase();
+  const lista = catalogoProdutosVisiveisRep(search, "")
+    .filter(p => !rotulos || rotulos.has(catalogoPdfCategoria(p).rotulo));
+  if (lista.length === 0) { toast("Nenhum pneu na lista para gerar o catálogo."); return; }
+
+  const rotuloOriginal = btn.textContent;
+  btn.disabled = true;
+  try {
+    const paths = lista.flatMap(p => [p.foto_path, p.foto_path_2]).filter(Boolean);
+    btn.textContent = paths.length ? "Preparando fotos…" : "Gerando…";
+    const fotos = await carregarFotosParaPdf(paths, (feitas, total) => {
+      btn.textContent = `Preparando fotos… ${feitas}/${total}`;
+    });
+    const area = document.getElementById("reportPrintArea");
+    document.body.style.zoom = "1";
+    document.body.classList.add("imprimindo-doc");
+    area.innerHTML = buildCatalogoPdfHtml(lista, fotos);
+    await paginarCatalogoPdf(area);
+    const esperaLimite = new Promise(resolve => setTimeout(resolve, 10000));
+    await Promise.race([
+      Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve()))),
+      esperaLimite
+    ]);
+    window.addEventListener("afterprint", limparImpressaoCatalogo, { once: true });
+    window.print();
+  } catch (err) {
+    console.error("Erro ao gerar o catálogo em PDF:", err);
+    limparImpressaoCatalogo();
+    toast("Não foi possível gerar o PDF do catálogo: " + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = rotuloOriginal;
+  }
+}
+
 function initRepCatalogo() {
   document.getElementById("repCatSearch").addEventListener("input", renderRepCatalogo);
   document.getElementById("repCatFiltroCategoria").addEventListener("change", renderRepCatalogo);
@@ -969,6 +1295,27 @@ function initRepCatalogo() {
   });
   document.getElementById("repCatalogoModalTipoCliente").addEventListener("change", () => {
     if (repCatalogoEditingCodigo) renderRepCatalogoModalPrecos(repCatalogoEditingCodigo);
+  });
+
+  document.getElementById("btnRepCatalogoPdf").addEventListener("click", abrirCatalogoPdfModal);
+  document.getElementById("repCatalogoPdfLista").addEventListener("change", atualizarCatalogoPdfResumo);
+  document.getElementById("repCatalogoPdfTodos").addEventListener("click", () => {
+    catalogoPdfCaixas().forEach(c => { if (!c.disabled) c.checked = true; });
+    atualizarCatalogoPdfResumo();
+  });
+  document.getElementById("repCatalogoPdfLimpar").addEventListener("click", () => {
+    catalogoPdfCaixas().forEach(c => { c.checked = false; });
+    atualizarCatalogoPdfResumo();
+  });
+  document.getElementById("repCatalogoPdfCancelar").addEventListener("click", fecharCatalogoPdfModal);
+  document.getElementById("repCatalogoPdfOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "repCatalogoPdfOverlay") fecharCatalogoPdfModal();
+  });
+  document.getElementById("repCatalogoPdfGerar").addEventListener("click", () => {
+    const rotulos = new Set(catalogoPdfCaixas().filter(c => c.checked).map(c => c.dataset.rotulo));
+    if (rotulos.size === 0) return;
+    fecharCatalogoPdfModal();
+    gerarCatalogoPdf(rotulos);
   });
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);

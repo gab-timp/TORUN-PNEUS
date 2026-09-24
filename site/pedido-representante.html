@@ -192,8 +192,13 @@
 
   <div class="rep-page rep-tab-content" id="repTabCatalogo" style="display:none;">
     <div class="rep-section-card">
-      <h2>Catálogo</h2>
-      <div class="note">Pneus em estoque, com especificações técnicas e preço por região e condição de pagamento.</div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h2>Catálogo</h2>
+          <div class="note">Pneus em estoque, com especificações técnicas e preço por região e condição de pagamento.</div>
+        </div>
+        <button type="button" class="btn primary" id="btnRepCatalogoPdf" title="Escolha os tipos de pneu e gere o catálogo em PDF, sem preço (respeita a busca da tela)">Gerar PDF</button>
+      </div>
       <div class="form-row">
         <div class="field grow">
           <label>Buscar</label>
@@ -376,6 +381,27 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="repCatalogoPdfOverlay">
+    <div class="modal" role="dialog" aria-labelledby="repCatalogoPdfTitulo">
+      <h3 id="repCatalogoPdfTitulo">Gerar catálogo em PDF</h3>
+      <p style="margin-bottom:12px;">Escolha os tipos de pneu que entram no PDF. O catálogo sai sem preço.</p>
+      <div class="catpdf-topo">
+        <span class="catpdf-rotulo">Tipos de pneu</span>
+        <span class="catpdf-acoes">
+          <button type="button" class="btn small outline" id="repCatalogoPdfTodos">Marcar todos</button>
+          <button type="button" class="btn small outline" id="repCatalogoPdfLimpar">Limpar</button>
+        </span>
+      </div>
+      <div class="catpdf-lista" id="repCatalogoPdfLista"></div>
+      <div class="catpdf-resumo" id="repCatalogoPdfResumo"></div>
+      <p class="catpdf-nota">A busca da tela continua valendo. Tipos sem nenhum pneu na lista aparecem esmaecidos e não podem ser marcados.</p>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="repCatalogoPdfCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="repCatalogoPdfGerar">Gerar PDF</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="repCatalogoModalOverlay">
     <div class="modal catalogo-modal">
       <div class="cliente-modal-head">
@@ -447,8 +473,9 @@
 <div id="propostaAlerts" class="estoque-baixo-alerts proposta-alerts"></div>
 
 <div id="printArea" class="print-only"></div>
+<div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=34"></script>
+<script src="pedido-representante.js?v=35"></script>
 </body>
 </html>
