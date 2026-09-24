@@ -66,6 +66,25 @@ const ETAPA_LABEL = {
   FINANCEIRO: "Financeiro (etapa antiga)"
 };
 
+// mesmas cores por etapa do quadro Kanban interno (--col-accent/--col-deep/--col-pale em styles.css),
+// só que aplicadas direto no card via inline style -- aqui não tem uma coluna .kanban-col por etapa
+// pra herdar a variável CSS de.
+const ETAPA_COR = {
+  PRE_VENDA: { pale: "#EFECEA", deep: "#44403C", accent: "#78716C" },
+  ENTRADA: { pale: "#E4EEFD", deep: "#1D4FA8", accent: "#2F80ED" },
+  AUTORIZACAO_GERENCIA: { pale: "#F1E7FB", deep: "#6B2FA6", accent: "#9B51E0" },
+  ANALISE_CREDITO: { pale: "#E7E7FE", deep: "#4338CA", accent: "#6366F1" },
+  AGUARDANDO_PAGAMENTO: { pale: "#FCECC9", deep: "#92400E", accent: "#D97706" },
+  VALIDACAO_TRANSPORTE: { pale: "#E9ECEF", deep: "#334155", accent: "#64748B" },
+  FATURAMENTO: { pale: "#DEFAF6", deep: "#0D7A6E", accent: "#14B8A6" },
+  SEPARACAO: { pale: "#FBF3D5", deep: "#92650A", accent: "#EAB308" },
+  AGUARDANDO_COLETA: { pale: "#FFE7D6", deep: "#C64F0C", accent: "#FF6A13" },
+  COLETA: { pale: "#E0F4FE", deep: "#0B6E9E", accent: "#0EA5E9" },
+  RASTREIO: { pale: "#FDE6F1", deep: "#A6316D", accent: "#EC4899" },
+  FINALIZADOS: { pale: "#E1F8E8", deep: "#15803D", accent: "#22C55E" }
+};
+const CTE_STATUS_LABEL = { aguardando: "CTE aguardando", recebido: "CTE recebido", cliente_retira: "Cliente retira" };
+
 /* ---------------- utils ---------------- */
 
 function todayISO() {
@@ -2034,20 +2053,41 @@ function renderRepEntregas() {
   }
 
   document.getElementById("repEntregasEmpty").style.display = rows.length ? "none" : "block";
-  document.getElementById("repEntregasTbody").innerHTML = rows.map(e => `
-    <tr class="rep-entrega-row" data-entid="${escapeHtml(e.id)}">
-      <td class="mono">${escapeHtml(e.numero_nf || e.numero_pedido || "Sem NF")}${e.reserva ? ` <span class="rep-tag-reserva">RESERVA</span>` : ""}</td>
-      <td>${escapeHtml(e.cliente || "—")}</td>
-      <td>${escapeHtml(e.vendedor || "—")}</td>
-      <td>${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "—")}</td>
-      <td class="mono">${formatDateBR(e.data)}</td>
-      <td>${escapeHtml(e.transportadora || "—")}</td>
-    </tr>
-  `).join("");
+  document.getElementById("repEntregasGrid").innerHTML = rows.map(e => {
+    const cor = ETAPA_COR[e.etapa] || ETAPA_COR.PRE_VENDA;
+    const itensHtml = (e.itens || []).map(it => {
+      const prod = produtos.find(p => p.codigo === it.codigo);
+      return `
+        <li>
+          <span class="mono">${escapeHtml(it.codigo)}</span>
+          <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
+          <span class="num mono">${fmt(it.quantidade)}</span>
+        </li>
+      `;
+    }).join("");
+    return `
+      <div class="kanban-card rep-entrega-card" data-entid="${escapeHtml(e.id)}" style="--col-accent:${cor.accent};">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+          <span class="kanban-card-nf">${escapeHtml(e.numero_nf || e.numero_pedido || "Sem NF")}</span>
+          <span class="kanban-card-tag" style="background:${cor.pale}; color:${cor.deep}; border-color:${cor.accent};">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "—")}</span>
+        </div>
+        <div class="kanban-card-cliente">${escapeHtml(e.cliente || "(sem cliente)")}</div>
+        ${e.reserva_status === "pendente" ? `<span class="kanban-card-tag reserva" style="margin-top:6px; display:inline-block;">RESERVA</span>` : ""}
+        ${itensHtml ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+        ${e.destino ? `<div class="kanban-card-endereco">📍 ${escapeHtml(e.destino)}</div>` : ""}
+        <div class="kanban-card-meta">
+          ${e.transportadora ? `<span class="kanban-card-tag">${escapeHtml(e.transportadora)}</span>` : ""}
+          ${e.data_prevista ? `<span class="kanban-card-tag">Prev. ${formatDateBR(e.data_prevista)}</span>` : ""}
+          ${e.data_entrega ? `<span class="kanban-card-tag entregue">Entregue ${formatDateBR(e.data_entrega)}</span>` : ""}
+          ${(e.anexos || []).length ? `<span class="kanban-card-tag">${e.anexos.length} anexo${e.anexos.length > 1 ? "s" : ""}</span>` : ""}
+          <span class="kanban-card-tag cte ${(e.cte_status || "aguardando").replace("_", "-")}">${CTE_STATUS_LABEL[e.cte_status] || CTE_STATUS_LABEL.aguardando}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
 
-  document.querySelectorAll(".rep-entrega-row").forEach(tr => {
-    tr.style.cursor = "pointer";
-    tr.addEventListener("click", () => abrirDetalheEntregaRep(tr.dataset.entid));
+  document.querySelectorAll(".rep-entrega-card").forEach(card => {
+    card.addEventListener("click", () => abrirDetalheEntregaRep(card.dataset.entid));
   });
 }
 

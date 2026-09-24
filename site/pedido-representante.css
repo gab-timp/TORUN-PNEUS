@@ -132,6 +132,13 @@
 }
 .rep-doc-catalogo-precos .note{grid-column:1/-1; margin-top:2px;}
 
+.rep-entregas-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; margin-bottom:20px;
+}
+/* .kanban-card (styles.css) é pensado pra arrastar entre colunas no board interno --
+   aqui é só clique pra abrir o detalhe, sem drag. */
+.rep-entrega-card{cursor:pointer;}
+
 .rep-itens-table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px;}
 /* só a tabela de Itens do pedido (a única com o combobox de busca de produto)
    precisa que a lista de sugestões "vaze" pra fora da tabela -- overflow-x:auto
