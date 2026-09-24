@@ -21,6 +21,14 @@ let toastTimer;
 let currentUserTema = null;
 let currentUserNotifMudancaEtapa = true;
 let propostaValidadeDias = 14;
+let ESTOQUE_BAIXO_LIMITE = 20;
+const ESTOQUE_ATENCAO_MARGEM = 5;
+function statusEstoque(saldo) {
+  if (saldo <= 0) return "esgotado";
+  if (saldo < ESTOQUE_BAIXO_LIMITE) return "baixo";
+  if (saldo < ESTOQUE_BAIXO_LIMITE + ESTOQUE_ATENCAO_MARGEM) return "atencao";
+  return "normal";
+}
 
 const UF_LIST = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
@@ -29,9 +37,21 @@ const UF_LIST = [
 
 const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
+const CATALOGO_TODOS_TIPOS = "TODOS"; // valor do filtro "Tipo de cliente" que lista todos os pneus
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
 const UF_PARA_REGIAO = { SC: "SC/RS", RS: "SC/RS", PR: "PR", MG: "MG", MT: "MT" };
+const CATEGORIA_LABEL = { PASSEIO: "Passeio", CARGAS_TBR: "Cargas/TBR", AGRICOLA_FLORESTAL: "Agrícola/Florestal", OUTRO: "Outro" };
+
+// tira acento/maiúsc./"/"/"_"/espaço pra comparar -- só usado como chave de busca, nunca aparece na tela
+function normalizarCategoria(s) {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+const CATEGORIA_NORM_LOOKUP = {};
+Object.entries(CATEGORIA_LABEL).forEach(([key, label]) => {
+  CATEGORIA_NORM_LOOKUP[normalizarCategoria(key)] = label;
+  CATEGORIA_NORM_LOOKUP[normalizarCategoria(label)] = label;
+});
 
 const ETAPA_LABEL = {
   PRE_VENDA: "Pré-venda", ENTRADA: "Entrada", AUTORIZACAO_GERENCIA: "Autorização de Gerência", ANALISE_CREDITO: "Análise de Crédito",
@@ -350,14 +370,14 @@ async function afterLogin() {
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
 
   const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
-    sb.from("produtos").select("codigo, medida, categoria, modelo, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, foto_path, foto_path_2").order("codigo"),
+    sb.from("produtos").select("codigo, medida, categoria, modelo, marca, carcaca, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, ncm, situacao, foto_path, foto_path_2").order("codigo"),
     sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
     sb.from("movimentos").select("id, codigo, tipo, quantidade, data, entrega_id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
     sb.from("vendas").select("id, data, numero_nf_venda, cliente, quantidade_pneus, valor_venda, vendedor, comissao").order("data", { ascending: false }),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
     sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
-    sb.from("configuracoes_site").select("proposta_validade_dias").maybeSingle()
+    sb.from("configuracoes_site").select("proposta_validade_dias, estoque_baixo_limite").maybeSingle()
   ]);
   if (produtosRes.error) toast("Erro ao carregar produtos.");
   if (precosRes.error) toast("Erro ao carregar tabela de preços.");
@@ -373,6 +393,7 @@ async function afterLogin() {
   currentUserTema = (prefRes.data && prefRes.data.tema) || null;
   currentUserNotifMudancaEtapa = prefRes.data ? prefRes.data.notif_mudanca_etapa !== false : true;
   propostaValidadeDias = (configRes.data && configRes.data.proposta_validade_dias) || 14;
+  ESTOQUE_BAIXO_LIMITE = (configRes.data && configRes.data.estoque_baixo_limite) || 20;
   if (currentUserTema && localStorage.getItem(THEME_KEY) !== currentUserTema) {
     localStorage.setItem(THEME_KEY, currentUserTema);
     applyThemeChoice(currentUserTema);
@@ -613,25 +634,42 @@ function populateRepCatalogoFiltros() {
   const selCategoria = document.getElementById("repCatFiltroCategoria");
   const atual = selCategoria.value;
   const categorias = [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort();
-  selCategoria.innerHTML = `<option value="">Todas</option>` + categorias.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  // valor da option continua o bruto (comparado direto contra p.categoria) -- só o texto
+  // mostrado passa pela normalização, senão o dropdown mostrava "CARGAS_TBR" em vez de "Cargas/TBR"
+  selCategoria.innerHTML = `<option value="">Todas</option>` + categorias.map(c =>
+    `<option value="${escapeHtml(c)}">${escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(c)] || c)}</option>`
+  ).join("");
   if (categorias.includes(atual)) selCategoria.value = atual;
 
   const selCondicao = document.getElementById("repCatCondicaoView");
   if (selCondicao.options.length <= 1) {
-    selCondicao.innerHTML = `<option value="">Selecione…</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    selCondicao.innerHTML = `<option value="">Todas as condições</option>` + CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  }
+  const selRegiao = document.getElementById("repCatRegiao");
+  if (selRegiao.options.length <= 1) {
+    selRegiao.innerHTML = `<option value="">Todas as regiões</option>` + CATALOGO_REGIOES.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
   }
 
-  const selTipo = document.getElementById("repCatTipoClienteView");
-  if (selTipo.options.length === 0) {
-    selTipo.innerHTML = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
-    selTipo.value = "CONSUMO";
-  }
+  const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  // "Todos os tipos" só existe no filtro da lista (mostra todos os pneus, sem valores); o
+  // seletor do modal precisa de um tipo concreto pra montar a grade de preços.
+  [[document.getElementById("repCatTipoClienteView"), `<option value="${CATALOGO_TODOS_TIPOS}">Todos os tipos</option>`],
+   [document.getElementById("repCatalogoModalTipoCliente"), ""]].forEach(([sel, extra]) => {
+    if (sel && sel.options.length === 0) {
+      sel.innerHTML = extra + opcoesHtml;
+      sel.value = "CONSUMO";
+    }
+  });
+}
+
+function getPrecosDoProdutoRep(codigo, tipoCliente) {
+  return produtosPrecos.filter(p => p.codigo === codigo && (!tipoCliente || p.tipo_cliente === tipoCliente));
 }
 
 function buildPrecoMatrixHtmlRep(codigo, tipoCliente) {
-  const precos = produtosPrecos.filter(p => p.codigo === codigo && p.tipo_cliente === tipoCliente);
+  const precos = getPrecosDoProdutoRep(codigo, tipoCliente);
   if (precos.length === 0) {
-    return `<div class="note">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
+    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
   }
   const linhas = CATALOGO_CONDICOES.map(cond => {
     const cells = CATALOGO_REGIOES.map(r => precos.find(x => x.regiao === r && x.condicao_pagamento === cond));
@@ -644,16 +682,11 @@ function buildPrecoMatrixHtmlRep(codigo, tipoCliente) {
   </table></div>`;
 }
 
-function renderRepCatalogo() {
-  populateRepCatalogoFiltros();
-
-  const search = (document.getElementById("repCatSearch").value || "").trim().toLowerCase();
-  const categoria = document.getElementById("repCatFiltroCategoria").value;
-  const condicao = document.getElementById("repCatCondicaoView").value;
-  const condicaoAtual = condicao || "A VISTA";
-  const tipoClienteAtual = document.getElementById("repCatTipoClienteView").value || "CONSUMO";
-
-  let rows = produtos.filter(p => computeSaldoProduto(p.codigo) > 0);
+// Pneus que o Catálogo considera antes dos filtros de preço -- mesma regra do Catálogo interno
+// (app.js catalogoProdutosVisiveis()), exceto que aqui o representante SEMPRE só vê o que tem
+// estoque (essa parte já era assim antes e continua igual -- é a regra intencional do portal).
+function catalogoProdutosVisiveisRep(search, categoria) {
+  let rows = produtos.filter(p => p.situacao !== "DESCONTINUADO" && computeSaldoProduto(p.codigo) > 0);
   if (search) {
     rows = rows.filter(p =>
       p.codigo.toLowerCase().includes(search) ||
@@ -662,27 +695,67 @@ function renderRepCatalogo() {
     );
   }
   if (categoria) rows = rows.filter(p => p.categoria === categoria);
-  // Só lista produto com AO MENOS 1 preço cadastrado pro tipo de cliente
-  // escolhido (qualquer região/condição) -- mesmo filtro que o Catálogo
-  // interno já faz (app.js renderCatalogo()). Sem isso, um produto sem preço
-  // NENHUM pra esse tipo ainda aparecia no grid mostrando o aviso "Tem preço
-  // de X, mas não pra Y" -- afirmação falsa, já que não tem preço de X
-  // nenhum (achado em revisão de código).
+  return rows;
+}
+
+function renderRepCatalogo() {
+  populateRepCatalogoFiltros();
+
+  const search = (document.getElementById("repCatSearch").value || "").trim().toLowerCase();
+  const categoria = document.getElementById("repCatFiltroCategoria").value;
+  const condicao = document.getElementById("repCatCondicaoView").value;
+  const regiao = document.getElementById("repCatRegiao").value;
+  const tipoSelecionado = document.getElementById("repCatTipoClienteView").value || "CONSUMO";
+  const todosTipos = tipoSelecionado === CATALOGO_TODOS_TIPOS;
+  const tipoCliente = todosTipos ? "CONSUMO" : tipoSelecionado;
+  const tipoFiltro = todosTipos ? "" : tipoCliente;
+
+  let rows = catalogoProdutosVisiveisRep(search, categoria);
+
+  // Pneu com preço só aparece se tiver preço que bata com TODOS os filtros de preço ativos
+  // (tipo de cliente sempre, condição/região quando escolhidas); pneu sem preço NENHUM
+  // aparece com o aviso "Sem preço cadastrado" -- mesma regra do Catálogo interno.
+  const codigosComPreco = new Set(produtosPrecos.map(x => x.codigo));
   const rowsAntesFiltroPreco = rows.length;
-  rows = rows.filter(p => produtosPrecos.some(x => x.codigo === p.codigo && x.tipo_cliente === tipoClienteAtual));
+  rows = rows.filter(p => !codigosComPreco.has(p.codigo)
+    ? (!condicao && !regiao)
+    : getPrecosDoProdutoRep(p.codigo, tipoFiltro).some(x =>
+        (!condicao || x.condicao_pagamento === condicao) && (!regiao || x.regiao === regiao)
+      ));
+
   rows.sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+  const semPrecoMostrados = rows.filter(p => !codigosComPreco.has(p.codigo)).length;
+  const ocultos = rowsAntesFiltroPreco - rows.length;
+  const partesContador = [`Mostrando <span class="num">${fmt(rows.length)}</span> de <span class="num">${fmt(rowsAntesFiltroPreco)}</span> pneus`];
+  if (semPrecoMostrados) partesContador.push(`<span class="num">${fmt(semPrecoMostrados)}</span> sem preço cadastrado`);
+  if (ocultos) {
+    partesContador.push(`<span class="aviso-oculto">${condicao || regiao
+      ? `${fmt(ocultos)} sem preço que bata com os filtros de preço`
+      : `${fmt(ocultos)} ${ocultos === 1 ? "tem" : "têm"} preço só de outro tipo de cliente — escolha "Todos os tipos" para ver`}</span>`);
+  }
+  document.getElementById("repCatalogoContador").innerHTML = partesContador.map(t => `<span>${t}</span>`).join("");
 
   const grid = document.getElementById("repCatalogoGrid");
   const empty = document.getElementById("repCatalogoEmpty");
   if (rows.length === 0) {
+    const alvoPartes = [];
+    if (!todosTipos) alvoPartes.push(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente);
+    if (condicao) alvoPartes.push(condicao);
+    if (regiao) alvoPartes.push(`região ${regiao}`);
+    const alvo = alvoPartes.join(" · ");
     grid.innerHTML = "";
     empty.textContent = rowsAntesFiltroPreco > 0
-      ? `Nenhum pneu com preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} cadastrado (entre os que batem com a busca e a categoria).`
+      ? (todosTipos
+          ? `Nenhum pneu com preço cadastrado para ${alvo} (entre os que batem com a busca e a categoria).`
+          : `Nenhum pneu com preço de ${alvo} cadastrado (entre os que batem com a busca e a categoria).`)
       : "Nenhum produto em estoque encontrado.";
     empty.style.display = "block";
     return;
   }
   empty.style.display = "none";
+
+  const condicaoAtual = condicao || "A VISTA";
 
   grid.innerHTML = rows.map(p => {
     const fotoUrl = fotoProdutoUrlRep(p.foto_path);
@@ -695,23 +768,28 @@ function renderRepCatalogo() {
     ];
     const temAlgumSpec = specs.some(([, v]) => v);
     const saldoProduto = computeSaldoProduto(p.codigo);
+    const statusSaldo = statusEstoque(saldoProduto);
 
-    // Card compacto: só as regiões COM preço pra essa condição (linha "—"
-    // escondida), mesmo padrão já aplicado no Catálogo interno (app.js
-    // renderCatalogo()). Sem preço nenhuma, mostra aviso em vez da lista vazia.
-    const precosCard = CATALOGO_REGIOES
-      .map(r => ({ r, preco: getPrecoProdutoRep(p.codigo, r, tipoClienteAtual, condicaoAtual) }))
-      .filter(x => x.preco !== null);
-    const temPrecoNestaCondicao = precosCard.length > 0;
-    const precoPorRegiao = precosCard.map(({ r, preco }) => `<div class="catalogo-prazo-row">
-      <span>${escapeHtml(r)}</span>
-      <span class="mono">${formatMoney(preco)}</span>
-    </div>`).join("");
+    const semPrecoNenhum = !codigosComPreco.has(p.codigo);
+    const chipsTipos = todosTipos ? TIPO_CLIENTE_OPCOES.map(t => {
+      const tem = getPrecosDoProdutoRep(p.codigo, t).some(x =>
+        (!condicao || x.condicao_pagamento === condicao) && (!regiao || x.regiao === regiao));
+      return `<span class="cat-tipo-chip${tem ? " tem" : ""}">${tem ? "✓ " : "— "}${escapeHtml(TIPO_CLIENTE_LABEL[t])}</span>`;
+    }).join("") : "";
+    const temPrecoNestaCondicao = getPrecosDoProdutoRep(p.codigo, tipoCliente)
+      .some(x => x.condicao_pagamento === condicaoAtual && (!regiao || x.regiao === regiao));
+    // Card compacto: só as regiões COM preço pra essa condição (linha "—" escondida); com
+    // região filtrada, mostra só ela. A tabela "Ver todos os prazos" mostra tudo, com "—".
+    const precoPorRegiao = temPrecoNestaCondicao ? CATALOGO_REGIOES
+      .filter(r => !regiao || r === regiao)
+      .map(r => ({ r, preco: getPrecoProdutoRep(p.codigo, r, tipoCliente, condicaoAtual) }))
+      .filter(x => x.preco !== null)
+      .map(({ r, preco }) => `<div class="catalogo-prazo-row">
+        <span>${escapeHtml(r)}</span>
+        <span class="mono">${formatMoney(preco)}</span>
+      </div>`).join("") : "";
 
-    // foto em destaque no topo do card -- mesmo layout já aplicado no Catálogo
-    // interno (site/app.js renderCatalogo()): 2 fotos dividem lado a lado, 1
-    // ocupa tudo, 0 mostra um placeholder neutro. Portal do representante é só
-    // leitura, então sem botão de editar specs/fotos aqui.
+    // foto em destaque: 2 fotos dividem lado a lado, 1 ocupa tudo, 0 mostra um placeholder
     const slotsFoto = fotosCard.length > 0 ? fotosCard : [null];
     const fotoHeroHtml = slotsFoto.map((url, i) => `
       <div class="catalogo-card-foto-slot" ${url ? `data-repcatfoto="${escapeHtml(p.codigo)}" data-repcatfotoidx="${i}"` : ""}>
@@ -723,9 +801,12 @@ function renderRepCatalogo() {
       <div class="catalogo-card" data-repcatcard="${escapeHtml(p.codigo)}">
         <div class="catalogo-foto-hero">${fotoHeroHtml}</div>
         <div class="catalogo-foto-overlay-top">
-          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(p.categoria)}</span>` : "<span></span>"}
-          <span class="status-pill pill-normal">${fmt(saldoProduto)} un.</span>
+          ${p.categoria ? `<span class="catalogo-badge">${escapeHtml(CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria)}</span>` : "<span></span>"}
+          <span class="status-pill pill-${statusSaldo}">${saldoProduto > 0 ? `${fmt(saldoProduto)} un.` : "Sem estoque"}</span>
         </div>
+        <button type="button" class="catalogo-card-editbtn" data-repeditcard="${escapeHtml(p.codigo)}" title="Ver no Catálogo (fotos e preços)">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg>
+        </button>
         ${fotosCard.length > 1 ? `<span class="catalogo-foto-count"><svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg>${fotosCard.length} fotos</span>` : ""}
 
         <div class="catalogo-card-body">
@@ -735,28 +816,38 @@ function renderRepCatalogo() {
           </div>
           <div class="catalogo-card-medida">${escapeHtml(p.medida)}</div>
 
-          ${temAlgumSpec ? `
-            <div class="catalogo-card-divider"></div>
-            <div class="catalogo-specs-grid">
-              ${specs.map(([lbl, v]) => `<div><span class="lbl">${escapeHtml(lbl)}</span><span class="val">${v ? escapeHtml(v) : "—"}</span></div>`).join("")}
-            </div>
-          ` : ""}
-
+        ${temAlgumSpec ? `
           <div class="catalogo-card-divider"></div>
-          <div class="catalogo-preco-condicao">Preço — ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)} · ${escapeHtml(condicaoAtual)}</div>
-          ${temPrecoNestaCondicao
-            ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
-            : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoClienteAtual] || tipoClienteAtual)}, mas não pra "${escapeHtml(condicaoAtual)}". Veja "Ver todos os prazos" abaixo.</div>`}
-
-          <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
-          <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
-            ${aberto ? buildPrecoMatrixHtmlRep(p.codigo, tipoClienteAtual) : ""}
+          <div class="catalogo-specs-grid">
+            ${specs.map(([lbl, v]) => `<div><span class="lbl">${escapeHtml(lbl)}</span><span class="val">${v ? escapeHtml(v) : "—"}</span></div>`).join("")}
           </div>
+        ` : ""}
+
+        <div class="catalogo-card-divider"></div>
+        ${semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : todosTipos ? `
+        <div class="catalogo-preco-condicao">Preços cadastrados</div>
+        <div class="cat-tipos">${chipsTipos}</div>
+        <div class="cat-dica">Escolha um tipo de cliente acima para ver os valores.</div>` : `
+        <div class="catalogo-preco-condicao">Preço —${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
+        ${temPrecoNestaCondicao
+          ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
+          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}
+
+        <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
+        <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
+          ${aberto ? buildPrecoMatrixHtmlRep(p.codigo, tipoCliente) : ""}
+        </div>`}
         </div>
       </div>
     `;
   }).join("");
 
+  grid.querySelectorAll("[data-repeditcard]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openRepCatalogoModal(btn.dataset.repeditcard);
+    });
+  });
   grid.querySelectorAll("[data-repcatfoto]").forEach(slotEl => {
     slotEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -767,13 +858,61 @@ function renderRepCatalogo() {
     });
   });
   grid.querySelectorAll("[data-reptoggleprazos]").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       const codigo = btn.dataset.reptoggleprazos;
       if (repCatalogoPrazosAbertos.has(codigo)) repCatalogoPrazosAbertos.delete(codigo);
       else repCatalogoPrazosAbertos.add(codigo);
       renderRepCatalogo();
     });
   });
+}
+
+let repCatalogoEditingCodigo = null;
+
+function renderRepCatalogoModalPrecos(codigo) {
+  const tipoCliente = document.getElementById("repCatalogoModalTipoCliente").value || "CONSUMO";
+  document.getElementById("repCatalogoModalPrecoWrap").innerHTML = buildPrecoMatrixHtmlRep(codigo, tipoCliente);
+}
+
+function openRepCatalogoModal(codigo) {
+  const p = produtos.find(x => x.codigo === codigo);
+  if (!p) return;
+  repCatalogoEditingCodigo = codigo;
+
+  document.getElementById("repCatalogoModalTitulo").textContent = `${p.codigo} — ${p.medida}`;
+
+  const fotoUrl = fotoProdutoUrlRep(p.foto_path);
+  const fotoUrl2 = fotoProdutoUrlRep(p.foto_path_2);
+  const fotosModal = [fotoUrl, fotoUrl2].filter(Boolean);
+  [[1, fotoUrl], [2, fotoUrl2]].forEach(([slot, url]) => {
+    const previewEl = document.getElementById(`repCatalogoModalFotoPreview${slot}`);
+    previewEl.classList.toggle("sem-foto", !url);
+    previewEl.innerHTML = url
+      ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(p.codigo)} - foto ${slot}">`
+      : `<div class="catalogo-foto-placeholder">Sem foto</div>`;
+    previewEl.onclick = url ? () => openCatalogoFotoLightbox(fotosModal, fotosModal.indexOf(url)) : null;
+  });
+
+  const specs = [
+    ["Marca", p.marca], ["Categoria", p.categoria ? (CATEGORIA_NORM_LOOKUP[normalizarCategoria(p.categoria)] || p.categoria) : ""], ["Modelo", p.modelo],
+    ["Carcaça", p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : ""],
+    ["IC/IV", p.ic_iv], ["PR", p.pr], ["Cintas", p.cintas], ["Cap. carga", p.cap_carga], ["PSI", p.psi],
+    ["Sulco (mm)", p.sulco_mm], ["Larg. banda (mm)", p.larg_banda_mm], ["Peso (kg)", p.peso_kg], ["NCM", p.ncm]
+  ].filter(([, v]) => v);
+  document.getElementById("repCatalogoModalInfo").innerHTML = specs.length
+    ? specs.map(([lbl, v]) => `<div class="catalogo-info-row"><span class="lbl">${escapeHtml(lbl)}</span><span class="val">${escapeHtml(v)}</span></div>`).join("")
+    : `<div class="muted">Nenhuma especificação técnica cadastrada ainda.</div>`;
+
+  populateRepCatalogoFiltros();
+  renderRepCatalogoModalPrecos(codigo);
+
+  document.getElementById("repCatalogoModalOverlay").classList.add("show");
+}
+
+function closeRepCatalogoModal() {
+  document.getElementById("repCatalogoModalOverlay").classList.remove("show");
+  repCatalogoEditingCodigo = null;
 }
 
 /* ---------------- lightbox de fotos (catálogo) ---------------- */
@@ -821,7 +960,16 @@ function initRepCatalogo() {
   document.getElementById("repCatSearch").addEventListener("input", renderRepCatalogo);
   document.getElementById("repCatFiltroCategoria").addEventListener("change", renderRepCatalogo);
   document.getElementById("repCatCondicaoView").addEventListener("change", renderRepCatalogo);
+  document.getElementById("repCatRegiao").addEventListener("change", renderRepCatalogo);
   document.getElementById("repCatTipoClienteView").addEventListener("change", renderRepCatalogo);
+
+  document.getElementById("repCatalogoModalClose").addEventListener("click", closeRepCatalogoModal);
+  document.getElementById("repCatalogoModalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "repCatalogoModalOverlay") closeRepCatalogoModal();
+  });
+  document.getElementById("repCatalogoModalTipoCliente").addEventListener("change", () => {
+    if (repCatalogoEditingCodigo) renderRepCatalogoModalPrecos(repCatalogoEditingCodigo);
+  });
 
   document.getElementById("catalogoFotoLightboxClose").addEventListener("click", closeCatalogoFotoLightbox);
   document.getElementById("catalogoFotoLightboxOverlay").addEventListener("click", (e) => {
