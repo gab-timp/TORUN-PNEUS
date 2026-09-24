@@ -286,6 +286,8 @@
 .rep-dash-total-row span:first-child{font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;}
 .rep-dash-total-row span:last-child{font-size:17px; font-weight:800; color:var(--orange);}
 
+.rep-dash-vazio-titulo{font-size:14px; font-weight:800; color:var(--ink); margin-bottom:4px;}
+
 .rep-dash-clientes-lista{display:flex; flex-direction:column;}
 .rep-dash-cliente-row{
   width:100%; display:flex; align-items:center; gap:12px; padding:12px 4px;

@@ -1860,12 +1860,16 @@ function renderRepDashboard() {
 
   if (mesesDisponiveis.length === 0) {
     selectMes.innerHTML = `<option value="">Sem vendas ainda</option>`;
-    document.getElementById("repDashKpis").innerHTML = `<div class="muted" style="padding:16px 0;">Nenhuma venda registrada com seu nome ainda.</div>`;
-    document.getElementById("repDashEvolucaoChart").innerHTML = "";
-    document.getElementById("repDashEvolucaoTotal").textContent = formatMoney(0);
-    document.getElementById("repDashClientesLista").innerHTML = "";
+    document.getElementById("repDashKpis").style.display = "none";
+    document.getElementById("repDashEvolucaoCard").style.display = "none";
+    document.getElementById("repDashClientesCard").style.display = "none";
+    document.getElementById("repDashVazio").style.display = "";
     return;
   }
+  document.getElementById("repDashKpis").style.display = "";
+  document.getElementById("repDashEvolucaoCard").style.display = "";
+  document.getElementById("repDashClientesCard").style.display = "";
+  document.getElementById("repDashVazio").style.display = "none";
   if (!repDashMesAtual || !mesesDisponiveis.includes(repDashMesAtual)) repDashMesAtual = mesesDisponiveis[0];
   selectMes.innerHTML = mesesDisponiveis.map(m =>
     `<option value="${m}" ${m === repDashMesAtual ? "selected" : ""}>${formatMesLabel(m)}</option>`

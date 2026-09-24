@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=130">
-<link rel="stylesheet" href="pedido-representante.css?v=18">
+<link rel="stylesheet" href="pedido-representante.css?v=19">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -427,7 +427,7 @@
 
       <div class="kpis" id="repDashKpis"></div>
 
-      <div class="rep-dash-card">
+      <div class="rep-dash-card" id="repDashEvolucaoCard">
         <div class="rep-dash-card-head"><span>Evolução Mensal do Faturamento</span></div>
         <div id="repDashEvolucaoChart"></div>
         <div class="rep-dash-total-row">
@@ -436,12 +436,19 @@
         </div>
       </div>
 
-      <div class="rep-dash-card">
+      <div class="rep-dash-card" id="repDashClientesCard">
         <div class="rep-dash-card-head">
           <span>Meus clientes</span>
           <span class="muted" style="font-size:11.5px; font-weight:400; text-transform:none; letter-spacing:0;">Toque num cliente pra ver as medidas que ele mais compra</span>
         </div>
         <div id="repDashClientesLista" class="rep-dash-clientes-lista"></div>
+      </div>
+
+      <div class="rep-section-card" id="repDashVazio" style="display:none;">
+        <div class="empty-state">
+          <div class="rep-dash-vazio-titulo">Nenhuma venda registrada ainda</div>
+          <div>Assim que uma venda for lançada com seu nome, seu desempenho aparece aqui.</div>
+        </div>
       </div>
     </div>
 
@@ -583,6 +590,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=38"></script>
+<script src="pedido-representante.js?v=39"></script>
 </body>
 </html>
