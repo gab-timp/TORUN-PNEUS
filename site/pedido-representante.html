@@ -99,6 +99,9 @@
       <button type="button" class="nav-item" data-reptab="entregas">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Status do Pedido
       </button>
+      <button type="button" class="nav-item" data-reptab="clientes">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
+      </button>
       <button type="button" class="nav-item" data-reptab="precadastro">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Pré-cadastro de Cliente
       </button>
@@ -301,6 +304,28 @@
     </div>
     <div id="repEntregasGrid" class="rep-entregas-grid"></div>
     <div class="note" id="repEntregasEmpty" style="display:none;">Nenhum pedido encontrado.</div>
+  </div>
+
+  <div class="rep-page rep-page-wide rep-tab-content" id="repTabClientes" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Clientes</h2>
+      <div class="note">Seus clientes (com base nas suas vendas e pedidos). Limite e disponível são calculados com base no que ainda está em aberto.</div>
+      <div class="search-row">
+        <input type="text" id="repClientesSearch" placeholder="Buscar por cliente, cidade ou UF…">
+      </div>
+      <div class="rep-itens-table-wrap">
+        <table class="rep-itens-table">
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Cidade/UF</th><th class="num">Limite de crédito</th><th class="num">Disponível</th>
+              <th>Última compra</th><th>Validade da análise</th>
+            </tr>
+          </thead>
+          <tbody id="repClientesTbody"></tbody>
+        </table>
+      </div>
+      <div class="note" id="repClientesEmpty" style="display:none;">Nenhum cliente encontrado.</div>
+    </div>
   </div>
 
   <div class="rep-page rep-page-wide rep-tab-content" id="repTabPreCadastro" style="display:none;">
@@ -585,6 +610,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=41"></script>
+<script src="pedido-representante.js?v=42"></script>
 </body>
 </html>

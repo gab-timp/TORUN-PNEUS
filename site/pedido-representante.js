@@ -397,7 +397,7 @@ async function afterLogin() {
     sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
     sb.from("movimentos").select("id, codigo, tipo, quantidade, data, entrega_id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
-    sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false }),
+    sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, valor_recebido, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false }),
     sb.from("clientes").select("nome, estado"),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
     sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
@@ -440,6 +440,7 @@ async function afterLogin() {
   initMobileMenuRep();
   initRepCatalogo();
   initRepEntregas();
+  initRepClientes();
   initPreCadastroForm();
   initThemeToggle();
   initMinhasConfiguracoes();
@@ -448,6 +449,8 @@ async function afterLogin() {
   renderRepDashboard();
   renderRepCatalogo();
   renderRepEntregas();
+  await carregarClientesDetalhadosRep();
+  renderRepClientes();
   renderMeusPreCadastros();
   renderRepFaturamento();
   subscribeRealtimeRep();
@@ -1744,7 +1747,7 @@ async function salvarPedidoRep() {
 /* ---------------- abas ---------------- */
 
 const REP_TAB_IDS = {
-  pedido: "repTabPedido", catalogo: "repTabCatalogo", entregas: "repTabEntregas",
+  pedido: "repTabPedido", catalogo: "repTabCatalogo", entregas: "repTabEntregas", clientes: "repTabClientes",
   precadastro: "repTabPreCadastro", faturamento: "repTabFaturamento", dashboard: "repTabDashboard"
 };
 
@@ -1761,6 +1764,7 @@ function initRepTabs() {
       if (alvo === "faturamento") renderRepFaturamento();
       if (alvo === "catalogo") renderRepCatalogo();
       if (alvo === "dashboard") renderRepDashboard();
+      if (alvo === "clientes") renderRepClientes();
       setMobileMenuRep(false);
     });
   });
@@ -2127,6 +2131,87 @@ function abrirDetalheEntregaRep(id) {
 
   renderReservaEConfirmarVenda(e);
   document.getElementById("repEntregaDetalheOverlay").classList.add("show");
+}
+
+/* ---------------- clientes (visão do representante) ---------------- */
+
+// dados sensíveis (limite de crédito) não entram no fetch geral de "clientes" (que
+// qualquer representante já lê pra buscar CNPJ no Novo Pedido) -- busca à parte, filtrada
+// só nos nomes que já são meus clientes de verdade, então nunca chega no navegador limite
+// de crédito de cliente de outro representante.
+let clientesDetalhadosRep = [];
+
+function meusClientesNomes() {
+  const meuNome = (currentUserNome || "").trim().toLowerCase();
+  const nomes = new Set();
+  minhasVendas().forEach(v => { if (v.cliente) nomes.add(v.cliente); });
+  entregas.forEach(e => {
+    if (e.cliente && (e.vendedor || "").trim().toLowerCase() === meuNome) nomes.add(e.cliente);
+  });
+  return Array.from(nomes);
+}
+
+async function carregarClientesDetalhadosRep() {
+  const nomes = meusClientesNomes();
+  if (!nomes.length) { clientesDetalhadosRep = []; return; }
+  const { data, error } = await sb.from("clientes")
+    .select("nome, cidade, estado, limite_credito, validade_analise_credito")
+    .in("nome", nomes);
+  if (error) { toast("Erro ao carregar dados dos clientes."); return; }
+  clientesDetalhadosRep = data || [];
+}
+
+function initRepClientes() {
+  document.getElementById("repClientesSearch").addEventListener("input", renderRepClientes);
+}
+
+function statusValidadeAnaliseRep(validade) {
+  if (!validade) return null;
+  const dias = Math.round((Date.parse(validade) - Date.parse(todayISO())) / 86400000);
+  if (dias < 0) return "vencida";
+  if (dias <= 30) return "vence-em-breve";
+  return "ok";
+}
+
+function renderRepClientes() {
+  const search = (document.getElementById("repClientesSearch").value || "").trim().toLowerCase();
+  const minhas = minhasVendas();
+
+  let rows = meusClientesNomes().map(nome => {
+    const detalhe = clientesDetalhadosRep.find(c => c.nome === nome) || {};
+    const vendasDoCliente = minhas.filter(v => v.cliente === nome);
+    const saldoEmAberto = vendasDoCliente.reduce((a, v) => a + Math.max(0, Number(v.valor_venda || 0) - Number(v.valor_recebido || 0)), 0);
+    const ultimaCompra = vendasDoCliente.reduce((max, v) => (!max || (v.data || "") > max) ? v.data : max, null);
+    const limiteCredito = detalhe.limite_credito != null ? Number(detalhe.limite_credito) : null;
+    return {
+      nome, cidade: detalhe.cidade, estado: detalhe.estado, limiteCredito,
+      disponivel: limiteCredito != null ? limiteCredito - saldoEmAberto : null,
+      ultimaCompra, validade: detalhe.validade_analise_credito
+    };
+  });
+  if (search) rows = rows.filter(r => [r.nome, r.cidade, r.estado].join(" ").toLowerCase().includes(search));
+  rows.sort((a, b) => a.nome.localeCompare(b.nome));
+
+  document.getElementById("repClientesEmpty").style.display = rows.length ? "none" : "block";
+  document.getElementById("repClientesTbody").innerHTML = rows.map(r => {
+    const statusValidade = statusValidadeAnaliseRep(r.validade);
+    const seloValidade = statusValidade === "vencida"
+      ? `<span class="rep-tag-reserva">VENCIDA</span>`
+      : statusValidade === "vence-em-breve"
+        ? `<span class="kanban-card-tag" style="background:var(--orange-pale); color:var(--orange-deep); border-color:var(--orange);">VENCE EM BREVE</span>`
+        : "";
+    const dispEstilo = r.disponivel != null && r.disponivel < 0 ? ` style="color:var(--danger); font-weight:800;"` : "";
+    return `
+      <tr>
+        <td>${escapeHtml(r.nome)}</td>
+        <td>${escapeHtml([r.cidade, r.estado].filter(Boolean).join("/") || "—")}</td>
+        <td class="num mono">${r.limiteCredito != null ? formatMoney(r.limiteCredito) : "—"}</td>
+        <td class="num mono"><span${dispEstilo}>${r.disponivel != null ? formatMoney(r.disponivel) : "—"}</span></td>
+        <td class="mono">${r.ultimaCompra ? formatDateBR(r.ultimaCompra) : "—"}</td>
+        <td class="mono">${r.validade ? formatDateBR(r.validade) : "—"} ${seloValidade}</td>
+      </tr>
+    `;
+  }).join("");
 }
 
 /* ---------------- pré-cadastro de cliente ---------------- */

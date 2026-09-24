@@ -121,7 +121,9 @@ function clienteToRow(c) {
     nome: c.nome, estado: c.estado || null, cidade: c.cidade || null,
     documento: c.documento || null, telefone: c.telefone || null, email: c.email || null,
     endereco: c.endereco || null, cep: c.cep || null, contato: c.contato || null, razao_social: c.razaoSocial || null,
-    tags: c.tags || [], notas: c.notas || [], tipo_cliente: c.tipoCliente || null
+    tags: c.tags || [], notas: c.notas || [], tipo_cliente: c.tipoCliente || null,
+    limite_credito: c.limiteCredito != null ? c.limiteCredito : null,
+    validade_analise_credito: c.validadeAnaliseCredito || null
   };
 }
 function clienteFromRow(r) {
@@ -129,7 +131,9 @@ function clienteFromRow(r) {
     nome: r.nome, estado: r.estado || "", cidade: r.cidade || "",
     documento: r.documento || "", telefone: r.telefone || "", email: r.email || "",
     endereco: r.endereco || "", cep: r.cep || "", contato: r.contato || "", razaoSocial: r.razao_social || "",
-    tags: r.tags || [], notas: r.notas || [], createdAt: r.created_at, tipoCliente: r.tipo_cliente || ""
+    tags: r.tags || [], notas: r.notas || [], createdAt: r.created_at, tipoCliente: r.tipo_cliente || "",
+    limiteCredito: r.limite_credito != null ? Number(r.limite_credito) : null,
+    validadeAnaliseCredito: r.validade_analise_credito || ""
   };
 }
 
@@ -6058,8 +6062,11 @@ function getClienteStats(nome) {
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
   const ticketMedio = vendas.length ? totalFaturado / vendas.length : 0;
   const ultimaCompra = vendas.length ? vendas[0].data : null;
+  // saldo em aberto: soma do que ainda falta receber em cada venda (valorRecebido nulo conta
+  // como nada recebido ainda) -- base do cálculo de "disponível" do limite de crédito.
+  const saldoEmAberto = vendas.reduce((a, v) => a + Math.max(0, v.valorVenda - (v.valorRecebido || 0)), 0);
   const entregas = state.entregas.filter(e => e.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-  return { vendas, totalFaturado, totalPneus, ticketMedio, ultimaCompra, entregas };
+  return { vendas, totalFaturado, totalPneus, ticketMedio, ultimaCompra, saldoEmAberto, entregas };
 }
 
 let currentClienteModalNome = null;
@@ -6207,14 +6214,18 @@ function openClienteModal(nome) {
   document.getElementById("clienteModalInfo").innerHTML = [
     ["Documento", c.documento], ["Razão social", c.razaoSocial], ["Telefone", c.telefone], ["E-mail", c.email],
     ["Endereço", c.endereco], ["Cidade/UF", [c.cidade, c.estado].filter(Boolean).join(" / ")],
-    ["Contato responsável", c.contato], ["Tipo de cliente", TIPO_CLIENTE_LABEL[c.tipoCliente] || c.tipoCliente]
+    ["Contato responsável", c.contato], ["Tipo de cliente", TIPO_CLIENTE_LABEL[c.tipoCliente] || c.tipoCliente],
+    ["Limite de crédito", c.limiteCredito != null ? formatMoney(c.limiteCredito) : null],
+    ["Validade da análise de crédito", c.validadeAnaliseCredito ? formatDateBR(c.validadeAnaliseCredito) : null]
   ].map(([lbl, val]) => `<div><div class="lbl">${lbl}</div><div class="val">${escapeHtml(val || "—")}</div></div>`).join("");
 
+  const disponivel = c.limiteCredito != null ? c.limiteCredito - stats.saldoEmAberto : null;
   document.getElementById("clienteModalKpis").innerHTML = [
     { lbl: "Faturamento total", val: formatMoney(stats.totalFaturado), accent: true },
     { lbl: "Ticket médio", val: formatMoney(stats.ticketMedio) },
     { lbl: "Pneus comprados", val: fmt(stats.totalPneus) + " un." },
-    { lbl: "Última compra", val: stats.ultimaCompra ? formatDateBR(stats.ultimaCompra) : "—" }
+    { lbl: "Última compra", val: stats.ultimaCompra ? formatDateBR(stats.ultimaCompra) : "—" },
+    { lbl: "Disponível (limite - em aberto)", val: disponivel != null ? formatMoney(disponivel) : "—", accent: disponivel != null && disponivel < 0 }
   ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div></div>`).join("");
 
   document.getElementById("clienteModalVendasTbody").innerHTML = stats.vendas.length
@@ -6289,6 +6300,8 @@ function abrirEdicaoCliente() {
   document.getElementById("clienteEditEndereco").value = c.endereco || "";
   document.getElementById("clienteEditCep").value = c.cep || "";
   document.getElementById("clienteEditTipoCliente").value = c.tipoCliente || "";
+  document.getElementById("clienteEditLimiteCredito").value = c.limiteCredito != null ? c.limiteCredito : "";
+  document.getElementById("clienteEditValidadeAnaliseCredito").value = c.validadeAnaliseCredito || "";
   document.getElementById("clienteModalInfo").style.display = "none";
   document.getElementById("formEditarCliente").style.display = "block";
 }
@@ -6321,7 +6334,10 @@ async function salvarEdicaoCliente() {
     cidade: document.getElementById("clienteEditCidade").value.trim(),
     endereco: document.getElementById("clienteEditEndereco").value.trim(),
     cep: document.getElementById("clienteEditCep").value.trim(),
-    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null
+    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null,
+    limite_credito: document.getElementById("clienteEditLimiteCredito").value !== ""
+      ? Number(document.getElementById("clienteEditLimiteCredito").value) : null,
+    validade_analise_credito: document.getElementById("clienteEditValidadeAnaliseCredito").value || null
   };
 
   const { error } = await sb.from("clientes").update(dados).eq("nome", nomeOriginal);
@@ -6352,6 +6368,8 @@ async function salvarEdicaoCliente() {
   c.endereco = dados.endereco;
   c.cep = dados.cep;
   c.tipoCliente = dados.tipo_cliente || "";
+  c.limiteCredito = dados.limite_credito;
+  c.validadeAnaliseCredito = dados.validade_analise_credito || "";
 
   await registrarLog("clientes", novoNome, "edicao", "Ação automática",
     `Cadastro do cliente atualizado${renomeou ? ` (renomeado de "${nomeOriginal}")` : ""}`);
