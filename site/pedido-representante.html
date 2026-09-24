@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=130">
-<link rel="stylesheet" href="pedido-representante.css?v=16">
+<link rel="stylesheet" href="pedido-representante.css?v=17">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -77,7 +77,7 @@
     <button type="button" class="rep-tab" data-reptab="catalogo">Catálogo</button>
     <button type="button" class="rep-tab" data-reptab="entregas">Entregas</button>
     <button type="button" class="rep-tab" data-reptab="precadastro">Pré-cadastro de Cliente</button>
-    <button type="button" class="rep-tab" data-reptab="acompanhamento">Acompanhamento</button>
+    <button type="button" class="rep-tab" data-reptab="faturamento">Faturamento</button>
   </div>
 
   <div class="rep-page rep-tab-content" id="repTabPedido" style="display:none;">
@@ -319,13 +319,59 @@
     </div>
   </div>
 
-  <div class="rep-page rep-tab-content" id="repTabAcompanhamento" style="display:none;">
+  <div class="rep-page rep-tab-content" id="repTabFaturamento" style="display:none;">
     <div class="rep-section-card">
-      <h2>Acompanhamento dos meus pedidos</h2>
-      <div class="note">Clique num pedido pra ver os detalhes, anexar arquivo ou finalizar uma reserva.</div>
-      <div id="repAcompanhamentoTabs" class="rep-acomp-tabs"></div>
-      <div class="note" id="repAcompanhamentoEmpty" style="display:none;">Você ainda não fez nenhum pedido.</div>
-      <div id="repAcompanhamentoDetalhe" class="rep-acomp-detalhe"></div>
+      <h2>Faturamento</h2>
+      <div class="note">Minhas vendas e comissão. Pra acompanhar reserva pendente ou anexar arquivo, abra o pedido na aba Entregas.</div>
+      <div class="form-row">
+        <div class="field"><label>Mês</label><select id="repFatMesFiltro"></select></div>
+        <div class="field grow"><label>Buscar</label><input type="text" id="repFatSearch" placeholder="Cliente, NF ou pedido…"></div>
+        <div class="field">
+          <label>Forma de pagamento</label>
+          <select id="repFatFiltroFormaPagamento">
+            <option value="">Todas</option>
+            <option value="PIX">PIX</option>
+            <option value="CARTÃO">CARTÃO</option>
+            <option value="BOLETO PRÓPRIO">BOLETO PRÓPRIO</option>
+            <option value="BOLETO TRADEMASTER">BOLETO TRADEMASTER</option>
+          </select>
+        </div>
+        <div class="field"><label>De</label><input type="date" id="repFatFiltroDe"></div>
+        <div class="field"><label>Até</label><input type="date" id="repFatFiltroAte"></div>
+      </div>
+    </div>
+
+    <div class="kpis" id="repFatKpis"></div>
+
+    <div class="rep-section-card">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <h2 style="margin:0;">Minhas vendas</h2>
+        <div class="note" id="repFatCount" style="margin:0;"></div>
+      </div>
+      <div class="rep-itens-table-wrap">
+        <table class="rep-itens-table">
+          <thead><tr><th>Data</th><th>Cliente</th><th>NF / Pedido</th><th class="num">Pneus</th><th class="num">Valor</th><th class="num">Comissão</th><th>Obs.</th></tr></thead>
+          <tbody id="repFatVendasTbody"></tbody>
+        </table>
+      </div>
+      <div class="note" id="repFatVendasEmpty" style="display:none;">Nenhuma venda no período.</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="rep-section-card">
+        <h2>Formas de pagamento</h2>
+        <div class="rank-list" id="repFatFormaPagList"></div>
+      </div>
+      <div class="rep-section-card">
+        <h2>Faturamento por cliente</h2>
+        <div class="note">Os 5 primeiros (destacados) são os maiores clientes do período.</div>
+        <div class="rep-itens-table-wrap">
+          <table class="rep-itens-table">
+            <thead><tr><th>#</th><th>Cliente</th><th>Estado</th><th class="num">Faturamento</th><th class="num">Pneus</th></tr></thead>
+            <tbody id="repFatClienteTbody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -372,11 +418,30 @@
         <button type="button" class="btn small outline" id="repEntregaDetalheClose">✕ Fechar</button>
       </div>
       <div id="repEntregaDetalheInfo" class="rep-doc-cliente-info" style="margin-bottom:14px;"></div>
+
+      <div id="repEntregaConfirmarVendaWrap" class="rep-acomp-reserva-aviso" style="display:none;">
+        <span>Esta é uma proposta — ainda não é um pedido em processamento.</span>
+        <button type="button" class="btn primary" id="btnConfirmarVendaRep">Confirmar venda</button>
+      </div>
+      <div id="repEntregaReservaPendenteWrap" class="rep-acomp-reserva-aviso" style="display:none;">
+        <span id="repEntregaReservaPendenteTexto"></span>
+        <button type="button" class="btn primary" id="btnFinalizarReserva">Finalizar pedido</button>
+      </div>
+      <div id="repEntregaReservaEstornadaWrap" class="rep-acomp-reserva-estornada" style="display:none;"></div>
+
       <div class="rep-itens-table-wrap">
         <table class="rep-itens-table">
           <thead><tr><th>Código</th><th>Medida</th><th>Quantidade</th></tr></thead>
           <tbody id="repEntregaDetalheItens"></tbody>
         </table>
+      </div>
+
+      <div id="repEntregaAnexosWrap" class="rep-acomp-anexos" style="display:none;">
+        <h4>Anexos</h4>
+        <div id="repEntregaAnexosList" class="anexos-list"></div>
+        <div id="repEntregaAnexosPreviews"></div>
+        <input type="file" id="repEntregaAnexoInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+        <button type="button" class="btn small outline" id="btnAnexarEntregaRep" style="margin-top:8px;">+ Anexar arquivo</button>
       </div>
     </div>
   </div>
@@ -476,6 +541,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=36"></script>
+<script src="pedido-representante.js?v=37"></script>
 </body>
 </html>

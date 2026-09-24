@@ -13,6 +13,7 @@ let produtosPrecos = [];
 let movimentos = [];
 let entregas = [];
 let vendas = [];
+let clientesRep = [];
 let meusPreCadastros = [];
 let clienteAtual = null;
 let ultimoPedidoSalvo = null;
@@ -42,6 +43,10 @@ const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
 const UF_PARA_REGIAO = { SC: "SC/RS", RS: "SC/RS", PR: "PR", MG: "MG", MT: "MT" };
 const CATEGORIA_LABEL = { PASSEIO: "Passeio", CARGAS_TBR: "Cargas/TBR", AGRICOLA_FLORESTAL: "Agrícola/Florestal", OUTRO: "Outro" };
+const MES_ABREV = {
+  "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr", "05": "Mai", "06": "Jun",
+  "07": "Jul", "08": "Ago", "09": "Set", "10": "Out", "11": "Nov", "12": "Dez"
+};
 
 // tira acento/maiúsc./"/"/"_"/espaço pra comparar -- só usado como chave de busca, nunca aparece na tela
 function normalizarCategoria(s) {
@@ -235,7 +240,6 @@ function scheduleRerenderRep() {
   rerenderTimerRep = setTimeout(() => {
     renderRepCatalogo();
     renderRepEntregas();
-    renderAcompanhamento();
   }, 200);
 }
 
@@ -369,12 +373,13 @@ async function afterLogin() {
   currentUserNome = roleData.nome || currentUser.email;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
 
-  const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
+  const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, clientesRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, marca, carcaca, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, ncm, situacao, foto_path, foto_path_2").order("codigo"),
     sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
     sb.from("movimentos").select("id, codigo, tipo, quantidade, data, entrega_id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
-    sb.from("vendas").select("id, data, numero_nf_venda, cliente, quantidade_pneus, valor_venda, vendedor, comissao").order("data", { ascending: false }),
+    sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false }),
+    sb.from("clientes").select("nome, estado"),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
     sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
     sb.from("configuracoes_site").select("proposta_validade_dias, estoque_baixo_limite").maybeSingle()
@@ -389,6 +394,7 @@ async function afterLogin() {
   movimentos = movimentosRes.data || [];
   entregas = entregasRes.data || [];
   vendas = vendasRes.data || [];
+  clientesRep = clientesRes.data || [];
   meusPreCadastros = preCadastrosRes.data || [];
   currentUserTema = (prefRes.data && prefRes.data.tema) || null;
   currentUserNotifMudancaEtapa = prefRes.data ? prefRes.data.notif_mudanca_etapa !== false : true;
@@ -418,11 +424,12 @@ async function afterLogin() {
   initThemeToggle();
   initMinhasConfiguracoes();
   initRepDashboard();
+  initRepFaturamento();
   renderRepDashboard();
   renderRepCatalogo();
   renderRepEntregas();
   renderMeusPreCadastros();
-  renderAcompanhamento();
+  renderRepFaturamento();
   subscribeRealtimeRep();
 }
 
@@ -955,6 +962,173 @@ function closeCatalogoFotoLightbox() {
   document.getElementById("catalogoFotoLightboxOverlay").classList.remove("show");
   document.getElementById("catalogoFotoLightboxImg").src = "";
   catalogoLightboxUrls = [];
+}
+
+/* ---------------- faturamento (era a aba Acompanhamento) ---------------- */
+// Mesma tela de Faturamento do app interno (app.js renderFaturamento()), sem "Nova venda" e sem
+// frete/Trademaster (info interna de operação, não do representante), só com as vendas do
+// próprio (mesmo critério de nome batendo de minhasVendas(), em "meu desempenho").
+
+function getClienteRep(nome) {
+  return clientesRep.find(c => c.nome === nome);
+}
+
+// mesma lógica de app.js (refDocCanonica/vendaDentroDaJanela/entregaDaVenda) -- não há FK entre
+// vendas e entregas nesse sistema, a ligação é por NF (exata) ou por pedido (janela de datas)
+function refDocCanonicaRep(s) {
+  let t = String(s == null ? "" : s).trim().toUpperCase();
+  t = t.replace(/^(PEDIDO|PED|NF-?E|NF)\.?\s*/, "").trim();
+  return /^\d+$/.test(t) ? t.replace(/^0+(?=\d)/, "") : t;
+}
+function vendaDentroDaJanelaRep(dataVenda, dataOutra) {
+  if (!dataVenda || !dataOutra) return false;
+  const dias = Math.round((Date.parse(dataVenda) - Date.parse(dataOutra)) / 86400000);
+  return dias >= -30 && dias <= 90;
+}
+function entregaDaVendaRep(v) {
+  const nf = refDocCanonicaRep(v.numero_nf_venda);
+  const pedido = refDocCanonicaRep(v.numero_pedido);
+  const porNF = nf ? entregas.filter(e => refDocCanonicaRep(e.numero_nf) === nf) : [];
+  const candidatas = porNF.length ? porNF
+    : (pedido ? entregas.filter(e => refDocCanonicaRep(e.numero_pedido) === pedido && vendaDentroDaJanelaRep(v.data, e.data)) : []);
+  if (!candidatas.length) return null;
+  return candidatas.slice().sort((a, b) => {
+    const comAnexoA = (a.anexos || []).length > 0, comAnexoB = (b.anexos || []).length > 0;
+    if (comAnexoA !== comAnexoB) return comAnexoA ? -1 : 1;
+    return (b.data || "").localeCompare(a.data || "");
+  })[0];
+}
+
+function populateRepFatMesFiltro() {
+  const sel = document.getElementById("repFatMesFiltro");
+  const prev = sel.value;
+  const chaves = Array.from(new Set(minhasVendas().map(v => (v.data || "").slice(0, 7)).filter(k => k.length === 7))).sort().reverse();
+  const opts = ['<option value="todos">Todos os meses</option>'].concat(
+    chaves.map(chave => {
+      const [ano, mes] = chave.split("-");
+      return `<option value="${chave}">${MES_ABREV[mes] || mes} de ${ano}</option>`;
+    })
+  );
+  sel.innerHTML = opts.join("");
+  if (prev && (prev === "todos" || chaves.includes(prev))) sel.value = prev;
+  else sel.value = chaves.length > 0 ? chaves[0] : "todos";
+}
+
+function getMinhasVendasFiltradas() {
+  const mes = document.getElementById("repFatMesFiltro").value;
+  const search = (document.getElementById("repFatSearch").value || "").trim().toLowerCase();
+  const formaPagamento = document.getElementById("repFatFiltroFormaPagamento").value;
+  const de = document.getElementById("repFatFiltroDe").value;
+  const ate = document.getElementById("repFatFiltroAte").value;
+
+  let rows = minhasVendas();
+  if (mes && mes !== "todos") rows = rows.filter(v => (v.data || "").slice(0, 7) === mes);
+  if (search) {
+    rows = rows.filter(v => [v.cliente, v.numero_nf_venda, v.numero_pedido].join(" ").toLowerCase().includes(search));
+  }
+  if (formaPagamento) rows = rows.filter(v => v.forma_pagamento === formaPagamento);
+  if (de) rows = rows.filter(v => v.data >= de);
+  if (ate) rows = rows.filter(v => v.data <= ate);
+  return rows;
+}
+
+function initRepFaturamento() {
+  ["repFatMesFiltro", "repFatSearch", "repFatFiltroFormaPagamento", "repFatFiltroDe", "repFatFiltroAte"].forEach(id => {
+    document.getElementById(id).addEventListener(id === "repFatSearch" ? "input" : "change", renderRepFaturamento);
+  });
+}
+
+function renderRepFaturamento() {
+  populateRepFatMesFiltro();
+  const rows = getMinhasVendasFiltradas();
+
+  const totalFaturamento = rows.reduce((a, v) => a + Number(v.valor_venda || 0), 0);
+  const totalPneus = rows.reduce((a, v) => a + Number(v.quantidade_pneus || 0), 0);
+  const totalComissao = rows.reduce((a, v) => a + Number(v.comissao || 0), 0);
+
+  document.getElementById("repFatKpis").innerHTML = [
+    { lbl: "Faturamento no período", val: formatMoney(totalFaturamento), accent: true },
+    { lbl: "Pneus vendidos", val: fmt(totalPneus) },
+    { lbl: "Total de comissão", val: formatMoney(totalComissao) }
+  ].map(k => `
+    <div class="kpi ${k.accent ? "accent" : ""}">
+      <div class="lbl">${k.lbl}</div>
+      <div class="val">${k.val}</div>
+    </div>
+  `).join("");
+
+  document.getElementById("repFatCount").textContent = `${fmt(rows.length)} ${rows.length === 1 ? "venda" : "vendas"}`;
+  const tbody = document.getElementById("repFatVendasTbody");
+  const empty = document.getElementById("repFatVendasEmpty");
+  if (rows.length === 0) {
+    tbody.innerHTML = "";
+    empty.style.display = "block";
+  } else {
+    empty.style.display = "none";
+    tbody.innerHTML = rows.slice().sort((a, b) => (b.data || "").localeCompare(a.data || "")).map(v => {
+      const entregaLigada = v.numero_nf_venda || v.numero_pedido ? entregaDaVendaRep(v) : null;
+      const nfHtml = !v.numero_nf_venda ? "—"
+        : entregaLigada
+          ? `<button type="button" class="nf-link" data-repabrirpedido="${escapeHtml(entregaLigada.id)}">${escapeHtml(v.numero_nf_venda)}
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7.3" cy="8" r="1.5"/><path d="m4 15 4.3-4.3a1.5 1.5 0 0 1 2.1 0L16 16"/></svg>
+            </button>`
+          : escapeHtml(v.numero_nf_venda);
+      return `
+        <tr>
+          <td class="mono">${formatDateBR(v.data)}</td>
+          <td>${escapeHtml(v.cliente)}</td>
+          <td class="mono">${nfHtml}${v.numero_pedido ? `<div class="note" style="margin:0;">Ped. ${escapeHtml(v.numero_pedido)}</div>` : ""}</td>
+          <td class="num mono">${fmt(v.quantidade_pneus)}</td>
+          <td class="num mono">${formatMoney(v.valor_venda)}</td>
+          <td class="num mono">${formatMoney(v.comissao || 0)}</td>
+          <td class="muted">${escapeHtml(v.obs || "—")}</td>
+        </tr>
+      `;
+    }).join("");
+    tbody.querySelectorAll("[data-repabrirpedido]").forEach(btn => {
+      btn.addEventListener("click", () => abrirDetalheEntregaRep(btn.dataset.repabrirpedido));
+    });
+  }
+
+  const porForma = {};
+  rows.forEach(v => {
+    const key = v.forma_pagamento || "(não informado)";
+    porForma[key] = (porForma[key] || 0) + Number(v.valor_venda || 0);
+  });
+  const formas = Object.entries(porForma).sort((a, b) => b[1] - a[1]);
+  const maxForma = formas.length ? formas[0][1] : 1;
+  document.getElementById("repFatFormaPagList").innerHTML = formas.length === 0
+    ? `<div class="note">Nenhuma venda no período.</div>`
+    : formas.map(([nome, valor]) => `
+      <div class="rank-row">
+        <div class="rank-main">
+          <div class="rank-label"><span>${escapeHtml(nome)}</span><span class="n">${formatMoney(valor)}</span></div>
+          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.max(4, (valor / maxForma) * 100)}%"></div></div>
+        </div>
+      </div>
+    `).join("");
+
+  const porCliente = {};
+  rows.forEach(v => {
+    if (!porCliente[v.cliente]) porCliente[v.cliente] = { faturamento: 0, pneus: 0 };
+    porCliente[v.cliente].faturamento += Number(v.valor_venda || 0);
+    porCliente[v.cliente].pneus += Number(v.quantidade_pneus || 0);
+  });
+  const clientesOrdenados = Object.entries(porCliente).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  document.getElementById("repFatClienteTbody").innerHTML = clientesOrdenados.length === 0
+    ? `<tr><td colspan="5" class="muted">Nenhuma venda no período.</td></tr>`
+    : clientesOrdenados.map(([nome, d], i) => {
+        const cli = getClienteRep(nome);
+        return `
+          <tr class="${i < 5 ? "frete-row-contratada" : ""}">
+            <td class="mono">${i + 1}</td>
+            <td>${escapeHtml(nome)}</td>
+            <td class="mono">${escapeHtml((cli && cli.estado) || "—")}</td>
+            <td class="num mono">${formatMoney(d.faturamento)}</td>
+            <td class="num mono">${fmt(d.pneus)}</td>
+          </tr>
+        `;
+      }).join("");
 }
 
 /* ---------------- Catálogo em PDF (sem preço) ---------------- */
@@ -1545,15 +1719,13 @@ async function salvarPedidoRep() {
   document.getElementById("repConfirmacaoReserva").style.display = "none";
   entregas.unshift(payload);
   renderRepEntregas();
-  acompanhamentoSelecionadoId = payload.id;
-  renderAcompanhamento();
 }
 
 /* ---------------- abas ---------------- */
 
 const REP_TAB_IDS = {
   pedido: "repTabPedido", catalogo: "repTabCatalogo", entregas: "repTabEntregas",
-  precadastro: "repTabPreCadastro", acompanhamento: "repTabAcompanhamento", dashboard: "repTabDashboard"
+  precadastro: "repTabPreCadastro", faturamento: "repTabFaturamento", dashboard: "repTabDashboard"
 };
 
 function initRepTabs() {
@@ -1566,7 +1738,7 @@ function initRepTabs() {
         el.classList.toggle("active", nome === alvo);
         el.style.display = nome === alvo ? "" : "none";
       });
-      if (alvo === "acompanhamento") renderAcompanhamento();
+      if (alvo === "faturamento") renderRepFaturamento();
       if (alvo === "catalogo") renderRepCatalogo();
       if (alvo === "dashboard") renderRepDashboard();
     });
@@ -1819,6 +1991,21 @@ function initRepEntregas() {
   document.getElementById("repEntregaDetalheOverlay").addEventListener("click", (e) => {
     if (e.target.id === "repEntregaDetalheOverlay") document.getElementById("repEntregaDetalheOverlay").classList.remove("show");
   });
+
+  document.getElementById("btnConfirmarVendaRep").addEventListener("click", () => {
+    if (entregaDetalheAtualId) confirmarVendaRep(entregaDetalheAtualId);
+  });
+  document.getElementById("btnFinalizarReserva").addEventListener("click", () => {
+    if (entregaDetalheAtualId) finalizarReservaRep(entregaDetalheAtualId);
+  });
+  document.getElementById("btnAnexarEntregaRep").addEventListener("click", () => {
+    document.getElementById("repEntregaAnexoInput").click();
+  });
+  document.getElementById("repEntregaAnexoInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (file && entregaDetalheAtualId) await uploadAnexoEntregaRep(file, entregaDetalheAtualId);
+  });
 }
 
 function renderRepEntregas() {
@@ -1848,9 +2035,12 @@ function renderRepEntregas() {
   });
 }
 
+let entregaDetalheAtualId = null;
+
 function abrirDetalheEntregaRep(id) {
   const e = entregas.find(x => x.id === id);
   if (!e) return;
+  entregaDetalheAtualId = id;
   document.getElementById("repEntregaDetalheTitulo").textContent = e.numero_nf || e.numero_pedido || "Sem NF";
   document.getElementById("repEntregaDetalheInfo").innerHTML = [
     ["Cliente", e.cliente], ["Vendedor", e.vendedor], ["Etapa", ETAPA_LABEL[e.etapa] || e.etapa],
@@ -1879,6 +2069,7 @@ function abrirDetalheEntregaRep(id) {
       }).join("") + (temValores ? `<tr><td colspan="5" style="text-align:right;font-weight:800;">Total</td><td class="num mono" style="font-weight:800;">${formatMoney(itens.reduce((a, it) => a + (it.valorTotal || 0), 0))}</td></tr>` : "")
     : `<tr><td colspan="3" style="text-align:center;color:var(--ink-soft);">Nenhum item.</td></tr>`;
 
+  renderReservaEConfirmarVenda(e);
   document.getElementById("repEntregaDetalheOverlay").classList.add("show");
 }
 
@@ -2001,123 +2192,37 @@ async function abrirAnexoPreCad(path) {
   window.open(data.signedUrl, "_blank");
 }
 
-/* ---------------- acompanhamento ---------------- */
+/* ---------------- reserva / confirmar venda / anexos (dentro do detalhe de Entregas) ---------------- */
+// Era a aba "Acompanhamento" (lista própria de pedidos, com aba horizontal por pedido) --
+// a pedido do usuário, essa parte virou uma seção do detalhe de Entregas que já existia,
+// visível só quando o pedido é do próprio representante (created_by === currentUser.id).
 
 const ANEXOS_BUCKET = "entregas-anexos";
-let acompanhamentoSelecionadoId = null;
 
-function renderAcompanhamento() {
-  const meusPedidos = entregas.filter(e => e.created_by === currentUser.id).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-  document.getElementById("repAcompanhamentoEmpty").style.display = meusPedidos.length ? "none" : "block";
+function renderReservaEConfirmarVenda(pedido) {
+  const souDono = pedido.created_by === currentUser.id;
 
-  if (!acompanhamentoSelecionadoId || !meusPedidos.some(p => p.id === acompanhamentoSelecionadoId)) {
-    acompanhamentoSelecionadoId = meusPedidos.length ? meusPedidos[0].id : null;
-  }
+  document.getElementById("repEntregaConfirmarVendaWrap").style.display =
+    (souDono && pedido.etapa === "PRE_VENDA") ? "flex" : "none";
 
-  document.getElementById("repAcompanhamentoTabs").innerHTML = meusPedidos.map(p => {
-    const statusClasse = p.reserva_status === "pendente" ? "pendente"
-      : p.reserva_status === "finalizada" ? "finalizada"
-      : p.reserva_status === "estornada" ? "estornada" : "normal";
-    return `
-      <button type="button" class="rep-acomp-tab-btn ${p.id === acompanhamentoSelecionadoId ? "active" : ""}" data-acompid="${escapeHtml(p.id)}">
-        <span class="rep-acomp-status-dot ${statusClasse}"></span>
-        Nº ${escapeHtml(p.numero_pedido || "—")}
-      </button>
-    `;
-  }).join("");
-
-  document.querySelectorAll(".rep-acomp-tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      acompanhamentoSelecionadoId = btn.dataset.acompid;
-      renderAcompanhamento();
-    });
-  });
-
-  const pedido = meusPedidos.find(p => p.id === acompanhamentoSelecionadoId);
-  renderDetalheAcompanhamento(pedido);
-}
-
-function renderDetalheAcompanhamento(pedido) {
-  const container = document.getElementById("repAcompanhamentoDetalhe");
-  if (!pedido) { container.innerHTML = ""; return; }
-
-  const temValores = (pedido.itens || []).some(it => it.valorUnitario != null);
-  const itensHtml = (pedido.itens || []).map(it => {
-    const prod = produtos.find(p => p.codigo === it.codigo);
-    return `
-      <tr>
-        <td class="mono">${escapeHtml(it.codigo)}</td>
-        <td>${escapeHtml(prod ? prod.medida : "—")}</td>
-        <td class="num mono">${fmt(it.quantidade)}</td>
-        ${temValores ? `
-          <td class="num mono">${it.valorUnitario != null ? formatMoney(it.valorUnitario) : "—"}</td>
-          <td class="num mono">${it.desconto ? it.desconto + "%" : "—"}</td>
-          <td class="num mono">${it.valorTotal != null ? formatMoney(it.valorTotal) : "—"}</td>
-        ` : ""}
-      </tr>
-    `;
-  }).join("");
-
-  let confirmarVendaHtml = "";
-  if (pedido.etapa === "PRE_VENDA") {
-    confirmarVendaHtml = `
-      <div class="rep-acomp-reserva-aviso">
-        <span>Esta é uma proposta — ainda não é um pedido em processamento.</span>
-        <button type="button" class="btn primary" id="btnConfirmarVendaRep">Confirmar venda</button>
-      </div>
-    `;
-  }
-
-  let reservaHtml = "";
-  if (pedido.reserva_status === "pendente") {
+  const wrapPendente = document.getElementById("repEntregaReservaPendenteWrap");
+  const wrapEstornada = document.getElementById("repEntregaReservaEstornadaWrap");
+  wrapPendente.style.display = "none";
+  wrapEstornada.style.display = "none";
+  if (souDono && pedido.reserva_status === "pendente") {
     const expiraEm = new Date(pedido.reserva_expira_em);
     const horasRestantes = Math.max(0, Math.round((expiraEm - new Date()) / 3600000));
-    reservaHtml = `
-      <div class="rep-acomp-reserva-aviso">
-        <span>Reserva pendente — expira em ${formatDateBR(pedido.reserva_expira_em.slice(0, 10))} às ${expiraEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} (faltam ${horasRestantes}h)</span>
-        <button type="button" class="btn primary" id="btnFinalizarReserva">Finalizar pedido</button>
-      </div>
-    `;
-  } else if (pedido.reserva_status === "estornada") {
-    reservaHtml = `<div class="rep-acomp-reserva-estornada">Esta reserva expirou e foi estornada automaticamente — o estoque foi liberado.</div>`;
+    document.getElementById("repEntregaReservaPendenteTexto").textContent =
+      `Reserva pendente — expira em ${formatDateBR(pedido.reserva_expira_em.slice(0, 10))} às ${expiraEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} (faltam ${horasRestantes}h)`;
+    wrapPendente.style.display = "flex";
+  } else if (souDono && pedido.reserva_status === "estornada") {
+    wrapEstornada.textContent = "Esta reserva expirou e foi estornada automaticamente — o estoque foi liberado.";
+    wrapEstornada.style.display = "block";
   }
 
-  container.innerHTML = `
-    <div class="rep-doc-cliente-info" style="margin-bottom:14px;">
-      <div><label>Cliente</label><div class="rep-readonly">${escapeHtml(pedido.cliente || "—")}</div></div>
-      <div><label>Etapa</label><div class="rep-readonly">${escapeHtml(ETAPA_LABEL[pedido.etapa] || pedido.etapa || "—")}</div></div>
-      <div><label>Data</label><div class="rep-readonly">${formatDateBR(pedido.data)}</div></div>
-      <div><label>Transportadora</label><div class="rep-readonly">${escapeHtml(pedido.transportadora || "—")}</div></div>
-    </div>
-    ${confirmarVendaHtml}
-    ${reservaHtml}
-    <div class="rep-itens-table-wrap">
-      <table class="rep-itens-table">
-        <thead><tr><th>Código</th><th>Medida</th><th>Quantidade</th>${temValores ? `<th>Valor unitário</th><th>Desc.</th><th>Valor total</th>` : ""}</tr></thead>
-        <tbody>${itensHtml}</tbody>
-      </table>
-    </div>
-    <div class="rep-acomp-anexos">
-      <h4>Anexos</h4>
-      <div id="repAcompAnexosList" class="anexos-list"></div>
-      <input type="file" id="repAcompAnexoInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
-      <button type="button" class="btn small outline" id="btnAnexarAcomp" style="margin-top:8px;">+ Anexar arquivo</button>
-    </div>
-  `;
-
-  if (pedido.etapa === "PRE_VENDA") {
-    document.getElementById("btnConfirmarVendaRep").addEventListener("click", () => confirmarVendaRep(pedido.id));
-  }
-  if (pedido.reserva_status === "pendente") {
-    document.getElementById("btnFinalizarReserva").addEventListener("click", () => finalizarReservaRep(pedido.id));
-  }
-  document.getElementById("btnAnexarAcomp").addEventListener("click", () => document.getElementById("repAcompAnexoInput").click());
-  document.getElementById("repAcompAnexoInput").addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    e.target.value = "";
-    if (file) await uploadAnexoAcompanhamento(file, pedido.id);
-  });
-  renderAnexosAcompanhamento(pedido);
+  const anexosWrap = document.getElementById("repEntregaAnexosWrap");
+  anexosWrap.style.display = souDono ? "block" : "none";
+  if (souDono) renderAnexosEntregaRep(pedido);
 }
 
 async function confirmarVendaRep(id) {
@@ -2128,7 +2233,7 @@ async function confirmarVendaRep(id) {
   const pedido = entregas.find(e => e.id === id);
   if (pedido) pedido.etapa = "ENTRADA";
   toast("Venda confirmada — pedido avançou para Entrada.");
-  renderAcompanhamento();
+  if (pedido) renderReservaEConfirmarVenda(pedido);
   renderRepEntregas();
 }
 
@@ -2138,10 +2243,10 @@ async function finalizarReservaRep(id) {
   const pedido = entregas.find(e => e.id === id);
   if (pedido) pedido.reserva_status = "finalizada";
   toast("Pedido finalizado.");
-  renderAcompanhamento();
+  if (pedido) renderReservaEConfirmarVenda(pedido);
 }
 
-/* ---------------- anexos (acompanhamento) ---------------- */
+/* ---------------- anexos do pedido, com pré-visualização de imagem/PDF ---------------- */
 
 function formatFileSize(bytes) {
   if (!bytes) return "0 KB";
@@ -2149,21 +2254,54 @@ function formatFileSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + " MB";
 }
 
-function renderAnexosAcompanhamento(pedido) {
-  const container = document.getElementById("repAcompAnexosList");
+function extensaoAnexoRep(nome) {
+  const m = /\.([a-z0-9]+)$/i.exec(nome || "");
+  return m ? m[1].toLowerCase() : "";
+}
+
+const EXTENSOES_IMAGEM = ["jpg", "jpeg", "png", "gif", "webp"];
+
+function renderAnexosEntregaRep(pedido) {
+  const container = document.getElementById("repEntregaAnexosList");
+  const previewsContainer = document.getElementById("repEntregaAnexosPreviews");
   const anexos = pedido.anexos || [];
   container.innerHTML = anexos.length
     ? anexos.map(a => `
         <div class="anexo-row">
-          <span class="anexo-nome" data-abriranexo="${escapeHtml(a.path)}">${escapeHtml(a.nome)}</span>
+          <span class="anexo-nome" data-abrirentreganexo="${escapeHtml(a.path)}">${escapeHtml(a.nome)}</span>
           <span class="anexo-tamanho">${escapeHtml(formatFileSize(a.tamanho))}</span>
         </div>
       `).join("")
     : `<div class="note">Nenhum arquivo anexado ainda.</div>`;
 
-  document.querySelectorAll("[data-abriranexo]").forEach(el => {
-    el.addEventListener("click", () => abrirAnexoAcompanhamento(el.dataset.abriranexo));
+  document.querySelectorAll("[data-abrirentreganexo]").forEach(el => {
+    el.addEventListener("click", () => abrirAnexoEntregaRep(el.dataset.abrirentreganexo));
   });
+
+  // imagem e PDF já aparecem pré-visualizados aqui, sem precisar abrir em outra aba --
+  // outros formatos (planilha, Word...) continuam só com o link de abrir
+  previewsContainer.innerHTML = "";
+  anexos
+    .filter(a => EXTENSOES_IMAGEM.includes(extensaoAnexoRep(a.nome)) || extensaoAnexoRep(a.nome) === "pdf")
+    .forEach(async (a) => {
+      const { data, error } = await sb.storage.from(ANEXOS_BUCKET).createSignedUrl(a.path, 300);
+      if (error || !data) return;
+      const ehImagem = EXTENSOES_IMAGEM.includes(extensaoAnexoRep(a.nome));
+      const bloco = document.createElement("div");
+      bloco.className = "rep-anexo-preview";
+      bloco.innerHTML = `
+        <div class="rep-anexo-preview-head">
+          <span>PRÉ-VISUALIZAÇÃO — ${escapeHtml(a.nome)}</span>
+          <a href="${escapeHtml(data.signedUrl)}" target="_blank" rel="noopener">Abrir em nova aba ↗</a>
+        </div>
+        <div class="rep-anexo-preview-body">
+          ${ehImagem
+            ? `<img src="${escapeHtml(data.signedUrl)}" alt="${escapeHtml(a.nome)}">`
+            : `<iframe src="${escapeHtml(data.signedUrl)}" title="${escapeHtml(a.nome)}"></iframe>`}
+        </div>
+      `;
+      previewsContainer.appendChild(bloco);
+    });
 }
 
 function sanitizarNomeArquivo(nome) {
@@ -2171,7 +2309,7 @@ function sanitizarNomeArquivo(nome) {
   return semAcentos.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
-async function uploadAnexoAcompanhamento(file, entregaId) {
+async function uploadAnexoEntregaRep(file, entregaId) {
   if (file.size > 10 * 1024 * 1024) { toast("Arquivo muito grande (máximo 10MB)."); return; }
   const path = `${entregaId}/${Date.now()}-${sanitizarNomeArquivo(file.name)}`;
   const { error: uploadError } = await sb.storage.from(ANEXOS_BUCKET).upload(path, file);
@@ -2183,11 +2321,12 @@ async function uploadAnexoAcompanhamento(file, entregaId) {
   if (error) { toast("Erro ao salvar anexo: " + error.message); return; }
 
   pedido.anexos = novosAnexos;
-  renderAnexosAcompanhamento(pedido);
+  renderAnexosEntregaRep(pedido);
+  renderRepFaturamento(); // um anexo novo pode fazer a NF virar link clicável na tabela
   toast("Arquivo anexado.");
 }
 
-async function abrirAnexoAcompanhamento(path) {
+async function abrirAnexoEntregaRep(path) {
   const { data, error } = await sb.storage.from(ANEXOS_BUCKET).createSignedUrl(path, 60);
   if (error) { toast("Erro ao abrir arquivo: " + error.message); return; }
   window.open(data.signedUrl, "_blank");
