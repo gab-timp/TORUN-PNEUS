@@ -2155,14 +2155,14 @@ async function carregarClientesDetalhadosRep() {
   const nomes = meusClientesNomes();
   if (!nomes.length) { clientesDetalhadosRep = []; return; }
   const { data, error } = await sb.from("clientes")
-    .select("nome, cidade, estado, limite_credito, validade_analise_credito")
+    .select("nome, cidade, estado, documento, limite_credito, validade_analise_credito")
     .in("nome", nomes);
   if (error) { toast("Erro ao carregar dados dos clientes."); return; }
   clientesDetalhadosRep = data || [];
 }
 
 function initRepClientes() {
-  document.getElementById("repClientesSearch").addEventListener("input", renderRepClientes);
+  document.getElementById("repClientesSearch").addEventListener("input", renderRepClientesLista);
 }
 
 function statusValidadeAnaliseRep(validade) {
@@ -2173,45 +2173,141 @@ function statusValidadeAnaliseRep(validade) {
   return "ok";
 }
 
-function renderRepClientes() {
+// mesmos limiares do status de atividade da tela de Clientes do app principal
+// (statusAtividadeCliente em app.js) -- "novo" é quem nunca comprou, diferente de "inativo".
+function statusAtividadeClienteRep(ultimaCompra) {
+  if (!ultimaCompra) return "novo";
+  const dias = Math.round((new Date() - new Date(ultimaCompra)) / 86400000);
+  if (dias <= 60) return "ativo";
+  if (dias <= 120) return "atencao";
+  return "inativo";
+}
+const STATUS_ATIVIDADE_LABEL_REP = { ativo: "Ativo", atencao: "Atenção", inativo: "Inativo", novo: "Novo" };
+const STATUS_ATIVIDADE_PILL_REP = { ativo: "pill-normal", atencao: "pill-atencao", inativo: "pill-esgotado", novo: "pill-neutro" };
+
+let repClienteSelecionado = null;
+
+function dadosClienteRep(nome) {
+  const detalhe = clientesDetalhadosRep.find(c => c.nome === nome) || {};
+  const vendasDoCliente = minhasVendas().filter(v => v.cliente === nome);
+  const entregasDoCliente = entregas.filter(e => e.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  const saldoEmAberto = vendasDoCliente.reduce((a, v) => a + Math.max(0, Number(v.valor_venda || 0) - Number(v.valor_recebido || 0)), 0);
+  const faturamento = vendasDoCliente.reduce((a, v) => a + Number(v.valor_venda || 0), 0);
+  const totalPneus = vendasDoCliente.reduce((a, v) => a + Number(v.quantidade_pneus || 0), 0);
+  const ultimaCompra = vendasDoCliente.reduce((max, v) => (!max || (v.data || "") > max) ? v.data : max, null);
+  const limiteCredito = detalhe.limite_credito != null ? Number(detalhe.limite_credito) : null;
+  return {
+    nome, cidade: detalhe.cidade, estado: detalhe.estado, documento: detalhe.documento,
+    limiteCredito, disponivel: limiteCredito != null ? limiteCredito - saldoEmAberto : null,
+    validade: detalhe.validade_analise_credito, faturamento, totalPneus, ultimaCompra,
+    vendas: vendasDoCliente.slice().sort((a, b) => (b.data || "").localeCompare(a.data || "")),
+    entregasDoCliente
+  };
+}
+
+function renderRepClientesLista() {
   const search = (document.getElementById("repClientesSearch").value || "").trim().toLowerCase();
-  const minhas = minhasVendas();
+  let nomes = meusClientesNomes();
+  if (search) {
+    nomes = nomes.filter(nome => {
+      const d = clientesDetalhadosRep.find(c => c.nome === nome) || {};
+      return [nome, d.cidade, d.estado].join(" ").toLowerCase().includes(search);
+    });
+  }
+  nomes.sort((a, b) => a.localeCompare(b));
 
-  let rows = meusClientesNomes().map(nome => {
-    const detalhe = clientesDetalhadosRep.find(c => c.nome === nome) || {};
-    const vendasDoCliente = minhas.filter(v => v.cliente === nome);
-    const saldoEmAberto = vendasDoCliente.reduce((a, v) => a + Math.max(0, Number(v.valor_venda || 0) - Number(v.valor_recebido || 0)), 0);
-    const ultimaCompra = vendasDoCliente.reduce((max, v) => (!max || (v.data || "") > max) ? v.data : max, null);
-    const limiteCredito = detalhe.limite_credito != null ? Number(detalhe.limite_credito) : null;
-    return {
-      nome, cidade: detalhe.cidade, estado: detalhe.estado, limiteCredito,
-      disponivel: limiteCredito != null ? limiteCredito - saldoEmAberto : null,
-      ultimaCompra, validade: detalhe.validade_analise_credito
-    };
-  });
-  if (search) rows = rows.filter(r => [r.nome, r.cidade, r.estado].join(" ").toLowerCase().includes(search));
-  rows.sort((a, b) => a.nome.localeCompare(b.nome));
-
-  document.getElementById("repClientesEmpty").style.display = rows.length ? "none" : "block";
-  document.getElementById("repClientesTbody").innerHTML = rows.map(r => {
-    const statusValidade = statusValidadeAnaliseRep(r.validade);
-    const seloValidade = statusValidade === "vencida"
-      ? `<span class="rep-tag-reserva">VENCIDA</span>`
-      : statusValidade === "vence-em-breve"
-        ? `<span class="kanban-card-tag" style="background:var(--orange-pale); color:var(--orange-deep); border-color:var(--orange);">VENCE EM BREVE</span>`
-        : "";
-    const dispEstilo = r.disponivel != null && r.disponivel < 0 ? ` style="color:var(--danger); font-weight:800;"` : "";
+  document.getElementById("repClientesCount").textContent = `${fmt(nomes.length)} cliente${nomes.length === 1 ? "" : "s"}`;
+  document.getElementById("repClientesRows").innerHTML = nomes.map(nome => {
+    const d = dadosClienteRep(nome);
+    const status = statusAtividadeClienteRep(d.ultimaCompra);
     return `
-      <tr>
-        <td>${escapeHtml(r.nome)}</td>
-        <td>${escapeHtml([r.cidade, r.estado].filter(Boolean).join("/") || "—")}</td>
-        <td class="num mono">${r.limiteCredito != null ? formatMoney(r.limiteCredito) : "—"}</td>
-        <td class="num mono"><span${dispEstilo}>${r.disponivel != null ? formatMoney(r.disponivel) : "—"}</span></td>
-        <td class="mono">${r.ultimaCompra ? formatDateBR(r.ultimaCompra) : "—"}</td>
-        <td class="mono">${r.validade ? formatDateBR(r.validade) : "—"} ${seloValidade}</td>
-      </tr>
+      <div class="split-row ${nome === repClienteSelecionado ? "active" : ""}" data-repcliente="${escapeHtml(nome)}">
+        <div class="split-row-body">
+          <div class="split-row-top"><span class="split-row-nome">${escapeHtml(nome)}</span></div>
+          <div class="split-row-meta">
+            <span class="status-pill ${STATUS_ATIVIDADE_PILL_REP[status]}">${STATUS_ATIVIDADE_LABEL_REP[status]}</span>
+            <span class="fat mono">${formatMoney(d.faturamento)}</span>
+          </div>
+          <div class="split-row-meta" style="margin-top:2px;">
+            <span>${escapeHtml([d.cidade, d.estado].filter(Boolean).join(" · ") || "—")}</span>
+          </div>
+        </div>
+      </div>
     `;
   }).join("");
+
+  document.querySelectorAll("[data-repcliente]").forEach(row => {
+    row.addEventListener("click", () => abrirRepClienteDetalhe(row.dataset.repcliente));
+  });
+
+  if (nomes.length === 0) {
+    repClienteSelecionado = null;
+    document.getElementById("repClienteDetalheConteudo").style.display = "none";
+    document.getElementById("repClienteDetalheVazio").textContent = search
+      ? "Nenhum cliente encontrado com esse termo de busca."
+      : "Você ainda não tem clientes com venda ou pedido registrado.";
+    document.getElementById("repClienteDetalheVazio").style.display = "";
+  } else if (!repClienteSelecionado || !nomes.includes(repClienteSelecionado)) {
+    abrirRepClienteDetalhe(nomes[0]);
+  }
+}
+
+function abrirRepClienteDetalhe(nome) {
+  repClienteSelecionado = nome;
+  document.querySelectorAll("[data-repcliente]").forEach(row => row.classList.toggle("active", row.dataset.repcliente === nome));
+
+  const d = dadosClienteRep(nome);
+  document.getElementById("repClienteDetalheVazio").style.display = "none";
+  document.getElementById("repClienteDetalheConteudo").style.display = "";
+
+  document.getElementById("repClienteModalNome").textContent = d.nome;
+  const statusValidade = statusValidadeAnaliseRep(d.validade);
+  const seloValidade = statusValidade === "vencida"
+    ? ` <span class="rep-tag-reserva">VENCIDA</span>`
+    : statusValidade === "vence-em-breve"
+      ? ` <span class="kanban-card-tag" style="background:var(--orange-pale); color:var(--orange-deep); border-color:var(--orange);">VENCE EM BREVE</span>`
+      : "";
+  document.getElementById("repClienteModalInfo").innerHTML = [
+    ["Documento", d.documento ? escapeHtml(d.documento) : null], ["Cidade/UF", escapeHtml([d.cidade, d.estado].filter(Boolean).join(" / ")) || null],
+    ["Limite de crédito", d.limiteCredito != null ? escapeHtml(formatMoney(d.limiteCredito)) : null],
+    ["Validade da análise de crédito", d.validade ? escapeHtml(formatDateBR(d.validade)) + seloValidade : null]
+  ].map(([lbl, val]) => `<div><div class="lbl">${lbl}</div><div class="val">${val || "—"}</div></div>`).join("");
+
+  const dispEstilo = d.disponivel != null && d.disponivel < 0;
+  document.getElementById("repClienteModalKpis").innerHTML = [
+    { lbl: "Faturamento comigo", val: formatMoney(d.faturamento), accent: true },
+    { lbl: "Pneus comprados", val: fmt(d.totalPneus) + " un." },
+    { lbl: "Última compra", val: d.ultimaCompra ? formatDateBR(d.ultimaCompra) : "—" },
+    { lbl: "Disponível", val: d.disponivel != null ? formatMoney(d.disponivel) : "—", accent: dispEstilo }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div></div>`).join("");
+
+  document.getElementById("repClienteModalVendasTbody").innerHTML = d.vendas.length
+    ? d.vendas.map(v => `
+        <tr>
+          <td class="mono">${formatDateBR(v.data)}</td>
+          <td class="mono">${escapeHtml(v.numero_nf_venda || "—")}</td>
+          <td class="num mono">${fmt(v.quantidade_pneus)}</td>
+          <td class="num mono">${formatMoney(v.valor_venda)}</td>
+          <td>${escapeHtml(v.forma_pagamento || "—")}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">Nenhuma venda registrada ainda.</td></tr>`;
+
+  document.getElementById("repClienteModalEntregasList").innerHTML = d.entregasDoCliente.length
+    ? d.entregasDoCliente.map(e => {
+        const cor = ETAPA_COR[e.etapa] || ETAPA_COR.PRE_VENDA;
+        return `
+          <div class="cliente-entrega-row">
+            <span>${escapeHtml(e.numero_nf || e.numero_pedido || "Sem NF")} · ${formatDateBR(e.data)}</span>
+            <span class="kanban-card-tag" style="background:${cor.pale}; color:${cor.deep}; border-color:${cor.accent};">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "—")}</span>
+          </div>
+        `;
+      }).join("")
+    : `<div class="muted" style="font-size:12.5px;">Nenhum pedido em Status do Pedido para este cliente.</div>`;
+}
+
+function renderRepClientes() {
+  renderRepClientesLista();
 }
 
 /* ---------------- pré-cadastro de cliente ---------------- */

@@ -309,22 +309,42 @@
   <div class="rep-page rep-page-wide rep-tab-content" id="repTabClientes" style="display:none;">
     <div class="rep-section-card">
       <h2>Clientes</h2>
-      <div class="note">Seus clientes (com base nas suas vendas e pedidos). Limite e disponível são calculados com base no que ainda está em aberto.</div>
-      <div class="search-row">
-        <input type="text" id="repClientesSearch" placeholder="Buscar por cliente, cidade ou UF…">
+      <div class="note">Seus clientes, com base nas suas vendas e pedidos. Limite e disponível são calculados com base no que ainda está em aberto.</div>
+    </div>
+
+    <div class="split-wrap">
+      <div class="split-lista">
+        <div class="split-lista-head">
+          <input type="text" id="repClientesSearch" placeholder="Buscar por nome, cidade ou UF…">
+          <div class="note" id="repClientesCount" style="margin-top:6px;"></div>
+        </div>
+        <div class="split-rows" id="repClientesRows"></div>
       </div>
-      <div class="rep-itens-table-wrap">
-        <table class="rep-itens-table">
-          <thead>
-            <tr>
-              <th>Cliente</th><th>Cidade/UF</th><th class="num">Limite de crédito</th><th class="num">Disponível</th>
-              <th>Última compra</th><th>Validade da análise</th>
-            </tr>
-          </thead>
-          <tbody id="repClientesTbody"></tbody>
-        </table>
+      <div class="card split-detalhe" id="repClienteDetalhePanel">
+        <div class="muted" id="repClienteDetalheVazio" style="padding:60px 20px; text-align:center;">Você ainda não tem clientes com venda ou pedido registrado.</div>
+        <div id="repClienteDetalheConteudo" style="display:none;">
+          <div class="cliente-modal-head">
+            <h3 id="repClienteModalNome"></h3>
+          </div>
+          <div class="cliente-modal-info" id="repClienteModalInfo"></div>
+          <div class="kpis" id="repClienteModalKpis"></div>
+
+          <div class="cliente-modal-section">
+            <h4>Minhas vendas</h4>
+            <div class="rep-itens-table-wrap">
+              <table class="rep-itens-table">
+                <thead><tr><th>Data</th><th>NF</th><th class="num">Pneus</th><th class="num">Valor</th><th>Forma de pagamento</th></tr></thead>
+                <tbody id="repClienteModalVendasTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="cliente-modal-section">
+            <h4>Status dos pedidos</h4>
+            <div id="repClienteModalEntregasList"></div>
+          </div>
+        </div>
       </div>
-      <div class="note" id="repClientesEmpty" style="display:none;">Nenhum cliente encontrado.</div>
     </div>
   </div>
 
@@ -610,6 +630,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=42"></script>
+<script src="pedido-representante.js?v=43"></script>
 </body>
 </html>
