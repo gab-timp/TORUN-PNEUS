@@ -418,6 +418,7 @@ async function afterLogin() {
   initThemeToggle();
   initMinhasConfiguracoes();
   initRepDashboard();
+  renderRepDashboard();
   renderRepCatalogo();
   renderRepEntregas();
   renderMeusPreCadastros();

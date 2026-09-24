@@ -72,15 +72,15 @@
   </div>
 
   <div class="rep-tabs">
-    <button type="button" class="rep-tab active" data-reptab="pedido">Novo Pedido</button>
+    <button type="button" class="rep-tab active" data-reptab="dashboard">Meu Desempenho</button>
+    <button type="button" class="rep-tab" data-reptab="pedido">Novo Pedido</button>
     <button type="button" class="rep-tab" data-reptab="catalogo">Catálogo</button>
     <button type="button" class="rep-tab" data-reptab="entregas">Entregas</button>
     <button type="button" class="rep-tab" data-reptab="precadastro">Pré-cadastro de Cliente</button>
     <button type="button" class="rep-tab" data-reptab="acompanhamento">Acompanhamento</button>
-    <button type="button" class="rep-tab" data-reptab="dashboard">Meu Desempenho</button>
   </div>
 
-  <div class="rep-page rep-tab-content active" id="repTabPedido">
+  <div class="rep-page rep-tab-content" id="repTabPedido" style="display:none;">
     <form id="formPedidoRepresentante" class="rep-doc" novalidate>
 
       <div class="rep-doc-header">
@@ -329,7 +329,7 @@
     </div>
   </div>
 
-  <div class="rep-page rep-tab-content" id="repTabDashboard" style="display:none;">
+  <div class="rep-page rep-tab-content active" id="repTabDashboard">
     <div id="repDashListaWrap">
       <div class="rep-dash-header">
         <div>
@@ -476,6 +476,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=35"></script>
+<script src="pedido-representante.js?v=36"></script>
 </body>
 </html>
