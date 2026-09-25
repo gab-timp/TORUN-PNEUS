@@ -738,6 +738,7 @@ function setView(view) {
   if (view === "faturamento") { renderClienteSelect(); renderFaturamentoDatalists(); renderFaturamento(); renderVendas(); }
   if (view === "clientes") renderClientes();
   if (view === "limitecredito") renderLimiteCredito();
+  if (view === "contasreceber") renderContasReceber();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
   if (view === "administracao") renderAdministracao();
@@ -6519,6 +6520,97 @@ function renderLimiteCredito() {
   });
 }
 
+/* ---------------- contas a receber (Financeiro) ---------------- */
+
+function diasEmAberto(dataVenda) {
+  return Math.round((new Date() - new Date(dataVenda)) / 86400000);
+}
+function faixaAtraso(dias) {
+  if (dias <= 30) return "0-30";
+  if (dias <= 60) return "31-60";
+  return "60+";
+}
+const FAIXA_ATRASO_PILL = { "0-30": "pill-normal", "31-60": "pill-atencao", "60+": "pill-esgotado" };
+
+function initContasReceberForm() {
+  document.getElementById("carSearch").addEventListener("input", renderContasReceber);
+  document.getElementById("carFiltroVendedor").addEventListener("change", renderContasReceber);
+  document.getElementById("carFiltroFaixa").addEventListener("change", renderContasReceber);
+}
+
+function renderContasReceber() {
+  const emAberto = state.vendas.filter(v => v.statusPagamento === "em_aberto");
+
+  const vendedorSelect = document.getElementById("carFiltroVendedor");
+  const vendedorAnterior = vendedorSelect.value;
+  const vendedoresUnicos = Array.from(new Set(emAberto.map(v => v.vendedor).filter(Boolean))).sort();
+  vendedorSelect.innerHTML = `<option value="">Todos os vendedores</option>` +
+    vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
+
+  const search = (document.getElementById("carSearch").value || "").trim().toLowerCase();
+  const vendedor = vendedorSelect.value;
+  const faixaFiltro = document.getElementById("carFiltroFaixa").value;
+
+  let rows = emAberto.map(v => {
+    const dias = diasEmAberto(v.data);
+    return { v, dias, faixa: faixaAtraso(dias) };
+  });
+  if (search) rows = rows.filter(({ v }) => [v.cliente, v.numeroNFVenda, v.numeroPedido].join(" ").toLowerCase().includes(search));
+  if (vendedor) rows = rows.filter(({ v }) => v.vendedor === vendedor);
+  if (faixaFiltro) rows = rows.filter(r => r.faixa === faixaFiltro);
+  rows.sort((a, b) => (a.v.data || "").localeCompare(b.v.data || "")); // mais antiga primeiro
+
+  document.getElementById("carEmpty").style.display = rows.length ? "none" : "block";
+  document.getElementById("carTbody").innerHTML = rows.map(({ v, dias, faixa }) => `
+    <tr>
+      <td class="mono">${formatDateBR(v.data)}</td>
+      <td>${escapeHtml(v.cliente)}</td>
+      <td class="mono">${escapeHtml(v.numeroNFVenda || v.numeroPedido || "—")}</td>
+      <td>${escapeHtml(v.vendedor || "—")}</td>
+      <td class="num mono">${formatMoney(v.valorVenda)}</td>
+      <td class="mono">${v.dataVencimento ? formatDateBR(v.dataVencimento) : "—"}</td>
+      <td><span class="status-pill ${FAIXA_ATRASO_PILL[faixa]}">${fmt(dias)} dias</span></td>
+      <td><span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span></td>
+    </tr>
+  `).join("");
+
+  const somaFaixa = (faixa) => rows.filter(r => r.faixa === faixa).reduce((a, { v }) => a + v.valorVenda, 0);
+  document.getElementById("carKpis").innerHTML = [
+    { lbl: "Total em aberto", val: formatMoney(rows.reduce((a, { v }) => a + v.valorVenda, 0)), accent: true },
+    { lbl: "0–30 dias", val: formatMoney(somaFaixa("0-30")) },
+    { lbl: "31–60 dias", val: formatMoney(somaFaixa("31-60")) },
+    { lbl: "60+ dias", val: formatMoney(somaFaixa("60+")) }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+
+  document.querySelectorAll("[data-marcarpagocar]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const ok = await marcarVendaComoPaga(btn.dataset.marcarpagocar);
+      if (ok) { renderContasReceber(); renderVendas(); renderFaturamento(); }
+    });
+  });
+}
+
+// caminho único pra confirmar pagamento de uma venda -- usado pelo botão "Marcar como
+// pago" tanto no Faturamento quanto em Contas a Receber. Devolve true/false; quem chama
+// decide o que re-renderizar.
+async function marcarVendaComoPaga(vendaId) {
+  const v = state.vendas.find(x => x.id === vendaId);
+  if (!v) return false;
+  const dataPagamento = todayISO();
+  const ok = await confirmModal("Confirmar pagamento?",
+    `Marcar a venda NF ${v.numeroNFVenda || "—"} (${v.cliente}) como paga hoje, ${formatDateBR(dataPagamento)}? Pra usar outra data, edite a venda.`);
+  if (!ok) return false;
+  const { error } = await sb.from("vendas").update({ status_pagamento: "pago", data_pagamento: dataPagamento }).eq("id", v.id);
+  if (error) { toast("Erro ao confirmar pagamento: " + error.message); return false; }
+  v.statusPagamento = "pago";
+  v.dataPagamento = dataPagamento;
+  await registrarLog("vendas", v.id, "edicao", "Pagamento confirmado",
+    `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente} marcada como paga em ${formatDateBR(dataPagamento)}`);
+  toast("Pagamento confirmado.");
+  return true;
+}
+
 function renderVendas() {
   const vendedorSelect = document.getElementById("venFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
@@ -6596,21 +6688,10 @@ function renderVendas() {
 
   document.querySelectorAll("[data-marcarpago]").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const v = state.vendas.find(x => x.id === btn.dataset.marcarpago);
-      if (!v) return;
-      const dataPagamento = todayISO();
-      const ok = await confirmModal("Confirmar pagamento?",
-        `Marcar a venda NF ${v.numeroNFVenda || "—"} (${v.cliente}) como paga hoje, ${formatDateBR(dataPagamento)}? Pra usar outra data, edite a venda.`);
+      const ok = await marcarVendaComoPaga(btn.dataset.marcarpago);
       if (!ok) return;
-      const { error } = await sb.from("vendas").update({ status_pagamento: "pago", data_pagamento: dataPagamento }).eq("id", v.id);
-      if (error) { toast("Erro ao confirmar pagamento: " + error.message); return; }
-      v.statusPagamento = "pago";
-      v.dataPagamento = dataPagamento;
-      await registrarLog("vendas", v.id, "edicao", "Pagamento confirmado",
-        `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente} marcada como paga em ${formatDateBR(dataPagamento)}`);
       renderVendas();
       renderFaturamento();
-      toast("Pagamento confirmado.");
     });
   });
 
@@ -8796,6 +8877,7 @@ async function init() {
   initEntregas();
   initCatalogo();
   initLimiteCreditoForm();
+  initContasReceberForm();
   initThemeToggle();
   initFontSizeToggle();
   initEstoqueResize();
@@ -9024,6 +9106,7 @@ const ADMIN_VIEW_DEFS = [
   { key: "movimentacoes", label: "Movimentações" },
   { key: "faturamento", label: "Faturamento" },
   { key: "limitecredito", label: "Limite de Crédito" },
+  { key: "contasreceber", label: "Contas a Receber" },
   { key: "clientes", label: "Clientes" },
   { key: "produtos", label: "Produtos" },
   { key: "catalogo", label: "Catálogo" },
