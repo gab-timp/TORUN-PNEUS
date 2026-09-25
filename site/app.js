@@ -737,6 +737,7 @@ function setView(view) {
   if (view === "entregas") { renderClienteSelect(); renderFaturamentoDatalists(); renderEntregas(); }
   if (view === "faturamento") { renderClienteSelect(); renderFaturamentoDatalists(); renderFaturamento(); renderVendas(); }
   if (view === "clientes") renderClientes();
+  if (view === "limitecredito") renderLimiteCredito();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
   if (view === "administracao") renderAdministracao();
@@ -6316,8 +6317,6 @@ function abrirEdicaoCliente() {
   document.getElementById("clienteEditEndereco").value = c.endereco || "";
   document.getElementById("clienteEditCep").value = c.cep || "";
   document.getElementById("clienteEditTipoCliente").value = c.tipoCliente || "";
-  document.getElementById("clienteEditLimiteCredito").value = c.limiteCredito != null ? c.limiteCredito : "";
-  document.getElementById("clienteEditValidadeAnaliseCredito").value = c.validadeAnaliseCredito || "";
   document.getElementById("clienteModalInfo").style.display = "none";
   document.getElementById("formEditarCliente").style.display = "block";
 }
@@ -6350,10 +6349,7 @@ async function salvarEdicaoCliente() {
     cidade: document.getElementById("clienteEditCidade").value.trim(),
     endereco: document.getElementById("clienteEditEndereco").value.trim(),
     cep: document.getElementById("clienteEditCep").value.trim(),
-    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null,
-    limite_credito: document.getElementById("clienteEditLimiteCredito").value !== ""
-      ? Number(document.getElementById("clienteEditLimiteCredito").value) : null,
-    validade_analise_credito: document.getElementById("clienteEditValidadeAnaliseCredito").value || null
+    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null
   };
 
   const { error } = await sb.from("clientes").update(dados).eq("nome", nomeOriginal);
@@ -6384,8 +6380,6 @@ async function salvarEdicaoCliente() {
   c.endereco = dados.endereco;
   c.cep = dados.cep;
   c.tipoCliente = dados.tipo_cliente || "";
-  c.limiteCredito = dados.limite_credito;
-  c.validadeAnaliseCredito = dados.validade_analise_credito || "";
 
   await registrarLog("clientes", novoNome, "edicao", "Ação automática",
     `Cadastro do cliente atualizado${renomeou ? ` (renomeado de "${nomeOriginal}")` : ""}`);
@@ -6396,6 +6390,133 @@ async function salvarEdicaoCliente() {
   renderClientes();
   renderClienteSelect();
   toast("Cliente atualizado.");
+}
+
+/* ---------------- limite de crédito (Financeiro) ---------------- */
+
+function statusCreditoCliente(limite, validade) {
+  if (limite == null) return "sem-limite";
+  if (!validade) return "ok"; // tem limite mas sem validade cadastrada -- sem evidência de vencido
+  const dias = Math.round((new Date(validade) - new Date()) / 86400000);
+  if (dias < 0) return "vencida";
+  if (dias <= 30) return "vence-em-breve";
+  return "ok";
+}
+const STATUS_CREDITO_LABEL = { ok: "Ok", "vence-em-breve": "Vence em breve", vencida: "Vencida", "sem-limite": "Sem limite definido" };
+const STATUS_CREDITO_PILL = { ok: "pill-normal", "vence-em-breve": "pill-atencao", vencida: "pill-esgotado", "sem-limite": "pill-neutro" };
+
+// caminho único de escrita pro limite/validade de crédito -- usado pelo formulário
+// "Registrar análise de crédito" E pela edição inline na tabela, então os dois sempre
+// deixam rastro em credito_analises (histórico da Fase 5) e mantêm clientes.limite_credito/
+// validade_analise_credito como "snapshot atual" (getClienteStats/openClienteModal/RPC do
+// representante continuam lendo dali, sem mudança).
+async function registrarAnaliseCredito(cliente, limite, validade, observacao) {
+  const { error: errAnalise } = await sb.from("credito_analises").insert({
+    cliente, limite: limite != null ? limite : null, validade: validade || null,
+    observacao: observacao || null, user_email: currentUser ? currentUser.email : null
+  });
+  if (errAnalise) { toast("Erro ao registrar análise de crédito: " + errAnalise.message); return false; }
+
+  const { error: errCliente } = await sb.from("clientes").update({
+    limite_credito: limite != null ? limite : null, validade_analise_credito: validade || null
+  }).eq("nome", cliente);
+  if (errCliente) { toast("Erro ao atualizar o cliente: " + errCliente.message); return false; }
+
+  const c = getCliente(cliente);
+  if (c) { c.limiteCredito = limite != null ? limite : null; c.validadeAnaliseCredito = validade || ""; }
+
+  await registrarLog("clientes", cliente, "edicao", "Alteração de crédito",
+    `Limite: ${limite != null ? formatMoney(limite) : "—"} · Validade: ${validade ? formatDateBR(validade) : "—"}${observacao ? ` · "${observacao}"` : ""}`);
+
+  return true;
+}
+
+function initLimiteCreditoForm() {
+  document.getElementById("limCredSearch").addEventListener("input", renderLimiteCredito);
+  document.getElementById("limCredFiltroStatus").addEventListener("change", renderLimiteCredito);
+
+  document.getElementById("formAnaliseCredito").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const cliente = document.getElementById("credCliente").value.trim();
+    if (!cliente) { toast("Informe o cliente."); return; }
+    if (!getCliente(cliente)) { toast("Cliente não encontrado."); return; }
+    const limiteRaw = document.getElementById("credLimite").value;
+    const limite = limiteRaw !== "" ? parseFloat(limiteRaw) : null;
+    const validade = document.getElementById("credValidade").value || null;
+    const observacao = document.getElementById("credObservacao").value.trim();
+    const ok = await registrarAnaliseCredito(cliente, limite, validade, observacao || null);
+    if (ok) {
+      toast("Análise de crédito registrada.");
+      document.getElementById("formAnaliseCredito").reset();
+      renderLimiteCredito();
+    }
+  });
+}
+
+function renderLimiteCredito() {
+  const search = (document.getElementById("limCredSearch").value || "").trim().toLowerCase();
+  const filtroStatus = document.getElementById("limCredFiltroStatus").value;
+
+  let rows = state.clientes.map(c => {
+    const stats = getClienteStats(c.nome);
+    const limite = c.limiteCredito != null ? c.limiteCredito : null;
+    return {
+      nome: c.nome, cidade: c.cidade, estado: c.estado, limite,
+      saldoEmAberto: stats.saldoEmAberto,
+      disponivel: limite != null ? limite - stats.saldoEmAberto : null,
+      validade: c.validadeAnaliseCredito || null,
+      status: statusCreditoCliente(limite, c.validadeAnaliseCredito || null)
+    };
+  });
+
+  if (search) rows = rows.filter(r => [r.nome, r.cidade, r.estado].join(" ").toLowerCase().includes(search));
+  if (filtroStatus) rows = rows.filter(r => r.status === filtroStatus);
+  rows.sort((a, b) => a.nome.localeCompare(b.nome));
+
+  document.getElementById("limCredCount").textContent = `${rows.length} de ${state.clientes.length} clientes`;
+  document.getElementById("limCredEmpty").style.display = rows.length ? "none" : "block";
+
+  document.getElementById("limCredTbody").innerHTML = rows.map(r => `
+    <tr>
+      <td>${escapeHtml(r.nome)}</td>
+      <td>${escapeHtml([r.cidade, r.estado].filter(Boolean).join("/") || "—")}</td>
+      <td class="num">
+        <input type="number" min="0" step="0.01" value="${r.limite != null ? r.limite : ""}" placeholder="—"
+          data-editlimite="${escapeAttr(r.nome)}" style="width:110px; text-align:right;" ${currentUserRole === "viewer" ? "disabled" : ""}>
+      </td>
+      <td class="num mono">${formatMoney(r.saldoEmAberto)}</td>
+      <td class="num mono"${r.disponivel != null && r.disponivel < 0 ? ` style="color:var(--danger); font-weight:700;"` : ""}>${r.disponivel != null ? formatMoney(r.disponivel) : "—"}</td>
+      <td><input type="date" value="${r.validade || ""}" data-editvalidade="${escapeAttr(r.nome)}" ${currentUserRole === "viewer" ? "disabled" : ""}></td>
+      <td><span class="status-pill ${STATUS_CREDITO_PILL[r.status]}">${STATUS_CREDITO_LABEL[r.status]}</span></td>
+    </tr>
+  `).join("");
+
+  document.getElementById("limCredKpis").innerHTML = [
+    { lbl: "Total de limite concedido", val: formatMoney(state.clientes.reduce((a, c) => a + (c.limiteCredito || 0), 0)), accent: true },
+    { lbl: "Total em aberto", val: formatMoney(state.clientes.reduce((a, c) => a + getClienteStats(c.nome).saldoEmAberto, 0)) },
+    { lbl: "Análise vencida", val: fmt(state.clientes.filter(c => statusCreditoCliente(c.limiteCredito, c.validadeAnaliseCredito) === "vencida").length) + " clientes" },
+    { lbl: "Sem limite definido", val: fmt(state.clientes.filter(c => c.limiteCredito == null).length) + " clientes" }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+
+  document.querySelectorAll("[data-editlimite]").forEach(inp => {
+    inp.addEventListener("change", async () => {
+      const nome = inp.dataset.editlimite;
+      const c = getCliente(nome);
+      if (!c) return;
+      const novoLimite = inp.value !== "" ? parseFloat(inp.value) : null;
+      const ok = await registrarAnaliseCredito(nome, novoLimite, c.validadeAnaliseCredito || null, null);
+      if (ok) { toast("Limite atualizado."); renderLimiteCredito(); }
+    });
+  });
+  document.querySelectorAll("[data-editvalidade]").forEach(inp => {
+    inp.addEventListener("change", async () => {
+      const nome = inp.dataset.editvalidade;
+      const c = getCliente(nome);
+      if (!c) return;
+      const ok = await registrarAnaliseCredito(nome, c.limiteCredito, inp.value || null, null);
+      if (ok) { toast("Validade atualizada."); renderLimiteCredito(); }
+    });
+  });
 }
 
 function renderVendas() {
@@ -8674,6 +8795,7 @@ async function init() {
   initHistorico();
   initEntregas();
   initCatalogo();
+  initLimiteCreditoForm();
   initThemeToggle();
   initFontSizeToggle();
   initEstoqueResize();
@@ -8901,6 +9023,7 @@ const ADMIN_VIEW_DEFS = [
   { key: "previsto", label: "Estoque Previsto" },
   { key: "movimentacoes", label: "Movimentações" },
   { key: "faturamento", label: "Faturamento" },
+  { key: "limitecredito", label: "Limite de Crédito" },
   { key: "clientes", label: "Clientes" },
   { key: "produtos", label: "Produtos" },
   { key: "catalogo", label: "Catálogo" },

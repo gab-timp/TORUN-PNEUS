@@ -127,6 +127,9 @@
       <g id="i-clipboard-check" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <rect x="4.5" y="4" width="11" height="13.5" rx="1.6"/><rect x="7.5" y="2.3" width="5" height="3" rx="1"/><path d="m7.2 10.8 2.3 2.3 3.8-4.4"/>
       </g>
+      <g id="i-credit-card" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M2.5 8h15"/><path d="M5.5 12.5h4"/>
+      </g>
     </defs>
   </svg>
 
@@ -164,9 +167,6 @@
 
       <div class="nav-group" data-group="comercial">
         <button type="button" class="nav-label">Comercial <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
-        <button class="nav-item" data-view="faturamento" data-label="Faturamento">
-          <svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg> Faturamento
-        </button>
         <button class="nav-item" data-view="clientes" data-label="Clientes">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
         </button>
@@ -185,6 +185,16 @@
         </div>
         <button class="nav-item" data-view="entregas" data-label="Entregas">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-package"/></svg> Entregas
+        </button>
+      </div>
+
+      <div class="nav-group" data-group="financeiro">
+        <button type="button" class="nav-label">Financeiro <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" data-view="faturamento" data-label="Faturamento">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg> Faturamento
+        </button>
+        <button class="nav-item" data-view="limitecredito" data-label="Limite de Crédito">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-credit-card"/></svg> Limite de Crédito
         </button>
       </div>
 
@@ -1475,6 +1485,76 @@
 
     </section>
 
+    <!-- ======================= VIEW: LIMITE DE CRÉDITO ======================= -->
+    <section id="view-limitecredito" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Limite de Crédito</h1>
+          <div class="sub">Limite, saldo em aberto e validade da análise de crédito de cada cliente.</div>
+        </div>
+      </div>
+
+      <div class="kpis" id="limCredKpis"></div>
+
+      <div class="card write-ui">
+        <h2 style="margin-bottom:4px;">Registrar análise de crédito</h2>
+        <div class="note" style="margin-bottom:14px;">Cadastra ou atualiza o limite e a validade de um cliente — mesmo resultado de editar na tabela abaixo, só que num formulário dedicado (bom pra quando acabou de sair uma análise de verdade).</div>
+        <form id="formAnaliseCredito">
+          <div class="form-row">
+            <div class="field grow">
+              <label>Cliente</label>
+              <input type="text" id="credCliente" list="listCliente" placeholder="Buscar por nome…" required>
+            </div>
+            <div class="field">
+              <label>Limite de crédito (R$)</label>
+              <input type="number" id="credLimite" min="0" step="0.01" placeholder="Ex: 20000">
+            </div>
+            <div class="field">
+              <label>Validade da análise</label>
+              <input type="date" id="credValidade">
+            </div>
+            <div class="field grow">
+              <label>Observação (opcional)</label>
+              <input type="text" id="credObservacao" placeholder="Ex: renovado após pagamento em dia">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Todos os clientes</h2>
+          <div class="note" id="limCredCount"></div>
+        </div>
+        <div class="search-row">
+          <input type="text" id="limCredSearch" placeholder="Buscar por cliente, cidade ou UF…">
+          <select id="limCredFiltroStatus">
+            <option value="">Todos os status</option>
+            <option value="ok">Ok</option>
+            <option value="vence-em-breve">Vence em breve</option>
+            <option value="vencida">Vencida</option>
+            <option value="sem-limite">Sem limite definido</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Cidade/UF</th><th class="num">Limite de crédito</th>
+                <th class="num">Saldo em aberto</th><th class="num">Disponível</th>
+                <th>Validade da análise</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="limCredTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="limCredEmpty" style="display:none;">Nenhum cliente encontrado.</div>
+      </div>
+    </section>
+
     <!-- ======================= VIEW: CLIENTES ======================= -->
     <section id="view-clientes" class="view">
       <div class="page-head">
@@ -1646,15 +1726,8 @@
                 <label>Tipo de cliente</label>
                 <select id="clienteEditTipoCliente"></select>
               </div>
-              <div class="field">
-                <label>Limite de crédito (R$)</label>
-                <input type="number" id="clienteEditLimiteCredito" min="0" step="0.01" placeholder="Ex: 50000">
-              </div>
-              <div class="field">
-                <label>Validade da análise de crédito</label>
-                <input type="date" id="clienteEditValidadeAnaliseCredito">
-              </div>
             </div>
+            <div class="note" style="margin:-4px 0 10px;">Limite de crédito e validade da análise agora ficam na tela "Limite de Crédito" (menu Financeiro).</div>
             <div class="form-actions">
               <button type="button" class="btn outline" id="btnCancelarEdicaoCliente">Cancelar</button>
               <button type="submit" class="btn primary">Salvar alterações</button>
@@ -2672,6 +2745,6 @@
   </div>
 </div>
 
-<script src="app.js?v=210"></script>
+<script src="app.js?v=211"></script>
 </body>
 </html>
