@@ -7,20 +7,6 @@
   background:#FDE6E6; color:#B91C1C; border:1px solid #EF4444; border-radius:5px; padding:1px 5px;
 }
 
-.rep-acomp-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:16px;}
-.rep-acomp-tab-btn{
-  flex:0 0 auto; display:flex; align-items:center; gap:6px;
-  background:var(--paper-2); border:1px solid var(--line); border-radius:8px;
-  padding:8px 12px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;
-}
-.rep-acomp-tab-btn.active{border-color:var(--orange); background:var(--orange-pale); color:var(--orange-deep);}
-.rep-acomp-status-dot{width:8px; height:8px; border-radius:50%; flex:0 0 auto;}
-.rep-acomp-status-dot.normal{background:var(--ink-soft);}
-.rep-acomp-status-dot.pendente{background:#EF4444;}
-.rep-acomp-status-dot.finalizada{background:#22C55E;}
-.rep-acomp-status-dot.estornada{background:#6B6B6B;}
-
-.rep-acomp-detalhe{border-top:1px solid var(--line); padding-top:16px;}
 .rep-acomp-reserva-aviso{
   background:var(--orange-pale); color:var(--orange-deep); border-radius:8px;
   padding:10px 14px; font-size:13px; font-weight:700; margin-bottom:14px;

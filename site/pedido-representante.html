@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=130">
-<link rel="stylesheet" href="pedido-representante.css?v=21">
+<link rel="stylesheet" href="pedido-representante.css?v=22">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -63,7 +63,7 @@
       </div>
     </div>
     <div class="login-erro" id="loginErro" style="display:none;"></div>
-    <button type="submit" class="btn primary" id="loginSubmitBtn">Entrar</button>
+    <button type="submit" class="btn primary">Entrar</button>
   </form>
 </div>
 
@@ -111,7 +111,7 @@
     </nav>
 
     <div class="sidebar-foot">
-      <div class="theme-toggle" id="themeToggle">
+      <div class="theme-toggle">
         <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
         <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
@@ -227,7 +227,7 @@
 
     <div class="rep-confirmacao" id="repConfirmacao" style="display:none;">
       <div class="rep-confirmacao-msg"><span id="repTipoConfirmado">Pedido</span> nº <b id="repNumeroConfirmado"></b> salvo com sucesso.</div>
-      <div class="rep-confirmacao-reserva" id="repConfirmacaoReserva" style="display:none;">Reserva de estoque criada. Você tem 72h para finalizar este pedido na aba "Acompanhamento" — depois disso a reserva expira automaticamente.</div>
+      <div class="rep-confirmacao-reserva" id="repConfirmacaoReserva" style="display:none;">Reserva de estoque criada. Você tem 72h para finalizar este pedido na aba "Status do Pedido" — depois disso a reserva expira automaticamente.</div>
       <button type="button" class="btn outline" id="btnImprimirPedidoRep">Imprimir / gerar PDF</button>
       <button type="button" class="btn primary" id="btnNovoPedidoRep">Novo pedido</button>
     </div>
@@ -320,7 +320,7 @@
         </div>
         <div class="split-rows" id="repClientesRows"></div>
       </div>
-      <div class="card split-detalhe" id="repClienteDetalhePanel">
+      <div class="card split-detalhe">
         <div class="muted" id="repClienteDetalheVazio" style="padding:60px 20px; text-align:center;">Você ainda não tem clientes com venda ou pedido registrado.</div>
         <div id="repClienteDetalheConteudo" style="display:none;">
           <div class="cliente-modal-head">
@@ -630,6 +630,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=44"></script>
+<script src="pedido-representante.js?v=45"></script>
 </body>
 </html>

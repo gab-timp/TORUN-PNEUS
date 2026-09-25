@@ -203,7 +203,7 @@
     </nav>
 
     <div class="sidebar-foot">
-      <div class="theme-toggle" id="themeToggle">
+      <div class="theme-toggle">
         <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
         <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
@@ -1068,13 +1068,13 @@
             <input type="text" id="coletaBusca" placeholder="Buscar por NF, pedido, cliente ou transportadora…">
           </div>
 
-          <div id="coletaSecaoPendentes">
+          <div>
             <div class="coleta-subtitulo">Pedidos prontos pra carregar</div>
             <div class="romaneio-lista" id="coletaListaPendentes"></div>
             <div class="empty-state" id="coletaPendentesVazio" style="display:none;">Nenhum pedido encontrado.</div>
           </div>
 
-          <div id="coletaSecaoGerados" style="margin-top:22px;">
+          <div style="margin-top:22px;">
             <div class="coleta-subtitulo">Romaneios gerados</div>
             <div class="romaneio-lista" id="coletaListaGerados"></div>
             <div class="empty-state" id="coletaGeradosVazio" style="display:none;">Nenhum romaneio encontrado.</div>
@@ -1559,7 +1559,7 @@
           </div>
           <div class="split-rows" id="cliRows"></div>
         </div>
-        <div class="card split-detalhe" id="clienteDetalhePanel">
+        <div class="card split-detalhe">
           <div class="muted" id="clienteDetalheVazio" style="padding:60px 20px; text-align:center;">Selecione um cliente na lista à esquerda pra ver o perfil completo.</div>
           <div id="clienteDetalheConteudo" style="display:none;">
           <div class="cliente-modal-head">
@@ -2654,6 +2654,6 @@
   </div>
 </div>
 
-<script src="app.js?v=208"></script>
+<script src="app.js?v=209"></script>
 </body>
 </html>

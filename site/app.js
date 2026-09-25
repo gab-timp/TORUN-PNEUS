@@ -734,7 +734,7 @@ function fmt(n) {
 }
 
 function formatMoney(n) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
 }
 
 function renderEstoqueKpis() {
