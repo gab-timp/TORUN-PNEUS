@@ -2141,6 +2141,12 @@ function abrirDetalheEntregaRep(id) {
 // só nos nomes que já são meus clientes de verdade, então nunca chega no navegador limite
 // de crédito de cliente de outro representante.
 let clientesDetalhadosRep = [];
+// saldo em aberto de CADA venda do cliente, de qualquer vendedor (RPC no banco -- ver
+// sql/rpc_saldo_em_aberto_clientes.sql). Precisa ser assim porque "vendas" só deixa o
+// representante ler as próprias linhas (RLS); calcular só com minhasVendas() subestimaria
+// o saldo em aberto se o cliente já foi atendido por outro vendedor antes, inflando o
+// "Disponível" de crédito mostrado aqui.
+let saldoEmAbertoPorCliente = {};
 
 function meusClientesNomes() {
   const meuNome = (currentUserNome || "").trim().toLowerCase();
@@ -2154,12 +2160,18 @@ function meusClientesNomes() {
 
 async function carregarClientesDetalhadosRep() {
   const nomes = meusClientesNomes();
-  if (!nomes.length) { clientesDetalhadosRep = []; return; }
-  const { data, error } = await sb.from("clientes")
-    .select("nome, cidade, estado, documento, limite_credito, validade_analise_credito")
-    .in("nome", nomes);
-  if (error) { toast("Erro ao carregar dados dos clientes."); return; }
-  clientesDetalhadosRep = data || [];
+  if (!nomes.length) { clientesDetalhadosRep = []; saldoEmAbertoPorCliente = {}; return; }
+  const [detalhesRes, saldosRes] = await Promise.all([
+    sb.from("clientes")
+      .select("nome, cidade, estado, documento, limite_credito, validade_analise_credito")
+      .in("nome", nomes),
+    sb.rpc("saldo_em_aberto_clientes", { p_nomes: nomes })
+  ]);
+  if (detalhesRes.error) toast("Erro ao carregar dados dos clientes.");
+  if (saldosRes.error) toast("Erro ao calcular saldo em aberto dos clientes.");
+  clientesDetalhadosRep = detalhesRes.data || [];
+  saldoEmAbertoPorCliente = {};
+  (saldosRes.data || []).forEach(r => { saldoEmAbertoPorCliente[r.cliente] = Number(r.saldo || 0); });
 }
 
 function initRepClientes() {
@@ -2192,7 +2204,7 @@ function dadosClienteRep(nome) {
   const detalhe = clientesDetalhadosRep.find(c => c.nome === nome) || {};
   const vendasDoCliente = minhasVendas().filter(v => v.cliente === nome);
   const entregasDoCliente = entregas.filter(e => e.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-  const saldoEmAberto = vendasDoCliente.reduce((a, v) => a + Math.max(0, Number(v.valor_venda || 0) - Number(v.valor_recebido || 0)), 0);
+  const saldoEmAberto = saldoEmAbertoPorCliente[nome] || 0;
   const faturamento = vendasDoCliente.reduce((a, v) => a + Number(v.valor_venda || 0), 0);
   const totalPneus = vendasDoCliente.reduce((a, v) => a + Number(v.quantidade_pneus || 0), 0);
   const ultimaCompra = vendasDoCliente.reduce((max, v) => (!max || (v.data || "") > max) ? v.data : max, null);
