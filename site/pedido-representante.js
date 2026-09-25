@@ -1933,6 +1933,7 @@ function renderRepDashboard() {
   document.getElementById("repDashEvolucaoTotal").textContent = formatMoney(faturamentoAno);
 
   const porCliente = {};
+  meusClientesNomes().forEach(nome => { porCliente[nome] = { qtd: 0, faturamento: 0 }; });
   minhas.forEach(v => {
     if (!porCliente[v.cliente]) porCliente[v.cliente] = { qtd: 0, faturamento: 0 };
     porCliente[v.cliente].qtd += 1;
