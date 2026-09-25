@@ -82,6 +82,15 @@ function diasAtrasISO(n) {
   return new Date(d - tz).toISOString().slice(0, 10);
 }
 
+// data ISO + n dias (n negativo = pra trás) -- usado pra sugerir o vencimento
+// da venda (data da venda + 30 dias, só um chute inicial, editável).
+function dataMaisDias(dataISO, n) {
+  const d = new Date(dataISO + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d - tz).toISOString().slice(0, 10);
+}
+
 function uid(prefix) {
   return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
@@ -145,7 +154,10 @@ function vendaToRow(v) {
     comissao_percentual: v.comissaoPercentual || 0, comissao: v.comissao || 0,
     valor_frete: v.valorFrete, transportadora: v.transportadora || null, obs: v.obs || null,
     valor_recebido: v.valorRecebido != null ? v.valorRecebido : null, parcelas: v.parcelas != null ? v.parcelas : null,
-    pagamentos_divididos: v.pagamentosDivididos && v.pagamentosDivididos.length ? v.pagamentosDivididos : null
+    pagamentos_divididos: v.pagamentosDivididos && v.pagamentosDivididos.length ? v.pagamentosDivididos : null,
+    status_pagamento: v.statusPagamento || "em_aberto",
+    data_pagamento: v.statusPagamento === "pago" ? (v.dataPagamento || null) : null,
+    data_vencimento: v.dataVencimento || null
   };
 }
 function vendaFromRow(r) {
@@ -159,6 +171,9 @@ function vendaFromRow(r) {
     valorRecebido: r.valor_recebido != null ? Number(r.valor_recebido) : null,
     parcelas: r.parcelas || null,
     pagamentosDivididos: r.pagamentos_divididos || null,
+    statusPagamento: r.status_pagamento || "em_aberto",
+    dataPagamento: r.data_pagamento || null,
+    dataVencimento: r.data_vencimento || null,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -6062,9 +6077,10 @@ function getClienteStats(nome) {
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
   const ticketMedio = vendas.length ? totalFaturado / vendas.length : 0;
   const ultimaCompra = vendas.length ? vendas[0].data : null;
-  // saldo em aberto: soma do que ainda falta receber em cada venda (valorRecebido nulo conta
-  // como nada recebido ainda) -- base do cálculo de "disponível" do limite de crédito.
-  const saldoEmAberto = vendas.reduce((a, v) => a + Math.max(0, v.valorVenda - (v.valorRecebido || 0)), 0);
+  // saldo em aberto: soma das vendas com status_pagamento = "em_aberto" -- valorRecebido
+  // NÃO serve pra isso, só existe pra Boleto Trademaster (deságio da financeira, não
+  // "quanto o cliente pagou"). Ver sql/vendas_status_pagamento.sql.
+  const saldoEmAberto = vendas.filter(v => v.statusPagamento === "em_aberto").reduce((a, v) => a + v.valorVenda, 0);
   const entregas = state.entregas.filter(e => e.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   return { vendas, totalFaturado, totalPneus, ticketMedio, ultimaCompra, saldoEmAberto, entregas };
 }
@@ -6439,8 +6455,12 @@ function renderVendas() {
       <td class="num mono">${formatMoney(v.comissao || 0)}${v.comissaoPercentual ? `<div class="muted" style="font-size:11px;">${v.comissaoPercentual.toFixed(2).replace(".", ",")}%</div>` : ""}</td>
       <td>${escapeHtml(v.transportadora || "—")}</td>
       <td class="muted">${escapeHtml(v.obs || "—")}</td>
+      <td>${v.statusPagamento === "pago"
+        ? `<span class="status-pill pill-normal">Pago</span>`
+        : `<span class="status-pill pill-esgotado">Em aberto</span>`}</td>
       <td style="white-space:nowrap;">
         <span class="write-ui">
+          ${v.statusPagamento === "pago" ? "" : `<button class="btn small outline" data-marcarpago="${v.id}">Marcar como pago</button>`}
           <button class="btn small outline" data-editvenda="${v.id}">Editar</button>
           <button class="btn small danger" data-delvenda="${v.id}">Excluir</button>
         </span>
@@ -6451,6 +6471,26 @@ function renderVendas() {
 
   document.querySelectorAll("[data-editvenda]").forEach(btn => {
     btn.addEventListener("click", () => startEditVenda(btn.dataset.editvenda));
+  });
+
+  document.querySelectorAll("[data-marcarpago]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const v = state.vendas.find(x => x.id === btn.dataset.marcarpago);
+      if (!v) return;
+      const dataPagamento = todayISO();
+      const ok = await confirmModal("Confirmar pagamento?",
+        `Marcar a venda NF ${v.numeroNFVenda || "—"} (${v.cliente}) como paga hoje, ${formatDateBR(dataPagamento)}? Pra usar outra data, edite a venda.`);
+      if (!ok) return;
+      const { error } = await sb.from("vendas").update({ status_pagamento: "pago", data_pagamento: dataPagamento }).eq("id", v.id);
+      if (error) { toast("Erro ao confirmar pagamento: " + error.message); return; }
+      v.statusPagamento = "pago";
+      v.dataPagamento = dataPagamento;
+      await registrarLog("vendas", v.id, "edicao", "Pagamento confirmado",
+        `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente} marcada como paga em ${formatDateBR(dataPagamento)}`);
+      renderVendas();
+      renderFaturamento();
+      toast("Pagamento confirmado.");
+    });
   });
 
   document.querySelectorAll("[data-vernf]").forEach(btn => {
@@ -6611,6 +6651,10 @@ function startEditVenda(vendaId) {
   document.getElementById("venValorRecebido").required = isTrademaster;
   document.getElementById("venValorRecebido").value = v.valorRecebido != null ? v.valorRecebido : "";
   document.getElementById("venParcelas").value = v.parcelas != null ? v.parcelas : "";
+  document.getElementById("venStatusPagamento").value = v.statusPagamento || "em_aberto";
+  document.getElementById("venDataVencimento").value = v.dataVencimento || "";
+  document.getElementById("venDataPagamento").value = v.dataPagamento || "";
+  document.getElementById("rowDataPagamento").style.display = v.statusPagamento === "pago" ? "" : "none";
   if (v.valorRecebido != null) {
     const diferenca = v.valorVenda - v.valorRecebido;
     const pct = v.valorVenda > 0 ? (diferenca / v.valorVenda * 100) : 0;
@@ -6657,6 +6701,10 @@ function cancelEditVenda() {
   document.getElementById("rowTrademaster").style.display = "none";
   document.getElementById("venValorRecebido").required = false;
   document.getElementById("venDiferencaCalc").value = "R$ 0,00 (0%)";
+  document.getElementById("venStatusPagamento").value = "em_aberto";
+  document.getElementById("venDataPagamento").value = "";
+  document.getElementById("rowDataPagamento").style.display = "none";
+  document.getElementById("venDataVencimento").value = dataMaisDias(todayISO(), 30);
   document.getElementById("venFormTitle").textContent = "Nova venda";
   document.getElementById("venEditBanner").style.display = "none";
   document.getElementById("btnSubmitVenda").textContent = "Registrar venda";
@@ -7318,6 +7366,22 @@ function initForms() {
     atualizarComissaoCalc();
   });
 
+  document.getElementById("venStatusPagamento").addEventListener("change", (e) => {
+    const pago = e.target.value === "pago";
+    document.getElementById("rowDataPagamento").style.display = pago ? "" : "none";
+    if (pago && !document.getElementById("venDataPagamento").value) {
+      document.getElementById("venDataPagamento").value = todayISO();
+    }
+  });
+
+  // sugere o vencimento (venda + 30 dias) só se o campo ainda não foi tocado --
+  // não sobrescreve um valor que a pessoa já ajustou.
+  document.getElementById("venData").addEventListener("change", (e) => {
+    if (!document.getElementById("venDataVencimento").value && e.target.value) {
+      document.getElementById("venDataVencimento").value = dataMaisDias(e.target.value, 30);
+    }
+  });
+
   document.getElementById("venDividirPagamento").addEventListener("change", (e) => {
     document.getElementById("venDivisaoBox").style.display = e.target.checked ? "" : "none";
     const lista = document.getElementById("venDivisaoLista");
@@ -7353,6 +7417,12 @@ function initForms() {
     const parcelasRaw = document.getElementById("venParcelas").value.trim();
     const valorRecebido = isTrademaster && valorRecebidoRaw ? parseFloat(valorRecebidoRaw) : null;
 
+    const statusPagamento = document.getElementById("venStatusPagamento").value || "em_aberto";
+    if (statusPagamento === "pago" && !document.getElementById("venDataPagamento").value) {
+      toast("Informe a data de pagamento.");
+      return;
+    }
+
     const clienteRetira = document.getElementById("venClienteRetira").checked;
     const comissaoPctRaw = document.getElementById("venComissaoPct").value;
     const comissaoPercentual = comissaoPctRaw ? parseFloat(comissaoPctRaw) : 0;
@@ -7378,7 +7448,10 @@ function initForms() {
       obs: document.getElementById("venObs").value.trim(),
       valorRecebido,
       parcelas: temParcelas && parcelasRaw ? parcelasRaw : null,
-      pagamentosDivididos
+      pagamentosDivididos,
+      statusPagamento,
+      dataPagamento: statusPagamento === "pago" ? document.getElementById("venDataPagamento").value : null,
+      dataVencimento: document.getElementById("venDataVencimento").value || null
     };
 
     if (editingVendaId) {

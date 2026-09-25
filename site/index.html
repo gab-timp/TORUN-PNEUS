@@ -1334,6 +1334,23 @@
             </div>
           </div>
           <div class="form-row">
+            <div class="field">
+              <label>Status do pagamento</label>
+              <select id="venStatusPagamento">
+                <option value="em_aberto">Em aberto</option>
+                <option value="pago">Pago</option>
+              </select>
+            </div>
+            <div class="field" id="rowDataVencimento">
+              <label>Data de vencimento</label>
+              <input type="date" id="venDataVencimento">
+            </div>
+            <div class="field" id="rowDataPagamento" style="display:none;">
+              <label>Data de pagamento</label>
+              <input type="date" id="venDataPagamento">
+            </div>
+          </div>
+          <div class="form-row">
             <div class="field" style="flex:0 0 auto;">
               <label>&nbsp;</label>
               <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
@@ -1381,6 +1398,7 @@
                 <th class="num">Comissão</th>
                 <th>Transportadora</th>
                 <th>Obs.</th>
+                <th>Pagamento</th>
                 <th></th>
               </tr>
             </thead>
@@ -2654,6 +2672,6 @@
   </div>
 </div>
 
-<script src="app.js?v=209"></script>
+<script src="app.js?v=210"></script>
 </body>
 </html>
