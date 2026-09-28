@@ -269,8 +269,12 @@
             <option value="">Todas as regiões</option>
           </select>
         </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <label style="font-weight:600;"><input type="checkbox" id="repCatExibirValores"> Exibir valores</label>
+        </div>
       </div>
-      <div class="note">Com um tipo de cliente escolhido, a lista traz os pneus com preço daquele tipo (e da <b>condição de pagamento</b> e da <b>região</b>, quando escolhidas) e o card mostra os valores. Em <b>Todos os tipos</b> a lista traz todos os pneus e cada card mostra em quais tipos o pneu tem preço.</div>
+      <div class="note">Com um tipo de cliente escolhido, a lista traz os pneus com preço daquele tipo (e da <b>condição de pagamento</b> e da <b>região</b>, quando escolhidas). Marque <b>"Exibir valores"</b> pra ver o preço no card — some por padrão. Em <b>Todos os tipos</b> a lista traz todos os pneus e cada card mostra em quais tipos o pneu tem preço.</div>
     </div>
 
     <div class="cat-contador" id="repCatalogoContador" aria-live="polite"></div>
@@ -630,6 +634,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=45"></script>
+<script src="pedido-representante.js?v=46"></script>
 </body>
 </html>

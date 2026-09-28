@@ -524,9 +524,12 @@ const PRODUTO_COMBO_LIMITE = 50;
 
 function renderProdutoComboLista(lista, termo) {
   const t = termo.trim().toLowerCase();
-  const achados = t
+  let achados = t
     ? produtos.filter(p => p.codigo.toLowerCase().includes(t) || p.medida.toLowerCase().includes(t))
     : produtos;
+  // Agrícola/Florestal é restrito ao Caetano -- não pode nem aparecer pra selecionar num
+  // pedido novo (só filtrar do Catálogo não bastava, essa busca não passava por lá).
+  if (!souCaetano()) achados = achados.filter(p => p.categoria !== "AGRICOLA_FLORESTAL");
   if (achados.length === 0) {
     lista.innerHTML = `<div class="produto-combo-empty">Nenhum produto encontrado.</div>`;
     lista.classList.add("show");
@@ -664,7 +667,9 @@ function getPrecoProdutoRep(codigo, regiao, tipoCliente, condicao) {
 function populateRepCatalogoFiltros() {
   const selCategoria = document.getElementById("repCatFiltroCategoria");
   const atual = selCategoria.value;
-  const categorias = [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort();
+  const categorias = [...new Set(
+    produtos.filter(p => souCaetano() || p.categoria !== "AGRICOLA_FLORESTAL").map(p => p.categoria).filter(Boolean)
+  )].sort();
   // valor da option continua o bruto (comparado direto contra p.categoria) -- só o texto
   // mostrado passa pela normalização, senão o dropdown mostrava "CARGAS_TBR" em vez de "Cargas/TBR"
   selCategoria.innerHTML = `<option value="">Todas</option>` + categorias.map(c =>
@@ -713,11 +718,19 @@ function buildPrecoMatrixHtmlRep(codigo, tipoCliente) {
   </table></div>`;
 }
 
+// Agrícola/Florestal é categoria restrita -- só o Caetano pode ver/selecionar esses pneus no
+// portal (pedido do usuário). Comparação por nome (mesmo critério de identidade usado em todo
+// o resto do portal, ex.: minhasVendas()) -- não tem uma flag própria pra isso ainda.
+function souCaetano() {
+  return (currentUserNome || "").trim().toLowerCase() === "caetano";
+}
+
 // Pneus que o Catálogo considera antes dos filtros de preço -- mesma regra do Catálogo interno
 // (app.js catalogoProdutosVisiveis()), exceto que aqui o representante SEMPRE só vê o que tem
 // estoque (essa parte já era assim antes e continua igual -- é a regra intencional do portal).
 function catalogoProdutosVisiveisRep(search, categoria) {
   let rows = produtos.filter(p => p.situacao !== "DESCONTINUADO" && computeSaldoProduto(p.codigo) > 0);
+  if (!souCaetano()) rows = rows.filter(p => p.categoria !== "AGRICOLA_FLORESTAL");
   if (search) {
     rows = rows.filter(p =>
       p.codigo.toLowerCase().includes(search) ||
@@ -736,6 +749,7 @@ function renderRepCatalogo() {
   const categoria = document.getElementById("repCatFiltroCategoria").value;
   const condicao = document.getElementById("repCatCondicaoView").value;
   const regiao = document.getElementById("repCatRegiao").value;
+  const exibirValores = document.getElementById("repCatExibirValores").checked;
   const tipoSelecionado = document.getElementById("repCatTipoClienteView").value || "CONSUMO";
   const todosTipos = tipoSelecionado === CATALOGO_TODOS_TIPOS;
   const tipoCliente = todosTipos ? "CONSUMO" : tipoSelecionado;
@@ -855,7 +869,8 @@ function renderRepCatalogo() {
         ` : ""}
 
         <div class="catalogo-card-divider"></div>
-        ${semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : todosTipos ? `
+        ${!exibirValores ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Marque "Exibir valores" pra ver o preço.</div>` :
+          semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : todosTipos ? `
         <div class="catalogo-preco-condicao">Preços cadastrados</div>
         <div class="cat-tipos">${chipsTipos}</div>
         <div class="cat-dica">Escolha um tipo de cliente acima para ver os valores.</div>` : `
@@ -1486,6 +1501,7 @@ function initRepCatalogo() {
   document.getElementById("repCatCondicaoView").addEventListener("change", renderRepCatalogo);
   document.getElementById("repCatRegiao").addEventListener("change", renderRepCatalogo);
   document.getElementById("repCatTipoClienteView").addEventListener("change", renderRepCatalogo);
+  document.getElementById("repCatExibirValores").addEventListener("change", renderRepCatalogo);
 
   document.getElementById("repCatalogoModalClose").addEventListener("click", closeRepCatalogoModal);
   document.getElementById("repCatalogoModalOverlay").addEventListener("click", (e) => {
@@ -1988,7 +2004,7 @@ function abrirRepDashClienteDetalhe(clienteNome) {
       <div class="sub">${minhasDoCliente.length} compra${minhasDoCliente.length === 1 ? "" : "s"} · ${formatMoney(faturamentoTotal)} no total</div>
     </div>
     <div class="rep-dash-card">
-      <div class="rep-dash-card-head"><span>Medidas que mais compra</span></div>
+      <div class="rep-dash-card-head"><span>Medidas compradas</span></div>
       ${medidasOrdenadas.length === 0
         ? `<div class="muted" style="padding:12px 0;">Sem histórico de medida vinculado ainda.</div>`
         : `<div class="rank-list">${medidasOrdenadas.map(([medida, qtd]) => `
@@ -2310,13 +2326,19 @@ function abrirRepClienteDetalhe(nome) {
     ? d.entregasDoCliente.map(e => {
         const cor = ETAPA_COR[e.etapa] || ETAPA_COR.PRE_VENDA;
         return `
-          <div class="cliente-entrega-row">
+          <div class="cliente-entrega-row rep-clickable-row" data-repclienteped="${escapeHtml(e.id)}" title="Ver detalhe e anexos deste pedido">
             <span>${escapeHtml(e.numero_nf || e.numero_pedido || "Sem NF")} · ${formatDateBR(e.data)}</span>
             <span class="kanban-card-tag" style="background:${cor.pale}; color:${cor.deep}; border-color:${cor.accent};">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "—")}</span>
           </div>
         `;
       }).join("")
     : `<div class="muted" style="font-size:12.5px;">Nenhum pedido em Status do Pedido para este cliente.</div>`;
+
+  // reaproveita o MESMO painel de detalhe (com NF/anexos) que a aba Entregas já usa --
+  // evita ter que ir até lá e procurar o pedido de novo.
+  document.querySelectorAll("[data-repclienteped]").forEach(row => {
+    row.addEventListener("click", () => abrirDetalheEntregaRep(row.dataset.repclienteped));
+  });
 }
 
 function renderRepClientes() {
