@@ -6667,43 +6667,48 @@ async function marcarVendaComoPaga(vendaId) {
 // Sem relação com status_pagamento -- comissão sempre conta na data da venda,
 // não na data do pagamento (decisão do usuário). Filtro de período próprio
 // (comFiltroDe/comFiltroAte), livre, não amarrado ao mês único do Faturamento.
+//
+// De propósito SEM KPIs/tabela de faturamento-por-vendedor aqui -- isso já existe
+// em Faturamento (mesmo filtro de período livre) e no Dashboard ("Comissão por
+// Representante"), duplicar seria o tipo de coisa que o pente-fino de código
+// inútil já pegou antes nesta base. Essa tela só ordena por comissão pra achar
+// quem clicar -- o valor de verdade é o detalhe individual (abrirComissaoVendedorDetalhe).
 function initComissoesForm() {
-  document.getElementById("comFiltroVendedor").addEventListener("change", renderComissoes);
   document.getElementById("comFiltroDe").addEventListener("change", renderComissoes);
   document.getElementById("comFiltroAte").addEventListener("change", renderComissoes);
+  document.getElementById("btnComissoesVoltar").addEventListener("click", () => {
+    document.getElementById("comissoesDetalheWrap").style.display = "none";
+    document.getElementById("comissoesListaWrap").style.display = "";
+  });
+  document.getElementById("comClienteDetalheClose").addEventListener("click", () => {
+    document.getElementById("comClienteDetalheOverlay").classList.remove("show");
+  });
+  document.getElementById("comClienteDetalheOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "comClienteDetalheOverlay") document.getElementById("comClienteDetalheOverlay").classList.remove("show");
+  });
 }
 
 function getVendasFiltradasComissoes() {
-  const vendedor = document.getElementById("comFiltroVendedor").value;
   const de = document.getElementById("comFiltroDe").value;
   const ate = document.getElementById("comFiltroAte").value;
   let rows = state.vendas.slice();
-  if (vendedor) rows = rows.filter(v => v.vendedor === vendedor);
   if (de) rows = rows.filter(v => v.data >= de);
   if (ate) rows = rows.filter(v => v.data <= ate);
   return rows;
 }
 
+// mesmo critério de identidade usado em todo o resto do sistema pra ligar um nome
+// de vendedor (texto livre) a uma pessoa -- ver minhasVendas() no portal do representante.
+function vendasDoVendedor(nome) {
+  const alvo = (nome || "").trim().toLowerCase();
+  return state.vendas.filter(v => (v.vendedor || "").trim().toLowerCase() === alvo);
+}
+
 function renderComissoes() {
-  const vendedorSelect = document.getElementById("comFiltroVendedor");
-  const vendedorAnterior = vendedorSelect.value;
-  const vendedoresUnicos = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
-  vendedorSelect.innerHTML = `<option value="">Todos os vendedores</option>` +
-    vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
-  vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
+  document.getElementById("comissoesDetalheWrap").style.display = "none";
+  document.getElementById("comissoesListaWrap").style.display = "";
 
   const vendas = getVendasFiltradasComissoes();
-  const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
-  const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
-  const pctMedio = totalFaturamento ? (totalComissao / totalFaturamento * 100) : 0;
-
-  document.getElementById("comKpis").innerHTML = [
-    { lbl: "Comissão no período", val: formatMoney(totalComissao), accent: true },
-    { lbl: "Faturamento no período", val: formatMoney(totalFaturamento) },
-    { lbl: "% médio de comissão", val: pctMedio.toFixed(2).replace(".", ",") + "%" },
-    { lbl: "Vendas no período", val: fmt(vendas.length) }
-  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
-
   const porVendedor = {};
   vendas.forEach(v => {
     const key = v.vendedor || "(sem vendedor)";
@@ -6712,40 +6717,163 @@ function renderComissoes() {
     porVendedor[key].comissao += v.comissao || 0;
   });
   const vendedores = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao);
-  const maxComissao = vendedores.length ? vendedores[0][1].comissao : 1;
-  document.getElementById("comVendedorTbody").innerHTML = vendedores.length === 0
-    ? `<tr><td colspan="4" class="muted">Nenhuma venda no período.</td></tr>`
-    : vendedores.map(([nome, d]) => `
-      <tr>
-        <td>${escapeHtml(nome)}</td>
-        <td class="num mono">${formatMoney(d.faturamento)}</td>
-        <td class="num">${valorBarCellHtml(d.comissao, maxComissao)}</td>
-        <td class="num mono">${(d.faturamento ? d.comissao / d.faturamento * 100 : 0).toFixed(2).replace(".", ",")}%</td>
-      </tr>
-    `).join("");
 
-  // por mês -- a quebra no tempo da mesma agregação, pro vendedor filtrado ou todos
-  const porMes = {};
-  vendas.forEach(v => {
-    const mes = (v.data || "").slice(0, 7);
-    if (!mes) return;
-    if (!porMes[mes]) porMes[mes] = { faturamento: 0, comissao: 0 };
-    porMes[mes].faturamento += v.valorVenda;
-    porMes[mes].comissao += v.comissao || 0;
+  document.getElementById("comVendedorEmpty").style.display = vendedores.length ? "none" : "block";
+  document.getElementById("comVendedorLista").innerHTML = vendedores.map(([nome]) => {
+    const d = porVendedor[nome];
+    return `
+      <div class="split-row" data-comvendedor="${escapeAttr(nome)}">
+        <div class="split-row-body">
+          <div class="split-row-top">
+            <span class="split-row-nome" style="font-size:14px;">${escapeHtml(nome)}</span>
+            <span class="mono" style="font-weight:800; color:var(--orange-deep);">${formatMoney(d.comissao)}</span>
+          </div>
+          <div class="split-row-meta"><span>Comissão no período</span><span>›</span></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.querySelectorAll("#comVendedorLista [data-comvendedor]").forEach(row => {
+    row.querySelector(".split-row-body").addEventListener("click", () => abrirComissaoVendedorDetalhe(row.dataset.comvendedor));
   });
-  const meses = Object.entries(porMes).sort((a, b) => b[0].localeCompare(a[0]));
-  document.getElementById("comMesTbody").innerHTML = meses.length === 0
-    ? `<tr><td colspan="3" class="muted">Nenhuma venda no período.</td></tr>`
-    : meses.map(([chave, d]) => {
-        const [ano, mes] = chave.split("-");
-        return `
-          <tr>
-            <td>${MES_ABREV[mes] || mes} de ${ano}</td>
-            <td class="num mono">${formatMoney(d.faturamento)}</td>
-            <td class="num mono">${formatMoney(d.comissao)}</td>
-          </tr>
-        `;
-      }).join("");
+}
+
+// posição desse vendedor entre todos os outros, no mesmo período filtrado na lista --
+// só faz sentido comparar quando há mais de um vendedor com venda no período.
+function rankingVendedorNoPeriodo(vendasPeriodo, nomeVendedor) {
+  const porVendedor = {};
+  vendasPeriodo.forEach(v => {
+    const key = v.vendedor || "(sem vendedor)";
+    if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
+    porVendedor[key].faturamento += v.valorVenda;
+    porVendedor[key].comissao += v.comissao || 0;
+  });
+  const porFaturamento = Object.entries(porVendedor).sort((a, b) => b[1].faturamento - a[1].faturamento).map(([n]) => n);
+  const porComissao = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao).map(([n]) => n);
+  return {
+    posFaturamento: porFaturamento.indexOf(nomeVendedor) + 1,
+    posComissao: porComissao.indexOf(nomeVendedor) + 1,
+    total: porFaturamento.length
+  };
+}
+
+function abrirComissaoVendedorDetalhe(nomeVendedor) {
+  document.getElementById("comissoesListaWrap").style.display = "none";
+  document.getElementById("comissoesDetalheWrap").style.display = "";
+
+  const vendasPeriodoTodos = getVendasFiltradasComissoes();
+  const vendasPeriodo = vendasPeriodoTodos.filter(v => v.vendedor === nomeVendedor);
+  const totalFaturamento = vendasPeriodo.reduce((a, v) => a + v.valorVenda, 0);
+  const totalComissao = vendasPeriodo.reduce((a, v) => a + (v.comissao || 0), 0);
+  const totalPneus = vendasPeriodo.reduce((a, v) => a + v.quantidadePneus, 0);
+  // mesmo período da lista (não o total histórico) -- consistente com os outros 3 KPIs
+  const emAberto = vendasPeriodo.filter(v => v.statusPagamento === "em_aberto").reduce((a, v) => a + v.valorVenda, 0);
+
+  document.getElementById("comDetalheNome").textContent = nomeVendedor;
+
+  const ranking = rankingVendedorNoPeriodo(vendasPeriodoTodos, nomeVendedor);
+  const chipRanking = (texto) => `<span style="background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange); border-radius:999px; padding:3px 11px; font-size:11.5px; font-weight:700;">${texto}</span>`;
+  document.getElementById("comDetalheRanking").innerHTML = ranking.total > 1
+    ? chipRanking(`${fmt(ranking.posFaturamento)}º de ${fmt(ranking.total)} em faturamento`) +
+      chipRanking(`${fmt(ranking.posComissao)}º de ${fmt(ranking.total)} em comissão`)
+    : "";
+
+  document.getElementById("comDetalheKpis").innerHTML = [
+    { lbl: "Faturamento no período", val: formatMoney(totalFaturamento) },
+    { lbl: "Comissão no período", val: formatMoney(totalComissao), accent: true },
+    { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un." },
+    { lbl: "Em aberto (inadimplência)", val: formatMoney(emAberto) }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+
+  // evolução mensal -- sempre o ano inteiro, independente do filtro de período da
+  // lista (mesma lógica de anoEvolucaoMensal() usada no Dashboard).
+  const ano = anoEvolucaoMensal();
+  const vendasDoAno = vendasDoVendedor(nomeVendedor).filter(v => (v.data || "").slice(0, 4) === ano);
+  const porMes = {};
+  vendasDoAno.forEach(v => {
+    const mes = (v.data || "").slice(5, 7);
+    porMes[mes] = (porMes[mes] || 0) + v.valorVenda;
+  });
+  const chavesMeses = mesesDoAno(ano);
+  const labels = chavesMeses.map(chave => { const [, mes] = chave.split("-"); return MES_ABREV[mes] || mes; });
+  const dados = chavesMeses.map(chave => { const [, mes] = chave.split("-"); return porMes[mes] || 0; });
+  document.getElementById("comDetalheEvolucaoTitulo").textContent = `Evolução mensal — ${ano}`;
+  dashChart("comDetalheEvolucaoChart", dashLineConfig(labels, dados, { valueIsMoney: true }));
+
+  // clientes atendidos no mesmo período filtrado, ordenado por faturamento
+  const porCliente = {};
+  vendasPeriodo.forEach(v => {
+    if (!porCliente[v.cliente]) porCliente[v.cliente] = { qtd: 0, faturamento: 0 };
+    porCliente[v.cliente].qtd += 1;
+    porCliente[v.cliente].faturamento += v.valorVenda;
+  });
+  const clientesOrdenados = Object.entries(porCliente).sort((a, b) => b[1].faturamento - a[1].faturamento);
+  document.getElementById("comDetalheClientesEmpty").style.display = clientesOrdenados.length ? "none" : "block";
+  document.getElementById("comDetalheClientesLista").innerHTML = clientesOrdenados.map(([nome, d]) => `
+    <div class="split-row" data-comcliente="${escapeAttr(nome)}">
+      <div class="split-row-body">
+        <div class="split-row-top">
+          <span class="split-row-nome" style="font-size:14px;">${escapeHtml(nome)}</span>
+          <span class="mono" style="font-weight:700;">${formatMoney(d.faturamento)}</span>
+        </div>
+        <div class="split-row-meta"><span>${fmt(d.qtd)} compra${d.qtd === 1 ? "" : "s"}</span><span>›</span></div>
+      </div>
+    </div>
+  `).join("");
+  document.querySelectorAll("#comDetalheClientesLista [data-comcliente]").forEach(row => {
+    row.querySelector(".split-row-body").addEventListener("click", () => abrirComissaoClienteDetalhe(nomeVendedor, row.dataset.comcliente));
+  });
+}
+
+// medida mais comprada por um cliente com este vendedor: mesma técnica de
+// abrirRepDashClienteDetalhe() no portal do representante -- não dá pra tirar de
+// "vendas" (só guarda quantidade total, não por medida), vem de movimentos (baixa
+// de estoque real) ligados a uma entrega desse cliente com esse vendedor.
+function abrirComissaoClienteDetalhe(nomeVendedor, clienteNome) {
+  const vendasDoCliente = vendasDoVendedor(nomeVendedor).filter(v => v.cliente === clienteNome);
+  const faturamentoTotal = vendasDoCliente.reduce((a, v) => a + v.valorVenda, 0);
+
+  const alvo = (nomeVendedor || "").trim().toLowerCase();
+  const idsEntregasDoCliente = new Set(
+    state.entregas.filter(e => e.cliente === clienteNome && (e.vendedor || "").trim().toLowerCase() === alvo).map(e => e.id)
+  );
+  const porMedida = {};
+  state.movimentos.filter(m => m.tipo === "venda" && idsEntregasDoCliente.has(m.entregaId)).forEach(m => {
+    const p = getProduto(m.codigo);
+    const medida = (p && p.medida) || "—";
+    porMedida[medida] = (porMedida[medida] || 0) + Number(m.quantidade || 0);
+  });
+  const medidasOrdenadas = Object.entries(porMedida).sort((a, b) => b[1] - a[1]);
+  const maxMedida = medidasOrdenadas.length ? medidasOrdenadas[0][1] : 1;
+
+  const ultimasCompras = [...vendasDoCliente].sort((a, b) => (b.data || "").localeCompare(a.data || "")).slice(0, 5);
+
+  document.getElementById("comClienteDetalheTitulo").textContent = clienteNome;
+  document.getElementById("comClienteDetalheConteudo").innerHTML = `
+    <div class="muted" style="margin-bottom:14px;">${vendasDoCliente.length} compra${vendasDoCliente.length === 1 ? "" : "s"} · ${formatMoney(faturamentoTotal)} no total</div>
+    <div class="card-head"><h2>Medidas que mais compra</h2></div>
+    ${medidasOrdenadas.length === 0
+      ? `<div class="muted" style="padding:12px 0;">Sem histórico de medida vinculado ainda.</div>`
+      : medidasOrdenadas.map(([medida, qtd]) => `
+        <div style="margin-bottom:8px;">
+          <div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; margin-bottom:4px;">
+            <span class="mono">${escapeHtml(medida)}</span><span>${fmt(qtd)} un.</span>
+          </div>
+          <div style="height:8px; background:var(--paper-2); border-radius:6px; overflow:hidden;">
+            <div style="height:100%; background:var(--orange); width:${Math.max(4, (qtd / maxMedida) * 100)}%;"></div>
+          </div>
+        </div>
+      `).join("")}
+    <div class="card-head" style="margin-top:16px;"><h2>Últimas compras</h2></div>
+    ${ultimasCompras.map(v => `
+      <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+        <span class="mono">${formatDateBR(v.data)} · NF ${escapeHtml(v.numeroNFVenda || "—")}</span>
+        <span class="mono">${formatMoney(v.valorVenda)}</span>
+      </div>
+    `).join("")}
+  `;
+  document.getElementById("comClienteDetalheOverlay").classList.add("show");
 }
 
 function renderVendas() {

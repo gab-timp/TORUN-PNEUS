@@ -1616,41 +1616,50 @@
 
     <!-- ======================= VIEW: COMISSÕES ======================= -->
     <section id="view-comissoes" class="view">
-      <div class="page-head">
-        <div>
-          <h1>Comissões</h1>
-          <div class="sub">Comissão consolidada por vendedor, em qualquer período — comissão sempre conta na data da venda.</div>
+      <div id="comissoesListaWrap">
+        <div class="page-head">
+          <div>
+            <h1>Comissões</h1>
+            <div class="sub">Escolha um vendedor pra ver o desempenho individual completo — faturamento, comissão, inadimplência, evolução e clientes. Totais e comparações entre vendedores já ficam no Dashboard e no Faturamento.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="search-row">
+            <span class="muted" style="align-self:center; font-size:12.5px;">Comissão calculada de</span>
+            <input type="date" id="comFiltroDe">
+            <span class="muted" style="align-self:center; font-size:12.5px;">até</span>
+            <input type="date" id="comFiltroAte">
+          </div>
+        </div>
+
+        <div class="card">
+          <div id="comVendedorLista"></div>
+          <div class="empty-state" id="comVendedorEmpty" style="display:none;">Nenhuma venda no período.</div>
         </div>
       </div>
 
-      <div class="kpis" id="comKpis"></div>
-
-      <div class="card">
-        <div class="search-row">
-          <select id="comFiltroVendedor"><option value="">Todos os vendedores</option></select>
-          <input type="date" id="comFiltroDe">
-          <input type="date" id="comFiltroAte">
+      <div id="comissoesDetalheWrap" style="display:none;">
+        <button type="button" class="btn small outline" id="btnComissoesVoltar" style="margin-bottom:14px;">‹ Voltar pra Comissões</button>
+        <div class="page-head">
+          <div>
+            <h1 id="comDetalheNome"></h1>
+            <div id="comDetalheRanking" style="display:flex; gap:8px; margin:8px 0; flex-wrap:wrap;"></div>
+            <div class="sub">Desempenho individual no período filtrado acima — evolução mensal sempre mostra o ano inteiro.</div>
+          </div>
         </div>
-        <div class="filtro-nota">Período livre, não amarrado ao mês único do Faturamento.</div>
-      </div>
 
-      <div class="card">
-        <div class="card-head"><h2>Por vendedor</h2></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Vendedor</th><th class="num">Faturamento</th><th class="num">Comissão</th><th class="num">% médio</th></tr></thead>
-            <tbody id="comVendedorTbody"></tbody>
-          </table>
+        <div class="kpis" id="comDetalheKpis"></div>
+
+        <div class="card">
+          <div class="card-head"><h2 id="comDetalheEvolucaoTitulo">Evolução mensal</h2></div>
+          <div class="dash-canvas-wrap"><canvas id="comDetalheEvolucaoChart"></canvas></div>
         </div>
-      </div>
 
-      <div class="card">
-        <div class="card-head"><h2>Por mês</h2></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Mês</th><th class="num">Faturamento</th><th class="num">Comissão</th></tr></thead>
-            <tbody id="comMesTbody"></tbody>
-          </table>
+        <div class="card">
+          <div class="card-head"><h2>Clientes atendidos</h2></div>
+          <div id="comDetalheClientesLista"></div>
+          <div class="empty-state" id="comDetalheClientesEmpty" style="display:none;">Nenhum cliente no período.</div>
         </div>
       </div>
     </section>
@@ -2886,6 +2895,16 @@
   </div>
 </div>
 
-<script src="app.js?v=216"></script>
+<div class="modal-overlay" id="comClienteDetalheOverlay">
+  <div class="modal">
+    <div class="chart-modal-head">
+      <h3 id="comClienteDetalheTitulo"></h3>
+      <button class="btn small outline" id="comClienteDetalheClose">✕ Fechar</button>
+    </div>
+    <div id="comClienteDetalheConteudo"></div>
+  </div>
+</div>
+
+<script src="app.js?v=217"></script>
 </body>
 </html>
