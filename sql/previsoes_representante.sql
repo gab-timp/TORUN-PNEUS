@@ -10,8 +10,14 @@
 
 alter table previsoes add column if not exists representante text;
 
+-- "as restrictive" é obrigatório aqui -- sem isso o Postgres cria PERMISSIVE por
+-- padrão, e como "leitura autenticada" já é permissiva, duas permissivas se combinam
+-- com OR (não AND): "leitura autenticada" sozinha já libera geral, e essa política
+-- vira inofensiva -- exatamente o oposto do que ela deveria fazer (achado revisando
+-- o resultado depois de rodar sem o "as restrictive" numa versão anterior deste arquivo).
 drop policy if exists "representante nao le previsoes" on previsoes;
 create policy "representante nao le previsoes" on previsoes
+  as restrictive
   for select
   using (
     coalesce(current_user_role(), '') <> 'representante'
