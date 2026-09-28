@@ -44,6 +44,9 @@
     <g id="i-report" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="2.5" width="14" height="15" rx="2"/><path d="M6.5 12v2.5M10 9v5.5M13.5 6.5v8"/>
     </g>
+    <g id="i-calendar" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2.5" y="4" width="15" height="13.5" rx="2.4"/><path d="M2.5 8h15M6 2.3v3.2M14 2.3v3.2"/><path d="M6.3 11.3h1.6M9.2 11.3h1.6M12.1 11.3h1.6"/>
+    </g>
   </defs>
 </svg>
 
@@ -98,6 +101,9 @@
       </button>
       <button type="button" class="nav-item" data-reptab="entregas">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Status do Pedido
+      </button>
+      <button type="button" class="nav-item" data-reptab="estoqueprevisto">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-calendar"/></svg> Estoque Previsto
       </button>
       <button type="button" class="nav-item" data-reptab="clientes">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
@@ -308,6 +314,15 @@
     </div>
     <div id="repEntregasGrid" class="rep-entregas-grid"></div>
     <div class="note" id="repEntregasEmpty" style="display:none;">Nenhum pedido encontrado.</div>
+  </div>
+
+  <div class="rep-page rep-page-wide rep-tab-content" id="repTabEstoquePrevisto" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Estoque Previsto</h2>
+      <div class="note">Processos de compra vinculados a você — medida, quantidade e previsão de chegada (somente leitura).</div>
+    </div>
+    <div id="repEstoquePrevistoGrid" class="rep-entregas-grid"></div>
+    <div class="note" id="repEstoquePrevistoEmpty" style="display:none;">Nenhum processo vinculado a você ainda.</div>
   </div>
 
   <div class="rep-page rep-page-wide rep-tab-content" id="repTabClientes" style="display:none;">

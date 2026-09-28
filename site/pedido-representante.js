@@ -14,6 +14,7 @@ let movimentos = [];
 let entregas = [];
 let vendas = [];
 let clientesRep = [];
+let previsoes = [];
 let meusPreCadastros = [];
 let clienteAtual = null;
 let ultimoPedidoSalvo = null;
@@ -392,13 +393,14 @@ async function afterLogin() {
   currentUserNome = roleData.nome || currentUser.email;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
 
-  const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, clientesRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
+  const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, clientesRes, previsoesRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, marca, carcaca, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, ncm, situacao, foto_path, foto_path_2").order("codigo"),
     sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
     sb.from("movimentos").select("id, codigo, tipo, quantidade, data, entrega_id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
     sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, valor_recebido, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false }),
     sb.from("clientes").select("nome, estado"),
+    sb.from("previsoes").select("id, numero_processo, itens, data_chegada, status, representante").order("data_chegada", { ascending: true, nullsFirst: false }),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
     sb.from("user_preferences").select("tema, notif_mudanca_etapa").eq("user_id", currentUser.id).maybeSingle(),
     sb.from("configuracoes_site").select("proposta_validade_dias, estoque_baixo_limite").maybeSingle()
@@ -414,6 +416,7 @@ async function afterLogin() {
   entregas = entregasRes.data || [];
   vendas = vendasRes.data || [];
   clientesRep = clientesRes.data || [];
+  previsoes = previsoesRes.data || [];
   meusPreCadastros = preCadastrosRes.data || [];
   currentUserTema = (prefRes.data && prefRes.data.tema) || null;
   currentUserNotifMudancaEtapa = prefRes.data ? prefRes.data.notif_mudanca_etapa !== false : true;
@@ -1764,7 +1767,8 @@ async function salvarPedidoRep() {
 
 const REP_TAB_IDS = {
   pedido: "repTabPedido", catalogo: "repTabCatalogo", entregas: "repTabEntregas", clientes: "repTabClientes",
-  precadastro: "repTabPreCadastro", faturamento: "repTabFaturamento", dashboard: "repTabDashboard"
+  precadastro: "repTabPreCadastro", faturamento: "repTabFaturamento", dashboard: "repTabDashboard",
+  estoqueprevisto: "repTabEstoquePrevisto"
 };
 
 function initRepTabs() {
@@ -1781,6 +1785,7 @@ function initRepTabs() {
       if (alvo === "catalogo") renderRepCatalogo();
       if (alvo === "dashboard") renderRepDashboard();
       if (alvo === "clientes") renderRepClientes();
+      if (alvo === "estoqueprevisto") renderRepEstoquePrevisto();
       setMobileMenuRep(false);
     });
   });
@@ -2148,6 +2153,43 @@ function abrirDetalheEntregaRep(id) {
 
   renderReservaEConfirmarVenda(e);
   document.getElementById("repEntregaDetalheOverlay").classList.add("show");
+}
+
+/* ---------------- estoque previsto (visão do representante) ---------------- */
+// "previsoes" já vem filtrado pelo RLS (sql/previsoes_representante.sql) -- só traz os
+// processos vinculados a este representante, então não precisa filtrar de novo aqui.
+
+function renderRepEstoquePrevisto() {
+  const grid = document.getElementById("repEstoquePrevistoGrid");
+  const empty = document.getElementById("repEstoquePrevistoEmpty");
+  if (previsoes.length === 0) {
+    grid.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+  grid.innerHTML = previsoes.map(p => {
+    const itensHtml = (p.itens || []).map(it => {
+      const prod = produtos.find(x => x.codigo === it.codigo);
+      return `
+        <li>
+          <span class="mono">${escapeHtml(it.codigo)}</span>
+          <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
+          <span class="num mono">${fmt(it.quantidade)}</span>
+        </li>
+      `;
+    }).join("");
+    return `
+      <div class="kanban-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+          <span class="kanban-card-nf">${escapeHtml(p.numero_processo)}</span>
+          <span class="kanban-card-tag">${escapeHtml(p.status || "—")}</span>
+        </div>
+        ${itensHtml ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+        ${p.data_chegada ? `<div class="kanban-card-meta"><span class="kanban-card-tag">Prev. ${formatDateBR(p.data_chegada)}</span></div>` : ""}
+      </div>
+    `;
+  }).join("");
 }
 
 /* ---------------- clientes (visão do representante) ---------------- */

@@ -47,7 +47,7 @@ const UF_LIST = [
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ];
 
-let state = { produtos: [], movimentos: [], fretes: [], clientes: [], vendas: [], previsoes: [], entregas: [], notificacoes: [] };
+let state = { produtos: [], movimentos: [], fretes: [], clientes: [], vendas: [], previsoes: [], entregas: [], representantes: [], notificacoes: [] };
 
 let editingMovimentoId = null;
 let editingFreteId = null;
@@ -204,13 +204,14 @@ function vendaFromRow(r) {
 function previstoToRow(p) {
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [],
-    data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null
+    data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null, representante: p.representante || null
   };
 }
 function previstoFromRow(r) {
   return {
     id: r.id, numeroProcesso: r.numero_processo, itens: r.itens || [],
-    dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", createdAt: r.created_at, updatedAt: r.updated_at
+    dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representante: r.representante || "",
+    createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
 
@@ -322,6 +323,7 @@ async function loadState() {
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
       fetchComRetry(() => sb.from("romaneios").select("*").order("created_at", { ascending: false })),
       fetchComRetry(() => sb.from("rastreio_eventos").select("*").order("ocorrido_em", { ascending: true })),
+      fetchComRetry(() => sb.from("user_roles").select("nome").eq("role", "representante").order("nome")),
       fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
@@ -329,11 +331,11 @@ async function loadState() {
     ]),
     fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
   ]);
-  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, rastreioEventosRes, roleRes, prefRes, preCadRes, notifRes] = results;
+  const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, rastreioEventosRes, representantesRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
   configuracoesSite = configRes.data || null;
   ESTOQUE_BAIXO_LIMITE = (configuracoesSite && configuracoesSite.estoque_baixo_limite) || 20;
-  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "romaneios", "eventos de rastreio", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
+  const labels = ["produtos", "preços do catálogo", "movimentos", "fretes", "clientes", "vendas", "previsões", "entregas", "romaneios", "eventos de rastreio", "representantes", "papel do usuário", "preferências do usuário", "pré-cadastros de clientes", "notificações"];
   let falhaCritica = false;
   let falhaPerfil = null;
   results.forEach((r, i) => {
@@ -409,6 +411,7 @@ async function loadState() {
     entregas: (entregasRes.data || []).map(entregaFromRow),
     romaneios: (romaneiosRes.data || []).map(romaneioFromRow),
     rastreio_eventos: (rastreioEventosRes.data || []).map(rastreioEventoFromRow),
+    representantes: (representantesRes.data || []).map(r => r.nome).filter(Boolean),
     clientesPendentes: preCadRes.data || [],
     notificacoes: (notifRes.data || []).map(notificacaoFromRow)
   };
@@ -989,7 +992,16 @@ function statusBadgeClass(status) {
   return "st-aguardando";
 }
 
+function populatePrevRepresentanteSelect() {
+  const sel = document.getElementById("prevRepresentante");
+  if (sel.options.length <= 1) {
+    sel.innerHTML = `<option value="">Nenhum</option>` +
+      state.representantes.map(nome => `<option value="${escapeAttr(nome)}">${escapeHtml(nome)}</option>`).join("");
+  }
+}
+
 function renderPrevistos() {
+  populatePrevRepresentanteSelect();
   const search = (document.getElementById("prevSearch").value || "").trim().toLowerCase();
   const filtroStatus = document.getElementById("prevFiltroStatus").value;
 
@@ -1034,6 +1046,7 @@ function renderPrevistos() {
             <span class="prev-card-eyebrow">Processo</span>
             <span class="mono prev-card-title">${escapeHtml(p.numeroProcesso)}</span>
             <span class="prev-status-badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
+            ${p.representante ? `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(p.representante)}</span>` : ""}
           </div>
           <div class="prev-card-actions write-ui">
             <button class="btn small outline" data-editprev="${p.id}">Editar</button>
@@ -1112,6 +1125,7 @@ function startEditPrevisto(id) {
   document.getElementById("prevDataChegada").value = p.dataChegada || "";
   document.getElementById("prevStatus").value = p.status;
   document.getElementById("prevObs").value = p.obs || "";
+  document.getElementById("prevRepresentante").value = p.representante || "";
 
   const container = document.getElementById("prevItens");
   container.innerHTML = "";
@@ -7181,6 +7195,7 @@ function initForms() {
     const dataChegada = document.getElementById("prevDataChegada").value;
     const status = document.getElementById("prevStatus").value;
     const obs = document.getElementById("prevObs").value.trim();
+    const representante = document.getElementById("prevRepresentante").value || null;
     if (!numeroProcesso) { toast("Informe o número do processo."); return; }
 
     const rows = Array.from(document.querySelectorAll("#prevItens .item-row"));
@@ -7199,7 +7214,7 @@ function initForms() {
       const p = state.previsoes.find(x => x.id === editingPrevistoId);
       const { conflict, error, row } = await updateWithConflictCheck(
         "previsoes", editingPrevistoId, editingPrevistoUpdatedAt,
-        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs })
+        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representante })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
@@ -7216,12 +7231,13 @@ function initForms() {
       return;
     }
 
-    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs };
+    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representante };
     const { data: inserido, error } = await sb.from("previsoes").insert({ ...previstoToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
     state.previsoes.push(previstoFromRow(inserido[0]));
     e.target.reset();
     document.getElementById("prevStatus").value = "AG DATA DE CHEGADA";
+    document.getElementById("prevRepresentante").value = "";
     resetItens("prevItens");
     renderPrevistos();
     toast("Processo previsto adicionado.");
