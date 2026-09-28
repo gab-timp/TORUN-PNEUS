@@ -883,6 +883,7 @@ function setView(view) {
   if (view === "contasreceber") renderContasReceber();
   if (view === "comissoes") renderComissoes();
   if (view === "historicocredito") renderHistoricoCredito();
+  if (view === "fluxocaixa") renderFluxoCaixa();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
   if (view === "administracao") renderAdministracao();
@@ -6758,6 +6759,104 @@ async function renderHistoricoCredito() {
   }).join("");
 }
 
+/* ---------------- fluxo de caixa (Financeiro) ---------------- */
+// Recebido = já confirmado (dataPagamento); Previsto = em aberto com vencimento
+// (dataVencimento) -- mesmos campos da Fase 1. Com parcela detalhada (parcelas_detalhe),
+// cada parcela conta separada, na data dela (uma venda de 3x pode ter 1 parcela já
+// recebida em agosto e 2 previstas pra meses diferentes) -- não dá pra usar só o
+// agregado da venda (statusPagamento/dataVencimento/dataPagamento), que só fecha
+// "pago" quando TODAS as parcelas estão pagas. Mesma ideia de saldoEmAbertoDaVenda(),
+// só que quebrada por mês em vez de somada num total só.
+
+// devolve uma entrada por parcela (ou uma só pra venda inteira, sem parcelas_detalhe):
+// { valor, mes: "YYYY-MM" ou null (sem data pra localizar no tempo), tipo }
+function fluxoCaixaItensDaVenda(v) {
+  if (Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length) {
+    return v.parcelasDetalhe.map(p => p.status === "pago"
+      ? { valor: p.valor || 0, mes: p.dataPagamento ? p.dataPagamento.slice(0, 7) : null, tipo: "recebido" }
+      : { valor: p.valor || 0, mes: p.vencimento ? p.vencimento.slice(0, 7) : null, tipo: "previsto" }
+    );
+  }
+  return [v.statusPagamento === "pago"
+    ? { valor: v.valorVenda, mes: v.dataPagamento ? v.dataPagamento.slice(0, 7) : null, tipo: "recebido" }
+    : { valor: v.valorVenda, mes: v.dataVencimento ? v.dataVencimento.slice(0, 7) : null, tipo: "previsto" }
+  ];
+}
+
+function renderFluxoCaixa() {
+  const hoje = new Date();
+  const mesesChaves = [];
+  for (let i = -5; i <= 3; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+    mesesChaves.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  const mesAtualChave = mesesChaves[5];
+  const mesSeguinteChave = mesesChaves[6];
+
+  const porMes = {};
+  mesesChaves.forEach(m => { porMes[m] = { recebido: 0, previsto: 0 }; });
+  let semVencimento = 0;
+
+  state.vendas.forEach(v => {
+    fluxoCaixaItensDaVenda(v).forEach(item => {
+      if (!item.mes) {
+        if (item.tipo === "previsto") semVencimento += item.valor;
+        return; // recebido sem data de pagamento não deveria existir (form valida) -- ignora com segurança
+      }
+      if (porMes[item.mes]) porMes[item.mes][item.tipo] += item.valor;
+    });
+  });
+
+  document.getElementById("fcKpis").innerHTML = [
+    { lbl: `Recebido em ${MES_ABREV[mesAtualChave.slice(5)] || mesAtualChave}`, val: formatMoney(porMes[mesAtualChave].recebido), accent: true },
+    { lbl: `Previsto pra ${MES_ABREV[mesSeguinteChave.slice(5)] || mesSeguinteChave}`, val: formatMoney(porMes[mesSeguinteChave].previsto) },
+    { lbl: "Em aberto sem vencimento", val: formatMoney(semVencimento) }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+
+  const labels = mesesChaves.map((m, i) => {
+    const [ano, mes] = m.split("-");
+    const rotulo = `${MES_ABREV[mes] || mes}/${ano.slice(2)}`;
+    return i > 5 ? `${rotulo} (previsto)` : rotulo;
+  });
+  // uma barra por mês (Recebido nos meses já fechados, Previsto nos futuros) -- mesmo
+  // desenho do mockup aprovado, cor muda por posição em vez de duas séries agrupadas.
+  refreshDashColors();
+  const corVerde = getComputedStyle(document.documentElement).getPropertyValue("--status-good-border").trim() || "#22C55E";
+  const valoresBarra = mesesChaves.map((m, i) => i > 5 ? porMes[m].previsto : porMes[m].recebido);
+  const coresBarra = mesesChaves.map((m, i) => i > 5 ? DASH_COLORS.bar : corVerde);
+  dashChart("fcChart", {
+    type: "bar",
+    data: { labels, datasets: [{ data: valoresBarra, backgroundColor: coresBarra, borderRadius: 4 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => formatMoney(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { grid: { color: "transparent" }, ticks: { color: DASH_COLORS.text, font: { size: 10.5 } } },
+        y: { grid: { color: DASH_COLORS.grid }, ticks: { color: DASH_COLORS.text, font: { size: 10.5 }, callback: (v) => formatMoney(v) } }
+      }
+    }
+  });
+
+  document.getElementById("fcTbody").innerHTML = mesesChaves.map((m, i) => {
+    const [ano, mes] = m.split("-");
+    const futuro = i > 5;
+    return `
+      <tr>
+        <td>${MES_ABREV[mes] || mes} de ${ano}</td>
+        <td class="num mono">${futuro ? `<span class="muted">—</span>` : formatMoney(porMes[m].recebido)}</td>
+        <td class="num mono">${futuro ? formatMoney(porMes[m].previsto) : `<span class="muted">—</span>`}</td>
+        <td>${futuro
+          ? `<span style="color:#C64F0C; font-size:11px; font-weight:700;">PREVISTO</span>`
+          : `<span style="color:#15803D; font-size:11px; font-weight:700;">REALIZADO</span>`}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 /* ---------------- contas a receber (Financeiro) ---------------- */
 
 function diasEmAberto(dataVenda) {
@@ -9684,6 +9783,7 @@ const ADMIN_VIEW_DEFS = [
   { key: "contasreceber", label: "Contas a Receber" },
   { key: "comissoes", label: "Comissões" },
   { key: "historicocredito", label: "Histórico de Crédito" },
+  { key: "fluxocaixa", label: "Fluxo de Caixa" },
   { key: "clientes", label: "Clientes" },
   { key: "produtos", label: "Produtos" },
   { key: "catalogo", label: "Catálogo" },
