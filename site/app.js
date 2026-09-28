@@ -93,13 +93,15 @@ function dataMaisDias(dataISO, n) {
 
 // vendas.parcelas é texto livre digitado por quem fatura (ex: "3x", "3", "12X") --
 // nunca existe pra PIX (à vista) e é opcional pro resto, então pode estar em branco
-// mesmo em venda parcelada. Extrai o número; devolve null quando não dá pra saber
-// (em branco ou texto sem dígito) -- não adivinha "1x" pra não inventar dado.
+// mesmo em venda parcelada. Exige que a string INTEIRA seja só o número + "x" opcional
+// -- não basta ter dígito em qualquer lugar (achado em revisão: um "30 dias" digitado
+// ali virava "30 parcelas", inflando a média absurdamente com uma amostra pequena).
+// Devolve null quando não bate esse formato -- não adivinha, exclui.
 function parseParcelasNum(raw) {
   if (!raw) return null;
-  const m = String(raw).match(/\d+/);
+  const m = String(raw).trim().match(/^(\d+)\s*x?$/i);
   if (!m) return null;
-  const n = parseInt(m[0], 10);
+  const n = parseInt(m[1], 10);
   return n > 0 ? n : null;
 }
 
@@ -5007,8 +5009,12 @@ function renderDashboard() {
   const totalPneusAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0) : null;
   const totalComissaoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0) : null;
   const totalFreteAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.valorFrete || 0), 0) : null;
-  const { media: mediaParcelas } = mediaParcelasDe(vendas);
-  const { media: mediaParcelasAnt } = vendasMesAnt.length ? mediaParcelasDe(vendasMesAnt) : { media: null };
+  // 1 venda parcelada só não é um "costume" -- exige pelo menos 2 pra chamar de média
+  // (mesmo critério do perfil do cliente, achado em revisão).
+  const { media: mediaParcelasCalc, qtd: qtdParcelas } = mediaParcelasDe(vendas);
+  const mediaParcelas = qtdParcelas >= 2 ? mediaParcelasCalc : null;
+  const { media: mediaParcelasAntCalc, qtd: qtdParcelasAnt } = vendasMesAnt.length ? mediaParcelasDe(vendasMesAnt) : { media: null, qtd: 0 };
+  const mediaParcelasAnt = qtdParcelasAnt >= 2 ? mediaParcelasAntCalc : null;
 
   // por vendedor / estado / transportadora / forma / cliente
   const porVendedor = {}, porEstado = {}, porTransp = {}, porForma = {}, porCliente = {};
@@ -6283,9 +6289,18 @@ function openClienteModal(nome) {
   ].map(([lbl, val]) => `<div><div class="lbl">${lbl}</div><div class="val">${escapeHtml(val || "—")}</div></div>`).join("");
 
   const disponivel = c.limiteCredito != null ? c.limiteCredito - stats.saldoEmAberto : null;
-  const mediaParcelasVal = stats.mediaParcelas != null
+  // 1 venda só não mostra um "costume" de verdade -- exige pelo menos 2 vendas
+  // parceladas pra chamar de média (achado em revisão: 1 de 1 aparecia como "4,0x",
+  // parecendo um hábito consolidado quando era só uma venda isolada).
+  const amostraSuficiente = stats.qtdParcelasInformadas >= 2;
+  const mediaParcelasVal = amostraSuficiente
     ? `${stats.mediaParcelas.toFixed(1).replace(".", ",")}x`
     : "—";
+  const mediaParcelasNota = amostraSuficiente
+    ? `${stats.qtdParcelasInformadas} de ${stats.vendas.length} venda${stats.vendas.length === 1 ? "" : "s"}`
+    : stats.qtdParcelasInformadas === 1
+      ? "Só 1 venda parcelada — poucos dados"
+      : "";
   document.getElementById("clienteModalKpis").innerHTML = [
     { lbl: "Faturamento total", val: formatMoney(stats.totalFaturado), accent: true },
     { lbl: "Ticket médio", val: formatMoney(stats.ticketMedio) },
@@ -6295,7 +6310,7 @@ function openClienteModal(nome) {
     // só entre as vendas com parcelas informadas -- PIX e campo em branco ficam de
     // fora (não dá pra saber se foi à vista ou esqueceram de preencher)
     { lbl: "Média de parcelas", val: mediaParcelasVal,
-      delta: stats.qtdParcelasInformadas ? `<div class="delta neutral">${stats.qtdParcelasInformadas} de ${stats.vendas.length} venda${stats.vendas.length === 1 ? "" : "s"}</div>` : "" }
+      delta: mediaParcelasNota ? `<div class="delta neutral">${mediaParcelasNota}</div>` : "" }
   ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div>${k.delta || ""}</div>`).join("");
 
   document.getElementById("clienteModalVendasTbody").innerHTML = stats.vendas.length
