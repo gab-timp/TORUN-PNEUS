@@ -323,7 +323,7 @@ async function loadState() {
       fetchComRetry(() => sb.from("entregas").select("*").order("data", { ascending: false })),
       fetchComRetry(() => sb.from("romaneios").select("*").order("created_at", { ascending: false })),
       fetchComRetry(() => sb.from("rastreio_eventos").select("*").order("ocorrido_em", { ascending: true })),
-      fetchComRetry(() => sb.from("user_roles").select("nome").eq("role", "representante").order("nome")),
+      fetchComRetry(() => sb.rpc("representantes_ativos")),
       fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
