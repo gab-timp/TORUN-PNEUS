@@ -739,6 +739,7 @@ function setView(view) {
   if (view === "clientes") renderClientes();
   if (view === "limitecredito") renderLimiteCredito();
   if (view === "contasreceber") renderContasReceber();
+  if (view === "comissoes") renderComissoes();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
   if (view === "administracao") renderAdministracao();
@@ -6611,6 +6612,91 @@ async function marcarVendaComoPaga(vendaId) {
   return true;
 }
 
+/* ---------------- comissões consolidadas (Financeiro) ---------------- */
+// Sem relação com status_pagamento -- comissão sempre conta na data da venda,
+// não na data do pagamento (decisão do usuário). Filtro de período próprio
+// (comFiltroDe/comFiltroAte), livre, não amarrado ao mês único do Faturamento.
+function initComissoesForm() {
+  document.getElementById("comFiltroVendedor").addEventListener("change", renderComissoes);
+  document.getElementById("comFiltroDe").addEventListener("change", renderComissoes);
+  document.getElementById("comFiltroAte").addEventListener("change", renderComissoes);
+}
+
+function getVendasFiltradasComissoes() {
+  const vendedor = document.getElementById("comFiltroVendedor").value;
+  const de = document.getElementById("comFiltroDe").value;
+  const ate = document.getElementById("comFiltroAte").value;
+  let rows = state.vendas.slice();
+  if (vendedor) rows = rows.filter(v => v.vendedor === vendedor);
+  if (de) rows = rows.filter(v => v.data >= de);
+  if (ate) rows = rows.filter(v => v.data <= ate);
+  return rows;
+}
+
+function renderComissoes() {
+  const vendedorSelect = document.getElementById("comFiltroVendedor");
+  const vendedorAnterior = vendedorSelect.value;
+  const vendedoresUnicos = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
+  vendedorSelect.innerHTML = `<option value="">Todos os vendedores</option>` +
+    vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
+
+  const vendas = getVendasFiltradasComissoes();
+  const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
+  const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
+  const pctMedio = totalFaturamento ? (totalComissao / totalFaturamento * 100) : 0;
+
+  document.getElementById("comKpis").innerHTML = [
+    { lbl: "Comissão no período", val: formatMoney(totalComissao), accent: true },
+    { lbl: "Faturamento no período", val: formatMoney(totalFaturamento) },
+    { lbl: "% médio de comissão", val: pctMedio.toFixed(2).replace(".", ",") + "%" },
+    { lbl: "Vendas no período", val: fmt(vendas.length) }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+
+  const porVendedor = {};
+  vendas.forEach(v => {
+    const key = v.vendedor || "(sem vendedor)";
+    if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
+    porVendedor[key].faturamento += v.valorVenda;
+    porVendedor[key].comissao += v.comissao || 0;
+  });
+  const vendedores = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao);
+  const maxComissao = vendedores.length ? vendedores[0][1].comissao : 1;
+  document.getElementById("comVendedorTbody").innerHTML = vendedores.length === 0
+    ? `<tr><td colspan="4" class="muted">Nenhuma venda no período.</td></tr>`
+    : vendedores.map(([nome, d]) => `
+      <tr>
+        <td>${escapeHtml(nome)}</td>
+        <td class="num mono">${formatMoney(d.faturamento)}</td>
+        <td class="num">${valorBarCellHtml(d.comissao, maxComissao)}</td>
+        <td class="num mono">${(d.faturamento ? d.comissao / d.faturamento * 100 : 0).toFixed(2).replace(".", ",")}%</td>
+      </tr>
+    `).join("");
+
+  // por mês -- a quebra no tempo da mesma agregação, pro vendedor filtrado ou todos
+  const porMes = {};
+  vendas.forEach(v => {
+    const mes = (v.data || "").slice(0, 7);
+    if (!mes) return;
+    if (!porMes[mes]) porMes[mes] = { faturamento: 0, comissao: 0 };
+    porMes[mes].faturamento += v.valorVenda;
+    porMes[mes].comissao += v.comissao || 0;
+  });
+  const meses = Object.entries(porMes).sort((a, b) => b[0].localeCompare(a[0]));
+  document.getElementById("comMesTbody").innerHTML = meses.length === 0
+    ? `<tr><td colspan="3" class="muted">Nenhuma venda no período.</td></tr>`
+    : meses.map(([chave, d]) => {
+        const [ano, mes] = chave.split("-");
+        return `
+          <tr>
+            <td>${MES_ABREV[mes] || mes} de ${ano}</td>
+            <td class="num mono">${formatMoney(d.faturamento)}</td>
+            <td class="num mono">${formatMoney(d.comissao)}</td>
+          </tr>
+        `;
+      }).join("");
+}
+
 function renderVendas() {
   const vendedorSelect = document.getElementById("venFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
@@ -8878,6 +8964,7 @@ async function init() {
   initCatalogo();
   initLimiteCreditoForm();
   initContasReceberForm();
+  initComissoesForm();
   initThemeToggle();
   initFontSizeToggle();
   initEstoqueResize();
@@ -9107,6 +9194,7 @@ const ADMIN_VIEW_DEFS = [
   { key: "faturamento", label: "Faturamento" },
   { key: "limitecredito", label: "Limite de Crédito" },
   { key: "contasreceber", label: "Contas a Receber" },
+  { key: "comissoes", label: "Comissões" },
   { key: "clientes", label: "Clientes" },
   { key: "produtos", label: "Produtos" },
   { key: "catalogo", label: "Catálogo" },

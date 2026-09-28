@@ -134,6 +134,9 @@
         <ellipse cx="7" cy="6" rx="4.5" ry="2.3"/><path d="M2.5 6v4c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3V6"/>
         <ellipse cx="13" cy="12" rx="4.5" ry="2.3"/><path d="M8.5 12v2c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3v-2"/>
       </g>
+      <g id="i-percent" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15.5 4.5 4.5 15.5"/><circle cx="6" cy="6" r="2"/><circle cx="14" cy="14" r="2"/>
+      </g>
     </defs>
   </svg>
 
@@ -202,6 +205,9 @@
         </button>
         <button class="nav-item" data-view="contasreceber" data-label="Contas a Receber">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-coins"/></svg> Contas a Receber
+        </button>
+        <button class="nav-item" data-view="comissoes" data-label="Comissões">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-percent"/></svg> Comissões
         </button>
       </div>
 
@@ -1599,6 +1605,47 @@
       </div>
     </section>
 
+    <!-- ======================= VIEW: COMISSÕES ======================= -->
+    <section id="view-comissoes" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Comissões</h1>
+          <div class="sub">Comissão consolidada por vendedor, em qualquer período — comissão sempre conta na data da venda.</div>
+        </div>
+      </div>
+
+      <div class="kpis" id="comKpis"></div>
+
+      <div class="card">
+        <div class="search-row">
+          <select id="comFiltroVendedor"><option value="">Todos os vendedores</option></select>
+          <input type="date" id="comFiltroDe">
+          <input type="date" id="comFiltroAte">
+        </div>
+        <div class="filtro-nota">Período livre, não amarrado ao mês único do Faturamento.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Por vendedor</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Vendedor</th><th class="num">Faturamento</th><th class="num">Comissão</th><th class="num">% médio</th></tr></thead>
+            <tbody id="comVendedorTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Por mês</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mês</th><th class="num">Faturamento</th><th class="num">Comissão</th></tr></thead>
+            <tbody id="comMesTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ======================= VIEW: CLIENTES ======================= -->
     <section id="view-clientes" class="view">
       <div class="page-head">
@@ -2789,6 +2836,6 @@
   </div>
 </div>
 
-<script src="app.js?v=212"></script>
+<script src="app.js?v=213"></script>
 </body>
 </html>
