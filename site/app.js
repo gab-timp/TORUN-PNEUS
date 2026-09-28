@@ -882,6 +882,7 @@ function setView(view) {
   if (view === "limitecredito") renderLimiteCredito();
   if (view === "contasreceber") renderContasReceber();
   if (view === "comissoes") renderComissoes();
+  if (view === "historicocredito") renderHistoricoCredito();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
   if (view === "administracao") renderAdministracao();
@@ -6713,6 +6714,50 @@ function renderLimiteCredito() {
   });
 }
 
+/* ---------------- histórico de crédito (Financeiro) ---------------- */
+// Consulta credito_analises direto (mesmo padrão de renderHistorico() pro log geral) --
+// cada linha já é uma decisão completa (limite/validade/observação), mais rico que
+// filtrar log_alteracoes por motivo. registrarAnaliseCredito() (Limite de Crédito) é o
+// único caminho de escrita, então toda análise feita por lá ou pela edição inline já
+// aparece aqui sem precisar de nenhum código a mais.
+
+function initHistoricoCredito() {
+  document.getElementById("hcFiltroCliente").addEventListener("change", renderHistoricoCredito);
+  document.getElementById("hcFiltroDe").addEventListener("change", renderHistoricoCredito);
+  document.getElementById("hcFiltroAte").addEventListener("change", renderHistoricoCredito);
+}
+
+async function renderHistoricoCredito() {
+  const cliente = (document.getElementById("hcFiltroCliente").value || "").trim();
+  const de = document.getElementById("hcFiltroDe").value;
+  const ate = document.getElementById("hcFiltroAte").value;
+
+  let query = sb.from("credito_analises").select("*").order("created_at", { ascending: false }).limit(300);
+  if (cliente) query = query.eq("cliente", cliente);
+  if (de) query = query.gte("created_at", de);
+  if (ate) query = query.lte("created_at", ate + "T23:59:59");
+
+  const { data, error } = await query;
+  if (error) { toast("Erro ao carregar histórico de crédito: " + error.message); return; }
+  const rows = data || [];
+
+  document.getElementById("hcAvisoLimite").style.display = rows.length === 300 ? "" : "none";
+  document.getElementById("hcEmpty").style.display = rows.length ? "none" : "block";
+  document.getElementById("hcTbody").innerHTML = rows.map(r => {
+    const hora = new Date(r.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return `
+      <tr>
+        <td class="mono">${formatDateBR(r.created_at.slice(0, 10))} ${hora}</td>
+        <td>${escapeHtml(r.cliente)}</td>
+        <td class="num mono">${r.limite != null ? formatMoney(r.limite) : "—"}</td>
+        <td class="mono">${r.validade ? formatDateBR(r.validade) : "—"}</td>
+        <td>${escapeHtml(r.observacao || "—")}</td>
+        <td class="muted">${escapeHtml(r.user_email || "—")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 /* ---------------- contas a receber (Financeiro) ---------------- */
 
 function diasEmAberto(dataVenda) {
@@ -9407,6 +9452,7 @@ async function init() {
   initLimiteCreditoForm();
   initContasReceberForm();
   initComissoesForm();
+  initHistoricoCredito();
   initThemeToggle();
   initFontSizeToggle();
   initEstoqueResize();
@@ -9637,6 +9683,7 @@ const ADMIN_VIEW_DEFS = [
   { key: "limitecredito", label: "Limite de Crédito" },
   { key: "contasreceber", label: "Contas a Receber" },
   { key: "comissoes", label: "Comissões" },
+  { key: "historicocredito", label: "Histórico de Crédito" },
   { key: "clientes", label: "Clientes" },
   { key: "produtos", label: "Produtos" },
   { key: "catalogo", label: "Catálogo" },

@@ -212,6 +212,9 @@
         <button class="nav-item" data-view="comissoes" data-label="Comissões">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-percent"/></svg> Comissões
         </button>
+        <button class="nav-item" data-view="historicocredito" data-label="Histórico de Crédito">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-history"/></svg> Histórico de Crédito
+        </button>
       </div>
 
       <div class="nav-group" data-group="gestao">
@@ -1676,6 +1679,48 @@
       </div>
     </section>
 
+    <!-- ======================= VIEW: HISTÓRICO DE CRÉDITO ======================= -->
+    <section id="view-historicocredito" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Histórico de Crédito</h1>
+          <div class="sub">Toda análise de crédito registrada (formulário e edição inline de Limite de Crédito), com limite, validade e observação de cada decisão.</div>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <input type="text" id="hcFiltroCliente" list="listCliente" placeholder="Filtrar por cliente…">
+        <div class="field">
+          <label>De</label>
+          <input type="date" id="hcFiltroDe">
+        </div>
+        <div class="field">
+          <label>Até</label>
+          <input type="date" id="hcFiltroAte">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="note" id="hcAvisoLimite" style="display:none; margin-bottom:10px;">Mostrando os 300 registros mais recentes desse filtro — estreite o período ou escolha um cliente pra ver além.</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Cliente</th>
+                <th class="num">Limite</th>
+                <th>Validade</th>
+                <th>Observação</th>
+                <th>Registrado por</th>
+              </tr>
+            </thead>
+            <tbody id="hcTbody"></tbody>
+          </table>
+          <div class="empty-state" id="hcEmpty" style="display:none;">Nenhuma análise de crédito registrada ainda.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- ======================= VIEW: CLIENTES ======================= -->
     <section id="view-clientes" class="view">
       <div class="page-head">
@@ -2917,6 +2962,6 @@
   </div>
 </div>
 
-<script src="app.js?v=221"></script>
+<script src="app.js?v=222"></script>
 </body>
 </html>
