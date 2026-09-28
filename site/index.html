@@ -1352,7 +1352,14 @@
           <div class="form-row" id="rowParcelas" style="display:none;">
             <div class="field">
               <label>Qtd. de parcelas</label>
-              <input type="text" id="venParcelas" placeholder="Ex: 3x">
+              <select id="venParcelas">
+                <option value="">1x (sem parcelamento)</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+                <option value="4">4x</option>
+                <option value="5">5x</option>
+                <option value="6">6x</option>
+              </select>
             </div>
           </div>
           <div class="form-row" id="rowTrademaster" style="display:none;">
@@ -1365,7 +1372,7 @@
               <input type="text" id="venDiferencaCalc" value="R$ 0,00 (0%)" disabled>
             </div>
           </div>
-          <div class="form-row">
+          <div class="form-row" id="venPagamentoUnicoRow">
             <div class="field">
               <label>Status do pagamento</label>
               <select id="venStatusPagamento">
@@ -1381,6 +1388,11 @@
               <label>Data de pagamento</label>
               <input type="date" id="venDataPagamento">
             </div>
+          </div>
+          <div id="venParcelasDetalheWrap" style="display:none; margin-bottom:12px;">
+            <label>Parcelas (status e vencimento de cada uma)</label>
+            <div id="venParcelasDetalheContainer"></div>
+            <div class="filtro-nota" id="venParcelasSomaResumo"></div>
           </div>
           <div class="form-row">
             <div class="field" style="flex:0 0 auto;">
@@ -2905,6 +2917,6 @@
   </div>
 </div>
 
-<script src="app.js?v=220"></script>
+<script src="app.js?v=221"></script>
 </body>
 </html>

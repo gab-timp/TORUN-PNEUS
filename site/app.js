@@ -91,6 +91,118 @@ function dataMaisDias(dataISO, n) {
   return new Date(d - tz).toISOString().slice(0, 10);
 }
 
+/* ---------------- parcela por parcela na venda (form #formVenda) ---------------- */
+// com 2+ parcelas, cada uma ganha valor/vencimento/status/data de pagamento próprios,
+// em vez de UM status pra venda inteira -- ver saldoEmAbertoDaVenda() e
+// sql/vendas_parcelas_detalhe.sql.
+
+function createParcelaRow(numero, total, valorSugerido, vencimentoSugerido) {
+  const row = document.createElement("div");
+  row.className = "form-row parcela-detalhe-row";
+  row.innerHTML = `
+    <div class="field" style="flex:0 0 64px;">
+      <label>Parcela</label>
+      <div style="height:38px; display:flex; align-items:center; font-weight:800;">${numero}/${total}</div>
+    </div>
+    <div class="field">
+      <label>Valor (R$)</label>
+      <input type="number" class="parcela-valor" min="0" step="0.01" value="${valorSugerido.toFixed(2)}">
+    </div>
+    <div class="field">
+      <label>Vencimento</label>
+      <input type="date" class="parcela-vencimento" value="${vencimentoSugerido}">
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select class="parcela-status">
+        <option value="em_aberto">Em aberto</option>
+        <option value="pago">Pago</option>
+      </select>
+    </div>
+    <div class="field parcela-datapagamento-field" style="display:none;">
+      <label>Data de pagamento</label>
+      <input type="date" class="parcela-datapagamento">
+    </div>
+  `;
+  row.querySelector(".parcela-valor").addEventListener("input", atualizarSomaParcelas);
+  row.querySelector(".parcela-status").addEventListener("change", (e) => {
+    const pago = e.target.value === "pago";
+    row.querySelector(".parcela-datapagamento-field").style.display = pago ? "" : "none";
+    const inputData = row.querySelector(".parcela-datapagamento");
+    if (pago && !inputData.value) inputData.value = todayISO();
+  });
+  return row;
+}
+
+function atualizarSomaParcelas() {
+  const container = document.getElementById("venParcelasDetalheContainer");
+  const resumo = document.getElementById("venParcelasSomaResumo");
+  if (!container.children.length) { resumo.textContent = ""; return; }
+  const soma = Array.from(container.querySelectorAll(".parcela-valor")).reduce((a, inp) => a + (parseFloat(inp.value) || 0), 0);
+  const valorVenda = parseFloat(document.getElementById("venValor").value) || 0;
+  const bate = Math.abs(soma - valorVenda) < 0.01;
+  resumo.innerHTML = `Soma das parcelas: <strong>${formatMoney(soma)}</strong>${bate
+    ? " — bate com o valor da venda"
+    : ` — <span style="color:#B91C1C;">precisa bater com ${formatMoney(valorVenda)} pra salvar</span>`}`;
+}
+
+// regenera os N blocos do zero -- chamado ao trocar a Qtd. de parcelas (sempre do
+// zero, já que mudar a quantidade não tem como preservar parcela por parcela) e ao
+// abrir "Editar" numa venda que já tem parcelasDetalhe (nesse caso com `prefill`).
+function regenerarParcelasDetalhe(prefill) {
+  const n = parseInt(document.getElementById("venParcelas").value, 10) || 0;
+  const wrap = document.getElementById("venParcelasDetalheWrap");
+  const unico = document.getElementById("venPagamentoUnicoRow");
+  const container = document.getElementById("venParcelasDetalheContainer");
+  container.innerHTML = "";
+  if (n < 2) {
+    wrap.style.display = "none";
+    unico.style.display = "";
+    return;
+  }
+  unico.style.display = "none";
+  wrap.style.display = "";
+
+  const valorVenda = parseFloat(document.getElementById("venValor").value) || 0;
+  const dataVenda = document.getElementById("venData").value || todayISO();
+  for (let i = 1; i <= n; i++) {
+    const pre = prefill && prefill[i - 1];
+    let valorSugerido;
+    if (pre) {
+      valorSugerido = pre.valor;
+    } else {
+      // divide igual, a última parcela absorve o resto do arredondamento pra soma
+      // fechar exata com o valor da venda por padrão.
+      const base = Math.floor((valorVenda / n) * 100) / 100;
+      valorSugerido = i < n ? base : Math.round((valorVenda - base * (n - 1)) * 100) / 100;
+    }
+    const vencimentoSugerido = pre ? pre.vencimento : dataMaisDias(dataVenda, 30 * i);
+    const row = createParcelaRow(i, n, valorSugerido, vencimentoSugerido);
+    container.appendChild(row);
+    if (pre) {
+      row.querySelector(".parcela-status").value = pre.status || "em_aberto";
+      if (pre.status === "pago") {
+        row.querySelector(".parcela-datapagamento-field").style.display = "";
+        row.querySelector(".parcela-datapagamento").value = pre.dataPagamento || "";
+      }
+    }
+  }
+  atualizarSomaParcelas();
+}
+
+function coletarParcelasDetalhe() {
+  return Array.from(document.querySelectorAll("#venParcelasDetalheContainer .parcela-detalhe-row")).map((row, i) => {
+    const statusRow = row.querySelector(".parcela-status").value;
+    return {
+      numero: i + 1,
+      valor: parseFloat(row.querySelector(".parcela-valor").value) || 0,
+      vencimento: row.querySelector(".parcela-vencimento").value || null,
+      status: statusRow,
+      dataPagamento: statusRow === "pago" ? (row.querySelector(".parcela-datapagamento").value || null) : null
+    };
+  });
+}
+
 // vendas.parcelas é texto livre digitado por quem fatura (ex: "3x", "3", "12X") --
 // nunca existe pra PIX (à vista) e é opcional pro resto, então pode estar em branco
 // mesmo em venda parcelada. Exige que a string INTEIRA seja só o número + "x" opcional
@@ -182,7 +294,8 @@ function vendaToRow(v) {
     pagamentos_divididos: v.pagamentosDivididos && v.pagamentosDivididos.length ? v.pagamentosDivididos : null,
     status_pagamento: v.statusPagamento || "em_aberto",
     data_pagamento: v.statusPagamento === "pago" ? (v.dataPagamento || null) : null,
-    data_vencimento: v.dataVencimento || null
+    data_vencimento: v.dataVencimento || null,
+    parcelas_detalhe: v.parcelasDetalhe && v.parcelasDetalhe.length ? v.parcelasDetalhe : null
   };
 }
 function vendaFromRow(r) {
@@ -199,6 +312,7 @@ function vendaFromRow(r) {
     statusPagamento: r.status_pagamento || "em_aberto",
     dataPagamento: r.data_pagamento || null,
     dataVencimento: r.data_vencimento || null,
+    parcelasDetalhe: r.parcelas_detalhe || null,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -6119,16 +6233,41 @@ async function confirmarMesclagemClientes() {
   }
 }
 
+// saldo em aberto de UMA venda -- soma só as parcelas ainda em aberto quando a venda
+// tem parcelas_detalhe (parcela por parcela); senão cai no comportamento de sempre
+// (venda inteira conta se status_pagamento = "em_aberto"). valorRecebido NÃO serve pra
+// isso, só existe pra Boleto Trademaster (deságio da financeira). Ver
+// sql/vendas_status_pagamento.sql e sql/vendas_parcelas_detalhe.sql.
+function saldoEmAbertoDaVenda(v) {
+  if (Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length) {
+    return v.parcelasDetalhe.filter(p => p.status === "em_aberto").reduce((a, p) => a + (p.valor || 0), 0);
+  }
+  return v.statusPagamento === "em_aberto" ? v.valorVenda : 0;
+}
+
+// pill de status da tabela de Faturamento -- venda com parcela detalhada mostra
+// "N/M pagas" em vez do binário Pago/Em aberto (só bate um dos dois quando todas as
+// parcelas estão do mesmo lado).
+function statusPagamentoPillHtml(v) {
+  if (Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length) {
+    const pagas = v.parcelasDetalhe.filter(p => p.status === "pago").length;
+    const total = v.parcelasDetalhe.length;
+    if (pagas === total) return `<span class="status-pill pill-normal">Pago</span>`;
+    if (pagas === 0) return `<span class="status-pill pill-esgotado">Em aberto</span>`;
+    return `<span class="status-pill pill-atencao">${pagas}/${total} pagas</span>`;
+  }
+  return v.statusPagamento === "pago"
+    ? `<span class="status-pill pill-normal">Pago</span>`
+    : `<span class="status-pill pill-esgotado">Em aberto</span>`;
+}
+
 function getClienteStats(nome) {
   const vendas = state.vendas.filter(v => v.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   const totalFaturado = vendas.reduce((a, v) => a + v.valorVenda, 0);
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
   const ticketMedio = vendas.length ? totalFaturado / vendas.length : 0;
   const ultimaCompra = vendas.length ? vendas[0].data : null;
-  // saldo em aberto: soma das vendas com status_pagamento = "em_aberto" -- valorRecebido
-  // NÃO serve pra isso, só existe pra Boleto Trademaster (deságio da financeira, não
-  // "quanto o cliente pagou"). Ver sql/vendas_status_pagamento.sql.
-  const saldoEmAberto = vendas.filter(v => v.statusPagamento === "em_aberto").reduce((a, v) => a + v.valorVenda, 0);
+  const saldoEmAberto = vendas.reduce((a, v) => a + saldoEmAbertoDaVenda(v), 0);
   const { media: mediaParcelas, qtd: qtdParcelasInformadas } = mediaParcelasDe(vendas);
   const entregas = state.entregas.filter(e => e.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   return { vendas, totalFaturado, totalPneus, ticketMedio, ultimaCompra, saldoEmAberto, mediaParcelas, qtdParcelasInformadas, entregas };
@@ -6616,22 +6755,29 @@ function renderContasReceber() {
   rows.sort((a, b) => (a.v.data || "").localeCompare(b.v.data || "")); // mais antiga primeiro
 
   document.getElementById("carEmpty").style.display = rows.length ? "none" : "block";
-  document.getElementById("carTbody").innerHTML = rows.map(({ v, dias, faixa }) => `
+  document.getElementById("carTbody").innerHTML = rows.map(({ v, dias, faixa }) => {
+    const temParcelas = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
+    const pagas = temParcelas ? v.parcelasDetalhe.filter(p => p.status === "pago").length : 0;
+    return `
     <tr>
       <td class="mono">${formatDateBR(v.data)}</td>
       <td>${escapeHtml(v.cliente)}</td>
       <td class="mono">${escapeHtml(v.numeroNFVenda || v.numeroPedido || "—")}</td>
       <td>${escapeHtml(v.vendedor || "—")}</td>
-      <td class="num mono">${formatMoney(v.valorVenda)}</td>
+      <td class="num mono">
+        ${formatMoney(saldoEmAbertoDaVenda(v))}
+        ${temParcelas ? `<div class="muted" style="font-size:11px;">${pagas} de ${v.parcelasDetalhe.length} parcelas pagas</div>` : ""}
+      </td>
       <td class="mono">${v.dataVencimento ? formatDateBR(v.dataVencimento) : "—"}</td>
       <td><span class="status-pill ${FAIXA_ATRASO_PILL[faixa]}">${fmt(dias)} dias</span></td>
-      <td><span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span></td>
+      <td>${temParcelas ? "" : `<span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span>`}</td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
-  const somaFaixa = (faixa) => rows.filter(r => r.faixa === faixa).reduce((a, { v }) => a + v.valorVenda, 0);
+  const somaFaixa = (faixa) => rows.filter(r => r.faixa === faixa).reduce((a, { v }) => a + saldoEmAbertoDaVenda(v), 0);
   document.getElementById("carKpis").innerHTML = [
-    { lbl: "Total em aberto", val: formatMoney(rows.reduce((a, { v }) => a + v.valorVenda, 0)), accent: true },
+    { lbl: "Total em aberto", val: formatMoney(rows.reduce((a, { v }) => a + saldoEmAbertoDaVenda(v), 0)), accent: true },
     { lbl: "0–30 dias", val: formatMoney(somaFaixa("0-30")) },
     { lbl: "31–60 dias", val: formatMoney(somaFaixa("31-60")) },
     { lbl: "60+ dias", val: formatMoney(somaFaixa("60+")) }
@@ -6769,8 +6915,9 @@ function abrirComissaoVendedorDetalhe(nomeVendedor) {
   const totalFaturamento = vendasPeriodo.reduce((a, v) => a + v.valorVenda, 0);
   const totalComissao = vendasPeriodo.reduce((a, v) => a + (v.comissao || 0), 0);
   const totalPneus = vendasPeriodo.reduce((a, v) => a + v.quantidadePneus, 0);
-  // mesmo período da lista (não o total histórico) -- consistente com os outros 3 KPIs
-  const emAberto = vendasPeriodo.filter(v => v.statusPagamento === "em_aberto").reduce((a, v) => a + v.valorVenda, 0);
+  // mesmo período da lista (não o total histórico) -- consistente com os outros 3 KPIs.
+  // saldoEmAbertoDaVenda soma só a parte em aberto quando a venda tem parcela detalhada.
+  const emAberto = vendasPeriodo.reduce((a, v) => a + saldoEmAbertoDaVenda(v), 0);
 
   document.getElementById("comDetalheNome").textContent = nomeVendedor;
 
@@ -6935,12 +7082,10 @@ function renderVendas() {
       <td class="num mono">${formatMoney(v.comissao || 0)}${v.comissaoPercentual ? `<div class="muted" style="font-size:11px;">${v.comissaoPercentual.toFixed(2).replace(".", ",")}%</div>` : ""}</td>
       <td>${escapeHtml(v.transportadora || "—")}</td>
       <td class="muted">${escapeHtml(v.obs || "—")}</td>
-      <td>${v.statusPagamento === "pago"
-        ? `<span class="status-pill pill-normal">Pago</span>`
-        : `<span class="status-pill pill-esgotado">Em aberto</span>`}</td>
+      <td>${statusPagamentoPillHtml(v)}</td>
       <td style="white-space:nowrap;">
         <span class="write-ui">
-          ${v.statusPagamento === "pago" ? "" : `<button class="btn small outline" data-marcarpago="${v.id}">Marcar como pago</button>`}
+          ${v.statusPagamento === "pago" || (v.parcelasDetalhe && v.parcelasDetalhe.length) ? "" : `<button class="btn small outline" data-marcarpago="${v.id}">Marcar como pago</button>`}
           <button class="btn small outline" data-editvenda="${v.id}">Editar</button>
           <button class="btn small danger" data-delvenda="${v.id}">Excluir</button>
         </span>
@@ -7119,11 +7264,15 @@ function startEditVenda(vendaId) {
   document.getElementById("rowTrademaster").style.display = isTrademaster ? "" : "none";
   document.getElementById("venValorRecebido").required = isTrademaster;
   document.getElementById("venValorRecebido").value = v.valorRecebido != null ? v.valorRecebido : "";
-  document.getElementById("venParcelas").value = v.parcelas != null ? v.parcelas : "";
+  // parseParcelasNum tolera lixo de venda antiga (parcelas era texto livre) -- só usa
+  // o select quando dá pra entender um número de 1-6; fora disso fica em branco.
+  const qtdParcelasEditando = parseParcelasNum(v.parcelas);
+  document.getElementById("venParcelas").value = qtdParcelasEditando >= 2 && qtdParcelasEditando <= 6 ? String(qtdParcelasEditando) : "";
   document.getElementById("venStatusPagamento").value = v.statusPagamento || "em_aberto";
   document.getElementById("venDataVencimento").value = v.dataVencimento || "";
   document.getElementById("venDataPagamento").value = v.dataPagamento || "";
   document.getElementById("rowDataPagamento").style.display = v.statusPagamento === "pago" ? "" : "none";
+  regenerarParcelasDetalhe(v.parcelasDetalhe);
   if (v.valorRecebido != null) {
     const diferenca = v.valorVenda - v.valorRecebido;
     const pct = v.valorVenda > 0 ? (diferenca / v.valorVenda * 100) : 0;
@@ -7174,6 +7323,7 @@ function cancelEditVenda() {
   document.getElementById("venDataPagamento").value = "";
   document.getElementById("rowDataPagamento").style.display = "none";
   document.getElementById("venDataVencimento").value = dataMaisDias(todayISO(), 30);
+  regenerarParcelasDetalhe();
   document.getElementById("venFormTitle").textContent = "Nova venda";
   document.getElementById("venEditBanner").style.display = "none";
   document.getElementById("btnSubmitVenda").textContent = "Registrar venda";
@@ -7825,6 +7975,7 @@ function initForms() {
 
     document.getElementById("rowParcelas").style.display = temParcelas ? "" : "none";
     if (!temParcelas) document.getElementById("venParcelas").value = "";
+    regenerarParcelasDetalhe();
 
     document.getElementById("rowTrademaster").style.display = isTrademaster ? "" : "none";
     document.getElementById("venValorRecebido").required = isTrademaster;
@@ -7836,6 +7987,9 @@ function initForms() {
     }
     atualizarComissaoCalc();
   });
+
+  document.getElementById("venParcelas").addEventListener("change", () => regenerarParcelasDetalhe());
+  document.getElementById("venValor").addEventListener("input", atualizarSomaParcelas);
 
   document.getElementById("venStatusPagamento").addEventListener("change", (e) => {
     const pago = e.target.value === "pago";
@@ -7888,10 +8042,35 @@ function initForms() {
     const parcelasRaw = document.getElementById("venParcelas").value.trim();
     const valorRecebido = isTrademaster && valorRecebidoRaw ? parseFloat(valorRecebidoRaw) : null;
 
-    const statusPagamento = document.getElementById("venStatusPagamento").value || "em_aberto";
-    if (statusPagamento === "pago" && !document.getElementById("venDataPagamento").value) {
-      toast("Informe a data de pagamento.");
-      return;
+    // com 2+ parcelas, status/vencimento/pagamento da venda viram um agregado calculado
+    // a partir de cada parcela (ver saldoEmAbertoDaVenda) -- os campos únicos
+    // (venStatusPagamento/venDataVencimento/venDataPagamento) ficam escondidos e não
+    // são usados nesse caso.
+    const qtdParcelasSelecionada = temParcelas && parcelasRaw ? parseInt(parcelasRaw, 10) : 0;
+    let statusPagamento, dataPagamentoFinal, dataVencimentoFinal, parcelasDetalhe = null;
+
+    if (qtdParcelasSelecionada >= 2) {
+      parcelasDetalhe = coletarParcelasDetalhe();
+      const somaParcelas = parcelasDetalhe.reduce((a, p) => a + p.valor, 0);
+      if (Math.abs(somaParcelas - valorVenda) > 0.01) {
+        toast(`A soma das parcelas (${formatMoney(somaParcelas)}) não bate com o valor da venda (${formatMoney(valorVenda)}).`);
+        return;
+      }
+      const todasPagas = parcelasDetalhe.every(p => p.status === "pago");
+      const proximaAberta = parcelasDetalhe.find(p => p.status === "em_aberto");
+      statusPagamento = todasPagas ? "pago" : "em_aberto";
+      dataVencimentoFinal = (proximaAberta || parcelasDetalhe[parcelasDetalhe.length - 1]).vencimento;
+      dataPagamentoFinal = todasPagas
+        ? [...parcelasDetalhe].sort((a, b) => (b.dataPagamento || "").localeCompare(a.dataPagamento || ""))[0].dataPagamento
+        : null;
+    } else {
+      statusPagamento = document.getElementById("venStatusPagamento").value || "em_aberto";
+      if (statusPagamento === "pago" && !document.getElementById("venDataPagamento").value) {
+        toast("Informe a data de pagamento.");
+        return;
+      }
+      dataPagamentoFinal = statusPagamento === "pago" ? document.getElementById("venDataPagamento").value : null;
+      dataVencimentoFinal = document.getElementById("venDataVencimento").value || null;
     }
 
     const clienteRetira = document.getElementById("venClienteRetira").checked;
@@ -7921,8 +8100,9 @@ function initForms() {
       parcelas: temParcelas && parcelasRaw ? parcelasRaw : null,
       pagamentosDivididos,
       statusPagamento,
-      dataPagamento: statusPagamento === "pago" ? document.getElementById("venDataPagamento").value : null,
-      dataVencimento: document.getElementById("venDataVencimento").value || null
+      dataPagamento: dataPagamentoFinal,
+      dataVencimento: dataVencimentoFinal,
+      parcelasDetalhe
     };
 
     if (editingVendaId) {
