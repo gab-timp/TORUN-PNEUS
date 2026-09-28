@@ -42,6 +42,11 @@ const MES_ABREV = {
   "07": "Jul", "08": "Ago", "09": "Set", "10": "Out", "11": "Nov", "12": "Dez"
 };
 
+const MES_NOME = {
+  "01": "janeiro", "02": "fevereiro", "03": "março", "04": "abril", "05": "maio", "06": "junho",
+  "07": "julho", "08": "agosto", "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro"
+};
+
 const UF_LIST = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
@@ -6808,9 +6813,9 @@ function renderFluxoCaixa() {
   });
 
   document.getElementById("fcKpis").innerHTML = [
-    { lbl: `Recebido em ${MES_ABREV[mesAtualChave.slice(5)] || mesAtualChave}`, val: formatMoney(porMes[mesAtualChave].recebido), accent: true },
-    { lbl: `Previsto pra ${MES_ABREV[mesSeguinteChave.slice(5)] || mesSeguinteChave}`, val: formatMoney(porMes[mesSeguinteChave].previsto) },
-    { lbl: "Em aberto sem vencimento", val: formatMoney(semVencimento) }
+    { lbl: `Recebido em ${MES_NOME[mesAtualChave.slice(5)] || mesAtualChave}`, val: formatMoney(porMes[mesAtualChave].recebido), accent: true },
+    { lbl: `Previsto para ${MES_NOME[mesSeguinteChave.slice(5)] || mesSeguinteChave}`, val: formatMoney(porMes[mesSeguinteChave].previsto) },
+    { lbl: "Em aberto sem data de vencimento", val: formatMoney(semVencimento) }
   ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
 
   const labels = mesesChaves.map((m, i) => {
