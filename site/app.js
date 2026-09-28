@@ -7232,7 +7232,7 @@ function renderVendas() {
       <td>${escapeHtml(v.transportadora || "—")}</td>
       <td class="muted">${escapeHtml(v.obs || "—")}</td>
       <td>${statusPagamentoPillHtml(v)}</td>
-      <td style="white-space:nowrap;">
+      <td class="col-acoes" style="white-space:nowrap;">
         <span class="write-ui">
           ${v.statusPagamento === "pago" || (v.parcelasDetalhe && v.parcelasDetalhe.length) ? "" : `<button class="btn small outline" data-marcarpago="${v.id}">Marcar como pago</button>`}
           <button class="btn small outline" data-editvenda="${v.id}">Editar</button>

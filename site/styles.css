@@ -637,9 +637,11 @@ body.is-admin .nav-item.admin-only{display:flex;}
   border-radius:14px;
   box-shadow:var(--shadow-card);
   padding:14px 16px;
+  min-width:0; /* mesmo achado do .dash-stat-tile -- sem isso um valor grande empurra
+    a página inteira mais larga que a tela em vez de quebrar linha dentro do card */
 }
 .kpi .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-soft);font-weight:700;}
-.kpi .val{font-size:24px;font-weight:800;margin-top:6px;font-family:'Space Mono',monospace;}
+.kpi .val{font-size:24px;font-weight:800;margin-top:6px;font-family:'Space Mono',monospace;overflow-wrap:anywhere;}
 .kpi.accent{border-color:var(--orange); background:var(--orange-pale);}
 .kpi.accent .lbl{color:var(--orange-deep);}
 .kpi.accent .val{color:var(--orange-deep);}
@@ -1111,6 +1113,16 @@ td.num, th.num{text-align:right; font-family:'Space Mono',monospace;}
 td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
 .muted{color:var(--ink-soft);}
 
+/* coluna de ações "grudada" na direita -- em tabela larga (ex. Vendas registradas,
+   muitas colunas) o scroll horizontal escondia Editar/Excluir; assim eles ficam
+   visíveis mesmo rolando pra ver o resto da linha. */
+th.col-acoes, td.col-acoes{
+  position:sticky; right:0;
+  background:var(--surface);
+  box-shadow:-6px 0 8px -6px rgba(0,0,0,.18);
+}
+tbody tr:hover td.col-acoes{background:var(--paper-2);}
+
 .badge{
   display:inline-block;
   padding:3px 9px;
@@ -1512,6 +1524,9 @@ td.mono{font-family:'Space Mono',monospace; font-size:12.5px;}
   border:1px solid var(--line);
   border-radius:12px;
   padding:14px 16px;
+  min-width:0; /* sem isso, um valor grande (ex. faturamento anual) vira o "conteúdo
+    mínimo" do tile e o grid cresce pra caber -- empurra a página inteira mais larga
+    que a tela em vez de deixar o valor quebrar linha (achado testando overflow real) */
 }
 .dash-stat-tile-icon{
   width:30px; height:30px; border-radius:9px; margin-bottom:12px;
