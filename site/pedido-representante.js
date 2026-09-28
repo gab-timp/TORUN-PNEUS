@@ -871,9 +871,9 @@ function renderRepCatalogo() {
           </div>
         ` : ""}
 
+        ${!exibirValores ? "" : `
         <div class="catalogo-card-divider"></div>
-        ${!exibirValores ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Marque "Exibir valores" pra ver o preço.</div>` :
-          semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : todosTipos ? `
+        ${semPrecoNenhum ? `<div class="catalogo-preco-aviso" style="margin-top:0;">Sem preço cadastrado ainda.</div>` : todosTipos ? `
         <div class="catalogo-preco-condicao">Preços cadastrados</div>
         <div class="cat-tipos">${chipsTipos}</div>
         <div class="cat-dica">Escolha um tipo de cliente acima para ver os valores.</div>` : `
@@ -886,6 +886,7 @@ function renderRepCatalogo() {
         <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
           ${aberto ? buildPrecoMatrixHtmlRep(p.codigo, tipoCliente) : ""}
         </div>`}
+        `}
         </div>
       </div>
     `;
