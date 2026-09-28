@@ -91,6 +91,29 @@ function dataMaisDias(dataISO, n) {
   return new Date(d - tz).toISOString().slice(0, 10);
 }
 
+// vendas.parcelas é texto livre digitado por quem fatura (ex: "3x", "3", "12X") --
+// nunca existe pra PIX (à vista) e é opcional pro resto, então pode estar em branco
+// mesmo em venda parcelada. Extrai o número; devolve null quando não dá pra saber
+// (em branco ou texto sem dígito) -- não adivinha "1x" pra não inventar dado.
+function parseParcelasNum(raw) {
+  if (!raw) return null;
+  const m = String(raw).match(/\d+/);
+  if (!m) return null;
+  const n = parseInt(m[0], 10);
+  return n > 0 ? n : null;
+}
+
+// média de parcelas de uma lista de vendas -- só entre as que têm parcelas
+// informadas e válidas; PIX e campos em branco ficam de fora (decisão do usuário:
+// não dá pra saber se "em branco" foi à vista ou esqueceram de preencher).
+function mediaParcelasDe(vendasLista) {
+  const validas = vendasLista.map(v => parseParcelasNum(v.parcelas)).filter(n => n != null);
+  return {
+    media: validas.length ? validas.reduce((a, n) => a + n, 0) / validas.length : null,
+    qtd: validas.length
+  };
+}
+
 function uid(prefix) {
   return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
@@ -4970,6 +4993,8 @@ function renderDashboard() {
   const totalPneusAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0) : null;
   const totalComissaoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0) : null;
   const totalFreteAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.valorFrete || 0), 0) : null;
+  const { media: mediaParcelas } = mediaParcelasDe(vendas);
+  const { media: mediaParcelasAnt } = vendasMesAnt.length ? mediaParcelasDe(vendasMesAnt) : { media: null };
 
   // por vendedor / estado / transportadora / forma / cliente
   const porVendedor = {}, porEstado = {}, porTransp = {}, porForma = {}, porCliente = {};
@@ -5103,7 +5128,11 @@ function renderDashboard() {
     { lbl: `Faturamento anual (${anoIndicadores})`, val: formatMoney(faturamentoAnual), icone: "i-calendar", delta: "" },
     { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
     { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true) },
-    { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) }
+    { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) },
+    // só entre vendas com parcelas informadas -- PIX e campo em branco ficam de
+    // fora da conta (mesmo critério de mediaParcelasDe usado no perfil do cliente)
+    { lbl: "Média de parcelas", val: mediaParcelas != null ? `${mediaParcelas.toFixed(1).replace(".", ",")}x` : "—", icone: "i-layers",
+      delta: mediaParcelas != null ? dashDeltaHtml(mediaParcelas, mediaParcelasAnt) : "" }
   ].map(s => `
     <div class="dash-stat-tile">
       <div class="dash-stat-tile-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#${s.icone}"/></svg></div>
@@ -6084,8 +6113,9 @@ function getClienteStats(nome) {
   // NÃO serve pra isso, só existe pra Boleto Trademaster (deságio da financeira, não
   // "quanto o cliente pagou"). Ver sql/vendas_status_pagamento.sql.
   const saldoEmAberto = vendas.filter(v => v.statusPagamento === "em_aberto").reduce((a, v) => a + v.valorVenda, 0);
+  const { media: mediaParcelas, qtd: qtdParcelasInformadas } = mediaParcelasDe(vendas);
   const entregas = state.entregas.filter(e => e.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-  return { vendas, totalFaturado, totalPneus, ticketMedio, ultimaCompra, saldoEmAberto, entregas };
+  return { vendas, totalFaturado, totalPneus, ticketMedio, ultimaCompra, saldoEmAberto, mediaParcelas, qtdParcelasInformadas, entregas };
 }
 
 let currentClienteModalNome = null;
@@ -6239,13 +6269,20 @@ function openClienteModal(nome) {
   ].map(([lbl, val]) => `<div><div class="lbl">${lbl}</div><div class="val">${escapeHtml(val || "—")}</div></div>`).join("");
 
   const disponivel = c.limiteCredito != null ? c.limiteCredito - stats.saldoEmAberto : null;
+  const mediaParcelasVal = stats.mediaParcelas != null
+    ? `${stats.mediaParcelas.toFixed(1).replace(".", ",")}x`
+    : "—";
   document.getElementById("clienteModalKpis").innerHTML = [
     { lbl: "Faturamento total", val: formatMoney(stats.totalFaturado), accent: true },
     { lbl: "Ticket médio", val: formatMoney(stats.ticketMedio) },
     { lbl: "Pneus comprados", val: fmt(stats.totalPneus) + " un." },
     { lbl: "Última compra", val: stats.ultimaCompra ? formatDateBR(stats.ultimaCompra) : "—" },
-    { lbl: "Disponível (limite - em aberto)", val: disponivel != null ? formatMoney(disponivel) : "—", accent: disponivel != null && disponivel < 0 }
-  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div></div>`).join("");
+    { lbl: "Disponível (limite - em aberto)", val: disponivel != null ? formatMoney(disponivel) : "—", accent: disponivel != null && disponivel < 0 },
+    // só entre as vendas com parcelas informadas -- PIX e campo em branco ficam de
+    // fora (não dá pra saber se foi à vista ou esqueceram de preencher)
+    { lbl: "Média de parcelas", val: mediaParcelasVal,
+      delta: stats.qtdParcelasInformadas ? `<div class="delta neutral">${stats.qtdParcelasInformadas} de ${stats.vendas.length} venda${stats.vendas.length === 1 ? "" : "s"}</div>` : "" }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div>${k.delta || ""}</div>`).join("");
 
   document.getElementById("clienteModalVendasTbody").innerHTML = stats.vendas.length
     ? stats.vendas.map(v => `
