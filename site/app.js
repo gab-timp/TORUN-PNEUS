@@ -3282,11 +3282,13 @@ function renderColeta() {
   listaGerados.innerHTML = gerados.map(({ r, e }) => {
     const statusClasse = r.cancelado ? "pill-esgotado" : r.assinadoEm ? "pill-normal" : "pill-atencao";
     const statusTexto = r.cancelado ? "Cancelado" : r.assinadoEm ? "Assinado" : "Aguardando assinatura";
-    // cancelado não abre mais pra edição (não tem o que assinar) -- só resta, pra admin, excluir de
-    // vez; pra quem não é admin a linha fica só de registro, sem nenhuma ação
-    const acao = r.cancelado
-      ? (currentUserIsAdmin ? `<button type="button" class="btn small danger" data-excluirromaneio="${escapeAttr(r.id)}">Excluir</button>` : "")
-      : `<button type="button" class="btn small outline" data-verromaneio="${escapeAttr(r.id)}">${r.assinadoEm ? "Ver" : "Continuar"}</button>`;
+    // cancelado não abre mais pra edição (não tem o que assinar) -- só sobra o Excluir.
+    // Nos outros status o Ver/Continuar normal aparece, e admin ganha o Excluir do lado
+    // (pra corrigir um romaneio gerado errado mesmo já assinado); quem não é admin nunca
+    // vê Excluir.
+    const verBtn = r.cancelado ? "" : `<button type="button" class="btn small outline" data-verromaneio="${escapeAttr(r.id)}">${r.assinadoEm ? "Ver" : "Continuar"}</button>`;
+    const excluirBtn = currentUserIsAdmin ? `<button type="button" class="btn small danger" data-excluirromaneio="${escapeAttr(r.id)}">Excluir</button>` : "";
+    const acao = `${verBtn}${excluirBtn}`;
     return `
     <div class="romaneio-row">
       <div class="romaneio-row-main">
@@ -3407,18 +3409,18 @@ async function cancelarRomaneioAtual() {
   voltarColetaLista();
 }
 
-// Excluir de vez (só admin, só em romaneio já cancelado -- reforçado pela RLS em
-// sql/romaneio_excluir_admin.sql, não só pelo botão escondido). "Cancelar" continua sendo o único
-// jeito de "remover" um romaneio pela lista normal; isso aqui é só pra limpar lixo de teste/engano.
+// Excluir de vez (só admin, qualquer status -- reforçado pela RLS em
+// sql/romaneio_excluir_admin_qualquer_status.sql, não só pelo botão escondido). Diferente de
+// "Cancelar" (que só marca o romaneio como cancelado, reversível na prática pelo histórico),
+// isso apaga o registro sem volta -- por isso passa por motivoModal.
 async function excluirRomaneio(romaneioId) {
   const r = state.romaneios.find(x => x.id === romaneioId);
   if (!r) return;
-  if (!r.cancelado) { toast("Só é possível excluir um romaneio já cancelado."); return; }
   const e = state.entregas.find(x => x.id === r.entregaId);
   const motivo = await motivoModal("Excluir romaneio?",
     "Isso apaga o registro de vez, sem volta -- diferente de cancelar. Informe o motivo.");
   if (!motivo) return;
-  if (r.assinaturaPath) { // defensivo: hoje um cancelado nunca chega a ter assinatura salva
+  if (r.assinaturaPath) {
     const { error: removeError } = await sb.storage.from(ROMANEIO_BUCKET).remove([r.assinaturaPath]);
     if (removeError) console.error("Erro ao remover assinatura do romaneio excluído:", removeError);
   }
