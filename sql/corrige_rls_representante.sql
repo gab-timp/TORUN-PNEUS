@@ -6,6 +6,15 @@
 -- permissivas ao mesmo tempo (não dá pra restringir "só essa entrada").
 --
 -- Rode este SQL no SQL Editor do Supabase.
+--
+-- ATENÇÃO (achado depois, em sql/corrige_restrictive_entregas_precadastro.sql):
+-- os dois "create policy" abaixo deveriam ter "as restrictive" (as duas condições
+-- são pra NARROW um acesso já concedido por outra policy, não pra conceder um novo)
+-- mas não tinham -- o Postgres criou as duas como PERMISSIVE, que se combina com OR
+-- em vez de AND, então elas não restringiam nada de verdade (a policy "irmã" mais
+-- ampla já bastava sozinha). Corrigido em sql/corrige_restrictive_entregas_precadastro.sql
+-- -- rode aquele arquivo depois deste (ou em vez das duas create policy sem "as
+-- restrictive" abaixo, se estiver rodando isso do zero).
 
 -- ============================================================
 -- 1) entregas: faltava a regra PERMISSIVA de UPDATE pro representante.
