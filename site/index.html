@@ -2041,6 +2041,47 @@
             <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
           </div>
         </div>
+
+        <div class="card report-card" data-report="precos">
+          <div class="card-head"><h2>Relatório de Preço</h2></div>
+          <div class="note">Código, medida, quantidade em estoque e preço — sem o logo da Torun, pra poder repassar a clientes. Escolha o tipo de cliente, a condição de pagamento e a região (cada combinação tem um preço próprio, definido no Catálogo).</div>
+          <div class="form-row">
+            <div class="field">
+              <label>Tipo de cliente</label>
+              <select class="report-filtro">
+                <option value="CONSUMO">Consumo</option>
+                <option value="FROTA">Frota/TTD</option>
+                <option value="REVENDA">Revenda</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Condição de pagamento</label>
+              <select class="report-filtro2">
+                <option value="A VISTA">A VISTA</option>
+                <option value="30 DIAS">30 DIAS</option>
+                <option value="2X">2X</option>
+                <option value="3X">3X</option>
+                <option value="4X">4X</option>
+                <option value="5X">5X</option>
+                <option value="6X">6X</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Região</label>
+              <select class="report-filtro3">
+                <option value="">Escolha a região</option>
+                <option value="SC/RS">SC/RS</option>
+                <option value="PR">PR</option>
+                <option value="MG">MG</option>
+                <option value="MT">MT</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-csv">Gerar CSV</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2839,6 +2880,6 @@
   </div>
 </div>
 
-<script src="app.js?v=214"></script>
+<script src="app.js?v=215"></script>
 </body>
 </html>

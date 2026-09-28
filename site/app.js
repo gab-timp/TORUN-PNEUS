@@ -8348,6 +8348,39 @@ const REPORT_DEFS = {
       ];
       return { columns, rows, summaryLines };
     }
+  },
+  precos: {
+    title: "Relatório de Preço",
+    hasDateRange: false,
+    noLogo: true, // pra poder repassar a clientes sem a marca Torun aparecer
+    build(de, ate, tipoCliente, codigos, agrupar, condicao, regiao) {
+      const columns = [
+        { key: "codigo", label: "Código" },
+        { key: "medida", label: "Medida" },
+        { key: "saldo", label: "Quantidade", numeric: true },
+        { key: "preco", label: "Preço", money: true }
+      ];
+      const tipo = tipoCliente || "CONSUMO";
+      const cond = condicao || "A VISTA";
+      if (!regiao) {
+        return { columns, rows: [], summaryLines: [{ label: "Atenção", value: "Escolha uma região pra gerar o relatório." }] };
+      }
+      const produtos = listEstoque().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
+      // só entra na lista quem tem preço cadastrado pra essa combinação exata --
+      // uma linha sem preço não serve pra uma lista de preços.
+      const rows = produtos
+        .map(p => ({ codigo: p.codigo, medida: p.medida, saldo: p.saldo, preco: getPrecoProduto(p.codigo, regiao, tipo, cond) }))
+        .filter(r => r.preco !== null);
+      const semPreco = produtos.length - rows.length;
+      const summaryLines = [
+        { label: "Tipo de cliente", value: TIPO_CLIENTE_LABEL[tipo] || tipo },
+        { label: "Condição de pagamento", value: cond },
+        { label: "Região", value: regiao },
+        ...(semPreco ? [{ label: "Produtos sem preço cadastrado nessa combinação (não incluídos)", value: fmt(semPreco) }] : []),
+        { label: "Produtos incluídos", value: fmt(rows.length), total: true }
+      ];
+      return { columns, rows, summaryLines };
+    }
   }
 };
 
@@ -8382,7 +8415,7 @@ function buildReportPrintHtml(def, de, ate, data) {
   return `
     <div class="print-report">
       <div class="print-report-header">
-        <img src="assets/logo-light.png" class="print-report-logo" alt="Torun Pneus">
+        ${def.noLogo ? "" : `<img src="assets/logo-light.png" class="print-report-logo" alt="Torun Pneus">`}
         <div class="print-report-meta">
           <h1>${escapeHtml(def.title)}</h1>
           <div class="print-report-sub">${escapeHtml(periodoTxt)}</div>
@@ -8398,17 +8431,17 @@ function buildReportPrintHtml(def, de, ate, data) {
   `;
 }
 
-function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2) {
+function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2, filtro3) {
   const def = REPORT_DEFS[reportKey];
-  const data = def.build(de, ate, filtro, codigo, agrupar, filtro2);
+  const data = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
   document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
   window.print();
 }
 
-function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar, filtro2) {
+function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar, filtro2, filtro3) {
   const def = REPORT_DEFS[reportKey];
-  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar, filtro2);
+  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
 
   // A versão livre do SheetJS não escreve estilo de célula (sem isso, "Wrap Text"
   // não dá pra ligar via código -- confirmado testando: o estilo simplesmente não
@@ -8430,6 +8463,35 @@ function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar, filtro
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, def.title.replace("Relatório de ", "").slice(0, 31));
   XLSX.writeFile(wb, `${def.title.replace(/\s+/g, "_")}_${todayISO()}.xlsx`);
+}
+
+// ";" como separador (não ",") pra abrir certo no Excel em pt-BR, que já usa "," como
+// separador decimal -- confunde os dois se o separador de campo também for vírgula.
+function csvEscape(val) {
+  const s = String(val ?? "");
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function gerarRelatorioCSV(reportKey, de, ate, filtro, codigo, agrupar, filtro2, filtro3) {
+  const def = REPORT_DEFS[reportKey];
+  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
+  const linhas = [columns.map(c => csvEscape(c.label)).join(";")];
+  rows.forEach(r => {
+    linhas.push(columns.map(c => {
+      let val = r[c.key];
+      if (c.list) val = Array.isArray(val) ? val.join(" | ") : "";
+      else if ((c.money || c.numeric) && val != null) val = String(val).replace(".", ",");
+      return csvEscape(val);
+    }).join(";"));
+  });
+  // BOM (﻿) pro Excel reconhecer UTF-8 e não estragar os acentos.
+  const blob = new Blob(["﻿" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${def.title.replace(/\s+/g, "_")}_${todayISO()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function populateReportFatVendedor() {
@@ -8462,17 +8524,34 @@ function initRelatorios() {
     const ateInput = card.querySelector(".report-ate");
     const filtroInput = card.querySelector(".report-filtro");
     const filtro2Input = card.querySelector(".report-filtro2");
+    const filtro3Input = card.querySelector(".report-filtro3");
     const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
-    card.querySelector(".report-btn-pdf").addEventListener("click", () => {
+    // "Relatório de Preço" precisa de uma região escolhida pra saber qual preço
+    // mostrar -- sem isso o relatório sairia vazio, então barra antes de gerar.
+    const validoPraGerar = () => {
+      if (reportKey === "precos" && !filtro3Input.value) { toast("Escolha uma região."); return false; }
+      return true;
+    };
+    const btnPdf = card.querySelector(".report-btn-pdf");
+    const btnExcel = card.querySelector(".report-btn-excel");
+    const btnCsv = card.querySelector(".report-btn-csv");
+    if (btnPdf) btnPdf.addEventListener("click", () => {
       if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); } // pega vendedor/estado novo, se houve venda desde o init
+      if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
     });
-    card.querySelector(".report-btn-excel").addEventListener("click", () => {
+    if (btnExcel) btnExcel.addEventListener("click", () => {
       if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); }
+      if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+    });
+    if (btnCsv) btnCsv.addEventListener("click", () => {
+      if (!validoPraGerar()) return;
+      const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
+      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
     });
   });
   initRelatorioCodigoFiltros();
