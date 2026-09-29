@@ -8908,11 +8908,20 @@ function buildReportPrintHtml(def, de, ate, data) {
   `;
 }
 
+function limparImpressaoRelatorio() {
+  document.body.classList.remove("imprimindo-doc");
+  document.getElementById("reportPrintArea").innerHTML = "";
+}
+
 function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2, filtro3) {
   const def = REPORT_DEFS[reportKey];
   const data = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
-  document.body.classList.remove("imprimindo-doc"); // caso a impressão do catálogo/romaneio tenha sido interrompida
+  // mesma classe do Catálogo/Romaneio -- sem ela o app (escondido só com visibility:hidden)
+  // continua ocupando espaço na paginação: sai página em branco extra E o navegador não
+  // reconhece o @page relatorio (o cabeçalho com data/título da aba volta a aparecer).
+  document.body.classList.add("imprimindo-doc");
   document.getElementById("reportPrintArea").innerHTML = buildReportPrintHtml(def, de, ate, data);
+  window.addEventListener("afterprint", limparImpressaoRelatorio, { once: true });
   window.print();
 }
 
