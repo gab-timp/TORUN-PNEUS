@@ -1293,6 +1293,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .modal-overlay.show{display:flex;}
 .modal{
   background:var(--surface); border-radius:16px; padding:22px; max-width:480px; width:100%;
+  max-height:90vh; overflow-y:auto; /* sem isso, um modal com muito conteúdo (ex: detalhe de
+    pedido com pré-visualização de anexo) passa da altura da tela e a parte que não cabe
+    fica cortada, sem nenhum jeito de rolar até ela */
   border-top:4px solid var(--orange);
   box-shadow:var(--shadow-modal);
   color:var(--ink);
