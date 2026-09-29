@@ -8848,12 +8848,10 @@ const REPORT_DEFS = {
       const rows = produtos
         .map(p => ({ codigo: p.codigo, medida: p.medida, saldo: p.saldo, preco: getPrecoProduto(p.codigo, regiao, tipo, cond) }))
         .filter(r => r.preco !== null);
-      const semPreco = produtos.length - rows.length;
       const summaryLines = [
         { label: "Tipo de cliente", value: TIPO_CLIENTE_LABEL[tipo] || tipo },
         { label: "Condição de pagamento", value: cond },
         { label: "Região", value: regiao },
-        ...(semPreco ? [{ label: "Produtos sem preço cadastrado nessa combinação (não incluídos)", value: fmt(semPreco) }] : []),
         { label: "Produtos incluídos", value: fmt(rows.length), total: true }
       ];
       return { columns, rows, summaryLines };
