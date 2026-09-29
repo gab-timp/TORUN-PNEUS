@@ -6608,11 +6608,12 @@ function statusCreditoCliente(limite, validade) {
 const STATUS_CREDITO_LABEL = { ok: "Ok", "vence-em-breve": "Vence em breve", vencida: "Vencida", "sem-limite": "Sem limite definido" };
 const STATUS_CREDITO_PILL = { ok: "pill-normal", "vence-em-breve": "pill-atencao", vencida: "pill-esgotado", "sem-limite": "pill-neutro" };
 
-// caminho único de escrita pro limite/validade de crédito -- usado pelo formulário
-// "Registrar análise de crédito" E pela edição inline na tabela, então os dois sempre
-// deixam rastro em credito_analises (histórico da Fase 5) e mantêm clientes.limite_credito/
-// validade_analise_credito como "snapshot atual" (getClienteStats/openClienteModal/RPC do
-// representante continuam lendo dali, sem mudança).
+// caminho único de escrita pro limite/validade de crédito -- só pelo formulário
+// "Registrar análise de crédito" (a tabela abaixo é só leitura, de propósito: toda
+// mudança de limite passa pelo formulário, com observação, não editada solta na
+// tabela). Deixa rastro em credito_analises (histórico da Fase 5) e mantém
+// clientes.limite_credito/validade_analise_credito como "snapshot atual"
+// (getClienteStats/openClienteModal/RPC do representante continuam lendo dali).
 async function registrarAnaliseCredito(cliente, limite, validade, observacao) {
   const { error: errAnalise } = await sb.from("credito_analises").insert({
     cliente, limite: limite != null ? limite : null, validade: validade || null,
@@ -6683,13 +6684,10 @@ function renderLimiteCredito() {
     <tr>
       <td>${escapeHtml(r.nome)}</td>
       <td>${escapeHtml([r.cidade, r.estado].filter(Boolean).join("/") || "—")}</td>
-      <td class="num">
-        <input type="number" min="0" step="0.01" value="${r.limite != null ? r.limite : ""}" placeholder="—"
-          data-editlimite="${escapeAttr(r.nome)}" style="width:110px; text-align:right;" ${currentUserRole === "viewer" ? "disabled" : ""}>
-      </td>
+      <td class="num mono">${r.limite != null ? formatMoney(r.limite) : "—"}</td>
       <td class="num mono">${formatMoney(r.saldoEmAberto)}</td>
       <td class="num mono"${r.disponivel != null && r.disponivel < 0 ? ` style="color:var(--danger); font-weight:700;"` : ""}>${r.disponivel != null ? formatMoney(r.disponivel) : "—"}</td>
-      <td><input type="date" value="${r.validade || ""}" data-editvalidade="${escapeAttr(r.nome)}" ${currentUserRole === "viewer" ? "disabled" : ""}></td>
+      <td>${r.validade ? formatDateBR(r.validade) : "—"}</td>
       <td><span class="status-pill ${STATUS_CREDITO_PILL[r.status]}">${STATUS_CREDITO_LABEL[r.status]}</span></td>
     </tr>
   `).join("");
@@ -6700,26 +6698,6 @@ function renderLimiteCredito() {
     { lbl: "Análise vencida", val: fmt(state.clientes.filter(c => statusCreditoCliente(c.limiteCredito, c.validadeAnaliseCredito) === "vencida").length) + " clientes" },
     { lbl: "Sem limite definido", val: fmt(state.clientes.filter(c => c.limiteCredito == null).length) + " clientes" }
   ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
-
-  document.querySelectorAll("[data-editlimite]").forEach(inp => {
-    inp.addEventListener("change", async () => {
-      const nome = inp.dataset.editlimite;
-      const c = getCliente(nome);
-      if (!c) return;
-      const novoLimite = inp.value !== "" ? parseFloat(inp.value) : null;
-      const ok = await registrarAnaliseCredito(nome, novoLimite, c.validadeAnaliseCredito || null, null);
-      if (ok) { toast("Limite atualizado."); renderLimiteCredito(); }
-    });
-  });
-  document.querySelectorAll("[data-editvalidade]").forEach(inp => {
-    inp.addEventListener("change", async () => {
-      const nome = inp.dataset.editvalidade;
-      const c = getCliente(nome);
-      if (!c) return;
-      const ok = await registrarAnaliseCredito(nome, c.limiteCredito, inp.value || null, null);
-      if (ok) { toast("Validade atualizada."); renderLimiteCredito(); }
-    });
-  });
 }
 
 /* ---------------- histórico de crédito (Financeiro) ---------------- */
