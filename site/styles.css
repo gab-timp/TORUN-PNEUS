@@ -1688,7 +1688,7 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
   }
 }
 
-.print-report{font-family:'Inter',sans-serif; color:#0b0b0b; padding:10px;}
+.print-report{font-family:'Inter',sans-serif; color:#0b0b0b; padding:10px; page:relatorio;}
 .print-report-header{
   display:flex;
   align-items:center;
@@ -1713,6 +1713,18 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .print-report-summary-row.total{font-weight:800; font-size:14px; border-bottom:2px solid #0b0b0b; margin-top:4px;}
 
 .print-dash-img{max-width:100%; display:block; margin:0 auto;}
+
+/* mesmo motivo do @page catalogo acima: sem as caixas do topo vazias, Chrome imprime
+   a data e "TORUN PNEUS · Painel de Controle" (título da aba) no cabeçalho de todo
+   relatório gerado por gerarRelatorioPDF (Preço, Faturamento, etc.) */
+@page relatorio{
+  size:A4;
+  margin:14mm 12mm 16mm;
+  @top-left{content:"";}
+  @top-center{content:"";}
+  @top-right{content:"";}
+  @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
+}
 
 /* ---- Catálogo em PDF (sem preço) -- buildCatalogoPdfHtml em app.js ----
    Papel é sempre branco (cores fixas, fora do tema) e o navegador por padrão não imprime cor de
