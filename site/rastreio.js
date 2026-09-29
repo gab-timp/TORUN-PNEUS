@@ -35,6 +35,7 @@ function renderTimeline(eventos) {
       <div class="rst-ev-corpo">
         <div class="rst-ev-texto${atual ? " atual" : ""}">${escapeHtml(ev.texto)}</div>
         <div class="rst-ev-data">${formatDateTimeBR(ev.ocorrido_em)}</div>
+        ${ev.anexo_url ? `<a class="rst-ev-anexo" href="${escapeHtml(ev.anexo_url)}" target="_blank" rel="noopener">📎 ${escapeHtml(ev.anexo_nome || "Ver anexo")}</a>` : ""}
       </div>
     </div>`;
   }).join("");

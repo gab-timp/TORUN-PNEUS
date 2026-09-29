@@ -400,7 +400,7 @@ function romaneioFromRow(r) {
   };
 }
 function rastreioEventoFromRow(r) {
-  return { id: r.id, entregaId: r.entrega_id, texto: r.texto || "", ocorridoEm: r.ocorrido_em, createdAt: r.created_at };
+  return { id: r.id, entregaId: r.entrega_id, texto: r.texto || "", ocorridoEm: r.ocorrido_em, createdAt: r.created_at, anexoPath: r.anexo_path || null, anexoNome: r.anexo_nome || null };
 }
 function precoFromRow(r) {
   return { id: r.id, codigo: r.codigo, regiao: r.regiao, tipoCliente: r.tipo_cliente, condicaoPagamento: r.condicao_pagamento, preco: Number(r.preco) };
@@ -4021,6 +4021,12 @@ async function abrirAnexoPedido(path) {
 
 /* ---------------- rastreio público (linha do tempo do pedido, Entregas) ---------------- */
 
+const RASTREIO_ANEXOS_BUCKET = "rastreio-anexos";
+
+function rastreioAnexoUrl(path) {
+  return sb.storage.from(RASTREIO_ANEXOS_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
 function renderRastreioPedido() {
   const hint = document.getElementById("pedRastreioHint");
   const form = document.getElementById("pedRastreioForm");
@@ -4033,6 +4039,8 @@ function renderRastreioPedido() {
     form.style.display = "none";
     linkBox.style.display = "none";
     list.innerHTML = "";
+    document.getElementById("pedRastreioAnexoInput").value = "";
+    document.getElementById("pedRastreioAnexoNome").style.display = "none";
     return;
   }
   hint.style.display = "none";
@@ -4055,7 +4063,10 @@ function renderRastreioPedido() {
   }
   list.innerHTML = eventos.map(ev => `
     <div class="anexo-row">
-      <span style="flex:1; min-width:0;">${escapeHtml(ev.texto)}</span>
+      <span style="flex:1; min-width:0;">
+        ${escapeHtml(ev.texto)}
+        ${ev.anexoPath ? `<a href="${escapeAttr(rastreioAnexoUrl(ev.anexoPath))}" target="_blank" rel="noopener" class="nf-anexo-link" style="margin-left:6px;">${escapeHtml(ev.anexoNome || "anexo")}</a>` : ""}
+      </span>
       <span class="anexo-tamanho mono">${ev.ocorridoEm ? new Date(ev.ocorridoEm).toLocaleString("pt-BR") : "—"}</span>
       <button type="button" class="btn small danger write-ui" data-removerrastreio="${escapeAttr(ev.id)}">✕</button>
     </div>
@@ -4069,22 +4080,37 @@ async function adicionarRastreioEvento() {
   if (!editingPedidoId) { toast("Salve o pedido antes de lançar um evento de rastreio."); return; }
   const input = document.getElementById("pedRastreioTexto");
   const dataInput = document.getElementById("pedRastreioData");
+  const anexoInput = document.getElementById("pedRastreioAnexoInput");
+  const anexoNomeEl = document.getElementById("pedRastreioAnexoNome");
   const texto = input.value.trim();
   if (!texto) { toast("Descreva o evento antes de adicionar."); return; }
   const ocorridoEm = dataInput.value ? new Date(dataInput.value).toISOString() : new Date().toISOString();
 
+  let anexoPath = null, anexoNome = null;
+  const file = anexoInput.files[0];
+  if (file) {
+    if (file.size > 10 * 1024 * 1024) { toast("Arquivo muito grande (máx. 10 MB)."); return; }
+    anexoPath = `${editingPedidoId}/${Date.now()}-${sanitizarNomeArquivo(file.name)}`;
+    const { error: uploadError } = await sb.storage.from(RASTREIO_ANEXOS_BUCKET).upload(anexoPath, file);
+    if (uploadError) { toast("Erro ao enviar anexo: " + uploadError.message); return; }
+    anexoNome = file.name;
+  }
+
   const { data, error } = await sb.from("rastreio_eventos").insert({
     entrega_id: editingPedidoId, texto, ocorrido_em: ocorridoEm,
-    created_by: currentUser ? currentUser.id : null
+    created_by: currentUser ? currentUser.id : null,
+    anexo_path: anexoPath, anexo_nome: anexoNome
   }).select().single();
   if (error) { toast("Erro ao adicionar evento: " + error.message); return; }
 
   state.rastreio_eventos.push(rastreioEventoFromRow(data));
   const alvo = state.entregas.find(x => x.id === editingPedidoId);
   await registrarLog("rastreio_eventos", data.id, "edicao", "Ação automática",
-    `Evento de rastreio adicionado — NF ${alvo ? (alvo.numeroNF || "—") : "—"}: ${texto}`);
+    `Evento de rastreio adicionado — NF ${alvo ? (alvo.numeroNF || "—") : "—"}: ${texto}${anexoNome ? ` (anexo: ${anexoNome})` : ""}`);
   input.value = "";
   dataInput.value = "";
+  anexoInput.value = "";
+  anexoNomeEl.style.display = "none";
   toast("Evento adicionado.");
   renderRastreioPedido();
 }
@@ -4097,6 +4123,10 @@ async function removerRastreioEvento(eventoId) {
   if (!motivo) return;
   const { error } = await sb.from("rastreio_eventos").delete().eq("id", eventoId);
   if (error) { toast("Erro ao remover: " + error.message); return; }
+  if (ev.anexoPath) {
+    const { error: removeError } = await sb.storage.from(RASTREIO_ANEXOS_BUCKET).remove([ev.anexoPath]);
+    if (removeError) console.error("Erro ao remover anexo do evento de rastreio:", removeError);
+  }
   state.rastreio_eventos = state.rastreio_eventos.filter(x => x.id !== eventoId);
   const alvo = state.entregas.find(x => x.id === ev.entregaId);
   await registrarLog("rastreio_eventos", eventoId, "exclusao", motivo,
@@ -4160,6 +4190,15 @@ function initEntregas() {
   });
 
   document.getElementById("btnAdicionarRastreio").addEventListener("click", adicionarRastreioEvento);
+  document.getElementById("btnAnexarRastreio").addEventListener("click", () => {
+    document.getElementById("pedRastreioAnexoInput").click();
+  });
+  document.getElementById("pedRastreioAnexoInput").addEventListener("change", () => {
+    const file = document.getElementById("pedRastreioAnexoInput").files[0];
+    const nomeEl = document.getElementById("pedRastreioAnexoNome");
+    if (file) { nomeEl.textContent = `Anexo selecionado: ${file.name}`; nomeEl.style.display = "block"; }
+    else { nomeEl.style.display = "none"; }
+  });
   document.getElementById("btnCopiarLinkRastreio").addEventListener("click", copiarLinkRastreio);
 
   document.getElementById("pedCteToggle").addEventListener("click", async () => {

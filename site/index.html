@@ -2899,8 +2899,11 @@
         <div id="pedRastreioForm" class="rastreio-form" style="display:none;">
           <input type="text" id="pedRastreioTexto" class="write-ui" placeholder="Ex: Saiu para entrega em Itajaí/SC">
           <input type="datetime-local" id="pedRastreioData" class="write-ui">
+          <input type="file" id="pedRastreioAnexoInput" class="write-ui" style="display:none;" accept=".pdf,.jpg,.jpeg,.png">
+          <button type="button" class="btn small outline write-ui" id="btnAnexarRastreio" title="Anexar arquivo (opcional) — aparece pro cliente no rastreio">📎</button>
           <button type="button" class="btn small outline write-ui" id="btnAdicionarRastreio">+ Adicionar</button>
         </div>
+        <div id="pedRastreioAnexoNome" class="muted" style="font-size:11.5px; margin-top:4px; display:none;"></div>
         <div id="pedRastreioList" class="anexos-list" style="margin-top:8px;"></div>
       </div>
 
