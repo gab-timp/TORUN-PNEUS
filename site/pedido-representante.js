@@ -2074,7 +2074,8 @@ function renderRepEntregas() {
   const search = (document.getElementById("repEntregasSearch").value || "").trim().toLowerCase();
   const filtroEtapa = document.getElementById("repEntregasFiltroEtapa").value;
   let rows = entregas.slice();
-  if (filtroEtapa) rows = rows.filter(e => e.etapa === filtroEtapa);
+  if (filtroEtapa === "EM_ANDAMENTO") rows = rows.filter(e => e.etapa !== "FINALIZADOS");
+  else if (filtroEtapa) rows = rows.filter(e => e.etapa === filtroEtapa);
   if (search) {
     rows = rows.filter(e => [e.numero_nf, e.numero_pedido, e.cliente, e.transportadora].join(" ").toLowerCase().includes(search));
   }
