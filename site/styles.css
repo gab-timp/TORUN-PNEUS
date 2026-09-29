@@ -468,10 +468,6 @@ body.is-admin .nav-item.admin-only{display:flex;}
   align-items:center;
   gap:14px;
   margin-bottom:20px;
-  position:sticky;
-  top:0;
-  z-index:10;
-  background:var(--paper);
   padding:6px 0;
   margin-left:20px; /* única faixa na mesma altura do botão de recolher a sidebar
     (.sidebar-collapse-btn) -- esse respiro evita que ele cubra a busca; o resto
