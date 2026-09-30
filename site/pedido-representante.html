@@ -99,6 +99,9 @@
       <button type="button" class="nav-item" data-reptab="catalogo">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg> Catálogo
       </button>
+      <button type="button" class="nav-item" data-reptab="relatoriopreco">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatório de Preço
+      </button>
       <button type="button" class="nav-item" data-reptab="entregas">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Status do Pedido
       </button>
@@ -287,6 +290,28 @@
 
     <div class="catalogo-grid" id="repCatalogoGrid"></div>
     <div class="note" id="repCatalogoEmpty" style="display:none;">Nenhum produto em estoque encontrado.</div>
+  </div>
+
+  <div class="rep-page rep-tab-content" id="repTabRelatorioPreco" style="display:none;">
+    <div class="rep-section-card">
+      <h2>Relatório de Preço</h2>
+      <div class="note">Gera um PDF com o preço dos pneus que você tem em estoque, pra mandar pro cliente. Só entram pneus com preço cadastrado pra essa combinação.</div>
+      <div class="form-row">
+        <div class="field">
+          <label>Tipo de cliente</label>
+          <select id="repRelPrecoTipoCliente"></select>
+        </div>
+        <div class="field">
+          <label>Condição de pagamento</label>
+          <select id="repRelPrecoCondicao"></select>
+        </div>
+        <div class="field">
+          <label>Região</label>
+          <select id="repRelPrecoRegiao"></select>
+        </div>
+      </div>
+      <button type="button" class="btn primary" id="btnRepRelatorioPreco">Gerar PDF</button>
+    </div>
   </div>
 
   <div class="rep-page rep-page-wide rep-tab-content" id="repTabEntregas" style="display:none;">
@@ -522,7 +547,10 @@
     <div class="modal">
       <div class="cliente-modal-head">
         <h3 id="repEntregaDetalheTitulo"></h3>
-        <button type="button" class="btn small outline" id="repEntregaDetalheClose">✕ Fechar</button>
+        <span style="display:flex; gap:8px;">
+          <button type="button" class="btn small outline" id="btnCopiarLinkRastreioRep" title="Copiar link de rastreio pra mandar pro cliente">🔗 Rastreio</button>
+          <button type="button" class="btn small outline" id="repEntregaDetalheClose">✕ Fechar</button>
+        </span>
       </div>
       <div id="repEntregaDetalheInfo" class="rep-doc-cliente-info" style="margin-bottom:14px;"></div>
 

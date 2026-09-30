@@ -442,6 +442,7 @@ async function afterLogin() {
   initRepTabs();
   initMobileMenuRep();
   initRepCatalogo();
+  initRepRelatorioPreco();
   initRepEntregas();
   initRepClientes();
   initPreCadastroForm();
@@ -1544,6 +1545,86 @@ function initRepCatalogo() {
   document.getElementById("catalogoFotoLightboxNext").addEventListener("click", (e) => { e.stopPropagation(); catalogoFotoLightboxNext(); });
 }
 
+/* ---------------- relatório de preço (PDF pro representante gerar) ---------------- */
+
+function initRepRelatorioPreco() {
+  document.getElementById("repRelPrecoTipoCliente").innerHTML = `<option value="">Selecione…</option>` +
+    TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  document.getElementById("repRelPrecoCondicao").innerHTML = `<option value="">Selecione…</option>` +
+    CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  document.getElementById("repRelPrecoRegiao").innerHTML = `<option value="">Selecione…</option>` +
+    CATALOGO_REGIOES.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+  document.getElementById("btnRepRelatorioPreco").addEventListener("click", gerarRelatorioPrecoRep);
+}
+
+// mesmo miolo visual do relatório de preço do admin (.print-report, styles.css) -- sem
+// logo de propósito, pra poder repassar pro cliente sem a marca Torun aparecer.
+function buildRelatorioPrecoRepHtml(tipo, cond, regiao, rows) {
+  const tbodyHtml = rows.length
+    ? rows.map(r => `
+        <tr>
+          <td>${escapeHtml(r.codigo)}</td>
+          <td>${escapeHtml(r.medida)}</td>
+          <td class="num">${fmt(r.saldo)}</td>
+          <td class="num">${formatMoney(r.preco)}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="4" style="text-align:center;color:#888;">Nenhum produto encontrado.</td></tr>`;
+
+  const summaryHtml = [
+    { label: "Tipo de cliente", value: TIPO_CLIENTE_LABEL[tipo] || tipo },
+    { label: "Condição de pagamento", value: cond },
+    { label: "Região", value: regiao },
+    { label: "Produtos incluídos", value: String(rows.length), total: true }
+  ].map(s => `
+    <div class="print-report-summary-row ${s.total ? "total" : ""}">
+      <span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.value)}</span>
+    </div>
+  `).join("");
+
+  return `
+    <div class="print-report">
+      <div class="print-report-header">
+        <div class="print-report-meta">
+          <h1>Relatório de Preço</h1>
+          <div class="print-report-sub">Situação em ${formatDateBR(todayISO())}</div>
+          <div class="print-report-sub">Gerado em ${formatDateBR(todayISO())} às ${new Date().toLocaleTimeString("pt-BR")}</div>
+        </div>
+      </div>
+      <table class="print-report-table">
+        <thead><tr><th>Código</th><th>Medida</th><th style="text-align:right;">Quantidade</th><th style="text-align:right;">Preço</th></tr></thead>
+        <tbody>${tbodyHtml}</tbody>
+      </table>
+      <div class="print-report-summary">${summaryHtml}</div>
+    </div>
+  `;
+}
+
+function limparImpressaoRelatorioPrecoRep() {
+  document.body.classList.remove("imprimindo-doc");
+  document.getElementById("reportPrintArea").innerHTML = "";
+}
+
+function gerarRelatorioPrecoRep() {
+  const tipo = document.getElementById("repRelPrecoTipoCliente").value || "CONSUMO";
+  const cond = document.getElementById("repRelPrecoCondicao").value || "A VISTA";
+  const regiao = document.getElementById("repRelPrecoRegiao").value;
+  if (!regiao) { toast("Escolha uma região pra gerar o relatório."); return; }
+
+  // mesma base do Catálogo (situação/estoque/restrição agrícola já aplicadas) -- só
+  // fica quem tem preço cadastrado pra essa combinação exata.
+  const rows = catalogoProdutosVisiveisRep("", "")
+    .map(p => ({ codigo: p.codigo, medida: p.medida, saldo: computeSaldoProduto(p.codigo), preco: getPrecoProdutoRep(p.codigo, regiao, tipo, cond) }))
+    .filter(r => r.preco !== null)
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+  document.body.style.zoom = "1";
+  document.body.classList.add("imprimindo-doc");
+  document.getElementById("reportPrintArea").innerHTML = buildRelatorioPrecoRepHtml(tipo, cond, regiao, rows);
+  window.addEventListener("afterprint", limparImpressaoRelatorioPrecoRep, { once: true });
+  window.print();
+}
+
 function recalcularTotais() {
   let total = 0;
   document.querySelectorAll("#repItens tr").forEach(tr => {
@@ -1769,7 +1850,7 @@ async function salvarPedidoRep() {
 const REP_TAB_IDS = {
   pedido: "repTabPedido", catalogo: "repTabCatalogo", entregas: "repTabEntregas", clientes: "repTabClientes",
   precadastro: "repTabPreCadastro", faturamento: "repTabFaturamento", dashboard: "repTabDashboard",
-  estoqueprevisto: "repTabEstoquePrevisto"
+  estoqueprevisto: "repTabEstoquePrevisto", relatoriopreco: "repTabRelatorioPreco"
 };
 
 function initRepTabs() {
@@ -2050,6 +2131,9 @@ function initRepEntregas() {
   document.getElementById("repEntregaDetalheClose").addEventListener("click", () => {
     document.getElementById("repEntregaDetalheOverlay").classList.remove("show");
   });
+  document.getElementById("btnCopiarLinkRastreioRep").addEventListener("click", () => {
+    if (entregaDetalheAtualId) copiarLinkRastreioRep(entregaDetalheAtualId);
+  });
   document.getElementById("repEntregaDetalheOverlay").addEventListener("click", (e) => {
     if (e.target.id === "repEntregaDetalheOverlay") document.getElementById("repEntregaDetalheOverlay").classList.remove("show");
   });
@@ -2120,6 +2204,16 @@ function renderRepEntregas() {
 }
 
 let entregaDetalheAtualId = null;
+
+function copiarLinkRastreioRep(id) {
+  const e = entregas.find(x => x.id === id);
+  if (!e || !e.numero_nf) { toast("Esse pedido ainda não tem NF pra gerar o link de rastreio."); return; }
+  const link = `${location.origin}/rastreio.html?nf=${encodeURIComponent(e.numero_nf)}`;
+  navigator.clipboard.writeText(link).then(
+    () => toast("Link de rastreio copiado."),
+    () => toast("Não foi possível copiar. Link: " + link)
+  );
+}
 
 function abrirDetalheEntregaRep(id) {
   const e = entregas.find(x => x.id === id);
