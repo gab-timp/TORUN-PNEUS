@@ -2131,8 +2131,8 @@ function initRepEntregas() {
   document.getElementById("repEntregaDetalheClose").addEventListener("click", () => {
     document.getElementById("repEntregaDetalheOverlay").classList.remove("show");
   });
-  document.getElementById("btnCopiarLinkRastreioRep").addEventListener("click", () => {
-    if (entregaDetalheAtualId) copiarLinkRastreioRep(entregaDetalheAtualId);
+  document.getElementById("btnAbrirLinkRastreioRep").addEventListener("click", () => {
+    if (entregaDetalheAtualId) abrirLinkRastreioRep(entregaDetalheAtualId);
   });
   document.getElementById("repEntregaDetalheOverlay").addEventListener("click", (e) => {
     if (e.target.id === "repEntregaDetalheOverlay") document.getElementById("repEntregaDetalheOverlay").classList.remove("show");
@@ -2205,14 +2205,11 @@ function renderRepEntregas() {
 
 let entregaDetalheAtualId = null;
 
-function copiarLinkRastreioRep(id) {
+function abrirLinkRastreioRep(id) {
   const e = entregas.find(x => x.id === id);
   if (!e || !e.numero_nf) { toast("Esse pedido ainda não tem NF pra gerar o link de rastreio."); return; }
   const link = `${location.origin}/rastreio.html?nf=${encodeURIComponent(e.numero_nf)}`;
-  navigator.clipboard.writeText(link).then(
-    () => toast("Link de rastreio copiado."),
-    () => toast("Não foi possível copiar. Link: " + link)
-  );
+  window.open(link, "_blank");
 }
 
 function abrirDetalheEntregaRep(id) {
