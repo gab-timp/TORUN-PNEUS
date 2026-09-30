@@ -139,16 +139,28 @@ function createParcelaRow(numero, total, valorSugerido, vencimentoSugerido) {
   return row;
 }
 
+// Quanto as parcelas precisam somar. Venda sem divisão: o valor inteiro, de sempre.
+// Venda dividida (PIX + Boleto, por exemplo): só a parte de fora do PIX -- o PIX é
+// recebido à vista na hora, não faz sentido ele entrar no parcelamento do Boleto.
+function valorBaseParcelas() {
+  const valorTotal = parseFloat(document.getElementById("venValor").value) || 0;
+  if (!document.getElementById("venDividirPagamento").checked) return valorTotal;
+  const linhasParcelaveis = Array.from(document.querySelectorAll("#venDivisaoLista .divisao-row"))
+    .filter(row => row.querySelector(".divisao-forma").value !== "PIX");
+  if (!linhasParcelaveis.length) return valorTotal;
+  return linhasParcelaveis.reduce((a, row) => a + (parseFloat(row.querySelector(".divisao-valor").value) || 0), 0);
+}
+
 function atualizarSomaParcelas() {
   const container = document.getElementById("venParcelasDetalheContainer");
   const resumo = document.getElementById("venParcelasSomaResumo");
   if (!container.children.length) { resumo.textContent = ""; return; }
   const soma = Array.from(container.querySelectorAll(".parcela-valor")).reduce((a, inp) => a + (parseFloat(inp.value) || 0), 0);
-  const valorVenda = parseFloat(document.getElementById("venValor").value) || 0;
-  const bate = Math.abs(soma - valorVenda) < 0.01;
+  const valorBase = valorBaseParcelas();
+  const bate = Math.abs(soma - valorBase) < 0.01;
   resumo.innerHTML = `Soma das parcelas: <strong>${formatMoney(soma)}</strong>${bate
-    ? " — bate com o valor da venda"
-    : ` — <span style="color:#B91C1C;">precisa bater com ${formatMoney(valorVenda)} pra salvar</span>`}`;
+    ? " — bate com o valor a parcelar"
+    : ` — <span style="color:#B91C1C;">precisa bater com ${formatMoney(valorBase)} pra salvar</span>`}`;
 }
 
 // regenera os N blocos do zero -- chamado ao trocar a Qtd. de parcelas (sempre do
@@ -168,7 +180,7 @@ function regenerarParcelasDetalhe(prefill) {
   unico.style.display = "none";
   wrap.style.display = "";
 
-  const valorVenda = parseFloat(document.getElementById("venValor").value) || 0;
+  const valorVenda = valorBaseParcelas();
   const dataVenda = document.getElementById("venData").value || todayISO();
   for (let i = 1; i <= n; i++) {
     const pre = prefill && prefill[i - 1];
@@ -4576,7 +4588,8 @@ function getVendasFiltradas() {
     rows = rows.filter(v => [v.cliente, v.numeroNFVenda, v.numeroPedido, v.vendedor].join(" ").toLowerCase().includes(search));
   }
   if (vendedor) rows = rows.filter(v => v.vendedor === vendedor);
-  if (formaPagamento) rows = rows.filter(v => v.formaPagamento === formaPagamento);
+  if (formaPagamento === "DIVIDIDO") rows = rows.filter(v => v.pagamentosDivididos && v.pagamentosDivididos.length > 0);
+  else if (formaPagamento) rows = rows.filter(v => v.formaPagamento === formaPagamento);
   if (de) rows = rows.filter(v => v.data >= de);
   if (ate) rows = rows.filter(v => v.data <= ate);
   return rows;
@@ -7335,9 +7348,16 @@ function createDivisaoRow(forma, valor) {
   row.querySelector(".item-remove").addEventListener("click", () => {
     row.remove();
     atualizarResumoDivisaoPagamento();
+    atualizarSomaParcelas();
   });
-  row.querySelector(".divisao-valor").addEventListener("input", atualizarResumoDivisaoPagamento);
-  row.querySelector(".divisao-forma").addEventListener("change", atualizarResumoDivisaoPagamento);
+  row.querySelector(".divisao-valor").addEventListener("input", () => {
+    atualizarResumoDivisaoPagamento();
+    atualizarSomaParcelas();
+  });
+  row.querySelector(".divisao-forma").addEventListener("change", () => {
+    atualizarResumoDivisaoPagamento();
+    atualizarSomaParcelas();
+  });
   return row;
 }
 
@@ -7464,6 +7484,7 @@ function startEditVenda(vendaId) {
     const lista = document.getElementById("venDivisaoLista");
     v.pagamentosDivididos.forEach(p => lista.appendChild(createDivisaoRow(p.forma_pagamento, p.valor)));
     atualizarResumoDivisaoPagamento();
+    atualizarSomaParcelas();
   }
 
   document.getElementById("venFormTitle").textContent = "Editar venda";
@@ -8183,6 +8204,7 @@ function initForms() {
       lista.appendChild(createDivisaoRow());
     }
     atualizarResumoDivisaoPagamento();
+    atualizarSomaParcelas();
   });
   document.getElementById("btnAddDivisaoPagamento").addEventListener("click", () => {
     document.getElementById("venDivisaoLista").appendChild(createDivisaoRow());
@@ -8219,9 +8241,10 @@ function initForms() {
 
     if (qtdParcelasSelecionada >= 2) {
       parcelasDetalhe = coletarParcelasDetalhe();
+      const valorAParcelar = valorBaseParcelas();
       const somaParcelas = parcelasDetalhe.reduce((a, p) => a + p.valor, 0);
-      if (Math.abs(somaParcelas - valorVenda) > 0.01) {
-        toast(`A soma das parcelas (${formatMoney(somaParcelas)}) não bate com o valor da venda (${formatMoney(valorVenda)}).`);
+      if (Math.abs(somaParcelas - valorAParcelar) > 0.01) {
+        toast(`A soma das parcelas (${formatMoney(somaParcelas)}) não bate com o valor a parcelar (${formatMoney(valorAParcelar)}).`);
         return;
       }
       const todasPagas = parcelasDetalhe.every(p => p.status === "pago");
