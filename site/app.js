@@ -67,7 +67,7 @@ let vendasMostrarTodas = false;
 
 const CONFLITO_MSG = "Este registro foi alterado por outra pessoa enquanto você editava. A tela foi atualizada com a versão mais recente — confira e tente salvar de novo.";
 
-const PREVISTO_STATUS = ["AG DATA DE CHEGADA", "AG RETIRADA NO PORTO", "DTC"];
+const PREVISTO_STATUS = ["PROCESSO EM AGUA", "AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "DTC", "AGUARDANDO RETIRADA DO PORTO"];
 
 /* ---------------- persistence ---------------- */
 
@@ -1121,8 +1121,17 @@ function renderEstoque() {
 
 /* ---------------- render: ESTOQUE PREVISTO ---------------- */
 
+// popula os 2 <select> de status do Estoque Previsto (form de criar + filtro da lista)
+// a partir da MESMA lista (PREVISTO_STATUS) -- antes cada um tinha as opções escritas
+// direto no HTML, então mudar os status exigia editar em 3 lugares desalinhados.
+function populatePrevistoStatusSelects() {
+  const optionsHtml = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
+  document.getElementById("prevStatus").innerHTML = optionsHtml;
+  document.getElementById("prevFiltroStatus").innerHTML = `<option value="todos">Todos os status</option>${optionsHtml}`;
+}
+
 function statusBadgeClass(status) {
-  if (status === "AG RETIRADA NO PORTO") return "st-porto";
+  if (status === "AGUARDANDO RETIRADA DO PORTO") return "st-porto";
   if (status === "DTC") return "st-dtc";
   return "st-aguardando";
 }
@@ -1283,7 +1292,7 @@ function cancelEditPrevisto() {
   editingPrevistoId = null;
   editingPrevistoUpdatedAt = null;
   document.getElementById("formPrevisto").reset();
-  document.getElementById("prevStatus").value = "AG DATA DE CHEGADA";
+  document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
   resetItens("prevItens");
   document.getElementById("prevFormTitle").textContent = "Novo processo previsto";
   document.getElementById("prevEditBanner").style.display = "none";
@@ -7668,6 +7677,7 @@ function initForms() {
   document.getElementById("movFiltroDe").value = diasAtrasISO(45);
   populateEstadoSelect();
   populateTipoClienteSelects();
+  populatePrevistoStatusSelects();
 
   document.getElementById("btnAddItemPrevisto").addEventListener("click", () => {
     document.getElementById("prevItens").appendChild(createItemRow("prevItens"));
@@ -7728,7 +7738,7 @@ function initForms() {
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
     state.previsoes.push(previstoFromRow(inserido[0]));
     e.target.reset();
-    document.getElementById("prevStatus").value = "AG DATA DE CHEGADA";
+    document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
     document.getElementById("prevRepresentante").value = "";
     resetItens("prevItens");
     renderPrevistos();
