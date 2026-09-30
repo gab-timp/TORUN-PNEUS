@@ -6809,10 +6809,22 @@ async function renderHistoricoCredito() {
 // { valor, mes: "YYYY-MM" ou null (sem data pra localizar no tempo), tipo }
 function fluxoCaixaItensDaVenda(v) {
   if (Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length) {
-    return v.parcelasDetalhe.map(p => p.status === "pago"
+    const itens = v.parcelasDetalhe.map(p => p.status === "pago"
       ? { valor: p.valor || 0, mes: p.dataPagamento ? p.dataPagamento.slice(0, 7) : null, tipo: "recebido" }
       : { valor: p.valor || 0, mes: p.vencimento ? p.vencimento.slice(0, 7) : null, tipo: "previsto" }
     );
+    // a parte de uma venda dividida que fica de fora do parcelamento (o PIX de um
+    // PIX+Boleto, por exemplo -- ver valorBaseParcelas) não entra em parcelasDetalhe.
+    // Sem isso esse dinheiro nunca apareceria no Fluxo de Caixa. PIX é recebido na
+    // hora, então conta como recebido na data da venda.
+    if (Array.isArray(v.pagamentosDivididos)) {
+      v.pagamentosDivididos.forEach(p => {
+        if (p.forma_pagamento === "PIX") {
+          itens.push({ valor: p.valor || 0, mes: v.data ? v.data.slice(0, 7) : null, tipo: "recebido" });
+        }
+      });
+    }
+    return itens;
   }
   return [v.statusPagamento === "pago"
     ? { valor: v.valorVenda, mes: v.dataPagamento ? v.dataPagamento.slice(0, 7) : null, tipo: "recebido" }
@@ -6927,7 +6939,11 @@ function renderContasReceber() {
   const faixaFiltro = document.getElementById("carFiltroFaixa").value;
 
   let rows = emAberto.map(v => {
-    const dias = diasEmAberto(v.data);
+    // pela data de vencimento (não pela data da venda) -- pra venda com parcelasDetalhe,
+    // v.dataVencimento já é o vencimento da PRÓXIMA parcela em aberto (ver
+    // saldoEmAbertoDaVenda); usar a data da venda classificava uma venda de 6x no prazo
+    // como "60+ dias" só por ser antiga, mesmo sem nada realmente atrasado ainda.
+    const dias = diasEmAberto(v.dataVencimento || v.data);
     return { v, dias, faixa: faixaAtraso(dias) };
   });
   if (search) rows = rows.filter(({ v }) => [v.cliente, v.numeroNFVenda, v.numeroPedido].join(" ").toLowerCase().includes(search));
@@ -7452,14 +7468,31 @@ function startEditVenda(vendaId) {
   document.getElementById("rowTrademaster").style.display = isTrademaster ? "" : "none";
   document.getElementById("venValorRecebido").required = isTrademaster;
   document.getElementById("venValorRecebido").value = v.valorRecebido != null ? v.valorRecebido : "";
-  // parseParcelasNum tolera lixo de venda antiga (parcelas era texto livre) -- só usa
-  // o select quando dá pra entender um número de 1-6; fora disso fica em branco.
-  const qtdParcelasEditando = parseParcelasNum(v.parcelas);
-  document.getElementById("venParcelas").value = qtdParcelasEditando >= 2 && qtdParcelasEditando <= 6 ? String(qtdParcelasEditando) : "";
+  // só liga o select (e o modo parcela-por-parcela) quando a venda JÁ tem parcelasDetalhe
+  // salvo -- nunca a partir do texto livre antigo (v.parcelas, tipo "3x"). Venda antiga
+  // sem parcelasDetalhe tem que continuar com o campo em branco, senão "Editar" fabrica
+  // um cronograma de parcelas que nunca existiu (achado numa auditoria: abrir uma venda
+  // antiga de "3x" e salvar sem mexer nessa seção virava 3 parcelas "Em aberto" de
+  // mentira, sobrescrevendo o status/data de pagamento reais).
+  const temParcelasDetalheSalvo = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
+  document.getElementById("venParcelas").value = temParcelasDetalheSalvo ? String(v.parcelasDetalhe.length) : "";
   document.getElementById("venStatusPagamento").value = v.statusPagamento || "em_aberto";
   document.getElementById("venDataVencimento").value = v.dataVencimento || "";
   document.getElementById("venDataPagamento").value = v.dataPagamento || "";
   document.getElementById("rowDataPagamento").style.display = v.statusPagamento === "pago" ? "" : "none";
+
+  // restaura a divisão de pagamento ANTES de regenerar as parcelas -- valorBaseParcelas()
+  // lê a divisão atual do DOM, então se isso rodasse depois ainda com a divisão da venda
+  // editada anteriormente (ou nenhuma), a base usada pra parcela ficava errada.
+  resetDivisaoPagamento();
+  if (v.pagamentosDivididos && v.pagamentosDivididos.length) {
+    document.getElementById("venDividirPagamento").checked = true;
+    document.getElementById("venDivisaoBox").style.display = "";
+    const lista = document.getElementById("venDivisaoLista");
+    v.pagamentosDivididos.forEach(p => lista.appendChild(createDivisaoRow(p.forma_pagamento, p.valor)));
+    atualizarResumoDivisaoPagamento();
+  }
+
   regenerarParcelasDetalhe(v.parcelasDetalhe);
   if (v.valorRecebido != null) {
     const diferenca = v.valorVenda - v.valorRecebido;
@@ -7476,16 +7509,6 @@ function startEditVenda(vendaId) {
   document.getElementById("venTransportadora").value = clienteRetira ? "" : (v.transportadora || "");
   document.getElementById("venValorFrete").value = v.valorFrete != null ? v.valorFrete : "";
   document.getElementById("venObs").value = v.obs || "";
-
-  resetDivisaoPagamento();
-  if (v.pagamentosDivididos && v.pagamentosDivididos.length) {
-    document.getElementById("venDividirPagamento").checked = true;
-    document.getElementById("venDivisaoBox").style.display = "";
-    const lista = document.getElementById("venDivisaoLista");
-    v.pagamentosDivididos.forEach(p => lista.appendChild(createDivisaoRow(p.forma_pagamento, p.valor)));
-    atualizarResumoDivisaoPagamento();
-    atualizarSomaParcelas();
-  }
 
   document.getElementById("venFormTitle").textContent = "Editar venda";
   document.getElementById("venEditBanner").style.display = "block";
