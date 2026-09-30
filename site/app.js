@@ -67,7 +67,7 @@ let vendasMostrarTodas = false;
 
 const CONFLITO_MSG = "Este registro foi alterado por outra pessoa enquanto você editava. A tela foi atualizada com a versão mais recente — confira e tente salvar de novo.";
 
-const PREVISTO_STATUS = ["PROCESSO EM AGUA", "AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "DTC", "AGUARDANDO RETIRADA DO PORTO"];
+const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "DTC", "AGUARDANDO RETIRADA DO PORTO", "CHEGOU"];
 
 /* ---------------- persistence ---------------- */
 
@@ -1133,6 +1133,7 @@ function populatePrevistoStatusSelects() {
 function statusBadgeClass(status) {
   if (status === "AGUARDANDO RETIRADA DO PORTO") return "st-porto";
   if (status === "DTC") return "st-dtc";
+  if (status === "CHEGOU") return "st-chegou";
   return "st-aguardando";
 }
 
