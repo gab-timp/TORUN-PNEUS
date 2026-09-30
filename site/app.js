@@ -6340,7 +6340,7 @@ function renderClienteTags() {
   const c = getCliente(currentClienteModalNome);
   const tags = (c && c.tags) || [];
   document.getElementById("clienteModalTags").innerHTML = tags.map(t => `
-    <span class="cliente-tag-pill">${escapeHtml(t)}<button type="button" class="write-ui" data-removertag="${escapeAttr(t)}">✕</button></span>
+    <span class="cliente-tag-pill${t.trim().toLowerCase() === "inadimplente" ? " tag-inadimplente" : ""}">${escapeHtml(t)}<button type="button" class="write-ui" data-removertag="${escapeAttr(t)}">✕</button></span>
   `).join("");
   document.querySelectorAll("[data-removertag]").forEach(btn => {
     btn.addEventListener("click", () => removerTagCliente(currentClienteModalNome, btn.dataset.removertag));

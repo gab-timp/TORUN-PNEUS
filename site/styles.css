@@ -1950,6 +1950,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
   background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:13px; line-height:1; padding:0 2px;
 }
 .cliente-tag-pill button:hover{color:var(--orange-deep);}
+.cliente-tag-pill.tag-inadimplente{background:var(--danger-pale); border-color:var(--danger-border); color:var(--danger);}
+.cliente-tag-pill.tag-inadimplente button{color:var(--danger);}
+.cliente-tag-pill.tag-inadimplente button:hover{color:var(--danger-deep);}
 .cliente-tags-add{display:flex; gap:8px; margin:10px 0 4px;}
 .cliente-tags-add input{
   flex:1; border:1px solid var(--line); border-radius:7px; padding:7px 10px; font-size:12.5px;
