@@ -5674,7 +5674,7 @@ function renderClientes() {
         <input type="checkbox" class="split-row-check write-ui" data-selcli="${escapeAttr(c.nome)}" ${clientesSelecionadosParaMesclar.has(c.nome) ? "checked" : ""}>
         <div class="split-row-body">
           <div class="split-row-top">
-            <span class="split-row-nome">${escapeHtml(c.nome)}</span>
+            <span class="split-row-nome">${(c.tags || []).some(t => t.trim().toLowerCase() === "inadimplente") ? `<span class="cliente-flag-inadimplente" title="Inadimplente"></span>` : ""}${escapeHtml(c.nome)}</span>
             <span class="status-pill ${STATUS_ATIVIDADE_PILL[status]}">${STATUS_ATIVIDADE_LABEL[status]}</span>
           </div>
           <div class="split-row-meta">
