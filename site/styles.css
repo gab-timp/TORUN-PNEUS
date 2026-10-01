@@ -1598,8 +1598,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 }
 .prev-card.st-aguardando{border-left-color:var(--danger-border);}
 .prev-card.st-porto{border-left-color:var(--orange);}
+.prev-card.st-agua{border-left-color:var(--blue);}
 .prev-card.st-dtc{border-left-color:var(--status-good-border);}
-.prev-card.st-chegou{border-left-color:var(--blue);}
+.prev-card.st-chegou{border-left-color:var(--status-good-border);}
 .prev-card-head{
   display:flex;
   justify-content:space-between;
@@ -1632,8 +1633,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 }
 .prev-status-badge.st-aguardando{background:var(--danger-pale); color:var(--danger); border:1px solid var(--danger-border);}
 .prev-status-badge.st-porto{background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange);}
+.prev-status-badge.st-agua{background:var(--blue-pale); color:var(--blue-deep); border:1px solid var(--blue);}
 .prev-status-badge.st-dtc{background:var(--status-good-pale); color:var(--status-good); border:1px solid var(--status-good-border);}
-.prev-status-badge.st-chegou{background:var(--blue-pale); color:var(--blue-deep); border:1px solid var(--blue);}
+.prev-status-badge.st-chegou{background:var(--status-good-pale); color:var(--status-good); border:1px solid var(--status-good-border);}
 .prev-itens-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; font-size:12.5px;}
 .prev-itens-list li{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);}
 .prev-itens-list li:last-child{border-bottom:none;}

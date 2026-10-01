@@ -1132,6 +1132,7 @@ function populatePrevistoStatusSelects() {
 
 function statusBadgeClass(status) {
   if (status === "AGUARDANDO RETIRADA DO PORTO") return "st-porto";
+  if (status === "PROCESSO EM AGUA") return "st-agua";
   if (status === "DTC") return "st-dtc";
   if (status === "CHEGOU") return "st-chegou";
   return "st-aguardando";
