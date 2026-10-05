@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=145">
-<link rel="stylesheet" href="semvenda.css?v=5">
+<link rel="stylesheet" href="semvenda.css?v=6">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -379,7 +379,26 @@
     <!-- ======================= SEM VENDA ======================= -->
     <section id="view-sv-dashboard" class="view">
       <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Visão geral do estoque comprado a mais, ainda sem venda.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+      <div class="kpis" id="svDashKpis"></div>
+      <div class="sv-dash-grid">
+        <div class="card">
+          <div class="card-head"><h2>Estoque por armazenagem</h2></div>
+          <div id="svDashArmazens"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Parados há mais tempo</h2></div>
+          <div class="note sv-dash-sub">Prioridade pra virar proposta primeiro.</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Código</th><th>Medida</th><th>Armazém</th><th class="sv-num">Parado</th></tr>
+              </thead>
+              <tbody id="svDashParados"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="svDashEmpty" style="display:none;"></div>
+        </div>
+      </div>
     </section>
     <section id="view-sv-previsto" class="view">
       <div class="page-head">
@@ -720,11 +739,93 @@
     </section>
     <section id="view-sv-frete" class="view">
       <div class="page-head"><div><h1>Frete</h1><div class="sub">Só o essencial: quem pagou, quanto e com quem.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+
+      <div class="sv-reserva-layout">
+        <div class="card sv-write sv-frete-form">
+          <div class="card-head"><h2>Lançar frete</h2></div>
+          <form id="svFormFrete">
+            <div class="sv-toggle-campo">
+              <span class="sv-toggle-lbl">Quem pagou o frete</span>
+              <div class="sv-toggle2" role="radiogroup" aria-label="Quem pagou o frete">
+                <label><input type="radio" name="svFretePagoPor" value="CLIENTE"><span>Frete do cliente</span></label>
+                <label><input type="radio" name="svFretePagoPor" value="NOSSO" checked><span>Frete nosso</span></label>
+              </div>
+            </div>
+            <div class="field">
+              <label>Transportadora</label>
+              <input type="text" id="svFreTransportadora" placeholder="Ex: Alfa Transportes" required>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label>Valor gasto (R$)</label>
+                <input type="number" id="svFreValor" min="0" step="0.01" placeholder="0,00">
+              </div>
+              <div class="field">
+                <label>Data</label>
+                <input type="date" id="svFreData" required>
+              </div>
+            </div>
+            <div class="field">
+              <label>Referente a (pedido/proposta)</label>
+              <input type="text" id="svFreReferente" placeholder="Ex: Proposta Rota Sul" required>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="svBtnSubmitFrete">+ Lançar frete</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="sv-reserva-direita">
+          <div class="kpis" id="svFreKpis"></div>
+          <div class="card">
+            <div class="card-head"><h2>Lançamentos recentes</h2><div class="note" id="svFreCount"></div></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Transportadora</th>
+                    <th>Referente a</th>
+                    <th>Quem pagou</th>
+                    <th class="sv-num">Valor</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="svFreTbody"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="svFreEmpty" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
     </section>
     <section id="view-sv-armazenagem" class="view">
       <div class="page-head"><div><h1>Armazenagem</h1><div class="sub">Quanto tem parado em cada armazém.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+      <div class="sv-arm-cards" id="svArmCards"></div>
+      <div class="card">
+        <div class="card-head"><h2 id="svArmTitulo">Itens — todos os armazéns</h2><div class="note" id="svArmCount"></div></div>
+        <div class="form-row">
+          <div class="field">
+            <label>Armazém</label>
+            <select id="svArmFiltro"></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Medida</th>
+                <th>Armazém</th>
+                <th class="sv-num">Quantidade</th>
+                <th class="sv-num">Valor investido</th>
+              </tr>
+            </thead>
+            <tbody id="svArmTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svArmEmpty" style="display:none;"></div>
+      </div>
     </section>
 
     <!-- ======================= VIEW: DASHBOARD ======================= -->
@@ -3431,7 +3532,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=5"></script>
+<script src="semvenda.js?v=6"></script>
 <script src="app.js?v=226"></script>
 </body>
 </html>

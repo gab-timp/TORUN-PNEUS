@@ -95,7 +95,9 @@ function svProdutoFromRow(r) {
   return {
     codigo: r.codigo, medida: r.medida, marca: r.marca || "", modelo: r.modelo || "",
     categoria: r.categoria || "", carcaca: r.carcaca || "", situacao: r.situacao || "ATIVO",
-    icIv: r.ic_iv || "", pr: r.pr || "", capCarga: r.cap_carga || "", fotoPath: r.foto_path || null
+    icIv: r.ic_iv || "", pr: r.pr || "", capCarga: r.cap_carga || "", fotoPath: r.foto_path || null,
+    custo: r.custo_unitario === null || r.custo_unitario === undefined ? null : Number(r.custo_unitario),
+    preco: r.preco_proposta === null || r.preco_proposta === undefined ? null : Number(r.preco_proposta)
   };
 }
 
@@ -177,11 +179,18 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
-  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva"].includes(view)) return;
+  // o Frete tem tabela própria e carga própria: se a tabela ainda não existir, só essa tela reclama
+  if (view === "sv-frete") {
+    if (await svCarregarFretes()) svRenderFrete();
+    return;
+  }
+  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
+  else if (view === "sv-dashboard") svRenderDashboard();
+  else if (view === "sv-armazenagem") svRenderArmazenagem();
   else svRenderReserva();
 }
 
@@ -740,7 +749,7 @@ function svCalcularEstoque() {
   const linhas = new Map();
   const linha = (codigo, armazem) => {
     const chave = codigo + "|" + (armazem || "");
-    if (!linhas.has(chave)) linhas.set(chave, { codigo, armazem: armazem || "", chegou: 0, reservado: 0, vendido: 0 });
+    if (!linhas.has(chave)) linhas.set(chave, { codigo, armazem: armazem || "", chegou: 0, reservado: 0, vendido: 0, desde: "" });
     return linhas.get(chave);
   };
   const aChegar = new Map();
@@ -750,7 +759,10 @@ function svCalcularEstoque() {
       const qtd = Number(it.quantidade) || 0;
       if (!it.codigo || qtd <= 0) return;
       if (p.status === "CHEGOU") {
-        linha(it.codigo, p.armazem).chegou += qtd;
+        const l = linha(it.codigo, p.armazem);
+        l.chegou += qtd;
+        // desde: a chegada mais antiga entre os processos desse produto nesse armazém (base do "parado há")
+        if (p.dataChegada && (!l.desde || p.dataChegada < l.desde)) l.desde = p.dataChegada;
       } else {
         const chave = p.id + "|" + it.codigo;
         if (!aChegar.has(chave)) aChegar.set(chave, { previsaoId: p.id, codigo: it.codigo, total: 0, reservado: 0, vendido: 0 });
@@ -1071,6 +1083,276 @@ async function svSalvarReservaDados() {
   toast("Reserva criada.");
 }
 
+/* ---------- Estoque físico (Dashboard e Armazenagem) ---------- */
+
+// dias corridos entre uma data ISO e hoje; null quando não há data
+function svDiasDesde(iso) {
+  if (!iso) return null;
+  const [a, m, d] = iso.split("-").map(Number);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((hoje - new Date(a, m - 1, d)) / 86400000));
+}
+
+// O que está parado em cada armazém: chegou menos o que já foi vendido (o reservado continua lá, parado).
+// valor = quantidade × custo do produto (null quando o produto não tem custo cadastrado);
+// dias = tempo desde a chegada mais antiga daquele produto naquele armazém.
+function svEstoqueFisico() {
+  return svCalcularEstoque().linhas
+    .map(l => ({ ...l, qtd: l.chegou - l.vendido, produto: svGetProduto(l.codigo) }))
+    .filter(l => l.qtd > 0)
+    .map(l => ({
+      ...l,
+      dias: svDiasDesde(l.desde),
+      valor: l.produto && l.produto.custo !== null ? l.qtd * l.produto.custo : null
+    }));
+}
+
+// armazéns na ordem fixa do cadastro, depois os que aparecem só nos dados, e "sem armazém" por último
+function svArmazensDoEstoque(est) {
+  const extras = [...new Set(est.map(l => l.armazem))].filter(a => a && !SV_ARMAZENS.includes(a)).sort();
+  return [...SV_ARMAZENS, ...extras, ...(est.some(l => !l.armazem) ? [""] : [])];
+}
+
+function svResumoValor(est) {
+  const comCusto = est.filter(l => l.valor !== null);
+  return {
+    total: comCusto.reduce((s, l) => s + l.valor, 0),
+    temCusto: comCusto.length > 0,
+    semCusto: new Set(est.filter(l => l.valor === null).map(l => l.codigo)).size
+  };
+}
+
+function svNotaSemCusto(resumo) {
+  if (resumo.semCusto === 0) return "";
+  return resumo.temCusto
+    ? `${resumo.semCusto} código(s) sem custo cadastrado`
+    : "Cadastre o custo nos Produtos";
+}
+
+/* ---------- Dashboard ---------- */
+
+function svRenderDashboard() {
+  const est = svEstoqueFisico();
+  const total = est.reduce((s, l) => s + l.qtd, 0);
+  const valor = svResumoValor(est);
+  const comData = est.filter(l => l.dias !== null);
+  const pesoTotal = comData.reduce((s, l) => s + l.qtd, 0);
+  const mediaDias = pesoTotal > 0 ? Math.round(comData.reduce((s, l) => s + l.qtd * l.dias, 0) / pesoTotal) : null;
+  const semData = new Set(est.filter(l => l.dias === null).map(l => l.codigo)).size;
+  const armazensComEstoque = new Set(est.map(l => l.armazem)).size;
+
+  document.getElementById("svDashKpis").innerHTML = `
+    <div class="kpi"><div class="lbl">Pneus em estoque</div><div class="val">${fmt(total)} un.</div></div>
+    <div class="kpi accent"><div class="lbl">Valor investido parado</div><div class="val">${valor.temCusto ? formatMoney(valor.total) : "—"}</div>${svNotaSemCusto(valor) ? `<div class="muted sv-sub sv-kpi-nota">${escapeHtml(svNotaSemCusto(valor))}</div>` : ""}</div>
+    <div class="kpi"><div class="lbl">Tempo médio parado</div><div class="val">${mediaDias === null ? "—" : fmt(mediaDias) + " dias"}</div>${semData > 0 && mediaDias !== null ? `<div class="muted sv-sub sv-kpi-nota">${semData} código(s) sem data de chegada</div>` : ""}</div>
+    <div class="kpi"><div class="lbl">Armazéns com estoque</div><div class="val">${fmt(armazensComEstoque)}</div></div>
+  `;
+
+  const porArmazem = svArmazensDoEstoque(est)
+    .map(a => ({ nome: svNomeArmazem(a), qtd: est.filter(l => l.armazem === a).reduce((s, l) => s + l.qtd, 0) }))
+    .filter(a => a.qtd > 0);
+  const maior = Math.max(1, ...porArmazem.map(a => a.qtd));
+  document.getElementById("svDashArmazens").innerHTML = porArmazem.length === 0
+    ? `<div class="empty-state">Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui.</div>`
+    : `<div class="sv-bar-lista">${porArmazem.map(a => `
+        <div>
+          <div class="sv-bar-linha"><b>${escapeHtml(a.nome)}</b><span class="mono">${fmt(a.qtd)} un.</span></div>
+          <div class="sv-bar-trilho"><div style="width:${Math.max(2, Math.round(a.qtd / maior * 100))}%;"></div></div>
+        </div>`).join("")}</div>`;
+
+  const parados = comData.slice().sort((a, b) => b.dias - a.dias || b.qtd - a.qtd).slice(0, 5);
+  document.getElementById("svDashParados").innerHTML = parados.map(l => `
+    <tr>
+      <td class="mono">${escapeHtml(l.codigo)}</td>
+      <td>${escapeHtml(l.produto ? l.produto.medida : "(produto removido)")}</td>
+      <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
+      <td class="sv-num"><span class="sv-dias ${l.dias >= 120 ? "alto" : l.dias >= 75 ? "medio" : "baixo"}">${fmt(l.dias)} d.</span></td>
+    </tr>`).join("");
+  const vazio = document.getElementById("svDashEmpty");
+  vazio.style.display = parados.length === 0 ? "block" : "none";
+  vazio.textContent = est.length === 0 ? "Nenhum pneu em estoque ainda." : "Nenhum item com data de chegada nos processos.";
+}
+
+/* ---------- Armazenagem ---------- */
+
+// "" = todos os armazéns; "__sem" = itens sem armazém; senão o nome do armazém
+let svArmSelecionado = "";
+
+function svRenderArmazenagem() {
+  const est = svEstoqueFisico();
+  const nomes = svArmazensDoEstoque(est);
+  const chaveDe = a => a === "" ? "__sem" : a;
+  if (svArmSelecionado && !nomes.some(a => chaveDe(a) === svArmSelecionado)) svArmSelecionado = "";
+
+  const valorTodos = svResumoValor(est);
+  const cartoes = [`
+    <button type="button" class="sv-arm-card${svArmSelecionado === "" ? " sel" : ""}" data-svarm="">
+      <span class="sv-arm-nome">Todos</span>
+      <span class="sv-arm-qtd">${fmt(est.reduce((s, l) => s + l.qtd, 0))} un.</span>
+      <span class="sv-arm-sub">${valorTodos.temCusto ? escapeHtml(formatMoney(valorTodos.total)) + " investidos" : "custo não cadastrado"}${valorTodos.temCusto && valorTodos.semCusto > 0 ? ` · ${valorTodos.semCusto} sem custo` : ""}</span>
+    </button>`];
+  nomes.forEach(a => {
+    const linhas = est.filter(l => l.armazem === a);
+    const codigos = new Set(linhas.map(l => l.codigo)).size;
+    cartoes.push(`
+    <button type="button" class="sv-arm-card${svArmSelecionado === chaveDe(a) ? " sel" : ""}" data-svarm="${escapeAttr(chaveDe(a))}">
+      <span class="sv-arm-nome">${escapeHtml(svNomeArmazem(a))}</span>
+      <span class="sv-arm-qtd">${fmt(linhas.reduce((s, l) => s + l.qtd, 0))} un.</span>
+      <span class="sv-arm-sub">${fmt(codigos)} ${codigos === 1 ? "código" : "códigos diferentes"}</span>
+    </button>`);
+  });
+  const caixa = document.getElementById("svArmCards");
+  caixa.innerHTML = cartoes.join("");
+  caixa.querySelectorAll("[data-svarm]").forEach(btn => {
+    btn.addEventListener("click", () => { svArmSelecionado = btn.dataset.svarm; svRenderArmazenagem(); });
+  });
+
+  const sel = document.getElementById("svArmFiltro");
+  sel.innerHTML = `<option value="">Todos os armazéns</option>` +
+    nomes.map(a => `<option value="${escapeAttr(chaveDe(a))}">${escapeHtml(svNomeArmazem(a))}</option>`).join("");
+  sel.value = svArmSelecionado;
+
+  const rows = est
+    .filter(l => svArmSelecionado === "" || chaveDe(l.armazem) === svArmSelecionado)
+    .sort((a, b) => (b.valor === null ? -1 : b.valor) - (a.valor === null ? -1 : a.valor) || b.qtd - a.qtd || a.codigo.localeCompare(b.codigo));
+  document.getElementById("svArmTitulo").textContent = "Itens — " + (svArmSelecionado === "" ? "todos os armazéns" : svNomeArmazem(svArmSelecionado === "__sem" ? "" : svArmSelecionado));
+  document.getElementById("svArmCount").textContent = `${rows.length} item(ns)`;
+  document.getElementById("svArmTbody").innerHTML = rows.map(l => `
+    <tr>
+      <td class="mono">${escapeHtml(l.codigo)}</td>
+      <td>${escapeHtml(l.produto ? l.produto.medida : "(produto removido)")}</td>
+      <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
+      <td class="sv-num">${fmt(l.qtd)}</td>
+      <td class="sv-num">${l.valor === null ? "—" : escapeHtml(formatMoney(l.valor))}</td>
+    </tr>`).join("");
+  const vazio = document.getElementById("svArmEmpty");
+  vazio.style.display = rows.length === 0 ? "block" : "none";
+  vazio.textContent = est.length === 0
+    ? "Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui."
+    : "Nenhum pneu nesse armazém.";
+}
+
+/* ---------- Frete ---------- */
+
+const SV_FRETE_LINHAS = 50;
+
+// carga própria (fora do svState): a tabela sv_fretes é da etapa 4 e só a tela de Frete depende dela
+let svFretes = [];
+let svFretesEmAndamento = null;
+
+function svFreteFromRow(r) {
+  return {
+    id: r.id, data: r.data || "", pagoPor: r.pago_por, transportadora: r.transportadora,
+    valor: Number(r.valor) || 0, referente: r.referente, createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
+
+function svOrdenarFretes() {
+  svFretes.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+
+function svCarregarFretes() {
+  if (svFretesEmAndamento) return svFretesEmAndamento;
+  svFretesEmAndamento = (async () => {
+    const { data, error } = await sb.from("sv_fretes").select("*").order("data", { ascending: false }).order("created_at", { ascending: false });
+    if (error) {
+      toast("Erro ao carregar os fretes: " + error.message);
+      return false;
+    }
+    svFretes = (data || []).map(svFreteFromRow);
+    return true;
+  })().finally(() => { svFretesEmAndamento = null; });
+  return svFretesEmAndamento;
+}
+
+function svRenderFrete() {
+  const mes = todayISO().slice(0, 7);
+  const doMes = svFretes.filter(f => (f.data || "").startsWith(mes));
+  const nossos = doMes.filter(f => f.pagoPor === "NOSSO");
+  const clientes = doMes.filter(f => f.pagoPor === "CLIENTE");
+  const lancamentos = n => `${fmt(n)} ${n === 1 ? "lançamento" : "lançamentos"}`;
+  document.getElementById("svFreKpis").innerHTML = `
+    <div class="kpi accent"><div class="lbl">Total gasto (mês)</div><div class="val">${escapeHtml(formatMoney(nossos.reduce((s, f) => s + f.valor, 0)))}</div><div class="muted sv-sub sv-kpi-nota">só frete nosso</div></div>
+    <div class="kpi"><div class="lbl">Frete nosso</div><div class="val">${lancamentos(nossos.length)}</div><div class="muted sv-sub sv-kpi-nota">neste mês</div></div>
+    <div class="kpi"><div class="lbl">Frete do cliente</div><div class="val">${lancamentos(clientes.length)}</div><div class="muted sv-sub sv-kpi-nota">neste mês</div></div>
+  `;
+
+  const rows = svFretes.slice(0, SV_FRETE_LINHAS);
+  document.getElementById("svFreCount").textContent = svFretes.length > SV_FRETE_LINHAS
+    ? `Mostrando os ${SV_FRETE_LINHAS} mais recentes de ${svFretes.length}`
+    : `${svFretes.length} lançamento(s)`;
+  const vazio = document.getElementById("svFreEmpty");
+  vazio.style.display = rows.length === 0 ? "block" : "none";
+  vazio.textContent = "Nenhum frete lançado ainda.";
+
+  const tbody = document.getElementById("svFreTbody");
+  tbody.innerHTML = rows.map(f => `
+    <tr>
+      <td class="mono">${f.data ? formatDateBR(f.data) : "—"}</td>
+      <td>${escapeHtml(f.transportadora)}</td>
+      <td>${escapeHtml(f.referente)}</td>
+      <td><span class="status-pill ${f.pagoPor === "NOSSO" ? "pill-baixo" : "pill-neutro"}">${f.pagoPor === "NOSSO" ? "Nosso" : "Cliente"}</span></td>
+      <td class="sv-num">${escapeHtml(formatMoney(f.valor))}</td>
+      <td class="sv-acoes"><button type="button" class="sv-link sv-write" data-svfreexcluir="${escapeAttr(f.id)}">Excluir</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("[data-svfreexcluir]").forEach(btn => {
+    btn.addEventListener("click", () => svExcluirFrete(btn.dataset.svfreexcluir));
+  });
+}
+
+async function svExcluirFrete(id) {
+  const f = svFretes.find(x => x.id === id);
+  if (!f) return;
+  if (!(await confirmModal("Excluir lançamento?", `${f.transportadora} · ${f.referente} · ${formatMoney(f.valor)}. Não dá pra desfazer.`))) return;
+  const { data, error } = await sb.from("sv_fretes").delete().eq("id", id).select();
+  if (error) { toast("Erro ao excluir: " + error.message); return; }
+  if (!data || data.length === 0) {
+    toast("Não foi possível excluir (já removido ou sem permissão). Atualizando a lista.");
+    if (await svCarregarFretes()) svRenderFrete();
+    return;
+  }
+  svFretes = svFretes.filter(x => x.id !== id);
+  svRenderFrete();
+  toast("Lançamento excluído.");
+}
+
+async function svSalvarFrete(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnSubmitFrete");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try { await svSalvarFreteDados(); } finally { botao.disabled = false; }
+}
+
+async function svSalvarFreteDados() {
+  const pagoPor = document.querySelector('input[name="svFretePagoPor"]:checked').value;
+  const transportadora = document.getElementById("svFreTransportadora").value.trim();
+  const referente = document.getElementById("svFreReferente").value.trim();
+  const data = document.getElementById("svFreData").value;
+  const textoValor = document.getElementById("svFreValor").value;
+  // frete do cliente: o valor é opcional (quem gastou foi o cliente, não entra no total gasto)
+  const valor = textoValor === "" ? (pagoPor === "CLIENTE" ? 0 : NaN) : Math.round(Number(textoValor) * 100) / 100;
+
+  if (!transportadora) { toast("Informe a transportadora."); return; }
+  if (!referente) { toast("Informe a que pedido ou proposta o frete se refere."); return; }
+  if (!data) { toast("Informe a data."); return; }
+  if (!(valor >= 0) || (pagoPor === "NOSSO" && valor === 0)) { toast("Informe o valor gasto do frete."); return; }
+
+  const { data: inserido, error } = await sb.from("sv_fretes").insert({
+    id: uid("svfre"), data, pago_por: pagoPor, transportadora, valor, referente,
+    created_by: currentUser ? currentUser.id : null
+  }).select();
+  if (error) { toast("Erro ao lançar o frete: " + error.message); return; }
+  if (!inserido || inserido.length === 0) { toast("Não foi possível lançar o frete (sem permissão)."); return; }
+  svFretes.push(svFreteFromRow(inserido[0]));
+  svOrdenarFretes();
+  document.getElementById("svFormFrete").reset();
+  document.getElementById("svFreData").value = todayISO();
+  svRenderFrete();
+  toast("Frete lançado.");
+}
+
 function initSemVendaTelas() {
   const statusHtml = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
   document.getElementById("svPrevStatus").innerHTML = statusHtml;
@@ -1119,4 +1401,11 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderReservaTabela);
   });
   document.getElementById("svResData").value = todayISO();
+
+  document.getElementById("svFormFrete").addEventListener("submit", svSalvarFrete);
+  document.getElementById("svFreData").value = todayISO();
+  document.getElementById("svArmFiltro").addEventListener("change", (e) => {
+    svArmSelecionado = e.target.value;
+    svRenderArmazenagem();
+  });
 }
