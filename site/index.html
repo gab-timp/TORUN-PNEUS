@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=145">
-<link rel="stylesheet" href="semvenda.css?v=3">
+<link rel="stylesheet" href="semvenda.css?v=5">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -523,6 +523,19 @@
             </div>
           </div>
 
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">3</span>Foto (opcional)</div>
+            <div class="sv-foto-row">
+              <div class="sv-foto-preview" id="svProdFotoPreview"><span>Sem foto</span></div>
+              <div class="sv-foto-acoes">
+                <button type="button" class="btn small outline" id="svBtnProdFoto">⬆ Enviar foto</button>
+                <button type="button" class="btn small outline danger" id="svBtnProdRemoverFoto" style="display:none;">Remover</button>
+                <input type="file" id="svProdFotoInput" accept="image/*" style="display:none;">
+              </div>
+            </div>
+            <span class="note">JPG ou PNG, até 5 MB. Aparece no Catálogo. Num produto novo, a foto só é enviada depois que o produto for salvo.</span>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="btn primary" id="svBtnSubmitProduto">Adicionar produto</button>
           </div>
@@ -586,12 +599,120 @@
       </div>
     </section>
     <section id="view-sv-catalogo" class="view">
-      <div class="page-head"><div><h1>Catálogo</h1><div class="sub">Pneus comprados a mais, disponíveis pra proposta.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 3 do Sem Venda.</div>
+      <div class="page-head">
+        <div>
+          <h1>Catálogo</h1>
+          <div class="sub">Pneus comprados a mais, disponíveis pra proposta. O saldo vem dos processos que já chegaram, menos as reservas.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="form-row">
+          <div class="field grow">
+            <label>Buscar</label>
+            <input type="text" id="svCatSearch" placeholder="Código, medida ou marca…">
+          </div>
+          <div class="field">
+            <label>Armazém</label>
+            <select id="svCatFiltroArmazem"></select>
+          </div>
+          <div class="field">
+            <label>Marca</label>
+            <select id="svCatFiltroMarca"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="note" id="svCatCount"></div>
+      <div class="sv-cat-grid" id="svCatGrid"></div>
+      <div class="empty-state" id="svCatEmpty" style="display:none;"></div>
     </section>
     <section id="view-sv-reserva" class="view">
-      <div class="page-head"><div><h1>Reserva</h1><div class="sub">Reserve um pneu pra um cliente antes de vender de verdade — funciona até pra item que ainda não chegou.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 3 do Sem Venda.</div>
+      <div class="page-head">
+        <div>
+          <h1>Reserva</h1>
+          <div class="sub">Reserve um pneu pra um cliente antes de vender de verdade — funciona até pra item que ainda não chegou.</div>
+        </div>
+      </div>
+
+      <div class="sv-reserva-layout">
+        <div class="card sv-write sv-reserva-form">
+          <div class="card-head"><h2>Nova reserva</h2></div>
+          <form id="svFormReserva">
+            <div class="field">
+              <label>Produto</label>
+              <select id="svResProduto" required></select>
+            </div>
+            <div class="note" id="svResDisp"></div>
+            <div class="field">
+              <label>Cliente</label>
+              <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente já cadastrado no Torun…" autocomplete="off" required>
+              <datalist id="svListaClientes"></datalist>
+            </div>
+            <div class="field">
+              <label>Responsável pela venda</label>
+              <input type="text" id="svResResponsavel" list="svListaResponsaveis" placeholder="Quem está vendendo" autocomplete="off" required>
+              <datalist id="svListaResponsaveis"></datalist>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label>Quantidade</label>
+                <input type="number" id="svResQuantidade" min="1" step="1" placeholder="0" required>
+              </div>
+              <div class="field">
+                <label>Data</label>
+                <input type="date" id="svResData" required>
+              </div>
+            </div>
+            <div class="field">
+              <label>Observação (opcional)</label>
+              <input type="text" id="svResObs" placeholder="Ex: aguardando confirmação de pagamento">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="svBtnSubmitReserva">Reservar</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="sv-reserva-direita">
+          <div class="kpis" id="svResKpis"></div>
+          <div class="card">
+            <div class="card-head"><h2>Reservas</h2><div class="note" id="svResCount"></div></div>
+            <div class="form-row">
+              <div class="field grow">
+                <label>Buscar</label>
+                <input type="text" id="svResSearch" placeholder="Cliente, produto ou responsável…">
+              </div>
+              <div class="field">
+                <label>Mostrar</label>
+                <select id="svResFiltro">
+                  <option value="ativas_vendidas">Ativas e vendidas</option>
+                  <option value="ativas">Só ativas</option>
+                  <option value="canceladas">Canceladas</option>
+                  <option value="todas">Todas</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Produto</th>
+                    <th>Cliente</th>
+                    <th>Responsável</th>
+                    <th>Qtd.</th>
+                    <th>Situação</th>
+                    <th>Data</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="svResTbody"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="svResEmpty" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
     </section>
     <section id="view-sv-relatoriopreco" class="view">
       <div class="page-head"><div><h1>Relatório de Preço</h1><div class="sub">Monta uma proposta em PDF pra mandar pro cliente.</div></div></div>
@@ -3310,7 +3431,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=4"></script>
+<script src="semvenda.js?v=5"></script>
 <script src="app.js?v=226"></script>
 </body>
 </html>

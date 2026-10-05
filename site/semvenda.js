@@ -80,18 +80,46 @@ function initSistemas() {
 const SV_ARMAZENS = ["Nguedes", "RF", "ZR", "Multilog"];
 const SV_RECARGA_MIN_MS = 3000;
 
-const svState = { produtos: [], previsoes: [] };
+const SV_FOTOS_BUCKET = "sem-venda-fotos";
+const SV_FOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+const svState = { produtos: [], previsoes: [], reservas: [] };
 let svUltimaCarga = 0;
 let svEditandoProduto = null;
 let svEditandoPrevistoId = null;
 let svEditandoPrevistoUpdatedAt = null;
+let svFotoPendente = null;
+let svOpcoesReserva = [];
 
 function svProdutoFromRow(r) {
   return {
     codigo: r.codigo, medida: r.medida, marca: r.marca || "", modelo: r.modelo || "",
     categoria: r.categoria || "", carcaca: r.carcaca || "", situacao: r.situacao || "ATIVO",
-    icIv: r.ic_iv || "", pr: r.pr || "", capCarga: r.cap_carga || ""
+    icIv: r.ic_iv || "", pr: r.pr || "", capCarga: r.cap_carga || "", fotoPath: r.foto_path || null
   };
+}
+
+function svReservaFromRow(r) {
+  return {
+    id: r.id, codigo: r.codigo, quantidade: Number(r.quantidade), cliente: r.cliente, responsavel: r.responsavel,
+    armazem: r.armazem === null || r.armazem === undefined ? null : r.armazem,
+    previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
+    createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
+
+function svReservaToRow(r) {
+  return {
+    id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente, responsavel: r.responsavel,
+    armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
+    situacao: r.situacao, data: r.data, obs: r.obs || null
+  };
+}
+
+function svFotoUrl(path) {
+  if (!path) return null;
+  const { data } = sb.storage.from(SV_FOTOS_BUCKET).getPublicUrl(path);
+  return data ? data.publicUrl : null;
 }
 
 function svProdutoToRow(p) {
@@ -129,17 +157,19 @@ function svCarregarDados(forcar) {
   if (!forcar && Date.now() - svUltimaCarga < SV_RECARGA_MIN_MS) return Promise.resolve(true);
   svUltimaCarga = Date.now();
   svCargaEmAndamento = (async () => {
-    const [prod, prev] = await Promise.all([
+    const [prod, prev, res] = await Promise.all([
       sb.from("sv_produtos").select("*").order("codigo"),
-      sb.from("sv_previsoes").select("*").order("created_at", { ascending: false })
+      sb.from("sv_previsoes").select("*").order("created_at", { ascending: false }),
+      sb.from("sv_reservas").select("*").order("created_at", { ascending: false })
     ]);
-    const erro = prod.error || prev.error;
+    const erro = prod.error || prev.error || res.error;
     if (erro) {
       toast("Erro ao carregar o Sem Venda: " + erro.message);
       return false;
     }
     svState.produtos = (prod.data || []).map(svProdutoFromRow);
     svState.previsoes = (prev.data || []).map(svPrevistoFromRow);
+    svState.reservas = (res.data || []).map(svReservaFromRow);
     return true;
   })().finally(() => { svCargaEmAndamento = null; });
   return svCargaEmAndamento;
@@ -147,10 +177,12 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
-  if (view !== "sv-produtos" && view !== "sv-previsto") return;
+  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   if (view === "sv-produtos") svRenderProdutos();
-  else svRenderPrevistos();
+  else if (view === "sv-previsto") svRenderPrevistos();
+  else if (view === "sv-catalogo") svRenderCatalogo();
+  else svRenderReserva();
 }
 
 function svOpcoesCategoria(primeira) {
@@ -238,6 +270,8 @@ function svIniciarEdicaoProduto(codigo) {
   document.getElementById("svProdFormTitle").textContent = "Editar produto";
   document.getElementById("svProdEditBanner").style.display = "block";
   document.getElementById("svBtnSubmitProduto").textContent = "Salvar alterações";
+  svLimparFotoPendente();
+  svAtualizarPreviewFoto();
   const form = document.getElementById("svFormProduto");
   form.closest(".card-collapsible")?.classList.remove("collapsed");
   form.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -250,6 +284,82 @@ function svCancelarEdicaoProduto() {
   document.getElementById("svProdFormTitle").textContent = "Novo produto";
   document.getElementById("svProdEditBanner").style.display = "none";
   document.getElementById("svBtnSubmitProduto").textContent = "Adicionar produto";
+  svLimparFotoPendente();
+  svAtualizarPreviewFoto();
+}
+
+/* ---------- Foto do produto ---------- */
+
+let svFotoPreviewUrl = null;
+
+function svLimparFotoPendente() {
+  svFotoPendente = null;
+  if (svFotoPreviewUrl) { URL.revokeObjectURL(svFotoPreviewUrl); svFotoPreviewUrl = null; }
+  document.getElementById("svProdFotoInput").value = "";
+}
+
+function svAtualizarPreviewFoto() {
+  const p = svEditandoProduto ? svGetProduto(svEditandoProduto) : null;
+  let url = null;
+  if (svFotoPendente) {
+    if (svFotoPreviewUrl) URL.revokeObjectURL(svFotoPreviewUrl);
+    svFotoPreviewUrl = URL.createObjectURL(svFotoPendente);
+    url = svFotoPreviewUrl;
+  } else if (p) {
+    url = svFotoUrl(p.fotoPath);
+  }
+  document.getElementById("svProdFotoPreview").innerHTML = url
+    ? `<img src="${escapeAttr(url)}" alt="Foto do produto">`
+    : `<span>Sem foto</span>`;
+  document.getElementById("svBtnProdRemoverFoto").style.display = (svFotoPendente || (p && p.fotoPath)) ? "" : "none";
+}
+
+async function svEnviarFotoProduto(codigo, file) {
+  const p = svGetProduto(codigo);
+  if (!p) return false;
+  const pathAntigo = p.fotoPath;
+  const path = `${sanitizarNomeArquivo(codigo)}/${Date.now()}-${sanitizarNomeArquivo(file.name)}`;
+  const { error: erroUpload } = await sb.storage.from(SV_FOTOS_BUCKET).upload(path, file);
+  if (erroUpload) { toast("Erro ao enviar foto: " + erroUpload.message); return false; }
+  const { data, error } = await sb.from("sv_produtos").update({ foto_path: path }).eq("codigo", codigo).select();
+  if (error || !data || data.length === 0) {
+    toast("Erro ao salvar foto: " + (error ? error.message : "sem permissão ou produto removido"));
+    await sb.storage.from(SV_FOTOS_BUCKET).remove([path]); // não deixa arquivo órfão no bucket
+    return false;
+  }
+  p.fotoPath = path;
+  if (pathAntigo) await sb.storage.from(SV_FOTOS_BUCKET).remove([pathAntigo]);
+  return true;
+}
+
+async function svEscolherFoto(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { toast("Escolha um arquivo de imagem."); svLimparFotoPendente(); return; }
+  if (file.size > SV_FOTO_MAX_BYTES) { toast("Imagem muito grande (máx. 5 MB)."); svLimparFotoPendente(); return; }
+  if (svEditandoProduto) {
+    // produto já existe: envia na hora; num produto novo a foto espera o cadastro ser salvo
+    const ok = await svEnviarFotoProduto(svEditandoProduto, file);
+    svLimparFotoPendente();
+    svAtualizarPreviewFoto();
+    if (ok) { svRenderProdutos(); toast("Foto enviada."); }
+    return;
+  }
+  svFotoPendente = file;
+  svAtualizarPreviewFoto();
+}
+
+async function svRemoverFoto() {
+  if (!svEditandoProduto) { svLimparFotoPendente(); svAtualizarPreviewFoto(); return; }
+  const p = svGetProduto(svEditandoProduto);
+  if (!p || !p.fotoPath) return;
+  const { error: erroRemover } = await sb.storage.from(SV_FOTOS_BUCKET).remove([p.fotoPath]);
+  if (erroRemover) { toast("Erro ao remover foto: " + erroRemover.message); return; }
+  const { data, error } = await sb.from("sv_produtos").update({ foto_path: null }).eq("codigo", p.codigo).select();
+  if (error || !data || data.length === 0) { toast("Erro ao salvar: " + (error ? error.message : "sem permissão")); return; }
+  p.fotoPath = null;
+  svAtualizarPreviewFoto();
+  svRenderProdutos();
+  toast("Foto removida.");
 }
 
 // o botão fica desabilitado até a resposta voltar: duplo clique não grava duas vezes
@@ -298,19 +408,27 @@ async function svSalvarProdutoDados(e) {
   if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
   svState.produtos.push(svProdutoFromRow(data[0]));
   svState.produtos.sort((a, b) => a.codigo.localeCompare(b.codigo));
+  const fotoParaEnviar = svFotoPendente;
+  const resultadoFoto = fotoParaEnviar ? await svEnviarFotoProduto(dados.codigo, fotoParaEnviar) : null;
   e.target.reset();
+  svLimparFotoPendente();
+  svAtualizarPreviewFoto();
   svRenderProdutos();
-  toast("Produto adicionado.");
+  if (fotoParaEnviar && !resultadoFoto) toast("Produto adicionado, mas a foto não foi enviada. Abra Editar pra tentar de novo.");
+  else toast("Produto adicionado.");
 }
 
 async function svExcluirProduto(codigo) {
   const usado = svState.previsoes.some(pr => (pr.itens || []).some(it => it.codigo === codigo));
   if (usado) { toast("Não é possível excluir: esse produto está numa medida de Estoque Previsto."); return; }
+  if (svState.reservas.some(r => r.codigo === codigo)) { toast("Não é possível excluir: esse produto tem reservas."); return; }
   const ok = await confirmModal("Excluir produto?", `Remover "${codigo}" do cadastro do Sem Venda?`);
   if (!ok) return;
+  const alvo = svGetProduto(codigo);
   const { data, error } = await sb.from("sv_produtos").delete().eq("codigo", codigo).select();
   if (error) { toast("Erro ao excluir produto: " + error.message); return; }
   if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou produto já removido)."); return; }
+  if (alvo && alvo.fotoPath) await sb.storage.from(SV_FOTOS_BUCKET).remove([alvo.fotoPath]);
   svState.produtos = svState.produtos.filter(p => p.codigo !== codigo);
   if (svEditandoProduto === codigo) svCancelarEdicaoProduto();
   svRenderProdutos();
@@ -600,6 +718,7 @@ async function svSalvarPrevistoDados(e) {
 
 async function svExcluirPrevisto(id) {
   const alvo = svState.previsoes.find(p => p.id === id);
+  if (svState.reservas.some(r => r.previsaoId === id)) { toast("Não é possível excluir: há reservas ligadas a esse processo."); return; }
   const ok = await confirmModal("Excluir processo previsto?", `Remove o processo ${alvo ? alvo.numeroProcesso : ""} e as medidas dele desta lista.`);
   if (!ok) return;
   const { data, error } = await sb.from("sv_previsoes").delete().eq("id", id).select();
@@ -609,6 +728,347 @@ async function svExcluirPrevisto(id) {
   svState.previsoes = svState.previsoes.filter(p => p.id !== id);
   svRenderPrevistos();
   toast("Processo removido.");
+}
+
+/* ---------- Saldo: calculado dos processos que chegaram menos as reservas ---------- */
+
+// linhas: uma por produto + armazém, com o que chegou (processos CHEGOU), o que está reservado
+//   (reservas ativas), o que já foi vendido e o disponível = chegou − reservado − vendido.
+// aChegar: uma por processo ainda não chegado + produto, com o que ainda dá pra reservar (livres).
+// Nada disso é gravado: a tela recalcula a cada carga, então não existe saldo "errado" no banco.
+function svCalcularEstoque() {
+  const linhas = new Map();
+  const linha = (codigo, armazem) => {
+    const chave = codigo + "|" + (armazem || "");
+    if (!linhas.has(chave)) linhas.set(chave, { codigo, armazem: armazem || "", chegou: 0, reservado: 0, vendido: 0 });
+    return linhas.get(chave);
+  };
+  const aChegar = new Map();
+
+  svState.previsoes.forEach(p => {
+    p.itens.forEach(it => {
+      const qtd = Number(it.quantidade) || 0;
+      if (!it.codigo || qtd <= 0) return;
+      if (p.status === "CHEGOU") {
+        linha(it.codigo, p.armazem).chegou += qtd;
+      } else {
+        const chave = p.id + "|" + it.codigo;
+        if (!aChegar.has(chave)) aChegar.set(chave, { previsaoId: p.id, codigo: it.codigo, total: 0, reservado: 0, vendido: 0 });
+        aChegar.get(chave).total += qtd;
+      }
+    });
+  });
+
+  svState.reservas.forEach(r => {
+    if (r.situacao === "CANCELADA") return;
+    const campo = r.situacao === "VENDIDA" ? "vendido" : "reservado";
+    const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
+    if (r.previsaoId && (!prev || prev.status !== "CHEGOU")) {
+      const a = aChegar.get(r.previsaoId + "|" + r.codigo);
+      if (a) a[campo] += r.quantidade;
+      return;
+    }
+    linha(r.codigo, prev ? prev.armazem : r.armazem)[campo] += r.quantidade;
+  });
+
+  return {
+    linhas: [...linhas.values()].map(l => ({ ...l, disp: l.chegou - l.reservado - l.vendido })),
+    aChegar: [...aChegar.values()].map(a => ({ ...a, livres: a.total - a.reservado - a.vendido }))
+  };
+}
+
+function svNomeArmazem(armazem) {
+  return armazem || "Sem armazém";
+}
+
+/* ---------- Catálogo ---------- */
+
+function svRenderCatalogo() {
+  const { linhas } = svCalcularEstoque();
+  const todas = linhas
+    .filter(l => l.chegou > 0 || l.reservado > 0)
+    .map(l => ({ ...l, produto: svGetProduto(l.codigo) }))
+    .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem));
+
+  const selArmazem = document.getElementById("svCatFiltroArmazem");
+  const armazemAtual = selArmazem.value;
+  const armazensComEstoque = [...new Set(todas.map(l => l.armazem))];
+  const armazens = [...SV_ARMAZENS.filter(a => armazensComEstoque.includes(a)), ...armazensComEstoque.filter(a => a && !SV_ARMAZENS.includes(a))];
+  selArmazem.innerHTML = `<option value="">Todos os armazéns</option>` +
+    armazens.map(a => `<option value="${escapeAttr(a)}">${escapeHtml(a)}</option>`).join("") +
+    (armazensComEstoque.includes("") ? `<option value="__sem">Sem armazém</option>` : "");
+  if ([...selArmazem.options].some(o => o.value === armazemAtual)) selArmazem.value = armazemAtual;
+
+  const selMarca = document.getElementById("svCatFiltroMarca");
+  const marcaAtual = selMarca.value;
+  const marcas = [...new Set(todas.map(l => l.produto && l.produto.marca).filter(Boolean))].sort();
+  selMarca.innerHTML = `<option value="">Todas</option>` + marcas.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join("");
+  if (marcas.includes(marcaAtual)) selMarca.value = marcaAtual;
+
+  const busca = (document.getElementById("svCatSearch").value || "").trim().toLowerCase();
+  let rows = todas;
+  if (busca) rows = rows.filter(l => (l.codigo + " " + (l.produto ? l.produto.medida + " " + l.produto.marca : "")).toLowerCase().includes(busca));
+  if (selArmazem.value === "__sem") rows = rows.filter(l => !l.armazem);
+  else if (selArmazem.value) rows = rows.filter(l => l.armazem === selArmazem.value);
+  if (selMarca.value) rows = rows.filter(l => l.produto && l.produto.marca === selMarca.value);
+
+  document.getElementById("svCatCount").textContent = `Mostrando ${rows.length} de ${todas.length} item(ns) em estoque`;
+  const vazio = document.getElementById("svCatEmpty");
+  vazio.style.display = rows.length === 0 ? "block" : "none";
+  vazio.textContent = todas.length === 0
+    ? "Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui."
+    : "Nenhum pneu com esses filtros.";
+
+  document.getElementById("svCatGrid").innerHTML = rows.map(l => {
+    const p = l.produto;
+    const url = p ? svFotoUrl(p.fotoPath) : null;
+    return `
+      <div class="sv-cat-card">
+        <div class="sv-cat-foto">${url ? `<img src="${escapeAttr(url)}" alt="${escapeAttr(l.codigo)}" loading="lazy">` : "<span>sem foto</span>"}</div>
+        <div class="sv-cat-corpo">
+          <div class="mono sv-cat-codigo">${escapeHtml(l.codigo)}</div>
+          <div class="sv-cat-medida">${p ? escapeHtml(p.medida) + (p.marca ? " — " + escapeHtml(p.marca) : "") : "(produto removido)"}</div>
+          <div class="sv-cat-linha">
+            <span class="sv-cat-chip">${escapeHtml(svNomeArmazem(l.armazem))}</span>
+            <span class="mono sv-cat-disp${l.disp <= 0 ? " zerado" : ""}">${fmt(l.disp)} disp.</span>
+          </div>
+          ${l.reservado > 0 ? `<div class="sv-cat-reservado">${fmt(l.reservado)} un. reservadas</div>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+/* ---------- Reserva ---------- */
+
+function svSituacaoReserva(r) {
+  if (r.situacao === "CANCELADA") return { chave: "CANCELADA", rotulo: "Cancelada", pill: "pill-neutro" };
+  if (r.situacao === "VENDIDA") return { chave: "VENDIDA", rotulo: "Vendido", pill: "pill-normal" };
+  const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
+  if (prev && prev.status !== "CHEGOU") return { chave: "AGUARDANDO", rotulo: "Aguardando chegada", pill: "pill-azul" };
+  return { chave: "RESERVADO", rotulo: "Reservado", pill: "pill-baixo" };
+}
+
+function svOrigemReserva(r) {
+  const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
+  if (!prev) return r.previsaoId ? "processo removido" : svNomeArmazem(r.armazem);
+  if (prev.status === "CHEGOU") return `Processo ${prev.numeroProcesso} · ${svNomeArmazem(prev.armazem)}`;
+  return `Estoque Previsto — processo ${prev.numeroProcesso}${prev.dataChegada ? " · chega " + formatDateBR(prev.dataChegada) : ""}`;
+}
+
+function svMontarOpcoesReserva() {
+  const { linhas, aChegar } = svCalcularEstoque();
+  const opcoes = [];
+  linhas.filter(l => l.disp > 0)
+    .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem))
+    .forEach(l => {
+      const p = svGetProduto(l.codigo);
+      opcoes.push({
+        tipo: "E", codigo: l.codigo, armazem: l.armazem, disp: l.disp,
+        rotulo: `${l.codigo} — ${p ? p.medida : "(produto removido)"} (${l.disp} disp. · ${svNomeArmazem(l.armazem)})`
+      });
+    });
+  aChegar.filter(a => a.livres > 0)
+    .sort((a, b) => a.codigo.localeCompare(b.codigo))
+    .forEach(a => {
+      const prev = svState.previsoes.find(x => x.id === a.previsaoId);
+      const p = svGetProduto(a.codigo);
+      opcoes.push({
+        tipo: "P", codigo: a.codigo, previsaoId: a.previsaoId, disp: a.livres,
+        rotulo: `${p ? p.medida : a.codigo} — processo ${prev.numeroProcesso} · ${prev.dataChegada ? "previsão " + formatDateBR(prev.dataChegada) : "sem data prevista"} (${a.livres} livres)`
+      });
+    });
+  return opcoes;
+}
+
+function svChaveOpcao(o) {
+  return [o.tipo, o.codigo, o.armazem || "", o.previsaoId || ""].join("|");
+}
+
+function svOpcaoSelecionada() {
+  const v = document.getElementById("svResProduto").value;
+  return v === "" ? null : (svOpcoesReserva[Number(v)] || null);
+}
+
+function svAtualizarNotaDisponivel() {
+  const o = svOpcaoSelecionada();
+  document.getElementById("svResDisp").textContent = o
+    ? `Disponível pra reservar: ${fmt(o.disp)} un.`
+    : (svOpcoesReserva.length === 0 ? "Nada disponível: marque um processo como CHEGOU (com armazém) ou cadastre um processo a caminho no Estoque Previsto." : "");
+  document.getElementById("svResQuantidade").max = o ? String(o.disp) : "";
+}
+
+function svRenderReservaForm() {
+  const sel = document.getElementById("svResProduto");
+  const anterior = svOpcaoSelecionada();
+  const chaveAnterior = anterior ? svChaveOpcao(anterior) : null;
+  svOpcoesReserva = svMontarOpcoesReserva();
+  const grupo = (titulo, tipo) => {
+    const itens = svOpcoesReserva.map((o, i) => ({ o, i })).filter(x => x.o.tipo === tipo);
+    return itens.length
+      ? `<optgroup label="${escapeAttr(titulo)}">` + itens.map(x => `<option value="${x.i}">${escapeHtml(x.o.rotulo)}</option>`).join("") + `</optgroup>`
+      : "";
+  };
+  sel.innerHTML = `<option value="">Selecione…</option>` + grupo("Em estoque", "E") + grupo("A caminho (Estoque Previsto)", "P");
+  if (chaveAnterior) {
+    const i = svOpcoesReserva.findIndex(o => svChaveOpcao(o) === chaveAnterior);
+    if (i >= 0) sel.value = String(i);
+  }
+  svAtualizarNotaDisponivel();
+
+  document.getElementById("svListaClientes").innerHTML =
+    (state.clientes || []).map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
+  const responsaveis = [...new Set([...(state.representantes || []), ...(state.vendas || []).map(v => v.vendedor)].filter(Boolean))].sort();
+  document.getElementById("svListaResponsaveis").innerHTML = responsaveis.map(n => `<option value="${escapeAttr(n)}"></option>`).join("");
+}
+
+function svRenderReservaKpis() {
+  const ativas = svState.reservas.filter(r => r.situacao === "ATIVA");
+  const aguardando = ativas.filter(r => svSituacaoReserva(r).chave === "AGUARDANDO").length;
+  const pneus = ativas.reduce((soma, r) => soma + r.quantidade, 0);
+  document.getElementById("svResKpis").innerHTML = `
+    <div class="kpi"><div class="lbl">Reservas ativas</div><div class="val">${fmt(ativas.length)}</div></div>
+    <div class="kpi accent"><div class="lbl">Pneus reservados</div><div class="val">${fmt(pneus)} un.</div></div>
+    <div class="kpi"><div class="lbl">Aguardando chegada</div><div class="val">${fmt(aguardando)}</div></div>
+  `;
+}
+
+function svRenderReservaTabela() {
+  const filtro = document.getElementById("svResFiltro").value;
+  const busca = (document.getElementById("svResSearch").value || "").trim().toLowerCase();
+  let rows = svState.reservas.slice();
+  if (filtro === "ativas_vendidas") rows = rows.filter(r => r.situacao !== "CANCELADA");
+  else if (filtro === "ativas") rows = rows.filter(r => r.situacao === "ATIVA");
+  else if (filtro === "canceladas") rows = rows.filter(r => r.situacao === "CANCELADA");
+  if (busca) {
+    rows = rows.filter(r => {
+      const p = svGetProduto(r.codigo);
+      return [r.cliente, r.responsavel, r.codigo, p ? p.medida : ""].join(" ").toLowerCase().includes(busca);
+    });
+  }
+  rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+  document.getElementById("svResCount").textContent = `${rows.length} de ${svState.reservas.length} reserva(s)`;
+  const vazio = document.getElementById("svResEmpty");
+  vazio.style.display = rows.length === 0 ? "block" : "none";
+  vazio.textContent = svState.reservas.length === 0 ? "Nenhuma reserva ainda." : "Nenhuma reserva com esses filtros.";
+
+  const tbody = document.getElementById("svResTbody");
+  tbody.innerHTML = rows.map(r => {
+    const p = svGetProduto(r.codigo);
+    const sit = svSituacaoReserva(r);
+    const acoes = r.situacao === "ATIVA"
+      ? `<button type="button" class="sv-link sv-link-ok sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
+         <button type="button" class="sv-link sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
+      : `<span class="muted">—</span>`;
+    return `
+      <tr>
+        <td><span class="mono">${escapeHtml(r.codigo)}</span><div class="muted sv-sub">${escapeHtml(p ? p.medida : "(produto removido)")}</div><div class="muted sv-sub">${escapeHtml(svOrigemReserva(r))}</div></td>
+        <td>${escapeHtml(r.cliente)}</td>
+        <td>${escapeHtml(r.responsavel)}</td>
+        <td class="mono">${fmt(r.quantidade)}</td>
+        <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span></td>
+        <td class="mono">${r.data ? formatDateBR(r.data) : "—"}</td>
+        <td class="sv-acoes">${acoes}</td>
+      </tr>
+    `;
+  }).join("");
+
+  tbody.querySelectorAll("[data-svresvender]").forEach(btn => {
+    btn.addEventListener("click", () => svMudarSituacaoReserva(btn.dataset.svresvender, "VENDIDA"));
+  });
+  tbody.querySelectorAll("[data-svrescancelar]").forEach(btn => {
+    btn.addEventListener("click", () => svMudarSituacaoReserva(btn.dataset.svrescancelar, "CANCELADA"));
+  });
+}
+
+function svRenderReserva() {
+  svRenderReservaForm();
+  svRenderReservaKpis();
+  svRenderReservaTabela();
+}
+
+async function svMudarSituacaoReserva(id, nova) {
+  const r = svState.reservas.find(x => x.id === id);
+  if (!r) return;
+  const [titulo, texto] = nova === "VENDIDA"
+    ? ["Confirmar venda?", `Marcar as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente} como vendidas?`]
+    : ["Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`];
+  if (!(await confirmModal(titulo, texto))) return;
+  // só muda se ainda estiver ativa: se outra pessoa já vendeu ou cancelou, não sobrescreve
+  const { data, error } = await sb.from("sv_reservas").update({ situacao: nova }).eq("id", id).eq("situacao", "ATIVA").select();
+  if (error) { toast("Erro ao salvar: " + error.message); return; }
+  if (!data || data.length === 0) {
+    toast("Essa reserva já foi alterada por outra pessoa. Atualizando a lista.");
+    await svCarregarDados(true);
+    svRenderReserva();
+    return;
+  }
+  Object.assign(r, svReservaFromRow(data[0]));
+  svRenderReserva();
+  toast(nova === "VENDIDA" ? "Venda confirmada." : "Reserva cancelada.");
+}
+
+async function svSalvarReserva(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnSubmitReserva");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try { await svSalvarReservaDados(); } finally { botao.disabled = false; }
+}
+
+async function svSalvarReservaDados() {
+  const opcao = svOpcaoSelecionada();
+  const clienteDigitado = document.getElementById("svResCliente").value.trim();
+  const responsavel = document.getElementById("svResResponsavel").value.trim();
+  const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
+  const data = document.getElementById("svResData").value;
+  const obs = document.getElementById("svResObs").value.trim();
+
+  if (!opcao) { toast("Escolha o produto."); return; }
+  const cliente = (state.clientes || []).find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
+  if (!cliente) { toast("Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."); return; }
+  if (!responsavel) { toast("Informe o responsável pela venda."); return; }
+  if (!(quantidade > 0)) { toast("Informe a quantidade."); return; }
+  if (!data) { toast("Informe a data."); return; }
+
+  // confere o saldo com dados atualizados: outra pessoa pode ter reservado o mesmo lote agora há pouco
+  if (!(await svCarregarDados(true))) return;
+  const { linhas, aChegar } = svCalcularEstoque();
+  let disponivel = 0;
+  if (opcao.tipo === "E") {
+    const l = linhas.find(x => x.codigo === opcao.codigo && x.armazem === opcao.armazem);
+    disponivel = l ? l.disp : 0;
+  } else {
+    const prev = svState.previsoes.find(x => x.id === opcao.previsaoId);
+    if (!prev || prev.status === "CHEGOU") {
+      svRenderReserva();
+      toast("Esse processo já chegou. As opções foram atualizadas — escolha o produto em estoque.");
+      return;
+    }
+    const a = aChegar.find(x => x.previsaoId === opcao.previsaoId && x.codigo === opcao.codigo);
+    disponivel = a ? a.livres : 0;
+  }
+  if (quantidade > disponivel) {
+    svRenderReserva();
+    toast(`Só há ${disponivel} un. disponíveis nessa opção.`);
+    return;
+  }
+
+  const nova = {
+    id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, responsavel,
+    armazem: opcao.tipo === "E" ? opcao.armazem : null,
+    previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
+    situacao: "ATIVA", data, obs
+  };
+  const { data: inserida, error } = await sb.from("sv_reservas").insert({ ...svReservaToRow(nova), created_by: currentUser ? currentUser.id : null }).select();
+  if (error) { toast("Erro ao reservar: " + error.message); return; }
+  if (!inserida || inserida.length === 0) { toast("Não foi possível reservar (sem permissão)."); return; }
+  svState.reservas.unshift(svReservaFromRow(inserida[0]));
+  document.getElementById("svFormReserva").reset();
+  document.getElementById("svResData").value = todayISO();
+  svRenderReserva();
+  toast("Reserva criada.");
 }
 
 function initSemVendaTelas() {
@@ -644,4 +1104,19 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderPrevistos);
   });
   svResetItens();
+
+  document.getElementById("svBtnProdFoto").addEventListener("click", () => document.getElementById("svProdFotoInput").click());
+  document.getElementById("svProdFotoInput").addEventListener("change", (e) => svEscolherFoto(e.target.files[0]));
+  document.getElementById("svBtnProdRemoverFoto").addEventListener("click", svRemoverFoto);
+
+  ["svCatSearch", "svCatFiltroArmazem", "svCatFiltroMarca"].forEach(id => {
+    document.getElementById(id).addEventListener("input", svRenderCatalogo);
+  });
+
+  document.getElementById("svFormReserva").addEventListener("submit", svSalvarReserva);
+  document.getElementById("svResProduto").addEventListener("change", svAtualizarNotaDisponivel);
+  ["svResSearch", "svResFiltro"].forEach(id => {
+    document.getElementById(id).addEventListener("input", svRenderReservaTabela);
+  });
+  document.getElementById("svResData").value = todayISO();
 }
