@@ -1,0 +1,6 @@
+# Worker de assets estáticos (site/) -- permite o build de branches que não são a main.
+name = "torunpneus"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./site"
