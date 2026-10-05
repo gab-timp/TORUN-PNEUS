@@ -1031,9 +1031,9 @@ function vendaDentroDaJanelaRep(dataVenda, dataOutra) {
 function entregaDaVendaRep(v) {
   const nf = refDocCanonicaRep(v.numero_nf_venda);
   const pedido = refDocCanonicaRep(v.numero_pedido);
-  const porNF = nf ? entregas.filter(e => refDocCanonicaRep(e.numero_nf) === nf) : [];
+  const porNF = nf ? entregas.filter(e => refDocCanonicaRep(e.numero_nf) === nf && (!e.cliente || !v.cliente || e.cliente === v.cliente)) : [];
   const candidatas = porNF.length ? porNF
-    : (pedido ? entregas.filter(e => refDocCanonicaRep(e.numero_pedido) === pedido && vendaDentroDaJanelaRep(v.data, e.data)) : []);
+    : (pedido ? entregas.filter(e => refDocCanonicaRep(e.numero_pedido) === pedido && e.cliente === v.cliente && vendaDentroDaJanelaRep(v.data, e.data)) : []);
   if (!candidatas.length) return null;
   return candidatas.slice().sort((a, b) => {
     const comAnexoA = (a.anexos || []).length > 0, comAnexoB = (b.anexos || []).length > 0;

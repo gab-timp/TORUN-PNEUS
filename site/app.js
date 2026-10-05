@@ -8496,12 +8496,14 @@ function cotacaoContratadaParaVenda(pedido, nf) {
 // anexado lá (ex: o PDF da NF). NF é único, então casa direto sem janela de data; pedido pode
 // repetir/reiniciar (mesma ressalva da ligação de frete acima), então só casa dentro de uma janela
 // de ~3 meses. Se mais de um pedido bater (ex: NF repetida por engano), prioriza o que tem anexo.
+// O nº do pedido repete entre clientes, então o fallback por pedido exige o MESMO cliente; a NF só
+// descarta pedido de outro cliente quando os dois nomes estão preenchidos e são diferentes.
 function entregaDaVenda(v) {
   const nf = refDocCanonica(v.numeroNFVenda);
   const pedido = refDocCanonica(v.numeroPedido);
-  const porNF = nf ? state.entregas.filter(e => refDocCanonica(e.numeroNF) === nf) : [];
+  const porNF = nf ? state.entregas.filter(e => refDocCanonica(e.numeroNF) === nf && (!e.cliente || !v.cliente || e.cliente === v.cliente)) : [];
   const candidatas = porNF.length ? porNF
-    : (pedido ? state.entregas.filter(e => refDocCanonica(e.numeroPedido) === pedido && vendaDentroDaJanela(v.data, e.data)) : []);
+    : (pedido ? state.entregas.filter(e => refDocCanonica(e.numeroPedido) === pedido && e.cliente === v.cliente && vendaDentroDaJanela(v.data, e.data)) : []);
   if (!candidatas.length) return null;
   return candidatas.slice().sort((a, b) => {
     const comAnexoA = (a.anexos || []).length > 0, comAnexoB = (b.anexos || []).length > 0;
