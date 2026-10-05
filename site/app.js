@@ -907,6 +907,7 @@ function setView(view) {
   if (view === "historico") renderHistorico();
   if (view === "relatorios") renderRelatorioCodigoListas();
   if (view === "administracao") renderAdministracao();
+  if (view.startsWith("sv-")) svAoAbrirView(view);
 }
 
 /* ---------------- render: ESTOQUE ---------------- */

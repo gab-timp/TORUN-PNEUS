@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=145">
-<link rel="stylesheet" href="semvenda.css?v=1">
+<link rel="stylesheet" href="semvenda.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -381,13 +381,209 @@
       <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Visão geral do estoque comprado a mais, ainda sem venda.</div></div></div>
       <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
     </section>
-    <section id="view-sv-previsto" class="view">
-      <div class="page-head"><div><h1>Estoque Previsto</h1><div class="sub">Processos de compra em andamento.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 2 do Sem Venda.</div>
+    <section id="view-sv-previsto" class="view" data-table="sv_previsoes">
+      <div class="page-head">
+        <div>
+          <h1>Estoque Previsto</h1>
+          <div class="sub">Processos de compra em andamento — acompanhe a chegada de cada processo e em qual armazém ele vai entrar.</div>
+        </div>
+      </div>
+
+      <div class="card write-ui card-collapsible collapsed" data-collapse-key="sv-prev-novo-processo">
+        <div class="card-head">
+          <h2 id="svPrevFormTitle">Novo processo previsto</h2>
+          <div class="note" id="svPrevEditBanner" style="display:none;">Editando processo · <a href="#" id="svPrevCancelEdit">cancelar edição</a></div>
+          <span class="card-toggle">⌄</span>
+        </div>
+        <div class="card-body">
+        <form id="svFormPrevisto">
+          <div class="form-row">
+            <div class="field">
+              <label>Nº do processo</label>
+              <input type="text" id="svPrevNumeroProcesso" placeholder="Ex: 3070-26" required>
+            </div>
+            <div class="field">
+              <label>Data de chegada (opcional)</label>
+              <input type="date" id="svPrevDataChegada">
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="svPrevStatus"></select>
+            </div>
+            <div class="field">
+              <label>Armazém de destino</label>
+              <select id="svPrevArmazem"></select>
+            </div>
+          </div>
+
+          <div class="field" style="margin-bottom:12px;">
+            <label>Medidas do processo</label>
+            <div id="svPrevItens" class="item-list"></div>
+            <div class="note" id="svPrevSemProdutos" style="display:none;">Cadastre os produtos em Produtos antes de montar um processo.</div>
+            <button type="button" class="btn small outline" id="svBtnAddItemPrevisto" style="margin-top:8px;">+ Adicionar medida</button>
+          </div>
+
+          <div class="form-row">
+            <div class="field grow">
+              <label>Observação (opcional)</label>
+              <input type="text" id="svPrevObs" placeholder="Ex: fornecedor, navio, contêiner...">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="svBtnSubmitPrevisto">Adicionar processo</button>
+          </div>
+        </form>
+        </div>
+      </div>
+
+      <div class="search-row">
+        <input type="text" id="svPrevSearch" placeholder="Buscar por processo ou medida…">
+        <select id="svPrevFiltroStatus">
+          <option value="todos">Todos os status</option>
+        </select>
+      </div>
+
+      <div class="prev-grid" id="svPrevGrid"></div>
+      <div class="empty-state" id="svPrevEmpty" style="display:none;">Nenhum processo previsto cadastrado.</div>
     </section>
-    <section id="view-sv-produtos" class="view">
-      <div class="page-head"><div><h1>Produtos</h1><div class="sub">Cadastro de produtos do Sem Venda — separado do cadastro do Torun.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 2 do Sem Venda.</div>
+    <section id="view-sv-produtos" class="view" data-table="sv_produtos">
+      <div class="page-head">
+        <div>
+          <h1>Produtos</h1>
+          <div class="sub">Cadastro de produtos do Sem Venda — separado do cadastro do Torun.</div>
+        </div>
+      </div>
+
+      <div class="card write-ui card-collapsible collapsed" data-collapse-key="sv-prod-novo">
+        <div class="card-head">
+          <h2 id="svProdFormTitle">Novo produto</h2>
+          <div class="note" id="svProdEditBanner" style="display:none;">Editando produto · <a href="#" id="svProdCancelEdit">cancelar edição</a></div>
+          <span class="card-toggle">⌄</span>
+        </div>
+        <div class="card-body">
+        <form id="svFormProduto">
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">1</span>Identificação</div>
+            <div class="form-row">
+              <div class="field">
+                <label>Código do produto</label>
+                <input type="text" id="svProdCodigo" placeholder="Ex: 709019" required>
+              </div>
+              <div class="field">
+                <label>Marca (opcional)</label>
+                <input type="text" id="svProdMarca" placeholder="Ex: ASCENSO">
+              </div>
+              <div class="field grow">
+                <label>Modelo (opcional)</label>
+                <input type="text" id="svProdModelo" placeholder="Ex: AFB821">
+              </div>
+              <div class="field">
+                <label>Situação</label>
+                <select id="svProdSituacao">
+                  <option value="ATIVO" selected>Ativo</option>
+                  <option value="DESCONTINUADO">Descontinuado</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field grow">
+                <label>Medida / descrição completa</label>
+                <input type="text" id="svProdMedida" placeholder="Ex: 12.4-24 SB AFB821 16PR 8M TL" required>
+              </div>
+              <div class="field">
+                <label>Categoria (opcional)</label>
+                <select id="svProdCategoria"></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">2</span>Especificações técnicas (opcional)</div>
+            <div class="form-row">
+              <div class="field small">
+                <label>Carcaça</label>
+                <select id="svProdCarcaca">
+                  <option value="">—</option>
+                  <option value="RADIAL">Radial</option>
+                  <option value="DIAGONAL">Diagonal</option>
+                </select>
+              </div>
+              <div class="field small">
+                <label>IC/IV</label>
+                <input type="text" id="svProdIcIv" placeholder="154/149M">
+              </div>
+              <div class="field small">
+                <label>PR (lonas)</label>
+                <input type="text" id="svProdPr" placeholder="16PR">
+              </div>
+              <div class="field small">
+                <label>Cap. carga</label>
+                <input type="text" id="svProdCapCarga" placeholder="3550 kg">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="svBtnSubmitProduto">Adicionar produto</button>
+          </div>
+        </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Produtos cadastrados</h2>
+          <div class="note" id="svProdCount"></div>
+        </div>
+        <div class="form-row">
+          <div class="field grow">
+            <label>Buscar</label>
+            <input type="text" id="svProdSearch" placeholder="Código ou medida…">
+          </div>
+          <div class="field">
+            <label>Categoria</label>
+            <select id="svProdFiltroCategoria"></select>
+          </div>
+          <div class="field">
+            <label>Marca</label>
+            <select id="svProdFiltroMarca"></select>
+          </div>
+          <div class="field">
+            <label>Carcaça</label>
+            <select id="svProdFiltroCarcaca">
+              <option value="">Todas</option>
+              <option value="RADIAL">Radial</option>
+              <option value="DIAGONAL">Diagonal</option>
+              <option value="__sem">Não informado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Situação</label>
+            <select id="svProdFiltroSituacao">
+              <option value="">Todas</option>
+              <option value="ATIVO">Ativo</option>
+              <option value="DESCONTINUADO">Descontinuado</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Medida</th>
+                <th>Categoria</th>
+                <th>Marca</th>
+                <th>Carcaça</th>
+                <th>Situação</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="svProdTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svProdEmpty" style="display:none;"></div>
+      </div>
     </section>
     <section id="view-sv-catalogo" class="view">
       <div class="page-head"><div><h1>Catálogo</h1><div class="sub">Pneus comprados a mais, disponíveis pra proposta.</div></div></div>
@@ -3114,7 +3310,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=1"></script>
-<script src="app.js?v=224"></script>
+<script src="semvenda.js?v=3"></script>
+<script src="app.js?v=225"></script>
 </body>
 </html>

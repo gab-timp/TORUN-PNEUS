@@ -63,6 +63,12 @@
 }
 .sv-vazio b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px;}
 
+/* rodapé do cartão do Estoque Previsto: o Torun tem 2 campos, aqui são 3 (data, armazém, status).
+   Data e armazém dividem a linha; o status, com texto comprido, ocupa a linha de baixo. */
+#svPrevGrid .prev-card-footer{flex-wrap:wrap;}
+#svPrevGrid .prev-card-footer .field{flex:1 1 110px;min-width:0;}
+#svPrevGrid .prev-card-footer .field:nth-child(3){flex-basis:100%;}
+
 /* dentro do Sem Venda: esconde o que é só do varejo (busca, sino, backup, ajuda) */
 body.sistema-semvenda .topbar-search,
 body.sistema-semvenda .bell-wrap{visibility:hidden;}
