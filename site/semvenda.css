@@ -1,0 +1,73 @@
+/* ---------------- Sem Venda: escolha do sistema e estrutura (etapa 1) ---------------- */
+
+:root{--sv-acento:var(--orange-deep);}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--sv-acento:var(--orange);}
+}
+:root[data-theme="dark"]{--sv-acento:var(--orange);}
+
+.sistema-screen{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:44px;
+  padding:24px;
+  background:var(--paper);
+  color:var(--ink);
+}
+.sistema-marca{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.sistema-marca-icone{
+  width:46px;height:46px;border-radius:12px;
+  background:var(--black);color:var(--orange);
+  display:flex;align-items:center;justify-content:center;
+}
+.sistema-marca-icone svg{width:24px;height:24px;}
+.sistema-marca-nome{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
+.sistema-titulo{text-align:center;display:flex;flex-direction:column;gap:6px;}
+.sistema-titulo h1{font-size:26px;font-weight:800;}
+.sistema-titulo .sub{font-size:13.5px;color:var(--ink-soft);}
+.sistema-cards{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;width:100%;max-width:704px;}
+.sistema-card{
+  width:340px;max-width:100%;min-height:220px;
+  text-align:left;font:inherit;color:inherit;cursor:pointer;
+  background:var(--surface);
+  border:1px solid var(--line);border-top:4px solid var(--orange);
+  border-radius:16px;box-shadow:var(--shadow-card);
+  padding:26px;
+  display:flex;flex-direction:column;gap:14px;
+  transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.sistema-card.sv{border-top-color:var(--ink);}
+.sistema-card:hover{border-color:var(--orange);box-shadow:0 10px 24px -10px rgba(255,106,19,.35);transform:translateY(-2px);}
+.sistema-card:focus-visible{outline:2px solid var(--orange);outline-offset:3px;}
+.sistema-card-icone{
+  width:42px;height:42px;border-radius:10px;
+  background:var(--orange-pale);color:var(--orange-deep);
+  display:flex;align-items:center;justify-content:center;
+}
+.sistema-card-icone svg{width:21px;height:21px;}
+.sistema-card.sv .sistema-card-icone{background:var(--paper-2);color:var(--ink);}
+.sistema-card-nome{font-size:17px;font-weight:800;}
+.sistema-card-nome span{color:var(--sv-acento);}
+.sistema-card-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.5;flex:1;}
+.sistema-card-entrar{font-size:11.5px;font-weight:700;color:var(--sv-acento);}
+.sistema-card.sv .sistema-card-entrar{color:var(--ink);}
+.sistema-nota{font-size:11px;color:var(--ink-soft);text-align:center;}
+
+.sv-vazio{
+  border:1px dashed var(--line);border-radius:14px;
+  padding:44px 24px;text-align:center;
+  background:var(--surface);color:var(--ink-soft);font-size:13px;
+}
+.sv-vazio b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px;}
+
+/* dentro do Sem Venda: esconde o que é só do varejo (busca, sino, backup, ajuda) */
+body.sistema-semvenda .topbar-search,
+body.sistema-semvenda .bell-wrap{visibility:hidden;}
+body.sistema-semvenda #btnExport,
+body.sistema-semvenda #btnImport,
+body.sistema-semvenda #btnReset,
+body.sistema-semvenda .help-card,
+body.sistema-semvenda .sidebar-divider{display:none;}

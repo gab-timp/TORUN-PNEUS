@@ -11,6 +11,7 @@ let currentUserVisibleViews = null;
 let currentUserIsAdmin = false;
 let currentUserPodeAutorizarGerencia = false;
 let currentUserPodeExportarBackup = false;
+let currentUserPodeAcessarSemVenda = false;
 let currentUserEditableTables = null;
 let currentUserKanbanColapsadas = [];
 let currentUserNome = "";
@@ -457,7 +458,7 @@ async function loadState() {
       fetchComRetry(() => sb.from("romaneios").select("*").order("created_at", { ascending: false })),
       fetchComRetry(() => sb.from("rastreio_eventos").select("*").order("ocorrido_em", { ascending: true })),
       fetchComRetry(() => sb.rpc("representantes_ativos")),
-      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
+      fetchComRetry(() => sb.from("user_roles").select("role, nome, email, visible_views, is_admin, editable_tables, pode_autorizar_gerencia, pode_exportar_backup, pode_acessar_sem_venda, telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("user_preferences").select("kanban_colunas_recolhidas, tema, notif_nova_proposta, notif_mudanca_etapa, notif_estoque_baixo, notif_precadastro_novo, notif_pedido_parado, notif_previsto_chegando, tamanho_letra, ultima_notificacao_vista_em").eq("user_id", currentUser.id).maybeSingle()),
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
       fetchComRetry(() => sb.from("notificacoes").select("*").order("created_at", { ascending: false }).limit(50))
@@ -500,6 +501,7 @@ async function loadState() {
   currentUserIsAdmin = !!(roleRes.data && roleRes.data.is_admin);
   currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
   currentUserPodeExportarBackup = !!(roleRes.data && roleRes.data.pode_exportar_backup);
+  currentUserPodeAcessarSemVenda = !!(roleRes.data && roleRes.data.pode_acessar_sem_venda);
   currentUserEditableTables = (roleRes.data && roleRes.data.editable_tables) || null;
   currentUserNome = (roleRes.data && roleRes.data.nome) || currentUser.email;
   currentUserTelefone = (roleRes.data && roleRes.data.telefone) || "";
@@ -863,6 +865,7 @@ async function registrarLog(tabela, registroId, acao, motivo, descricao) {
 
 function applyViewRestrictions() {
   document.querySelectorAll(".nav-item").forEach(b => {
+    if (b.dataset.view.startsWith("sv-")) return; // Sem Venda: o acesso é pela permissão própria, não por "telas visíveis"
     b.style.display = (!currentUserVisibleViews || currentUserVisibleViews.includes(b.dataset.view)) ? "" : "none";
   });
 }
@@ -9648,6 +9651,7 @@ async function init() {
   initCollapsibleCards();
   initKanbanColumnsCollapse();
   initNavGroups();
+  initSistemas();
   initSidebarCollapse();
   initMinhasConfiguracoes();
   initSino();
@@ -9923,6 +9927,7 @@ function abrirUsuarioEditModal(userId) {
   document.getElementById("usuarioEditIsAdmin").checked = !!u.is_admin;
   document.getElementById("usuarioEditPodeAutorizar").checked = !!u.pode_autorizar_gerencia;
   document.getElementById("usuarioEditPodeExportarBackup").checked = !!u.pode_exportar_backup;
+  document.getElementById("usuarioEditPodeSemVenda").checked = !!u.pode_acessar_sem_venda;
   const visibleViews = u.visible_views || null;
   document.getElementById("usuarioEditVisibleViewsLista").innerHTML = ADMIN_VIEW_DEFS.map(v => `
     <label class="dash-filter-item">
@@ -9945,10 +9950,11 @@ async function salvarUsuarioEdit() {
   const isAdmin = document.getElementById("usuarioEditIsAdmin").checked;
   const podeAutorizar = document.getElementById("usuarioEditPodeAutorizar").checked;
   const podeExportarBackup = document.getElementById("usuarioEditPodeExportarBackup").checked;
+  const podeSemVenda = document.getElementById("usuarioEditPodeSemVenda").checked;
   const checkboxes = Array.from(document.querySelectorAll("#usuarioEditVisibleViewsLista input"));
   const marcados = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.viewkey);
   const visibleViews = marcados.length === checkboxes.length ? null : marcados; // todos marcados = sem restrição
-  const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, pode_exportar_backup: podeExportarBackup, visible_views: visibleViews };
+  const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, pode_exportar_backup: podeExportarBackup, pode_acessar_sem_venda: podeSemVenda, visible_views: visibleViews };
   const { error } = await sb.from("user_roles").update(payload).eq("user_id", adminEditingUserId);
   if (error) { toast("Erro ao salvar usuário: " + error.message); return; }
   const u = adminUsuarios.find(x => x.user_id === adminEditingUserId);
@@ -10023,7 +10029,7 @@ async function showApp() {
     iniciarFallbackRefresh();
   }
   document.getElementById("loadingScreen").style.display = "none";
-  document.getElementById("appShell").style.display = "flex";
+  entrarNoSistema();
 }
 
 function initAuthUI() {
@@ -10042,11 +10048,13 @@ function initAuthUI() {
       return;
     }
     currentUser = data.user;
+    esquecerSistema();
     await showApp();
   });
 
   document.getElementById("btnLogout").addEventListener("click", async () => {
     await sb.auth.signOut();
+    esquecerSistema();
     location.reload();
   });
 }

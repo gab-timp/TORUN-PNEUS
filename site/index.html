@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=145">
+<link rel="stylesheet" href="semvenda.css?v=1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -41,6 +42,38 @@
     <div class="login-erro" id="loginErro" style="display:none;"></div>
     <button type="submit" class="btn primary" id="loginSubmitBtn">Entrar</button>
   </form>
+</div>
+
+<div class="sistema-screen" id="sistemaScreen" style="display:none;">
+  <div class="sistema-marca">
+    <div class="sistema-marca-icone">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8V14h-8z"/><path d="M10.5 8h3.3L16 10.4V14h-5.5z"/><circle cx="6" cy="15.3" r="1.4"/><circle cx="13.5" cy="15.3" r="1.4"/></svg>
+    </div>
+    <div class="sistema-marca-nome">Torun Pneus</div>
+  </div>
+  <div class="sistema-titulo">
+    <h1>Qual sistema você quer acessar?</h1>
+    <div class="sub" id="sistemaUsuario"></div>
+  </div>
+  <div class="sistema-cards">
+    <button type="button" class="sistema-card" data-sistema="varejo">
+      <span class="sistema-card-icone">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h8V14h-8z"/><path d="M10.5 8h3.3L16 10.4V14h-5.5z"/><circle cx="6" cy="15.3" r="1.4"/><circle cx="13.5" cy="15.3" r="1.4"/></svg>
+      </span>
+      <span class="sistema-card-nome">TORUN <span>(VAREJO)</span></span>
+      <span class="sistema-card-desc">Estoque, vendas, faturamento e financeiro do dia a dia do varejo — o painel de sempre.</span>
+      <span class="sistema-card-entrar">Entrar →</span>
+    </button>
+    <button type="button" class="sistema-card sv" data-sistema="semvenda">
+      <span class="sistema-card-icone">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="15" height="9.5" rx="1.5"/><path d="M5 7V4.8A2.3 2.3 0 0 1 7.3 2.5h5.4A2.3 2.3 0 0 1 15 4.8V7"/><path d="M2.5 11h15"/></svg>
+      </span>
+      <span class="sistema-card-nome">SEM VENDA</span>
+      <span class="sistema-card-desc">Pneus comprados a mais, ainda sem venda — estoque previsto, catálogo, propostas e armazenagem.</span>
+      <span class="sistema-card-entrar">Entrar →</span>
+    </button>
+  </div>
+  <div class="sistema-nota">O acesso ao SEM VENDA é liberado por um administrador.</div>
 </div>
 
 <div class="login-screen" id="loadingScreen" style="display:none;">
@@ -143,6 +176,12 @@
       <g id="i-trend" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
         <path d="M2.5 14.5 8 9l3.5 3.5L17.5 5"/><path d="M12.5 5h5v5"/>
       </g>
+      <g id="i-lock" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="9" width="12" height="8" rx="2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"/>
+      </g>
+      <g id="i-warehouse" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 8.5 10 3l8 5.5V17H2Z"/><path d="M7.5 17v-5.5h5V17"/>
+      </g>
     </defs>
   </svg>
 
@@ -150,10 +189,10 @@
     <div class="brand">
       <img src="assets/logo-dark.png" alt="Torun Pneus" class="brand-logo">
       <img src="assets/marca-icone.png" alt="Torun Pneus" class="brand-logo-mini">
-      <span class="brand-sub">Controle de Estoque</span>
+      <span class="brand-sub" id="brandSub">Controle de Estoque</span>
     </div>
 
-    <nav class="nav">
+    <nav class="nav" id="navVarejo">
       <button class="nav-item active" data-view="dashboard" data-label="Dashboard">
         <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
       </button>
@@ -237,6 +276,36 @@
       </div>
     </nav>
 
+    <nav class="nav" id="navSemVenda" style="display:none;">
+      <div class="nav-group" data-group="sv-geral">
+        <button type="button" class="nav-label">Geral <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" data-view="sv-dashboard" data-label="Dashboard">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
+        </button>
+        <button class="nav-item" data-view="sv-previsto" data-label="Estoque Previsto">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-calendar"/></svg> Estoque Previsto
+        </button>
+        <button class="nav-item" data-view="sv-catalogo" data-label="Catálogo">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-image"/></svg> Catálogo
+        </button>
+      </div>
+      <div class="nav-group" data-group="sv-comercial">
+        <button type="button" class="nav-label">Comercial <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" data-view="sv-reserva" data-label="Reserva">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-lock"/></svg> Reserva
+        </button>
+        <button class="nav-item" data-view="sv-relatoriopreco" data-label="Relatório de Preço">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatório de Preço
+        </button>
+        <button class="nav-item" data-view="sv-frete" data-label="Frete">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Frete
+        </button>
+        <button class="nav-item" data-view="sv-armazenagem" data-label="Armazenagem">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-warehouse"/></svg> Armazenagem
+        </button>
+      </div>
+    </nav>
+
     <div class="sidebar-foot">
       <div class="theme-toggle">
         <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
@@ -247,6 +316,7 @@
       <button class="ghost-btn export-backup-allowed" id="btnExport" data-label="Exportar backup (JSON)">⬇ <span class="ghost-btn-label">Exportar backup (JSON)</span></button>
       <button class="ghost-btn admin-only" id="btnImport" data-label="Importar backup">⬆ <span class="ghost-btn-label">Importar backup</span></button>
       <button class="ghost-btn admin-only" id="btnReset" data-label="Restaurar dados iniciais">↻ <span class="ghost-btn-label">Restaurar dados iniciais</span></button>
+      <button class="ghost-btn" id="btnTrocarSistema" data-label="Trocar de sistema" style="display:none;">⇄ <span class="ghost-btn-label">Trocar de sistema</span></button>
       <button class="ghost-btn" id="btnLogout" data-label="Sair">⎋ <span class="ghost-btn-label">Sair</span></button>
       <div class="sidebar-divider"></div>
       <div class="help-card">
@@ -302,6 +372,36 @@
         <svg class="ic profile-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg>
       </button>
     </div>
+
+    <!-- ======================= SEM VENDA (etapa 1: telas vazias) ======================= -->
+    <section id="view-sv-dashboard" class="view">
+      <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Visão geral do estoque comprado a mais, ainda sem venda.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+    </section>
+    <section id="view-sv-previsto" class="view">
+      <div class="page-head"><div><h1>Estoque Previsto</h1><div class="sub">Processos de compra em andamento.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 2 do Sem Venda.</div>
+    </section>
+    <section id="view-sv-catalogo" class="view">
+      <div class="page-head"><div><h1>Catálogo</h1><div class="sub">Pneus comprados a mais, disponíveis pra proposta.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 3 do Sem Venda.</div>
+    </section>
+    <section id="view-sv-reserva" class="view">
+      <div class="page-head"><div><h1>Reserva</h1><div class="sub">Reserve um pneu pra um cliente antes de vender de verdade — funciona até pra item que ainda não chegou.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 3 do Sem Venda.</div>
+    </section>
+    <section id="view-sv-relatoriopreco" class="view">
+      <div class="page-head"><div><h1>Relatório de Preço</h1><div class="sub">Monta uma proposta em PDF pra mandar pro cliente.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+    </section>
+    <section id="view-sv-frete" class="view">
+      <div class="page-head"><div><h1>Frete</h1><div class="sub">Só o essencial: quem pagou, quanto e com quem.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+    </section>
+    <section id="view-sv-armazenagem" class="view">
+      <div class="page-head"><div><h1>Armazenagem</h1><div class="sub">Quanto tem parado em cada armazém.</div></div></div>
+      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+    </section>
 
     <!-- ======================= VIEW: DASHBOARD ======================= -->
     <section id="view-dashboard" class="view active">
@@ -2565,6 +2665,9 @@
       <label><input type="checkbox" id="usuarioEditPodeExportarBackup"> Pode exportar backup</label>
     </div>
     <div class="field">
+      <label><input type="checkbox" id="usuarioEditPodeSemVenda"> Pode acessar o Sem Venda (administradores sempre podem)</label>
+    </div>
+    <div class="field">
       <label>Telas visíveis (todas marcadas = sem restrição)</label>
       <div id="usuarioEditVisibleViewsLista" style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px;"></div>
     </div>
@@ -3004,6 +3107,7 @@
   </div>
 </div>
 
-<script src="app.js?v=223"></script>
+<script src="semvenda.js?v=1"></script>
+<script src="app.js?v=224"></script>
 </body>
 </html>
