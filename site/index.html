@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=145">
-<link rel="stylesheet" href="semvenda.css?v=2">
+<link rel="stylesheet" href="semvenda.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -376,12 +376,12 @@
       </button>
     </div>
 
-    <!-- ======================= SEM VENDA (etapa 1: telas vazias) ======================= -->
+    <!-- ======================= SEM VENDA ======================= -->
     <section id="view-sv-dashboard" class="view">
       <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Visão geral do estoque comprado a mais, ainda sem venda.</div></div></div>
       <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
     </section>
-    <section id="view-sv-previsto" class="view" data-table="sv_previsoes">
+    <section id="view-sv-previsto" class="view">
       <div class="page-head">
         <div>
           <h1>Estoque Previsto</h1>
@@ -389,7 +389,7 @@
         </div>
       </div>
 
-      <div class="card write-ui card-collapsible collapsed" data-collapse-key="sv-prev-novo-processo">
+      <div class="card sv-write card-collapsible collapsed" data-collapse-key="sv-prev-novo-processo">
         <div class="card-head">
           <h2 id="svPrevFormTitle">Novo processo previsto</h2>
           <div class="note" id="svPrevEditBanner" style="display:none;">Editando processo · <a href="#" id="svPrevCancelEdit">cancelar edição</a></div>
@@ -446,7 +446,7 @@
       <div class="prev-grid" id="svPrevGrid"></div>
       <div class="empty-state" id="svPrevEmpty" style="display:none;">Nenhum processo previsto cadastrado.</div>
     </section>
-    <section id="view-sv-produtos" class="view" data-table="sv_produtos">
+    <section id="view-sv-produtos" class="view">
       <div class="page-head">
         <div>
           <h1>Produtos</h1>
@@ -454,7 +454,7 @@
         </div>
       </div>
 
-      <div class="card write-ui card-collapsible collapsed" data-collapse-key="sv-prod-novo">
+      <div class="card sv-write card-collapsible collapsed" data-collapse-key="sv-prod-novo">
         <div class="card-head">
           <h2 id="svProdFormTitle">Novo produto</h2>
           <div class="note" id="svProdEditBanner" style="display:none;">Editando produto · <a href="#" id="svProdCancelEdit">cancelar edição</a></div>
@@ -3310,7 +3310,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=3"></script>
-<script src="app.js?v=225"></script>
+<script src="semvenda.js?v=4"></script>
+<script src="app.js?v=226"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* ---------------- Sem Venda: escolha do sistema e estrutura (etapa 1) ---------------- */
+/* ---------------- Sem Venda: escolha do sistema, menu e telas ---------------- */
 /* Carrega antes do app.js; usa currentUser*, setView, primeiraViewPermitida e
    currentUserRoleLabel do app.js, que só são resolvidos na hora da chamada. */
 
@@ -33,6 +33,7 @@ function aplicarSistema(sistema) {
 }
 
 function mostrarEscolhaSistema() {
+  setMobileMenu(false);
   document.getElementById("appShell").style.display = "none";
   document.title = "TORUN PNEUS · Painel de Controle";
   document.getElementById("sistemaUsuario").textContent =
@@ -103,7 +104,7 @@ function svProdutoToRow(p) {
 
 function svPrevistoFromRow(r) {
   return {
-    id: r.id, numeroProcesso: r.numero_processo, itens: r.itens || [], dataChegada: r.data_chegada || "",
+    id: r.id, numeroProcesso: r.numero_processo, itens: Array.isArray(r.itens) ? r.itens.filter(it => it && typeof it === "object") : [], dataChegada: r.data_chegada || "",
     status: r.status, armazem: r.armazem || "", obs: r.obs || "", createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -119,21 +120,29 @@ function svGetProduto(codigo) {
   return svState.produtos.find(p => p.codigo === codigo);
 }
 
-async function svCarregarDados(forcar) {
-  if (!forcar && Date.now() - svUltimaCarga < SV_RECARGA_MIN_MS) return true;
-  const [prod, prev] = await Promise.all([
-    sb.from("sv_produtos").select("*").order("codigo"),
-    sb.from("sv_previsoes").select("*").order("created_at", { ascending: false })
-  ]);
-  const erro = prod.error || prev.error;
-  if (erro) {
-    toast("Erro ao carregar o Sem Venda: " + erro.message);
-    return false;
-  }
-  svState.produtos = (prod.data || []).map(svProdutoFromRow);
-  svState.previsoes = (prev.data || []).map(svPrevistoFromRow);
+let svCargaEmAndamento = null;
+
+// Uma carga por vez (quem chega no meio pega a mesma) e no máximo uma a cada 3s, mesmo quando falha
+// (sem isso, tabela inexistente ou rede fora repetiria a consulta e o aviso a cada evento).
+function svCarregarDados(forcar) {
+  if (svCargaEmAndamento) return svCargaEmAndamento;
+  if (!forcar && Date.now() - svUltimaCarga < SV_RECARGA_MIN_MS) return Promise.resolve(true);
   svUltimaCarga = Date.now();
-  return true;
+  svCargaEmAndamento = (async () => {
+    const [prod, prev] = await Promise.all([
+      sb.from("sv_produtos").select("*").order("codigo"),
+      sb.from("sv_previsoes").select("*").order("created_at", { ascending: false })
+    ]);
+    const erro = prod.error || prev.error;
+    if (erro) {
+      toast("Erro ao carregar o Sem Venda: " + erro.message);
+      return false;
+    }
+    svState.produtos = (prod.data || []).map(svProdutoFromRow);
+    svState.previsoes = (prev.data || []).map(svPrevistoFromRow);
+    return true;
+  })().finally(() => { svCargaEmAndamento = null; });
+  return svCargaEmAndamento;
 }
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
@@ -195,8 +204,8 @@ function svRenderProdutos() {
       <td>${p.situacao === "DESCONTINUADO" ? '<span class="status-pill pill-esgotado">Descontinuado</span>' : '<span class="status-pill pill-normal">Ativo</span>'}</td>
       <td>
         <div class="row-actions">
-          <button type="button" class="icon-btn write-ui" data-svedit="${escapeAttr(p.codigo)}" title="Editar"><svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg></button>
-          <button type="button" class="btn small danger write-ui" data-svdel="${escapeAttr(p.codigo)}">Excluir</button>
+          <button type="button" class="icon-btn sv-write" data-svedit="${escapeAttr(p.codigo)}" title="Editar"><svg class="ic" viewBox="0 0 20 20"><use href="#i-pencil"/></svg></button>
+          <button type="button" class="btn small danger sv-write" data-svdel="${escapeAttr(p.codigo)}">Excluir</button>
         </div>
       </td>
     </tr>
@@ -243,8 +252,16 @@ function svCancelarEdicaoProduto() {
   document.getElementById("svBtnSubmitProduto").textContent = "Adicionar produto";
 }
 
+// o botão fica desabilitado até a resposta voltar: duplo clique não grava duas vezes
 async function svSalvarProduto(e) {
   e.preventDefault();
+  const botao = document.getElementById("svBtnSubmitProduto");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try { await svSalvarProdutoDados(e); } finally { botao.disabled = false; }
+}
+
+async function svSalvarProdutoDados(e) {
   const dados = {
     codigo: document.getElementById("svProdCodigo").value.trim(),
     medida: document.getElementById("svProdMedida").value.trim(),
@@ -334,12 +351,25 @@ function svResetItens() {
   updateItemRemoveVisibility("svPrevItens");
 }
 
+// produto que sumiu da lista (outra pessoa removeu) continua como opção marcada, em vez de o
+// select cair silenciosamente no primeiro produto e gravar o item errado
+function svGarantirOpcao(sel, codigo) {
+  if ([...sel.options].some(o => o.value === codigo)) return;
+  const op = document.createElement("option");
+  op.value = codigo;
+  op.textContent = `${codigo} — (produto removido)`;
+  sel.appendChild(op);
+}
+
 function svAtualizarSelectsProduto() {
   const opcoes = svProdutoOptionsHTML();
   document.querySelectorAll("#svPrevItens .item-produto").forEach(sel => {
     const anterior = sel.value;
     sel.innerHTML = opcoes;
-    if (anterior) sel.value = anterior;
+    if (anterior) {
+      svGarantirOpcao(sel, anterior);
+      sel.value = anterior;
+    }
   });
   document.getElementById("svPrevSemProdutos").style.display = svState.produtos.length === 0 ? "block" : "none";
 }
@@ -394,7 +424,7 @@ function svRenderPrevistos() {
             <span class="mono prev-card-title">${escapeHtml(p.numeroProcesso)}</span>
             <span class="prev-status-badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
           </div>
-          <div class="prev-card-actions write-ui">
+          <div class="prev-card-actions sv-write">
             <button class="btn small outline" data-svprevedit="${escapeAttr(p.id)}">Editar</button>
             <button class="btn small danger" data-svprevdel="${escapeAttr(p.id)}">✕</button>
           </div>
@@ -446,12 +476,21 @@ function svRenderPrevistos() {
 }
 
 async function svAtualizarCampoPrevisto(id, campos, mensagem) {
-  const p = svState.previsoes.find(x => x.id === id);
-  if (!p) return;
+  if (!svState.previsoes.some(x => x.id === id)) return;
   const { data, error } = await sb.from("sv_previsoes").update(campos).eq("id", id).select();
   if (error) { toast("Erro ao salvar: " + error.message); return; }
   if (!data || data.length === 0) { toast("Não foi possível salvar (sem permissão ou processo removido)."); return; }
-  Object.assign(p, svPrevistoFromRow(data[0]));
+  const novo = svPrevistoFromRow(data[0]);
+  const atual = svState.previsoes.find(x => x.id === id); // a lista pode ter sido recarregada durante o await
+  if (atual) Object.assign(atual, novo);
+  // se esse mesmo processo está aberto no formulário de edição, o formulário acompanha a mudança
+  // e o instante de referência do conflito também, senão salvar depois daria falso "alterado por outra pessoa"
+  if (svEditandoPrevistoId === id) {
+    svEditandoPrevistoUpdatedAt = novo.updatedAt;
+    if ("data_chegada" in campos) document.getElementById("svPrevDataChegada").value = novo.dataChegada;
+    if ("status" in campos) document.getElementById("svPrevStatus").value = novo.status;
+    if ("armazem" in campos) document.getElementById("svPrevArmazem").value = novo.armazem;
+  }
   toast(mensagem);
 }
 
@@ -472,7 +511,11 @@ function svIniciarEdicaoPrevisto(id) {
   (p.itens.length ? p.itens : [{ codigo: "", quantidade: "" }]).forEach(it => {
     const row = svCriarLinhaItem("svPrevItens");
     container.appendChild(row);
-    if (it.codigo) row.querySelector(".item-produto").value = it.codigo;
+    if (it.codigo) {
+      const sel = row.querySelector(".item-produto");
+      svGarantirOpcao(sel, it.codigo);
+      sel.value = it.codigo;
+    }
     row.querySelector(".item-qtd").value = it.quantidade;
   });
   updateItemRemoveVisibility("svPrevItens");
@@ -498,6 +541,13 @@ function svCancelarEdicaoPrevisto() {
 
 async function svSalvarPrevisto(e) {
   e.preventDefault();
+  const botao = document.getElementById("svBtnSubmitPrevisto");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try { await svSalvarPrevistoDados(e); } finally { botao.disabled = false; }
+}
+
+async function svSalvarPrevistoDados(e) {
   const numeroProcesso = document.getElementById("svPrevNumeroProcesso").value.trim();
   const dataChegada = document.getElementById("svPrevDataChegada").value;
   const status = document.getElementById("svPrevStatus").value;

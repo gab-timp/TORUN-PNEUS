@@ -1,4 +1,9 @@
-/* ---------------- Sem Venda: escolha do sistema e estrutura (etapa 1) ---------------- */
+/* ---------------- Sem Venda: escolha do sistema, menu e telas ---------------- */
+
+/* Esconde o que escreve quando o usuário é "somente leitura". Classe própria (não .write-ui):
+   a restrição "editable_tables" do varejo não vale aqui; quem manda é a permissão do Sem Venda
+   e o papel de editor, os mesmos que o banco confere. */
+body.is-viewer .sv-write{display:none !important;}
 
 :root{--sv-acento:var(--orange-deep);}
 @media (prefers-color-scheme: dark){

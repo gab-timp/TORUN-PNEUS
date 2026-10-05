@@ -44,10 +44,16 @@ create table if not exists sv_previsoes (
   updated_at timestamptz not null default now()
 );
 
+-- RLS ligado logo depois de criar cada tabela (de novo no bloco das políticas, mais abaixo):
+-- se o script for interrompido no meio, nenhuma tabela fica aberta.
+alter table sv_produtos enable row level security;
+alter table sv_previsoes enable row level security;
+
 -- updated_at automático (a tela usa pra detectar edição simultânea)
 create or replace function sv_set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();

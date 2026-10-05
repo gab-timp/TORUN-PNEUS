@@ -9395,8 +9395,11 @@ function initBackupControls() {
 }
 
 function rerenderViewAtual() {
-  renderProdutoSelects();
   const activeBtn = document.querySelector(".nav-item.active");
+  // telas do Sem Venda carregam os próprios dados ao abrir e não dependem do estado do varejo;
+  // refazer a tela a cada evento do varejo fecharia seletores abertos e repetiria consultas
+  if (activeBtn && activeBtn.dataset.view.startsWith("sv-")) return;
+  renderProdutoSelects();
   setView(activeBtn ? activeBtn.dataset.view : "estoque");
 }
 
