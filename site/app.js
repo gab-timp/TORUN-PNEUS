@@ -784,11 +784,14 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
-function confirmModal(title, text) {
+function confirmModal(title, text, okLabel, cancelLabel) {
   return new Promise(resolve => {
     const overlay = document.getElementById("confirmOverlay");
     document.getElementById("confirmTitle").textContent = title;
     document.getElementById("confirmText").textContent = text;
+    // rótulos opcionais; sem eles o modal volta sempre ao padrão "Confirmar"/"Cancelar"
+    document.getElementById("confirmOk").textContent = okLabel || "Confirmar";
+    document.getElementById("confirmCancel").textContent = cancelLabel || "Cancelar";
     overlay.classList.add("show");
     const cleanup = (result) => {
       overlay.classList.remove("show");
@@ -1418,6 +1421,100 @@ function resetItens(containerId) {
   updateItemRemoveVisibility(containerId);
 }
 
+/* ---------------- entrada: puxa as medidas do Estoque Previsto pelo processo ---------------- */
+
+// último processo já consultado nesta entrada (normalizado); evita consultar duas vezes o mesmo
+// valor (Enter + perda de foco) e perguntar "substituir?" de novo à toa
+let entProcessoUltimoBuscado = "";
+// quando as medidas foram puxadas pela última vez; o submit usa isso pra não registrar na mesma
+// ação do clique (blur do campo -> medidas aparecem -> clique em Registrar) sem a pessoa ver
+let entMedidasPuxadasEm = 0;
+
+function normalizarProcesso(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function mostrarFaixaProcessoEntrada(tipo, titulo, detalhe) {
+  const el = document.getElementById("entProcessoHint");
+  if (!tipo) {
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  el.className = "proc-hint proc-hint-" + tipo;
+  el.innerHTML = `<div class="proc-hint-titulo">${escapeHtml(titulo)}</div>` +
+    (detalhe ? `<div class="proc-hint-detalhe">${escapeHtml(detalhe)}</div>` : "");
+  el.style.display = "";
+}
+
+function limparProcessoEntrada() {
+  entProcessoUltimoBuscado = "";
+  entMedidasPuxadasEm = 0;
+  mostrarFaixaProcessoEntrada(null);
+}
+
+function entradaTemMedidasDigitadas() {
+  const rows = document.querySelectorAll("#entItens .item-row");
+  if (rows.length > 1) return true;
+  return Array.from(rows).some(r =>
+    r.querySelector(".item-qtd").value !== "" || r.querySelector(".item-produto").selectedIndex > 0);
+}
+
+async function puxarMedidasDoProcessoEntrada() {
+  if (editingMovimentoId) return;
+  const processo = document.getElementById("entProcesso").value.trim();
+  const chave = normalizarProcesso(processo);
+  if (!chave) { limparProcessoEntrada(); return; }
+  if (chave === entProcessoUltimoBuscado) return;
+  entProcessoUltimoBuscado = chave;
+
+  const achados = state.previsoes.filter(p => normalizarProcesso(p.numeroProcesso) === chave);
+  if (achados.length === 0) {
+    mostrarFaixaProcessoEntrada("info", `Processo ${processo} não está no Estoque Previsto.`, "Preencha as medidas manualmente.");
+    return;
+  }
+  if (achados.length > 1) {
+    mostrarFaixaProcessoEntrada("aviso", `${achados.length} cadastros com o processo ${processo} no Estoque Previsto.`,
+      "Nenhuma medida foi puxada; confira o Estoque Previsto ou digite à mão.");
+    return;
+  }
+
+  const prev = achados[0];
+  const validos = (prev.itens || []).filter(it => it && state.produtos.some(p => p.codigo === it.codigo) && it.quantidade > 0);
+  const ignorados = (prev.itens || []).length - validos.length;
+  if (validos.length === 0) {
+    mostrarFaixaProcessoEntrada("aviso", `O processo ${processo} não tem medidas que possam ser puxadas.`,
+      "Preencha as medidas manualmente.");
+    return;
+  }
+
+  const plural = validos.length === 1;
+  if (entradaTemMedidasDigitadas()) {
+    const ok = await confirmModal(
+      "Substituir as medidas?",
+      `Esta entrada já tem medidas preenchidas. Trocar ${plural ? "pela medida" : `pelas ${validos.length} medidas`} do processo ${processo}, do Estoque Previsto?`,
+      "Substituir", "Manter as minhas");
+    if (!ok) { mostrarFaixaProcessoEntrada(null); return; }
+  }
+
+  const container = document.getElementById("entItens");
+  container.innerHTML = "";
+  validos.forEach(it => {
+    const row = createItemRow("entItens");
+    container.appendChild(row);
+    row.querySelector(".item-produto").value = it.codigo;
+    row.querySelector(".item-qtd").value = it.quantidade;
+  });
+  updateItemRemoveVisibility("entItens");
+  entMedidasPuxadasEm = Date.now();
+
+  const partes = [`Processo ${processo}`, prev.status];
+  if (prev.dataChegada) partes.push(`${prev.status === "CHEGOU" ? "chegada" : "chegada prevista"} em ${formatDateBR(prev.dataChegada)}`);
+  if (ignorados > 0) partes.push(`${ignorados} ${ignorados === 1 ? "medida ignorada" : "medidas ignoradas"} (produto não cadastrado)`);
+  mostrarFaixaProcessoEntrada(ignorados > 0 ? "aviso" : "ok",
+    `${validos.length} ${plural ? "medida puxada" : "medidas puxadas"} do Estoque Previsto`, partes.join(" · "));
+}
+
 /* ---------------- render: MOVIMENTAÇÕES ---------------- */
 
 function extrairClienteDeObs(obs) {
@@ -1639,6 +1736,7 @@ function startEditMovimento(movId) {
     document.getElementById("entNumero").value = m.numero || "";
     document.getElementById("entPedido").value = m.pedido || "";
     document.getElementById("entProcesso").value = m.processo || "";
+    limparProcessoEntrada();
     document.getElementById("entObs").value = m.obs || "";
     const container = document.getElementById("entItens");
     container.innerHTML = "";
@@ -1682,6 +1780,7 @@ function cancelEditMovimento(which) {
     document.getElementById("formEntrada").reset();
     document.getElementById("entData").value = todayISO();
     resetItens("entItens");
+    limparProcessoEntrada();
     document.getElementById("btnAddItemEntrada").style.display = "";
     document.getElementById("entFormTitle").textContent = "Nova entrada";
     document.getElementById("entEditBanner").style.display = "none";
@@ -7777,8 +7876,23 @@ function initForms() {
     if (e.target.id === "entradaModalOverlay") cancelEditMovimento("entrada");
   });
 
+  const entProcessoInput = document.getElementById("entProcesso");
+  entProcessoInput.addEventListener("change", puxarMedidasDoProcessoEntrada);
+  // Enter no campo Processo (entrada nova) consulta o processo em vez de registrar de uma vez,
+  // pra pessoa ver as medidas antes; se o processo já foi consultado, o Enter envia normalmente
+  entProcessoInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || editingMovimentoId) return;
+    if (normalizarProcesso(entProcessoInput.value) === entProcessoUltimoBuscado) return;
+    e.preventDefault();
+    puxarMedidasDoProcessoEntrada();
+  });
+
   document.getElementById("formEntrada").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!editingMovimentoId && Date.now() - entMedidasPuxadasEm < 1000) {
+      toast("Medidas puxadas do processo. Confira e clique em Registrar entrada de novo.");
+      return;
+    }
     const data = document.getElementById("entData").value || todayISO();
     const numero = document.getElementById("entNumero").value.trim();
     const pedido = document.getElementById("entPedido").value.trim();
@@ -7838,6 +7952,7 @@ function initForms() {
     e.target.reset();
     document.getElementById("entData").value = todayISO();
     resetItens("entItens");
+    limparProcessoEntrada();
     closeEntradaModal();
     renderMovimentos();
     toast(itens.length > 1 ? `${itens.length} entradas registradas.` : "Entrada registrada.");
