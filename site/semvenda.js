@@ -622,6 +622,18 @@ function svRenderPrevistos() {
 
 async function svAtualizarCampoPrevisto(id, campos, mensagem) {
   if (!svState.previsoes.some(x => x.id === id)) return;
+  // trocar status ou armazém de um processo que já chegou mexe no saldo: confere antes, com dados atualizados
+  // (os chamadores redesenham a lista depois, então o seletor volta pro valor que valia)
+  if ("status" in campos || "armazem" in campos) {
+    if (!(await svCarregarDados(true))) return;
+    const atual0 = svState.previsoes.find(x => x.id === id);
+    if (!atual0) return;
+    const mudanca = {};
+    if ("status" in campos) mudanca.status = campos.status;
+    if ("armazem" in campos) mudanca.armazem = campos.armazem || "";
+    const problema = svProblemaDeSaldo(svState.previsoes.map(p => p.id === id ? { ...p, ...mudanca } : p), atual0);
+    if (problema) { toast(problema); return; }
+  }
   const { data, error } = await sb.from("sv_previsoes").update(campos).eq("id", id).select();
   if (error) { toast("Erro ao salvar: " + error.message); return; }
   if (!data || data.length === 0) { toast("Não foi possível salvar (sem permissão ou processo removido)."); return; }
@@ -711,6 +723,13 @@ async function svSalvarPrevistoDados(e) {
   const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs };
 
   if (svEditandoPrevistoId) {
+    // com dados atualizados: alguém pode ter reservado desse processo agora há pouco
+    if (!(await svCarregarDados(true))) return;
+    const emEdicao = svState.previsoes.find(x => x.id === svEditandoPrevistoId);
+    if (emEdicao) {
+      const problema = svProblemaDeSaldo(svState.previsoes.map(p => p.id === emEdicao.id ? { ...p, ...dados } : p), emEdicao);
+      if (problema) { toast(problema); return; }
+    }
     const { conflict, error, row } = await updateWithConflictCheck(
       "sv_previsoes", svEditandoPrevistoId, svEditandoPrevistoUpdatedAt,
       svPrevistoToRow({ id: svEditandoPrevistoId, ...dados })
@@ -744,8 +763,11 @@ async function svSalvarPrevistoDados(e) {
 }
 
 async function svExcluirPrevisto(id) {
+  if (!(await svCarregarDados(true))) return; // reservas atualizadas: alguém pode ter reservado agora há pouco
   const alvo = svState.previsoes.find(p => p.id === id);
   if (svState.reservas.some(r => r.previsaoId === id)) { toast("Não é possível excluir: há reservas ligadas a esse processo."); return; }
+  const problemaSaldo = svProblemaDeSaldo(svState.previsoes.filter(p => p.id !== id), null);
+  if (problemaSaldo) { toast(problemaSaldo); return; }
   const ok = await confirmModal("Excluir processo previsto?", `Remove o processo ${alvo ? alvo.numeroProcesso : ""} e as medidas dele desta lista.`);
   if (!ok) return;
   const { data, error } = await sb.from("sv_previsoes").delete().eq("id", id).select();
@@ -805,6 +827,47 @@ function svCalcularEstoque() {
     linhas: [...linhas.values()].map(l => ({ ...l, disp: l.chegou - l.reservado - l.vendido })),
     aChegar: [...aChegar.values()].map(a => ({ ...a, livres: a.total - a.reservado - a.vendido }))
   };
+}
+
+/* ---------- Trava: mexer num processo não pode furar o saldo ---------- */
+
+// Reservas e vendas já feitas contam contra o que chegou. Editar ou excluir um processo de um jeito que deixe
+// o saldo de um produto num armazém abaixo do que já está comprometido é barrado, igual à tela de Reserva, que
+// não deixa reservar além do saldo. `novas` = lista de processos como ficaria depois da mudança; `alterado` = o
+// processo que mudou (pra conferir as reservas ligadas a ele). Devolve a mensagem do problema, ou "" se é seguro.
+// Quem já está negativo (dano antigo) pode corrigir: só barra o que piora.
+function svProblemaDeSaldo(novas, alterado) {
+  const saldoPorLinha = () => new Map(svCalcularEstoque().linhas.map(l => [l.codigo + "|" + l.armazem, l.disp]));
+  const antes = saldoPorLinha();
+  const original = svState.previsoes;
+  svState.previsoes = novas;
+  let depois;
+  try { depois = saldoPorLinha(); } finally { svState.previsoes = original; }
+
+  const problemas = [];
+  depois.forEach((disp, chave) => {
+    const era = antes.has(chave) ? antes.get(chave) : 0;
+    if (disp < 0 && disp < era) {
+      const [codigo, armazem] = chave.split("|");
+      problemas.push(`${codigo} em ${svNomeArmazem(armazem)} ficaria com ${disp} un.`);
+    }
+  });
+
+  // reservas ligadas ao próprio processo (ainda a caminho): o total do produto não pode cair abaixo do comprometido
+  const novo = alterado ? novas.find(p => p.id === alterado.id) : null;
+  if (novo && novo.status !== "CHEGOU") {
+    const comprometido = {};
+    svState.reservas.filter(r => r.previsaoId === novo.id && r.situacao !== "CANCELADA")
+      .forEach(r => { comprometido[r.codigo] = (comprometido[r.codigo] || 0) + r.quantidade; });
+    Object.entries(comprometido).forEach(([codigo, qtd]) => {
+      const total = novo.itens.filter(it => it.codigo === codigo).reduce((s, it) => s + (Number(it.quantidade) || 0), 0);
+      if (total < qtd) problemas.push(`${codigo} no processo ${novo.numeroProcesso} ficaria com ${total} un., mas há ${qtd} reservadas ou vendidas`);
+    });
+  }
+
+  return problemas.length
+    ? `Não dá pra salvar: ${problemas.slice(0, 3).join("; ")}${problemas.length > 3 ? "…" : ""}. Cancele ou ajuste as reservas antes.`
+    : "";
 }
 
 function svNomeArmazem(armazem) {
