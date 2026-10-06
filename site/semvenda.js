@@ -816,7 +816,7 @@ function svNomeArmazem(armazem) {
 function svRenderCatalogo() {
   const { linhas } = svCalcularEstoque();
   const todas = linhas
-    .filter(l => l.chegou > 0 || l.reservado > 0)
+    .filter(l => l.chegou - l.vendido > 0 || l.reservado > 0) // lote todo vendido sai (igual ao Dashboard e à Armazenagem)
     .map(l => ({ ...l, produto: svGetProduto(l.codigo) }))
     .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem));
 
@@ -1158,7 +1158,7 @@ function svRenderDashboard() {
   const pesoTotal = comData.reduce((s, l) => s + l.qtd, 0);
   const mediaDias = pesoTotal > 0 ? Math.round(comData.reduce((s, l) => s + l.qtd * l.dias, 0) / pesoTotal) : null;
   const semData = new Set(est.filter(l => l.dias === null).map(l => l.codigo)).size;
-  const armazensComEstoque = new Set(est.map(l => l.armazem)).size;
+  const armazensComEstoque = new Set(est.map(l => l.armazem).filter(Boolean)).size; // "sem armazém" não é um armazém
 
   document.getElementById("svDashKpis").innerHTML = `
     <div class="kpi"><div class="lbl">Pneus em estoque</div><div class="val">${fmt(total)} un.</div></div>
@@ -1205,7 +1205,7 @@ function svRenderArmazenagem() {
 
   const valorTodos = svResumoValor(est);
   const cartoes = [`
-    <button type="button" class="sv-arm-card${svArmSelecionado === "" ? " sel" : ""}" data-svarm="">
+    <button type="button" class="sv-arm-card${svArmSelecionado === "" ? " sel" : ""}" data-svarm="" aria-pressed="${svArmSelecionado === ""}">
       <span class="sv-arm-nome">Todos</span>
       <span class="sv-arm-qtd">${fmt(est.reduce((s, l) => s + l.qtd, 0))} un.</span>
       <span class="sv-arm-sub">${valorTodos.temCusto ? escapeHtml(formatMoney(valorTodos.total)) + " investidos" : "custo não cadastrado"}${valorTodos.temCusto && valorTodos.semCusto > 0 ? ` · ${valorTodos.semCusto} sem custo` : ""}</span>
@@ -1214,7 +1214,7 @@ function svRenderArmazenagem() {
     const linhas = est.filter(l => l.armazem === a);
     const codigos = new Set(linhas.map(l => l.codigo)).size;
     cartoes.push(`
-    <button type="button" class="sv-arm-card${svArmSelecionado === chaveDe(a) ? " sel" : ""}" data-svarm="${escapeAttr(chaveDe(a))}">
+    <button type="button" class="sv-arm-card${svArmSelecionado === chaveDe(a) ? " sel" : ""}" data-svarm="${escapeAttr(chaveDe(a))}" aria-pressed="${svArmSelecionado === chaveDe(a)}">
       <span class="sv-arm-nome">${escapeHtml(svNomeArmazem(a))}</span>
       <span class="sv-arm-qtd">${fmt(linhas.reduce((s, l) => s + l.qtd, 0))} un.</span>
       <span class="sv-arm-sub">${fmt(codigos)} ${codigos === 1 ? "código" : "códigos diferentes"}</span>
@@ -1223,7 +1223,13 @@ function svRenderArmazenagem() {
   const caixa = document.getElementById("svArmCards");
   caixa.innerHTML = cartoes.join("");
   caixa.querySelectorAll("[data-svarm]").forEach(btn => {
-    btn.addEventListener("click", () => { svArmSelecionado = btn.dataset.svarm; svRenderArmazenagem(); });
+    btn.addEventListener("click", () => {
+      svArmSelecionado = btn.dataset.svarm;
+      svRenderArmazenagem();
+      // os botões são recriados a cada clique: devolve o foco ao cartão escolhido (teclado)
+      const escolhido = document.querySelector("#svArmCards .sv-arm-card.sel");
+      if (escolhido) escolhido.focus();
+    });
   });
 
   const sel = document.getElementById("svArmFiltro");
@@ -1492,10 +1498,13 @@ async function svGerarProposta(e) {
   e.preventDefault();
   const botao = document.getElementById("svBtnGerarProposta");
   if (botao.disabled) return;
-  const linhas = svLinhasProposta();
-  if (linhas.length === 0) { toast("Não há pneus disponíveis com esses filtros."); return; }
   botao.disabled = true;
   try {
+    // confere o estoque com dados atualizados: a aba pode estar aberta há horas e o PDF vai pro cliente
+    if (!(await svCarregarDados(true))) return;
+    svRenderTabelaProposta();
+    const linhas = svLinhasProposta();
+    if (linhas.length === 0) { toast("Não há pneus disponíveis com esses filtros."); return; }
     const area = document.getElementById("reportPrintArea");
     document.body.classList.remove("imprimindo-doc"); // caso uma impressão anterior tenha sido interrompida
     document.body.classList.add("imprimindo-doc");
@@ -1583,6 +1592,15 @@ function initSemVendaTelas() {
     document.querySelectorAll("#svPropTbody .sv-prop-preco").forEach(outro => {
       if (outro !== campo && outro.dataset.svpreco === codigo) outro.value = campo.value;
     });
+  });
+
+  // preço negativo não vale: limpa o campo ao sair dele (a prévia e o PDF mostrariam coisas diferentes)
+  document.getElementById("svPropTbody").addEventListener("change", (e) => {
+    const campo = e.target.closest(".sv-prop-preco");
+    if (campo && campo.value !== "" && Number(campo.value) < 0) {
+      campo.value = "";
+      campo.dispatchEvent(new Event("input", { bubbles: true }));
+    }
   });
 
   document.getElementById("svFormFrete").addEventListener("submit", svSalvarFrete);
