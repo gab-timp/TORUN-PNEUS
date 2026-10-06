@@ -179,3 +179,51 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .sv-toggle2 input:checked + span{background:var(--orange);color:#161616;}
 .sv-toggle2 input:focus-visible + span{outline:2px solid var(--ink);outline-offset:-3px;}
 .kpi .sv-kpi-nota{margin-top:6px;}
+
+/* ---------------- Relatório de Preço ---------------- */
+.sv-prop-layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start;}
+.sv-prop-form form{display:flex;flex-direction:column;gap:12px;}
+.sv-prop-form form > .field{flex:0 0 auto;}
+.sv-prop-previa{min-width:0;}
+/* a prévia imita a folha do PDF: cabeçalho sempre claro, pra o logo (feito pra fundo claro) aparecer nos dois temas */
+.sv-prop-topo{
+  display:flex;align-items:center;gap:16px;
+  background:#fff;color:#0b0b0b;border-radius:10px;border-bottom:3px solid var(--orange);
+  padding:12px 16px;margin-bottom:14px;
+}
+.sv-prop-logo{height:40px;display:block;}
+.sv-prop-titulo{font-size:17px;font-weight:800;}
+.sv-prop-sub{font-size:11px;color:#5a5a55;min-height:1em;}
+.sv-prop-aviso{
+  background:var(--paper);border:1px solid var(--line);border-radius:10px;
+  padding:9px 12px;margin-bottom:14px;font-size:11.5px;color:var(--ink-soft);line-height:1.5;
+}
+.sv-prop-aviso strong{color:var(--ink);}
+.sv-prop-preco{
+  width:120px;text-align:right;font-family:'Space Mono',monospace;font-size:12px;padding:6px 8px;
+  border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);outline:none;
+}
+.sv-prop-preco:focus{border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
+.sv-prop-rodape{margin-top:14px;font-size:11px;color:var(--ink-soft);max-width:480px;}
+@media (max-width: 980px){.sv-prop-layout{grid-template-columns:1fr;}}
+
+/* ---- proposta em PDF -- svBuildPropostaHtml em semvenda.js (mesmo mecanismo do romaneio: #reportPrintArea + window.print) ---- */
+.print-proposta{font-family:'Inter',sans-serif;color:#0b0b0b;page:proposta;}
+.pp-topo{display:flex;align-items:center;gap:16px;border-bottom:3px solid #FF6A13;padding-bottom:14px;margin-bottom:18px;}
+.pp-logo{height:46px;display:block;}
+.pp-topo h1{font-size:19px;margin:0 0 3px;color:#0b0b0b;letter-spacing:-.01em;}
+.pp-sub{font-size:11.5px;color:#5a5a55;}
+.pp-tabela{width:100%;border-collapse:collapse;font-size:11.5px;}
+.pp-tabela th{background:#F2F2F2;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;color:#5a5a55;border:1px solid #ccc;}
+.pp-tabela td{padding:6px 8px;border:1px solid #ccc;}
+.pp-tabela .num{text-align:right;}
+.pp-tabela thead{display:table-header-group;}
+.pp-tabela tr{break-inside:avoid;}
+.pp-rodape{margin-top:16px;font-size:11px;color:#5a5a55;max-width:480px;}
+@page proposta{
+  size:A4;
+  margin:16mm;
+  @top-left{content:"";} @top-center{content:"";} @top-right{content:"";}
+  @bottom-left{content:"TORUN PNEUS · Proposta"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
+  @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
+}

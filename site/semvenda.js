@@ -128,7 +128,9 @@ function svProdutoToRow(p) {
   return {
     codigo: p.codigo, medida: p.medida, marca: p.marca || null, modelo: p.modelo || null,
     categoria: p.categoria || null, carcaca: p.carcaca || null, situacao: p.situacao || "ATIVO",
-    ic_iv: p.icIv || null, pr: p.pr || null, cap_carga: p.capCarga || null
+    ic_iv: p.icIv || null, pr: p.pr || null, cap_carga: p.capCarga || null,
+    custo_unitario: p.custo === null || p.custo === undefined ? null : p.custo,
+    preco_proposta: p.preco === null || p.preco === undefined ? null : p.preco
   };
 }
 
@@ -184,13 +186,14 @@ async function svAoAbrirView(view) {
     if (await svCarregarFretes()) svRenderFrete();
     return;
   }
-  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem"].includes(view)) return;
+  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
   else if (view === "sv-dashboard") svRenderDashboard();
   else if (view === "sv-armazenagem") svRenderArmazenagem();
+  else if (view === "sv-relatoriopreco") svAbrirProposta();
   else svRenderReserva();
 }
 
@@ -242,6 +245,8 @@ function svRenderProdutos() {
       <td>${p.categoria ? escapeHtml(CATEGORIA_LABEL[p.categoria] || p.categoria) : '<span class="muted">—</span>'}</td>
       <td>${p.marca ? escapeHtml(p.marca) : '<span class="muted">—</span>'}</td>
       <td>${p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : '<span class="muted">—</span>'}</td>
+      <td class="sv-num">${p.custo === null ? '<span class="muted">—</span>' : escapeHtml(formatMoney(p.custo))}</td>
+      <td class="sv-num">${p.preco === null ? '<span class="muted">—</span>' : escapeHtml(formatMoney(p.preco))}</td>
       <td>${p.situacao === "DESCONTINUADO" ? '<span class="status-pill pill-esgotado">Descontinuado</span>' : '<span class="status-pill pill-normal">Ativo</span>'}</td>
       <td>
         <div class="row-actions">
@@ -276,6 +281,8 @@ function svIniciarEdicaoProduto(codigo) {
   document.getElementById("svProdIcIv").value = p.icIv;
   document.getElementById("svProdPr").value = p.pr;
   document.getElementById("svProdCapCarga").value = p.capCarga;
+  document.getElementById("svProdCusto").value = p.custo === null ? "" : p.custo;
+  document.getElementById("svProdPreco").value = p.preco === null ? "" : p.preco;
   document.getElementById("svProdFormTitle").textContent = "Editar produto";
   document.getElementById("svProdEditBanner").style.display = "block";
   document.getElementById("svBtnSubmitProduto").textContent = "Salvar alterações";
@@ -380,6 +387,14 @@ async function svSalvarProduto(e) {
   try { await svSalvarProdutoDados(e); } finally { botao.disabled = false; }
 }
 
+// lê um campo de valor em R$: vazio = null; negativo = NaN (quem chama avisa)
+function svLerValor(id) {
+  const texto = document.getElementById(id).value;
+  if (texto === "") return null;
+  const n = Math.round(Number(texto) * 100) / 100;
+  return n >= 0 ? n : NaN;
+}
+
 async function svSalvarProdutoDados(e) {
   const dados = {
     codigo: document.getElementById("svProdCodigo").value.trim(),
@@ -391,9 +406,12 @@ async function svSalvarProdutoDados(e) {
     situacao: document.getElementById("svProdSituacao").value,
     icIv: document.getElementById("svProdIcIv").value.trim(),
     pr: document.getElementById("svProdPr").value.trim(),
-    capCarga: document.getElementById("svProdCapCarga").value.trim()
+    capCarga: document.getElementById("svProdCapCarga").value.trim(),
+    custo: svLerValor("svProdCusto"),
+    preco: svLerValor("svProdPreco")
   };
   if (!dados.codigo || !dados.medida) { toast("Informe o código e a medida."); return; }
+  if (Number.isNaN(dados.custo) || Number.isNaN(dados.preco)) { toast("Custo e preço precisam ser valores de zero em diante."); return; }
 
   if (svEditandoProduto) {
     const { codigo, ...campos } = svProdutoToRow({ ...dados, codigo: svEditandoProduto });
@@ -1353,6 +1371,152 @@ async function svSalvarFreteDados() {
   toast("Frete lançado.");
 }
 
+/* ---------- Relatório de Preço (proposta em PDF) ---------- */
+
+// preço digitado só pra esta proposta, por código (null = "Sob consulta"); zera sempre que a tela abre,
+// pra um preço antigo não esconder uma atualização do cadastro
+let svPropostaPrecos = {};
+
+function svPrecoProposta(codigo) {
+  if (Object.prototype.hasOwnProperty.call(svPropostaPrecos, codigo)) return svPropostaPrecos[codigo];
+  const p = svGetProduto(codigo);
+  return p && p.preco !== null ? p.preco : null;
+}
+
+// o que dá pra oferecer: disponível (chegou − reservado − vendido) por produto e armazém, com os filtros da tela
+function svLinhasProposta() {
+  const armazem = document.getElementById("svPropArmazem").value;
+  const categoria = document.getElementById("svPropCategoria").value;
+  return svCalcularEstoque().linhas
+    .filter(l => l.disp > 0)
+    .map(l => ({ ...l, produto: svGetProduto(l.codigo) }))
+    .filter(l => !armazem || (armazem === "__sem" ? !l.armazem : l.armazem === armazem))
+    .filter(l => !categoria || (l.produto && l.produto.categoria === categoria))
+    .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem));
+}
+
+function svSubProposta() {
+  const cliente = document.getElementById("svPropCliente").value.trim();
+  const validade = document.getElementById("svPropValidade").value;
+  return [validade ? "Válida até " + formatDateBR(validade) : "", cliente].filter(Boolean).join(" · ");
+}
+
+function svRodapeProposta() {
+  return "Valores e condições de pagamento sob consulta. Frete não incluso, combinado à parte. Quantidades disponíveis em " + formatDateBR(todayISO()) + ".";
+}
+
+function svAtualizarCabecalhoProposta() {
+  document.getElementById("svPropSub").textContent = svSubProposta();
+  document.getElementById("svPropRodape").textContent = svRodapeProposta();
+}
+
+function svAbrirProposta() {
+  svPropostaPrecos = {};
+  const disponiveis = svCalcularEstoque().linhas.filter(l => l.disp > 0);
+
+  const selArmazem = document.getElementById("svPropArmazem");
+  const armazemAtual = selArmazem.value;
+  selArmazem.innerHTML = `<option value="">Todos</option>` +
+    svArmazensDoEstoque(disponiveis).map(a => `<option value="${escapeAttr(a === "" ? "__sem" : a)}">${escapeHtml(svNomeArmazem(a))}</option>`).join("");
+  if ([...selArmazem.options].some(o => o.value === armazemAtual)) selArmazem.value = armazemAtual;
+
+  const selCategoria = document.getElementById("svPropCategoria");
+  const categoriaAtual = selCategoria.value;
+  selCategoria.innerHTML = svOpcoesCategoria("Todas");
+  if ([...selCategoria.options].some(o => o.value === categoriaAtual)) selCategoria.value = categoriaAtual;
+
+  document.getElementById("svPropClientes").innerHTML = (state.clientes || [])
+    .map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
+  const validade = document.getElementById("svPropValidade");
+  if (!validade.value) validade.value = dataMaisDias(todayISO(), 7);
+
+  svAtualizarCabecalhoProposta();
+  svRenderTabelaProposta();
+}
+
+function svRenderTabelaProposta() {
+  const linhas = svLinhasProposta();
+  document.getElementById("svPropTbody").innerHTML = linhas.map(l => {
+    const preco = svPrecoProposta(l.codigo);
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(l.codigo)}</td>
+        <td>${escapeHtml(l.produto ? l.produto.medida : "(produto removido)")}</td>
+        <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
+        <td class="sv-num">${fmt(l.disp)}</td>
+        <td class="sv-num"><input type="number" class="sv-prop-preco" data-svpreco="${escapeAttr(l.codigo)}" min="0" step="0.01" placeholder="Sob consulta" value="${preco === null ? "" : preco}" aria-label="Preço por unidade de ${escapeAttr(l.codigo)}"></td>
+      </tr>`;
+  }).join("");
+  const vazio = document.getElementById("svPropEmpty");
+  vazio.style.display = linhas.length === 0 ? "block" : "none";
+  vazio.textContent = svCalcularEstoque().linhas.some(l => l.disp > 0)
+    ? "Nenhum pneu disponível com esses filtros."
+    : "Nenhum pneu disponível ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui.";
+}
+
+function svBuildPropostaHtml(linhas) {
+  const sub = svSubProposta();
+  const trs = linhas.map(l => {
+    const preco = svPrecoProposta(l.codigo);
+    return `<tr>
+        <td class="mono">${escapeHtml(l.codigo)}</td>
+        <td>${escapeHtml(l.produto ? l.produto.medida : "")}</td>
+        <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
+        <td class="num">${fmt(l.disp)}</td>
+        <td class="num">${preco === null ? "Sob consulta" : escapeHtml(formatMoney(preco))}</td>
+      </tr>`;
+  }).join("");
+  return `
+    <div class="print-proposta">
+      <div class="pp-topo">
+        <img src="assets/logo-light.png" class="pp-logo" alt="Torun Pneus">
+        <div>
+          <h1>Proposta — Estoque Sem Venda</h1>
+          ${sub ? `<div class="pp-sub">${escapeHtml(sub)}</div>` : ""}
+        </div>
+      </div>
+      <table class="pp-tabela">
+        <thead><tr><th>Código</th><th>Medida</th><th>Armazém</th><th class="num">Qtd.</th><th class="num">Preço/un.</th></tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+      <div class="pp-rodape">${escapeHtml(svRodapeProposta())}</div>
+    </div>`;
+}
+
+function svLimparImpressaoProposta() {
+  document.body.classList.remove("imprimindo-doc");
+  document.getElementById("reportPrintArea").innerHTML = "";
+}
+
+async function svGerarProposta(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnGerarProposta");
+  if (botao.disabled) return;
+  const linhas = svLinhasProposta();
+  if (linhas.length === 0) { toast("Não há pneus disponíveis com esses filtros."); return; }
+  botao.disabled = true;
+  try {
+    const area = document.getElementById("reportPrintArea");
+    document.body.classList.remove("imprimindo-doc"); // caso uma impressão anterior tenha sido interrompida
+    document.body.classList.add("imprimindo-doc");
+    area.innerHTML = svBuildPropostaHtml(linhas);
+    // mesmo teto de 10s das outras impressões: aba em segundo plano pode segurar o decode() indefinidamente
+    const esperaLimite = new Promise(resolve => setTimeout(resolve, 10000));
+    await Promise.race([
+      Promise.all([...area.querySelectorAll("img")].map(img => (img.decode ? img.decode().catch(() => {}) : Promise.resolve()))),
+      esperaLimite
+    ]);
+    window.addEventListener("afterprint", svLimparImpressaoProposta, { once: true });
+    window.print();
+  } catch (err) {
+    console.error("Erro ao gerar a proposta:", err);
+    svLimparImpressaoProposta();
+    toast("Não foi possível gerar o PDF da proposta: " + (err.message || err));
+  } finally {
+    botao.disabled = false;
+  }
+}
+
 function initSemVendaTelas() {
   const statusHtml = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
   document.getElementById("svPrevStatus").innerHTML = statusHtml;
@@ -1401,6 +1565,25 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderReservaTabela);
   });
   document.getElementById("svResData").value = todayISO();
+
+  document.getElementById("svFormProposta").addEventListener("submit", svGerarProposta);
+  ["svPropArmazem", "svPropCategoria"].forEach(id => {
+    document.getElementById(id).addEventListener("change", svRenderTabelaProposta);
+  });
+  ["svPropCliente", "svPropValidade"].forEach(id => {
+    document.getElementById(id).addEventListener("input", svAtualizarCabecalhoProposta);
+  });
+  document.getElementById("svPropTbody").addEventListener("input", (e) => {
+    const campo = e.target.closest(".sv-prop-preco");
+    if (!campo) return;
+    const n = campo.value === "" ? null : Math.round(Number(campo.value) * 100) / 100;
+    const codigo = campo.dataset.svpreco;
+    svPropostaPrecos[codigo] = n !== null && n >= 0 ? n : null;
+    // o preço é por produto: a mesma medida em outro armazém mostra o mesmo valor
+    document.querySelectorAll("#svPropTbody .sv-prop-preco").forEach(outro => {
+      if (outro !== campo && outro.dataset.svpreco === codigo) outro.value = campo.value;
+    });
+  });
 
   document.getElementById("svFormFrete").addEventListener("submit", svSalvarFrete);
   document.getElementById("svFreData").value = todayISO();

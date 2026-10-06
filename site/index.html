@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=145">
-<link rel="stylesheet" href="semvenda.css?v=6">
+<link rel="stylesheet" href="semvenda.css?v=8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -543,7 +543,22 @@
           </div>
 
           <div class="form-section">
-            <div class="form-section-label"><span class="n">3</span>Foto (opcional)</div>
+            <div class="form-section-label"><span class="n">3</span>Valores (opcional)</div>
+            <div class="form-row">
+              <div class="field small">
+                <label>Custo unitário (R$)</label>
+                <input type="number" id="svProdCusto" min="0" step="0.01" placeholder="Ex: 1850,00">
+              </div>
+              <div class="field small">
+                <label>Preço de proposta (R$)</label>
+                <input type="number" id="svProdPreco" min="0" step="0.01" placeholder="Ex: 2180,00">
+              </div>
+            </div>
+            <span class="note">O custo alimenta o "valor investido" (Dashboard e Armazenagem). O preço já vem preenchido no Relatório de Preço. Produto sem custo ou sem preço continua valendo: só fica de fora dos valores em R$.</span>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-label"><span class="n">4</span>Foto (opcional)</div>
             <div class="sv-foto-row">
               <div class="sv-foto-preview" id="svProdFotoPreview"><span>Sem foto</span></div>
               <div class="sv-foto-acoes">
@@ -607,6 +622,8 @@
                 <th>Categoria</th>
                 <th>Marca</th>
                 <th>Carcaça</th>
+                <th class="sv-num">Custo</th>
+                <th class="sv-num">Preço</th>
                 <th>Situação</th>
                 <th></th>
               </tr>
@@ -735,7 +752,61 @@
     </section>
     <section id="view-sv-relatoriopreco" class="view">
       <div class="page-head"><div><h1>Relatório de Preço</h1><div class="sub">Monta uma proposta em PDF pra mandar pro cliente.</div></div></div>
-      <div class="sv-vazio"><b>Em construção</b>Esta tela chega na etapa 4 do Sem Venda.</div>
+
+      <div class="sv-prop-layout">
+        <div class="card sv-prop-form">
+          <div class="card-head"><h2>Proposta</h2></div>
+          <form id="svFormProposta">
+            <div class="field">
+              <label>Cliente / destinatário</label>
+              <input type="text" id="svPropCliente" list="svPropClientes" placeholder="Ex: Transportes Rota Sul" autocomplete="off">
+              <datalist id="svPropClientes"></datalist>
+            </div>
+            <div class="field">
+              <label>Armazém de origem</label>
+              <select id="svPropArmazem"></select>
+            </div>
+            <div class="field">
+              <label>Categoria</label>
+              <select id="svPropCategoria"></select>
+            </div>
+            <div class="field">
+              <label>Validade da proposta</label>
+              <input type="date" id="svPropValidade">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary" id="svBtnGerarProposta">Gerar PDF da proposta</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card sv-prop-previa">
+          <div class="sv-prop-topo">
+            <img src="assets/logo-light.png" class="sv-prop-logo" alt="Torun Pneus">
+            <div>
+              <div class="sv-prop-titulo">Proposta — Estoque Sem Venda</div>
+              <div class="sv-prop-sub" id="svPropSub"></div>
+            </div>
+          </div>
+          <div class="sv-prop-aviso"><strong>O preço já vem do cadastro do produto.</strong> Dá pra ajustar linha a linha antes de gerar o PDF; o ajuste vale só pra esta proposta e não muda o cadastro. Linha sem preço sai como "Sob consulta".</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Medida</th>
+                  <th>Armazém</th>
+                  <th class="sv-num">Qtd. disponível</th>
+                  <th class="sv-num">Preço/un.</th>
+                </tr>
+              </thead>
+              <tbody id="svPropTbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="svPropEmpty" style="display:none;"></div>
+          <div class="sv-prop-rodape" id="svPropRodape"></div>
+        </div>
+      </div>
     </section>
     <section id="view-sv-frete" class="view">
       <div class="page-head"><div><h1>Frete</h1><div class="sub">Só o essencial: quem pagou, quanto e com quem.</div></div></div>
@@ -3532,7 +3603,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=6"></script>
+<script src="semvenda.js?v=7"></script>
 <script src="app.js?v=226"></script>
 </body>
 </html>
