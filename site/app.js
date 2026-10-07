@@ -3639,6 +3639,9 @@ async function abrirRomaneioDetalhe(romaneioId) {
 
   document.getElementById("coletaListaWrap").style.display = "none";
   document.getElementById("coletaDetalheWrap").style.display = "block";
+  // o quadro de assinatura só tem tamanho agora que a tela de detalhe está visível: medido antes (escondida) o
+  // bitmap saía 1x1 e o traço não aparecia. No computador um resize da janela consertava; no tablet, não.
+  if (!travado) limparCanvasAssinatura();
   window.scrollTo(0, 0);
 }
 
@@ -3756,6 +3759,8 @@ function initAssinaturaCanvas() {
   });
   const pos = (e) => { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
   canvas.addEventListener("pointerdown", (e) => {
+    // reforço: se o bitmap ficou do tamanho errado (medido com o quadro escondido), conserta antes do 1º traço
+    if (canvas.width <= 1) resizeAssinaturaCanvas();
     romDrawing = true; romHasStroke = true; romLast = pos(e);
     // captura o ponteiro pra continuar recebendo pointermove mesmo se o dedo/mouse sair do quadro
     // no meio do traço -- só um reforço, então uma falha aqui não pode travar o desenho
