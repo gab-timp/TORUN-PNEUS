@@ -1887,14 +1887,104 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
   position:relative; height:200px; border:1.5px dashed #111111; border-radius:12px;
   background:#F7F7F5; overflow:hidden; touch-action:none;
 }
-.romaneio-canvas-box canvas{display:block; width:100%; height:100%; touch-action:none; cursor:crosshair;}
 .romaneio-canvas-box img{width:100%; height:100%; object-fit:contain; display:block;}
 .romaneio-canvas-linha{position:absolute; left:24px; right:24px; bottom:46px; border-top:1px solid #111111; opacity:.35; pointer-events:none;}
-.romaneio-canvas-hint{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  font-size:12.5px; color:#6B6B6B; pointer-events:none; text-align:center; padding:0 20px;
-}
 .romaneio-canvas-box.travado{border-style:solid; cursor:default;}
+#romAssinaturaSalva{height:150px;}
+
+/* bloco da assinatura na tela principal: bloqueado (faltam dados do motorista) -> pronto (botão
+   "Assinar" abre o popup de tela cheia). Mesmo desenho do mockup aprovado. */
+.rom-assinar-bloco{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap; min-height:96px; box-sizing:border-box;
+  padding:14px 18px; border-radius:12px; border:1.5px dashed var(--line-strong);
+  background:var(--paper); color:var(--ink);
+}
+.rom-assinar-bloco[data-estado="pronto"]{border-style:solid; border-color:var(--orange); background:var(--tint-orange);}
+.rom-assinar-icone{
+  flex:none; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:var(--line); color:var(--ink-soft);
+}
+.rom-assinar-bloco[data-estado="pronto"] .rom-assinar-icone{background:var(--orange); color:#000000;}
+.rom-assinar-bloco[data-estado="bloqueado"] .rom-ico-pen,
+.rom-assinar-bloco[data-estado="pronto"] .rom-ico-lock{display:none;}
+.rom-assinar-texto{flex:1 1 220px; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.rom-assinar-titulo{font-size:15px; font-weight:700;}
+.rom-assinar-sub{font-size:13px; color:var(--ink-soft); line-height:1.4;}
+.rom-assinar-sub strong{color:var(--orange-deep);}
+.rom-assinar-btn{flex:none; min-height:52px; padding:0 30px; font-size:16px; font-weight:800;}
+
+/* ---------------- popup de assinatura em tela cheia ----------------
+   Chrome escuro, papel claro no meio. O papel (#romCanvasBox) mantém fundo e tinta fixos, sem seguir
+   o tema -- a assinatura vira PNG e vai pro PDF impresso (mesma razão do quadro antigo). */
+.rom-popup{
+  position:fixed; inset:0; z-index:110; display:flex; flex-direction:column; box-sizing:border-box;
+  background:#181818; color:#FFFFFF; padding-bottom:env(safe-area-inset-bottom);
+  overscroll-behavior:contain; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+}
+.rom-popup[hidden]{display:none;}
+body.rom-popup-aberto{overflow:hidden;}
+/* aviso de "Sair sem assinar?" e toast precisam ficar por cima do popup */
+body.rom-popup-aberto #confirmOverlay, body.rom-popup-aberto #toast{z-index:130;}
+.rom-popup-topo{
+  flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px;
+  min-height:88px; box-sizing:border-box; padding:12px 24px;
+}
+.rom-popup-id{min-width:0; display:flex; flex-direction:column; gap:3px;}
+.rom-popup-eyebrow{font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#A0A0A0;}
+.rom-popup-id-linha{display:flex; align-items:baseline; gap:6px 14px; flex-wrap:wrap;}
+.rom-popup-nome{font-size:24px; font-weight:800; letter-spacing:-.01em;}
+.rom-popup-meta{font-size:15px; color:#BDBDBD;}
+.rom-popup-papel{
+  flex:1; min-height:0; margin:0 24px; position:relative; box-sizing:border-box;
+  background:#F7F7F5; border:3px solid transparent; border-radius:18px; overflow:hidden; touch-action:none;
+}
+.rom-popup-papel canvas{position:absolute; inset:0; display:block; width:100%; height:100%; touch-action:none; cursor:crosshair;}
+.rom-popup-hint{
+  position:absolute; left:0; right:0; top:0; bottom:130px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px; padding:0 20px; text-align:center;
+  color:#6B6B6B; pointer-events:none;
+}
+.rom-popup-hint-titulo{font-size:30px; font-weight:700; color:#4A4A4A;}
+.rom-popup-hint-sub{font-size:17px;}
+.rom-popup-baseline{position:absolute; left:48px; right:48px; bottom:110px; border-top:2px solid #161616; opacity:.35; pointer-events:none;}
+.rom-popup-x{position:absolute; left:48px; bottom:118px; font-family:'Space Mono',monospace; font-size:30px; font-weight:700; line-height:1; color:#161616; opacity:.5; pointer-events:none;}
+.rom-popup-legenda{position:absolute; left:48px; right:48px; bottom:76px; font-size:15px; color:#6B6B6B; pointer-events:none;}
+.rom-popup-rodape{
+  flex:none; display:flex; align-items:center; gap:20px; min-height:112px; box-sizing:border-box; padding:14px 24px;
+}
+.rom-popup-aviso{flex:1; text-align:center; font-size:15px; line-height:1.4; color:#BDBDBD;}
+.rom-popup-btn{
+  flex:none; display:inline-flex; align-items:center; justify-content:center; gap:10px; box-sizing:border-box;
+  height:60px; padding:0 28px; border-radius:14px; border:1.5px solid transparent; background:transparent;
+  font-family:inherit; font-size:17px; font-weight:700; color:#FFFFFF; cursor:pointer; touch-action:manipulation;
+}
+.rom-popup-btn:focus-visible{outline:3px solid var(--orange); outline-offset:2px;}
+.rom-popup-btn:disabled{cursor:not-allowed;}
+.rom-popup-cancelar{height:52px; padding:0 22px; font-size:16px; font-weight:600; border-color:#5A5A5A;}
+.rom-popup-limpar{border-color:#8A8A8A;}
+.rom-popup-limpar:disabled{border-color:#3A3A3A; color:#6F6F6F;}
+.rom-popup-confirmar{padding:0 36px; font-size:18px; font-weight:800; background:var(--orange); color:#000000;}
+.rom-popup-confirmar:disabled{background:#3A3A3A; color:#8A8A8A;}
+.rom-popup-cancelar:disabled{opacity:.4;}
+/* tablet em pé / telas estreitas: o aviso sobe pra uma linha própria e o Confirmar ocupa o resto */
+@media (max-width:820px){
+  .rom-popup-rodape{flex-wrap:wrap; gap:12px 16px; padding-bottom:20px;}
+  .rom-popup-aviso{order:-1; flex:1 1 100%;}
+  .rom-popup-confirmar{flex:1;}
+  .rom-popup-baseline, .rom-popup-x, .rom-popup-legenda{left:32px;}
+  .rom-popup-baseline, .rom-popup-legenda{right:32px;}
+}
+/* celular deitado ou janela baixa: encurta cabeçalho/rodapé pro papel continuar grande */
+@media (max-height:520px){
+  .rom-popup-topo{min-height:64px; padding-top:8px; padding-bottom:8px;}
+  .rom-popup-rodape{min-height:76px; padding-top:8px; padding-bottom:8px;}
+  .rom-popup-btn{height:52px;}
+  .rom-popup-aviso{display:none;}
+  .rom-popup-hint{bottom:90px;}
+  .rom-popup-baseline{bottom:70px;}
+  .rom-popup-x{bottom:78px;}
+  .rom-popup-legenda{bottom:40px;}
+}
 
 .print-dash-mapa{max-width:360px; margin:0 auto;}
 .print-dash-mapa .dash-mapa-wrap{height:auto;}

@@ -3604,6 +3604,7 @@ async function abrirRomaneioDetalhe(romaneioId) {
   const r = state.romaneios.find(x => x.id === romaneioId);
   const e = r && state.entregas.find(x => x.id === r.entregaId);
   if (!r || !e) { toast("Romaneio não encontrado."); return; }
+  fecharPopupAssinatura();
   coletaEditingId = romaneioId;
 
   document.getElementById("romResumo").innerHTML = `
@@ -3635,13 +3636,11 @@ async function abrirRomaneioDetalhe(romaneioId) {
       `Assinado em ${new Date(r.assinadoEm).toLocaleString("pt-BR")}${r.motoristaNome ? " por " + r.motoristaNome : ""}.`;
   }
 
-  await prepararCanvasAssinatura(r, travado);
+  await mostrarAssinaturaSalva(r, travado);
+  atualizarBlocoAssinatura();
 
   document.getElementById("coletaListaWrap").style.display = "none";
   document.getElementById("coletaDetalheWrap").style.display = "block";
-  // o quadro de assinatura só tem tamanho agora que a tela de detalhe está visível: medido antes (escondida) o
-  // bitmap saía 1x1 e o traço não aparecia. No computador um resize da janela consertava; no tablet, não.
-  if (!travado) limparCanvasAssinatura();
   window.scrollTo(0, 0);
 }
 
@@ -3693,7 +3692,7 @@ async function excluirRomaneio(romaneioId) {
 
 /* ---- assinatura (canvas desenhável) ---- */
 
-let romCtx = null, romDrawing = false, romHasStroke = false, romLast = null;
+let romCtx = null, romDrawing = false, romHasStroke = false, romLast = null, romSalvando = false;
 
 function resizeAssinaturaCanvas() {
   const canvas = document.getElementById("assinaturaCanvas");
@@ -3712,53 +3711,117 @@ function resizeAssinaturaCanvas() {
   romCtx.strokeStyle = "#161616";
 }
 
+// recomeça o quadro do zero (e mede de novo -- só dá certo com o popup visível: medido escondido o
+// bitmap sairia 1x1 e o traço não apareceria)
 function limparCanvasAssinatura() {
   const canvas = document.getElementById("assinaturaCanvas");
   resizeAssinaturaCanvas();
   romCtx.clearRect(0, 0, canvas.width, canvas.height);
   romHasStroke = false;
+  document.getElementById("romCanvasHint").style.display = "flex";
+  atualizarBotoesPopupAssinatura();
 }
 
-// mostra o quadro pra desenhar (romaneio novo) ou a imagem já salva (romaneio assinado, inclusive
-// reaberto por "Ver" na lista) -- URL assinada porque o bucket é privado, igual aos anexos de Entregas
-async function prepararCanvasAssinatura(r, travado) {
-  const box = document.getElementById("romCanvasBox");
-  box.classList.toggle("travado", travado);
-  box.style.borderColor = "";
+// romaneio já assinado (inclusive reaberto por "Ver" na lista): mostra a imagem salva no bloco da tela
+// principal -- URL assinada porque o bucket é privado, igual aos anexos de Entregas
+async function mostrarAssinaturaSalva(r, travado) {
+  const box = document.getElementById("romAssinaturaSalva");
   const imgAntiga = box.querySelector("img");
   if (imgAntiga) imgAntiga.remove();
-  const canvas = document.getElementById("assinaturaCanvas");
-  const hint = document.getElementById("romCanvasHint");
-  if (travado) {
-    canvas.style.display = "none";
-    hint.style.display = "none";
-    if (r.assinaturaPath) {
-      const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 300);
-      if (!error && data) {
-        const img = document.createElement("img");
-        img.src = data.signedUrl;
-        img.alt = "Assinatura do motorista";
-        box.appendChild(img);
-      }
-    }
-  } else {
-    canvas.style.display = "block";
-    limparCanvasAssinatura();
-    hint.style.display = "flex";
+  if (!travado || !r.assinaturaPath) return;
+  const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 300);
+  if (!error && data) {
+    const img = document.createElement("img");
+    img.src = data.signedUrl;
+    img.alt = "Assinatura do motorista";
+    box.appendChild(img);
   }
+}
+
+// o popup de tela cheia só abre com os 4 campos do motorista preenchidos (os mesmos que
+// salvarEAssinarRomaneio exige); até lá o bloco da assinatura fica bloqueado e diz o que falta
+const ROM_CAMPOS_MOTORISTA = [
+  { id: "romMotorista", rotulo: "Motorista" },
+  { id: "romDocumento", rotulo: "Documento" },
+  { id: "romPlaca", rotulo: "Placa do veículo" },
+  { id: "romData", rotulo: "Data da coleta" }
+];
+
+function romCamposFaltando() {
+  return ROM_CAMPOS_MOTORISTA.filter(c => !document.getElementById(c.id).value.trim()).map(c => c.rotulo);
+}
+
+function atualizarBlocoAssinatura() {
+  const faltam = romCamposFaltando();
+  const pronto = faltam.length === 0;
+  document.getElementById("romaneioAcoesAntes").dataset.estado = pronto ? "pronto" : "bloqueado";
+  document.getElementById("romAssinarTitulo").textContent = pronto ? "Dados completos. Já dá pra assinar." : "Assinatura ainda bloqueada";
+  const sub = document.getElementById("romAssinarSub");
+  if (pronto) {
+    sub.textContent = "Entregue o tablet pro motorista — a tela inteira vira o quadro de assinatura.";
+  } else {
+    const nomes = faltam.map(n => `<strong>${n}</strong>`); // rótulos fixos acima, nada digitado pelo usuário
+    sub.innerHTML = "Falta preencher: " + (nomes.length > 1 ? nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1] : nomes[0]) + ".";
+  }
+  document.getElementById("btnAbrirAssinatura").disabled = !pronto;
+}
+
+function atualizarBotoesPopupAssinatura() {
+  document.getElementById("btnLimparAssinatura").disabled = !romHasStroke || romSalvando;
+  document.getElementById("btnConfirmarAssinatura").disabled = !romHasStroke || romSalvando;
+  document.getElementById("btnPopupCancelarAssinatura").disabled = romSalvando;
+}
+
+function abrirPopupAssinatura() {
+  const r = coletaRomaneioAtual();
+  const e = r && state.entregas.find(x => x.id === r.entregaId);
+  if (!r || !e || r.assinadoEm) return;
+  if (romCamposFaltando().length) {
+    atualizarBlocoAssinatura();
+    toast("Preencha motorista, documento, placa e data antes de assinar.");
+    return;
+  }
+  const motorista = document.getElementById("romMotorista").value.trim();
+  const documento = document.getElementById("romDocumento").value.trim();
+  const placa = document.getElementById("romPlaca").value.trim();
+  document.getElementById("romPopupNome").textContent = motorista;
+  document.getElementById("romPopupMeta").innerHTML =
+    `NF <span class="mono">${escapeHtml(e.numeroNF || "—")}</span> · ${escapeHtml(e.cliente || "—")} · ${escapeHtml(placa)}`;
+  document.getElementById("romPopupLegenda").textContent = `${motorista} · Documento ${documento}`;
+  document.getElementById("romCanvasBox").style.borderColor = "";
+  document.getElementById("romAssinaturaPopup").hidden = false;
+  document.body.classList.add("rom-popup-aberto");
+  limparCanvasAssinatura(); // já com o popup visível, pra medir o quadro de verdade
+}
+
+function fecharPopupAssinatura() {
+  document.getElementById("romAssinaturaPopup").hidden = true;
+  document.body.classList.remove("rom-popup-aberto");
+  romDrawing = false;
+}
+
+// "Cancelar" só pergunta se já tem traço no quadro -- quadro em branco fecha direto
+async function cancelarPopupAssinatura() {
+  if (romSalvando) return;
+  if (romHasStroke) {
+    const sair = await confirmModal("Sair sem assinar?", "O desenho feito até agora será apagado.", "Sair sem assinar", "Continuar assinando");
+    if (!sair) return;
+  }
+  fecharPopupAssinatura();
 }
 
 function initAssinaturaCanvas() {
   const canvas = document.getElementById("assinaturaCanvas");
   window.addEventListener("resize", () => {
-    // sai logo se a tela de Coleta nem está aberta (é o caso a quase todo instante da sessão) --
-    // sem isso, cada resize da janela inteira varria state.romaneios à toa (achado em revisão)
-    if (!coletaEditingId) return;
-    const r = coletaRomaneioAtual();
-    if (r && !r.assinadoEm) resizeAssinaturaCanvas(); // redesenhar do zero é aceitável (assina de novo)
+    // girar o tablet muda o tamanho do quadro: recomeça do zero (e zera romHasStroke junto, senão o
+    // Confirmar ficaria ligado com o quadro em branco). Sai logo se o popup está fechado -- é o caso
+    // a quase todo instante da sessão.
+    if (document.getElementById("romAssinaturaPopup").hidden || romSalvando) return;
+    limparCanvasAssinatura();
   });
   const pos = (e) => { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
   canvas.addEventListener("pointerdown", (e) => {
+    if (romSalvando) return;
     // reforço: se o bitmap ficou do tamanho errado (medido com o quadro escondido), conserta antes do 1º traço
     if (canvas.width <= 1) resizeAssinaturaCanvas();
     romDrawing = true; romHasStroke = true; romLast = pos(e);
@@ -3766,6 +3829,7 @@ function initAssinaturaCanvas() {
     // no meio do traço -- só um reforço, então uma falha aqui não pode travar o desenho
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     document.getElementById("romCanvasHint").style.display = "none";
+    atualizarBotoesPopupAssinatura();
   });
   canvas.addEventListener("pointermove", (e) => {
     if (!romDrawing) return;
@@ -3784,6 +3848,7 @@ async function salvarEAssinarRomaneio() {
   // motorista demorou pra assinar) -- sem essa checagem, assinar reviveria um romaneio cancelado
   // (achado em revisão)
   if (r.cancelado) {
+    fecharPopupAssinatura();
     toast("Este romaneio foi cancelado nesse meio-tempo -- volte pra lista e gere um novo.");
     voltarColetaLista();
     return;
@@ -3794,6 +3859,9 @@ async function salvarEAssinarRomaneio() {
   const placa = document.getElementById("romPlaca").value.trim();
   const data = document.getElementById("romData").value;
   if (!motorista || !documento || !placa || !data) {
+    // os campos ficam atrás do popup e não dá pra editar com ele aberto -- fecha pra corrigir
+    fecharPopupAssinatura();
+    atualizarBlocoAssinatura();
     toast("Preencha motorista, documento, placa e data antes de assinar.");
     return;
   }
@@ -3805,10 +3873,11 @@ async function salvarEAssinarRomaneio() {
     return;
   }
 
-  const btn = document.getElementById("btnConfirmarAssinatura");
-  const rotuloOriginal = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Salvando…";
+  const rotulo = document.getElementById("btnConfirmarAssinaturaRotulo");
+  const rotuloOriginal = rotulo.textContent;
+  romSalvando = true;
+  rotulo.textContent = "Salvando…";
+  atualizarBotoesPopupAssinatura();
   try {
     const canvas = document.getElementById("assinaturaCanvas");
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
@@ -3825,14 +3894,16 @@ async function salvarEAssinarRomaneio() {
     await registrarLog("romaneios", r.id, "edicao", "Ação automática",
       `Romaneio assinado — NF ${e.numeroNF || "—"}, motorista ${motorista}`);
     toast("Romaneio assinado.");
+    fecharPopupAssinatura();
     await abrirRomaneioDetalhe(r.id);
     renderColeta();
   } catch (err) {
     console.error("Erro ao assinar romaneio:", err);
     toast("Não foi possível assinar o romaneio: " + (err.message || err));
   } finally {
-    btn.disabled = false;
-    btn.textContent = rotuloOriginal;
+    romSalvando = false;
+    rotulo.textContent = rotuloOriginal;
+    atualizarBotoesPopupAssinatura();
   }
 }
 
@@ -9816,10 +9887,14 @@ async function init() {
   document.getElementById("coletaBusca").addEventListener("input", renderColeta);
   document.getElementById("btnColetaVoltar").addEventListener("click", voltarColetaLista);
   document.getElementById("btnCancelarRomaneio").addEventListener("click", cancelarRomaneioAtual);
-  document.getElementById("btnLimparAssinatura").addEventListener("click", () => {
-    limparCanvasAssinatura();
-    document.getElementById("romCanvasHint").style.display = "flex";
+  document.getElementById("btnAbrirAssinatura").addEventListener("click", abrirPopupAssinatura);
+  document.getElementById("btnPopupCancelarAssinatura").addEventListener("click", cancelarPopupAssinatura);
+  ROM_CAMPOS_MOTORISTA.forEach(c => {
+    const el = document.getElementById(c.id);
+    el.addEventListener("input", atualizarBlocoAssinatura);
+    el.addEventListener("change", atualizarBlocoAssinatura); // campo de data só dispara "change" em alguns navegadores
   });
+  document.getElementById("btnLimparAssinatura").addEventListener("click", limparCanvasAssinatura);
   document.getElementById("btnConfirmarAssinatura").addEventListener("click", salvarEAssinarRomaneio);
   document.getElementById("btnBaixarRomaneioPdf").addEventListener("click", () => gerarRomaneioPdf(coletaEditingId));
   initAssinaturaCanvas();
