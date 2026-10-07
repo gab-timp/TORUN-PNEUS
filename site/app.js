@@ -905,7 +905,7 @@ function setView(view) {
   if (view === "historicocredito") renderHistoricoCredito();
   if (view === "fluxocaixa") renderFluxoCaixa();
   if (view === "historico") renderHistorico();
-  if (view === "relatorios") renderRelatorioCodigoListas();
+  if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); }
   if (view === "administracao") renderAdministracao();
 }
 
@@ -1347,6 +1347,80 @@ function renderRelatorioCodigoListas() {
   });
 }
 
+/* ---- filtro de marca do relatório (hoje só no Estoque atual): mesmo painel de caixas do filtro de código ---- */
+
+// marcas do cadastro como opções do filtro: "" = produtos sem marca (aparece como "Sem marca")
+function marcasDoCadastro() {
+  const marcas = new Set(state.produtos.map(p => (p.marca || "").trim()));
+  return [...marcas].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+}
+
+function relatorioMarcaCards() {
+  return Array.from(document.querySelectorAll(".report-card")).filter(c => c.querySelector(".report-marca-lista"));
+}
+
+function relatorioMarcasSelecionadas(card) {
+  return Array.from(card.querySelectorAll(".report-marca-lista input")).filter(cb => cb.checked).map(cb => cb.dataset.marca);
+}
+
+function atualizarBotaoMarcaRelatorio(card) {
+  const checkboxes = card.querySelectorAll(".report-marca-lista input");
+  const total = checkboxes.length;
+  const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
+  const btn = card.querySelector(".report-marca-btn");
+  if (total === 0 || marcados === total) btn.textContent = "☰ Todas as marcas";
+  else if (marcados === 0) btn.textContent = "☰ Nenhuma marca selecionada";
+  else btn.textContent = `☰ ${marcados} marca${marcados > 1 ? "s" : ""} selecionada${marcados > 1 ? "s" : ""}`;
+}
+
+function renderRelatorioMarcaListas() {
+  relatorioMarcaCards().forEach(card => {
+    const lista = card.querySelector(".report-marca-lista");
+    const jaTinhaItens = lista.children.length > 0;
+    const anterior = jaTinhaItens ? new Set(relatorioMarcasSelecionadas(card)) : null;
+    lista.innerHTML = marcasDoCadastro().map(m => `
+      <label class="dash-filter-item">
+        <input type="checkbox" data-marca="${escapeAttr(m)}" ${(!jaTinhaItens || anterior.has(m)) ? "checked" : ""}>
+        ${m ? escapeHtml(m) : "Sem marca"}
+      </label>
+    `).join("");
+    atualizarBotaoMarcaRelatorio(card);
+  });
+}
+
+function marcasResumo(marcas) {
+  if (!Array.isArray(marcas)) return null;
+  const todas = marcasDoCadastro();
+  if (marcas.length >= todas.length) return null; // todas selecionadas = sem filtro
+  if (marcas.length === 0) return "Nenhuma marca selecionada";
+  return marcas.map(m => m || "Sem marca").join(", ");
+}
+
+function initRelatorioMarcaFiltros() {
+  relatorioMarcaCards().forEach(card => {
+    const btn = card.querySelector(".report-marca-btn");
+    const panel = card.querySelector(".report-marca-panel");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const abrir = panel.style.display === "none";
+      document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
+      panel.style.display = abrir ? "block" : "none";
+    });
+    card.querySelector(".report-marca-lista").addEventListener("change", (e) => {
+      if (!e.target.matches("[data-marca]")) return;
+      atualizarBotaoMarcaRelatorio(card);
+    });
+    card.querySelector(".report-marca-todas").addEventListener("click", () => {
+      card.querySelectorAll(".report-marca-lista input").forEach(cb => { cb.checked = true; });
+      atualizarBotaoMarcaRelatorio(card);
+    });
+    card.querySelector(".report-marca-nenhuma").addEventListener("click", () => {
+      card.querySelectorAll(".report-marca-lista input").forEach(cb => { cb.checked = false; });
+      atualizarBotaoMarcaRelatorio(card);
+    });
+  });
+}
+
 function initRelatorioCodigoFiltros() {
   relatorioCodigoCards().forEach(card => {
     const btn = card.querySelector(".report-codigo-btn");
@@ -1354,7 +1428,7 @@ function initRelatorioCodigoFiltros() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const abrir = panel.style.display === "none";
-      document.querySelectorAll(".report-codigo-panel").forEach(p => { p.style.display = "none"; });
+      document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
       panel.style.display = abrir ? "block" : "none";
     });
     card.querySelector(".report-codigo-lista").addEventListener("change", (e) => {
@@ -1371,8 +1445,8 @@ function initRelatorioCodigoFiltros() {
     });
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".report-codigo-wrap")) {
-      document.querySelectorAll(".report-codigo-panel").forEach(p => { p.style.display = "none"; });
+    if (!e.target.closest(".report-codigo-wrap, .report-marca-wrap")) {
+      document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
     }
   });
 }
@@ -8757,16 +8831,19 @@ const REPORT_DEFS = {
   estoque: {
     title: "Relatório de Estoque Atual",
     hasDateRange: false,
-    build(de, ate, filtro, codigos, agrupar) {
+    // filtro2 = marcas escolhidas no cartão (lista de marcas, "" = sem marca); todas marcadas = sem filtro
+    build(de, ate, filtro, codigos, agrupar, filtro2) {
       let produtos = listEstoque().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
       if (filtro === "disponivel") produtos = produtos.filter(p => p.saldo > 0);
       if (filtro === "zerado") produtos = produtos.filter(p => p.saldo <= 0);
       if (Array.isArray(codigos)) produtos = produtos.filter(p => codigos.includes(p.codigo));
+      if (marcasResumo(filtro2)) produtos = produtos.filter(p => filtro2.includes((p.marca || "").trim()));
 
       const filtroLabel = filtro === "disponivel" ? "Só com saldo disponível" : filtro === "zerado" ? "Só com saldo zerado" : "Todos";
       const totalSaldo = produtos.reduce((a, p) => a + p.saldo, 0);
       const summaryBase = [
         { label: "Filtro aplicado", value: filtroLabel },
+        ...(marcasResumo(filtro2) ? [{ label: "Marcas incluídas", value: marcasResumo(filtro2) }] : []),
         ...(codigosResumo(codigos) ? [{ label: "Códigos incluídos", value: codigosResumo(codigos) }] : [])
       ];
 
@@ -9203,6 +9280,9 @@ function initRelatorios() {
     const filtro3Input = card.querySelector(".report-filtro3");
     const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
+    const temMarcas = !!card.querySelector(".report-marca-lista");
+    // no cartão com filtro de marca, o 2º filtro é a lista de marcas escolhidas; nos outros, o select (ex: Estado)
+    const filtro2Valor = () => temMarcas ? relatorioMarcasSelecionadas(card) : (filtro2Input ? filtro2Input.value : null);
     // "Relatório de Preço" precisa de uma região escolhida pra saber qual preço
     // mostrar -- sem isso o relatório sairia vazio, então barra antes de gerar.
     const validoPraGerar = () => {
@@ -9216,21 +9296,22 @@ function initRelatorios() {
       if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); } // pega vendedor/estado novo, se houve venda desde o init
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
     });
     if (btnExcel) btnExcel.addEventListener("click", () => {
       if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); }
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
     });
     if (btnCsv) btnCsv.addEventListener("click", () => {
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
     });
   });
   initRelatorioCodigoFiltros();
+  initRelatorioMarcaFiltros();
 }
 
 function capturarGraficoParaImpressao(chart) {
