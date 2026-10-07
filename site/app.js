@@ -334,16 +334,23 @@ function vendaFromRow(r) {
   };
 }
 
+// Representantes do processo: lista (previsoes.representantes). A coluna antiga `representante` (um nome só)
+// continua sendo gravada com o 1º da lista pra versões antigas do site e pra política de leitura do portal
+// (sql/previsoes_varios_representantes.sql); ao ler, uma linha só com o campo antigo vira lista de 1 nome.
 function previstoToRow(p) {
+  const representantes = p.representantes || [];
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [],
-    data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null, representante: p.representante || null
+    data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null,
+    representantes, representante: representantes[0] || null
   };
 }
 function previstoFromRow(r) {
+  const lista = Array.isArray(r.representantes) ? r.representantes.filter(Boolean) : [];
+  const representantes = lista.length ? lista : (r.representante ? [r.representante] : []);
   return {
     id: r.id, numeroProcesso: r.numero_processo, itens: r.itens || [],
-    dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representante: r.representante || "",
+    dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representantes,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -1141,16 +1148,60 @@ function statusBadgeClass(status) {
   return "st-aguardando";
 }
 
-function populatePrevRepresentanteSelect() {
-  const sel = document.getElementById("prevRepresentante");
-  if (sel.options.length <= 1) {
-    sel.innerHTML = `<option value="">Nenhum</option>` +
-      state.representantes.map(nome => `<option value="${escapeAttr(nome)}">${escapeHtml(nome)}</option>`).join("");
-  }
+/* ---- representantes do processo previsto: painel de caixas (vários por processo) ---- */
+
+function prevRepSelecionados() {
+  return Array.from(document.querySelectorAll("#prevRepLista input")).filter(cb => cb.checked).map(cb => cb.dataset.rep);
+}
+
+function atualizarBotaoPrevRep() {
+  const marcados = prevRepSelecionados();
+  const btn = document.getElementById("prevRepBtn");
+  btn.textContent = marcados.length === 0 ? "Nenhum" : marcados.length === 1 ? marcados[0] : `${marcados.length} representantes`;
+}
+
+// monta a lista com os representantes cadastrados; `selecionados` mantém o que estava marcado (ou o que o
+// processo em edição já tinha). Nome vinculado que não está mais na lista continua aparecendo, marcado, pra
+// salvar sem querer não tirar o vínculo.
+function renderPrevRepLista(selecionados) {
+  const lista = document.getElementById("prevRepLista");
+  const marcar = new Set(selecionados || prevRepSelecionados());
+  const nomes = [...new Set([...state.representantes, ...marcar])];
+  lista.innerHTML = nomes.map(nome => `
+    <label class="dash-filter-item">
+      <input type="checkbox" data-rep="${escapeAttr(nome)}" ${marcar.has(nome) ? "checked" : ""}>
+      ${escapeHtml(nome)}${state.representantes.includes(nome) ? "" : " (fora da lista)"}
+    </label>
+  `).join("") || `<div class="note">Nenhum representante cadastrado.</div>`;
+  atualizarBotaoPrevRep();
+}
+
+function fecharPainelPrevRep() {
+  document.getElementById("prevRepPanel").style.display = "none";
+  document.getElementById("prevRepBtn").setAttribute("aria-expanded", "false");
+}
+
+function initPrevRepresentantes() {
+  const btn = document.getElementById("prevRepBtn");
+  const panel = document.getElementById("prevRepPanel");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const abrir = panel.style.display === "none";
+    panel.style.display = abrir ? "block" : "none";
+    btn.setAttribute("aria-expanded", String(abrir));
+  });
+  document.getElementById("prevRepLista").addEventListener("change", atualizarBotaoPrevRep);
+  document.getElementById("prevRepLimpar").addEventListener("click", () => {
+    document.querySelectorAll("#prevRepLista input").forEach(cb => { cb.checked = false; });
+    atualizarBotaoPrevRep();
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".prev-rep-wrap")) fecharPainelPrevRep();
+  });
 }
 
 function renderPrevistos() {
-  populatePrevRepresentanteSelect();
+  renderPrevRepLista();
   const search = (document.getElementById("prevSearch").value || "").trim().toLowerCase();
   const filtroStatus = document.getElementById("prevFiltroStatus").value;
 
@@ -1195,7 +1246,7 @@ function renderPrevistos() {
             <span class="prev-card-eyebrow">Processo</span>
             <span class="mono prev-card-title">${escapeHtml(p.numeroProcesso)}</span>
             <span class="prev-status-badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
-            ${p.representante ? `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(p.representante)}</span>` : ""}
+            ${p.representantes.map(nome => `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(nome)}</span>`).join("")}
           </div>
           <div class="prev-card-actions write-ui">
             <button class="btn small outline" data-editprev="${p.id}">Editar</button>
@@ -1274,7 +1325,7 @@ function startEditPrevisto(id) {
   document.getElementById("prevDataChegada").value = p.dataChegada || "";
   document.getElementById("prevStatus").value = p.status;
   document.getElementById("prevObs").value = p.obs || "";
-  document.getElementById("prevRepresentante").value = p.representante || "";
+  renderPrevRepLista(p.representantes);
 
   const container = document.getElementById("prevItens");
   container.innerHTML = "";
@@ -1298,6 +1349,8 @@ function cancelEditPrevisto() {
   editingPrevistoUpdatedAt = null;
   document.getElementById("formPrevisto").reset();
   document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
+  renderPrevRepLista([]); // form.reset() devolve as caixas ao estado do HTML; refaz a lista vazia
+  fecharPainelPrevRep();
   resetItens("prevItens");
   document.getElementById("prevFormTitle").textContent = "Novo processo previsto";
   document.getElementById("prevEditBanner").style.display = "none";
@@ -7872,13 +7925,14 @@ function initForms() {
     cancelEditPrevisto();
   });
 
+  initPrevRepresentantes();
   document.getElementById("formPrevisto").addEventListener("submit", async (e) => {
     e.preventDefault();
     const numeroProcesso = document.getElementById("prevNumeroProcesso").value.trim();
     const dataChegada = document.getElementById("prevDataChegada").value;
     const status = document.getElementById("prevStatus").value;
     const obs = document.getElementById("prevObs").value.trim();
-    const representante = document.getElementById("prevRepresentante").value || null;
+    const representantes = prevRepSelecionados();
     if (!numeroProcesso) { toast("Informe o número do processo."); return; }
 
     const rows = Array.from(document.querySelectorAll("#prevItens .item-row"));
@@ -7897,7 +7951,7 @@ function initForms() {
       const p = state.previsoes.find(x => x.id === editingPrevistoId);
       const { conflict, error, row } = await updateWithConflictCheck(
         "previsoes", editingPrevistoId, editingPrevistoUpdatedAt,
-        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representante })
+        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representantes })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
@@ -7914,13 +7968,13 @@ function initForms() {
       return;
     }
 
-    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representante };
+    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes };
     const { data: inserido, error } = await sb.from("previsoes").insert({ ...previstoToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
     state.previsoes.push(previstoFromRow(inserido[0]));
     e.target.reset();
     document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
-    document.getElementById("prevRepresentante").value = "";
+    renderPrevRepLista([]);
     resetItens("prevItens");
     renderPrevistos();
     toast("Processo previsto adicionado.");

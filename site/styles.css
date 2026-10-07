@@ -1195,7 +1195,11 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .report-select-btn:focus-visible, .report-select-btn[aria-expanded="true"]{
   border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);
 }
-.report-marca-panel, .report-codigo-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
+.report-marca-panel, .report-codigo-panel, .prev-rep-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
+/* o painel de representantes fica dentro de um .field, cujo label vira "MAIÚSCULA PEQUENA"; aqui os nomes ficam normais */
+.prev-rep-panel .dash-filter-item{text-transform:none; letter-spacing:0; font-size:12.5px; font-weight:400; color:var(--ink);}
+/* várias tags de representante no cartão do processo: quebram por tag inteira, não no meio do nome */
+.prev-card-head .kanban-card-tag{white-space:nowrap;}
 
 /* ---------------- ranking (formas de pagamento no Faturamento) ---------------- */
 .rank-list{display:flex; flex-direction:column; gap:10px;}
