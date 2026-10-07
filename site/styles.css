@@ -1195,7 +1195,7 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .report-select-btn:focus-visible, .report-select-btn[aria-expanded="true"]{
   border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);
 }
-.report-marca-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
+.report-marca-panel, .report-codigo-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
 
 /* ---------------- ranking (formas de pagamento no Faturamento) ---------------- */
 .rank-list{display:flex; flex-direction:column; gap:10px;}

@@ -1327,9 +1327,9 @@ function atualizarBotaoCodigoRelatorio(card) {
   const total = checkboxes.length;
   const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
   const btn = card.querySelector(".report-codigo-btn");
-  if (total === 0 || marcados === total) btn.textContent = "☰ Todos os produtos";
-  else if (marcados === 0) btn.textContent = "☰ Nenhum produto selecionado";
-  else btn.textContent = `☰ ${marcados} produto${marcados > 1 ? "s" : ""} selecionado${marcados > 1 ? "s" : ""}`;
+  if (total === 0 || marcados === total) btn.textContent = "Todos os produtos";
+  else if (marcados === 0) btn.textContent = "Nenhum produto selecionado";
+  else btn.textContent = `${marcados} produto${marcados > 1 ? "s" : ""} selecionado${marcados > 1 ? "s" : ""}`;
 }
 
 function renderRelatorioCodigoListas() {
@@ -1399,7 +1399,7 @@ function marcasResumo(marcas) {
 // fecha os painéis de filtro (código e marca) de todos os cartões de relatório
 function fecharPaineisFiltroRelatorio() {
   document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
-  document.querySelectorAll(".report-marca-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+  document.querySelectorAll(".report-marca-btn, .report-codigo-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
 }
 
 function initRelatorioMarcaFiltros() {
@@ -1437,6 +1437,7 @@ function initRelatorioCodigoFiltros() {
       const abrir = panel.style.display === "none";
       fecharPaineisFiltroRelatorio();
       panel.style.display = abrir ? "block" : "none";
+      btn.setAttribute("aria-expanded", String(abrir));
     });
     card.querySelector(".report-codigo-lista").addEventListener("change", (e) => {
       if (!e.target.matches("[data-codigo]")) return;
