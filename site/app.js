@@ -1368,9 +1368,9 @@ function atualizarBotaoMarcaRelatorio(card) {
   const total = checkboxes.length;
   const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
   const btn = card.querySelector(".report-marca-btn");
-  if (total === 0 || marcados === total) btn.textContent = "☰ Todas as marcas";
-  else if (marcados === 0) btn.textContent = "☰ Nenhuma marca selecionada";
-  else btn.textContent = `☰ ${marcados} marca${marcados > 1 ? "s" : ""} selecionada${marcados > 1 ? "s" : ""}`;
+  if (total === 0 || marcados === total) btn.textContent = "Todas as marcas";
+  else if (marcados === 0) btn.textContent = "Nenhuma marca selecionada";
+  else btn.textContent = `${marcados} marca${marcados > 1 ? "s" : ""} selecionada${marcados > 1 ? "s" : ""}`;
 }
 
 function renderRelatorioMarcaListas() {
@@ -1396,6 +1396,12 @@ function marcasResumo(marcas) {
   return marcas.map(m => m || "Sem marca").join(", ");
 }
 
+// fecha os painéis de filtro (código e marca) de todos os cartões de relatório
+function fecharPaineisFiltroRelatorio() {
+  document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
+  document.querySelectorAll(".report-marca-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+}
+
 function initRelatorioMarcaFiltros() {
   relatorioMarcaCards().forEach(card => {
     const btn = card.querySelector(".report-marca-btn");
@@ -1403,8 +1409,9 @@ function initRelatorioMarcaFiltros() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const abrir = panel.style.display === "none";
-      document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
+      fecharPaineisFiltroRelatorio();
       panel.style.display = abrir ? "block" : "none";
+      btn.setAttribute("aria-expanded", String(abrir));
     });
     card.querySelector(".report-marca-lista").addEventListener("change", (e) => {
       if (!e.target.matches("[data-marca]")) return;
@@ -1428,7 +1435,7 @@ function initRelatorioCodigoFiltros() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const abrir = panel.style.display === "none";
-      document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
+      fecharPaineisFiltroRelatorio();
       panel.style.display = abrir ? "block" : "none";
     });
     card.querySelector(".report-codigo-lista").addEventListener("change", (e) => {
@@ -1445,9 +1452,7 @@ function initRelatorioCodigoFiltros() {
     });
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".report-codigo-wrap, .report-marca-wrap")) {
-      document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
-    }
+    if (!e.target.closest(".report-codigo-wrap, .report-marca-wrap")) fecharPaineisFiltroRelatorio();
   });
 }
 

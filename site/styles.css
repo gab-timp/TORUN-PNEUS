@@ -1179,6 +1179,24 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 }
 .dash-filter-item input{width:auto;}
 
+/* botão do filtro de marca (relatório Estoque atual): mesma aparência do seletor "Agrupar por" ao lado,
+   mas abre um painel de caixas pra marcar várias marcas */
+.report-select-btn{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  width:100%; box-sizing:border-box; min-height:38px; text-align:left; cursor:pointer;
+  font:inherit; font-size:13.5px; font-weight:400;
+  padding:9px 10px; border:1px solid var(--line); border-radius:7px;
+  background:var(--paper); color:var(--ink); outline:none;
+}
+.report-select-btn::after{
+  content:""; flex:0 0 auto; width:6px; height:6px; margin:-3px 3px 0 0;
+  border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg);
+}
+.report-select-btn:focus-visible, .report-select-btn[aria-expanded="true"]{
+  border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);
+}
+.report-marca-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
+
 /* ---------------- ranking (formas de pagamento no Faturamento) ---------------- */
 .rank-list{display:flex; flex-direction:column; gap:10px;}
 .rank-row{
