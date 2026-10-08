@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=145">
+<link rel="stylesheet" href="styles.css?v=154">
 <link rel="stylesheet" href="semvenda.css?v=9">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1218,16 +1218,35 @@
               <select id="prevStatus"></select>
             </div>
             <div class="field">
-              <label>Representante (opcional)</label>
-              <select id="prevRepresentante">
-                <option value="">Nenhum</option>
-              </select>
+              <label>Representantes (opcional)</label>
+              <div class="dash-filter-wrap prev-rep-wrap">
+                <button type="button" class="report-select-btn" id="prevRepBtn" aria-haspopup="listbox" aria-expanded="false">Nenhum</button>
+                <div class="dash-filter-panel prev-rep-panel" id="prevRepPanel" style="display:none;">
+                  <div class="dash-filter-actions">
+                    <button type="button" id="prevRepLimpar">Limpar</button>
+                  </div>
+                  <div id="prevRepLista"></div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="field" style="margin-bottom:12px;">
-            <label>Medidas do processo</label>
-            <div id="prevItens" class="item-list"></div>
+          <div class="prev-carga-box">
+            <div class="prev-carga-head">
+              <span class="prev-carga-titulo">Carga do processo</span>
+              <div class="prev-containers">
+                <label for="prevContainers">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5.5" width="16" height="9" rx="1"/><path d="M6 5.5v9M10 5.5v9M14 5.5v9"/></svg>
+                  Contêineres
+                </label>
+                <div class="prev-stepper">
+                  <button type="button" id="prevContainersMenos" aria-label="Diminuir contêineres">−</button>
+                  <input type="number" id="prevContainers" min="1" step="1" inputmode="numeric" placeholder="—" required>
+                  <button type="button" id="prevContainersMais" aria-label="Aumentar contêineres">+</button>
+                </div>
+              </div>
+            </div>
+            <div id="prevItens" class="item-list" role="group" aria-label="Medidas do processo"></div>
             <button type="button" class="btn small outline" id="btnAddItemPrevisto" style="margin-top:8px;">+ Adicionar medida</button>
           </div>
 
@@ -1758,17 +1777,24 @@
 
           <div class="romaneio-assinatura-wrap">
             <label>Assinatura do motorista</label>
-            <div class="romaneio-canvas-box" id="romCanvasBox">
-              <canvas id="assinaturaCanvas"></canvas>
-              <div class="romaneio-canvas-linha"></div>
-              <div class="romaneio-canvas-hint" id="romCanvasHint">Toque e arraste aqui pra assinar</div>
+            <!-- antes de assinar: um bloco que destrava quando os dados do motorista estão completos; o
+                 desenho em si acontece no popup de tela cheia (#romAssinaturaPopup, no fim da página) -->
+            <div id="romaneioAcoesAntes" class="rom-assinar-bloco" data-estado="bloqueado">
+              <div class="rom-assinar-icone" aria-hidden="true">
+                <svg class="rom-ico-lock" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                <svg class="rom-ico-pen" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </div>
+              <div class="rom-assinar-texto">
+                <div class="rom-assinar-titulo" id="romAssinarTitulo">Assinatura ainda bloqueada</div>
+                <div class="rom-assinar-sub" id="romAssinarSub"></div>
+              </div>
+              <button type="button" class="btn primary rom-assinar-btn write-ui" id="btnAbrirAssinatura" disabled>Assinar</button>
             </div>
-            <div id="romaneioAcoesAntes" class="form-actions write-ui" style="justify-content:space-between; margin-top:12px;">
-              <button type="button" class="btn outline" id="btnLimparAssinatura">Limpar</button>
-              <button type="button" class="btn primary" id="btnConfirmarAssinatura">Gerar e assinar romaneio</button>
-            </div>
-            <div id="romaneioAcoesDepois" style="display:none; margin-top:12px;">
-              <div class="note" id="romAssinadoInfo" style="margin-bottom:10px;"></div>
+            <div id="romaneioAcoesDepois" style="display:none;">
+              <div class="romaneio-canvas-box travado" id="romAssinaturaSalva">
+                <div class="romaneio-canvas-linha"></div>
+              </div>
+              <div class="note" id="romAssinadoInfo" style="margin:12px 0 10px;"></div>
               <div class="form-actions" style="justify-content:flex-end;">
                 <button type="button" class="btn primary" id="btnBaixarRomaneioPdf">Baixar PDF</button>
               </div>
@@ -2652,10 +2678,23 @@
                 <option value="capCarga">Cap. de carga</option>
               </select>
             </div>
+            <div class="field">
+              <label>Marca (opcional)</label>
+              <div class="dash-filter-wrap report-marca-wrap">
+                <button type="button" class="report-select-btn report-marca-btn" aria-haspopup="listbox">Todas as marcas</button>
+                <div class="dash-filter-panel report-marca-panel" style="display:none;">
+                  <div class="dash-filter-actions">
+                    <button type="button" class="report-marca-todas">Selecionar todas</button>
+                    <button type="button" class="report-marca-nenhuma">Nenhuma</button>
+                  </div>
+                  <div class="report-marca-lista"></div>
+                </div>
+              </div>
+            </div>
             <div class="field grow">
               <label>Código do produto (opcional)</label>
               <div class="dash-filter-wrap report-codigo-wrap">
-                <button type="button" class="btn small outline report-codigo-btn">☰ Todos os produtos</button>
+                <button type="button" class="report-select-btn report-codigo-btn" aria-haspopup="listbox">Todos os produtos</button>
                 <div class="dash-filter-panel report-codigo-panel" style="display:none;">
                   <div class="dash-filter-actions">
                     <button type="button" class="report-codigo-todos">Selecionar todos</button>
@@ -2689,7 +2728,7 @@
             <div class="field grow">
               <label>Código do produto (opcional)</label>
               <div class="dash-filter-wrap report-codigo-wrap">
-                <button type="button" class="btn small outline report-codigo-btn">☰ Todos os produtos</button>
+                <button type="button" class="report-select-btn report-codigo-btn" aria-haspopup="listbox">Todos os produtos</button>
                 <div class="dash-filter-panel report-codigo-panel" style="display:none;">
                   <div class="dash-filter-actions">
                     <button type="button" class="report-codigo-todos">Selecionar todos</button>
@@ -2908,6 +2947,47 @@
 </div>
 
 <div id="reportPrintArea" class="print-only"></div>
+
+<!-- popup de tela cheia pra assinar o romaneio (abre por #btnAbrirAssinatura, só com os dados do
+     motorista completos). O quadro de desenho (#romCanvasBox + canvas) e os botões Limpar/Confirmar
+     moram aqui -- o JS de assinatura usa esses mesmos ids. -->
+<div class="rom-popup" id="romAssinaturaPopup" role="dialog" aria-modal="true" aria-labelledby="romPopupNome" hidden>
+  <div class="rom-popup-topo">
+    <div class="rom-popup-id">
+      <div class="rom-popup-eyebrow">Assinatura do motorista</div>
+      <div class="rom-popup-id-linha">
+        <div class="rom-popup-nome" id="romPopupNome"></div>
+        <div class="rom-popup-meta" id="romPopupMeta"></div>
+      </div>
+    </div>
+    <button type="button" class="rom-popup-btn rom-popup-cancelar" id="btnPopupCancelarAssinatura">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      Cancelar
+    </button>
+  </div>
+  <div class="rom-popup-papel" id="romCanvasBox">
+    <canvas id="assinaturaCanvas"></canvas>
+    <div class="rom-popup-hint" id="romCanvasHint">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      <div class="rom-popup-hint-titulo">Assine aqui</div>
+      <div class="rom-popup-hint-sub">com o dedo ou com a caneta</div>
+    </div>
+    <div class="rom-popup-baseline"></div>
+    <div class="rom-popup-x" aria-hidden="true">x</div>
+    <div class="rom-popup-legenda" id="romPopupLegenda"></div>
+  </div>
+  <div class="rom-popup-rodape">
+    <button type="button" class="rom-popup-btn rom-popup-limpar" id="btnLimparAssinatura" disabled>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+      Limpar
+    </button>
+    <div class="rom-popup-aviso">Ao confirmar, o romaneio é gerado e os dados ficam travados.</div>
+    <button type="button" class="rom-popup-btn rom-popup-confirmar" id="btnConfirmarAssinatura" disabled>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+      <span id="btnConfirmarAssinaturaRotulo">Confirmar assinatura</span>
+    </button>
+  </div>
+</div>
 
 <div id="toast"></div>
 <div id="estoqueBaixoAlerts" class="estoque-baixo-alerts"></div>
@@ -3299,6 +3379,8 @@
         </div>
       </div>
 
+      <div id="entProcessoHint" class="proc-hint" role="status" aria-live="polite" style="display:none;"></div>
+
       <div class="field" style="margin-bottom:12px;">
         <label>Medidas (produto + quantidade)</label>
         <div id="entItens" class="item-list"></div>
@@ -3604,6 +3686,6 @@
 </div>
 
 <script src="semvenda.js?v=9"></script>
-<script src="app.js?v=226"></script>
+<script src="app.js?v=234"></script>
 </body>
 </html>

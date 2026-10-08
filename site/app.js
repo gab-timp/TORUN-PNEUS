@@ -335,16 +335,25 @@ function vendaFromRow(r) {
   };
 }
 
+// Representantes do processo: lista (previsoes.representantes). A coluna antiga `representante` (um nome só)
+// continua sendo gravada com o 1º da lista pra versões antigas do site e pra política de leitura do portal
+// (sql/previsoes_varios_representantes.sql); ao ler, uma linha só com o campo antigo vira lista de 1 nome.
 function previstoToRow(p) {
+  const representantes = p.representantes || [];
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [],
-    data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null, representante: p.representante || null
+    data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null,
+    representantes, representante: representantes[0] || null,
+    quantidade_containers: p.quantidadeContainers || null
   };
 }
 function previstoFromRow(r) {
+  const lista = Array.isArray(r.representantes) ? r.representantes.filter(Boolean) : [];
+  const representantes = lista.length ? lista : (r.representante ? [r.representante] : []);
   return {
     id: r.id, numeroProcesso: r.numero_processo, itens: r.itens || [],
-    dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representante: r.representante || "",
+    dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representantes,
+    quantidadeContainers: r.quantidade_containers || null,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -786,11 +795,14 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
-function confirmModal(title, text) {
+function confirmModal(title, text, okLabel, cancelLabel) {
   return new Promise(resolve => {
     const overlay = document.getElementById("confirmOverlay");
     document.getElementById("confirmTitle").textContent = title;
     document.getElementById("confirmText").textContent = text;
+    // rótulos opcionais; sem eles o modal volta sempre ao padrão "Confirmar"/"Cancelar"
+    document.getElementById("confirmOk").textContent = okLabel || "Confirmar";
+    document.getElementById("confirmCancel").textContent = cancelLabel || "Cancelar";
     overlay.classList.add("show");
     const cleanup = (result) => {
       overlay.classList.remove("show");
@@ -905,7 +917,7 @@ function setView(view) {
   if (view === "historicocredito") renderHistoricoCredito();
   if (view === "fluxocaixa") renderFluxoCaixa();
   if (view === "historico") renderHistorico();
-  if (view === "relatorios") renderRelatorioCodigoListas();
+  if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); }
   if (view === "administracao") renderAdministracao();
   if (view.startsWith("sv-")) svAoAbrirView(view);
 }
@@ -1142,16 +1154,60 @@ function statusBadgeClass(status) {
   return "st-aguardando";
 }
 
-function populatePrevRepresentanteSelect() {
-  const sel = document.getElementById("prevRepresentante");
-  if (sel.options.length <= 1) {
-    sel.innerHTML = `<option value="">Nenhum</option>` +
-      state.representantes.map(nome => `<option value="${escapeAttr(nome)}">${escapeHtml(nome)}</option>`).join("");
-  }
+/* ---- representantes do processo previsto: painel de caixas (vários por processo) ---- */
+
+function prevRepSelecionados() {
+  return Array.from(document.querySelectorAll("#prevRepLista input")).filter(cb => cb.checked).map(cb => cb.dataset.rep);
+}
+
+function atualizarBotaoPrevRep() {
+  const marcados = prevRepSelecionados();
+  const btn = document.getElementById("prevRepBtn");
+  btn.textContent = marcados.length === 0 ? "Nenhum" : marcados.length === 1 ? marcados[0] : `${marcados.length} representantes`;
+}
+
+// monta a lista com os representantes cadastrados; `selecionados` mantém o que estava marcado (ou o que o
+// processo em edição já tinha). Nome vinculado que não está mais na lista continua aparecendo, marcado, pra
+// salvar sem querer não tirar o vínculo.
+function renderPrevRepLista(selecionados) {
+  const lista = document.getElementById("prevRepLista");
+  const marcar = new Set(selecionados || prevRepSelecionados());
+  const nomes = [...new Set([...state.representantes, ...marcar])];
+  lista.innerHTML = nomes.map(nome => `
+    <label class="dash-filter-item">
+      <input type="checkbox" data-rep="${escapeAttr(nome)}" ${marcar.has(nome) ? "checked" : ""}>
+      ${escapeHtml(nome)}${state.representantes.includes(nome) ? "" : " (fora da lista)"}
+    </label>
+  `).join("") || `<div class="note">Nenhum representante cadastrado.</div>`;
+  atualizarBotaoPrevRep();
+}
+
+function fecharPainelPrevRep() {
+  document.getElementById("prevRepPanel").style.display = "none";
+  document.getElementById("prevRepBtn").setAttribute("aria-expanded", "false");
+}
+
+function initPrevRepresentantes() {
+  const btn = document.getElementById("prevRepBtn");
+  const panel = document.getElementById("prevRepPanel");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const abrir = panel.style.display === "none";
+    panel.style.display = abrir ? "block" : "none";
+    btn.setAttribute("aria-expanded", String(abrir));
+  });
+  document.getElementById("prevRepLista").addEventListener("change", atualizarBotaoPrevRep);
+  document.getElementById("prevRepLimpar").addEventListener("click", () => {
+    document.querySelectorAll("#prevRepLista input").forEach(cb => { cb.checked = false; });
+    atualizarBotaoPrevRep();
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".prev-rep-wrap")) fecharPainelPrevRep();
+  });
 }
 
 function renderPrevistos() {
-  populatePrevRepresentanteSelect();
+  renderPrevRepLista();
   const search = (document.getElementById("prevSearch").value || "").trim().toLowerCase();
   const filtroStatus = document.getElementById("prevFiltroStatus").value;
 
@@ -1196,12 +1252,16 @@ function renderPrevistos() {
             <span class="prev-card-eyebrow">Processo</span>
             <span class="mono prev-card-title">${escapeHtml(p.numeroProcesso)}</span>
             <span class="prev-status-badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
-            ${p.representante ? `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(p.representante)}</span>` : ""}
+            ${p.representantes.map(nome => `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(nome)}</span>`).join("")}
           </div>
           <div class="prev-card-actions write-ui">
             <button class="btn small outline" data-editprev="${p.id}">Editar</button>
             <button class="btn small danger" data-delprev="${p.id}">✕</button>
           </div>
+        </div>
+        <div class="prev-carga">
+          <span class="prev-carga-eyebrow">Carga</span>
+          ${p.quantidadeContainers ? `<span class="prev-container-pill" title="Quantidade de contêineres do processo"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5.5" width="16" height="9" rx="1"/><path d="M6 5.5v9M10 5.5v9M14 5.5v9"/></svg>${p.quantidadeContainers} ${p.quantidadeContainers === 1 ? "contêiner" : "contêineres"}</span>` : ""}
         </div>
         <ul class="prev-itens-list">${itensHtml}</ul>
         ${p.obs ? `<div class="muted prev-card-obs">${escapeHtml(p.obs)}</div>` : ""}
@@ -1265,6 +1325,19 @@ function renderPrevistos() {
   });
 }
 
+// Seletor − n + da quantidade de contêineres (Estoque Previsto). Campo vazio: "+" começa em 1 e "−" não
+// faz nada; depois disso nunca desce de 1. O valor também pode ser digitado direto.
+function initPrevContainers() {
+  const input = document.getElementById("prevContainers");
+  const passo = (delta) => {
+    const atual = parseInt(input.value, 10);
+    if (Number.isNaN(atual)) { if (delta > 0) input.value = 1; return; }
+    input.value = Math.max(1, atual + delta);
+  };
+  document.getElementById("prevContainersMais").addEventListener("click", () => passo(1));
+  document.getElementById("prevContainersMenos").addEventListener("click", () => passo(-1));
+}
+
 function startEditPrevisto(id) {
   const p = state.previsoes.find(x => x.id === id);
   if (!p) return;
@@ -1275,7 +1348,8 @@ function startEditPrevisto(id) {
   document.getElementById("prevDataChegada").value = p.dataChegada || "";
   document.getElementById("prevStatus").value = p.status;
   document.getElementById("prevObs").value = p.obs || "";
-  document.getElementById("prevRepresentante").value = p.representante || "";
+  document.getElementById("prevContainers").value = p.quantidadeContainers || ""; // processo antigo vem vazio: precisa preencher pra salvar
+  renderPrevRepLista(p.representantes);
 
   const container = document.getElementById("prevItens");
   container.innerHTML = "";
@@ -1299,6 +1373,8 @@ function cancelEditPrevisto() {
   editingPrevistoUpdatedAt = null;
   document.getElementById("formPrevisto").reset();
   document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
+  renderPrevRepLista([]); // form.reset() devolve as caixas ao estado do HTML; refaz a lista vazia
+  fecharPainelPrevRep();
   resetItens("prevItens");
   document.getElementById("prevFormTitle").textContent = "Novo processo previsto";
   document.getElementById("prevEditBanner").style.display = "none";
@@ -1328,9 +1404,9 @@ function atualizarBotaoCodigoRelatorio(card) {
   const total = checkboxes.length;
   const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
   const btn = card.querySelector(".report-codigo-btn");
-  if (total === 0 || marcados === total) btn.textContent = "☰ Todos os produtos";
-  else if (marcados === 0) btn.textContent = "☰ Nenhum produto selecionado";
-  else btn.textContent = `☰ ${marcados} produto${marcados > 1 ? "s" : ""} selecionado${marcados > 1 ? "s" : ""}`;
+  if (total === 0 || marcados === total) btn.textContent = "Todos os produtos";
+  else if (marcados === 0) btn.textContent = "Nenhum produto selecionado";
+  else btn.textContent = `${marcados} produto${marcados > 1 ? "s" : ""} selecionado${marcados > 1 ? "s" : ""}`;
 }
 
 function renderRelatorioCodigoListas() {
@@ -1348,6 +1424,87 @@ function renderRelatorioCodigoListas() {
   });
 }
 
+/* ---- filtro de marca do relatório (hoje só no Estoque atual): mesmo painel de caixas do filtro de código ---- */
+
+// marcas do cadastro como opções do filtro: "" = produtos sem marca (aparece como "Sem marca")
+function marcasDoCadastro() {
+  const marcas = new Set(state.produtos.map(p => (p.marca || "").trim()));
+  return [...marcas].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+}
+
+function relatorioMarcaCards() {
+  return Array.from(document.querySelectorAll(".report-card")).filter(c => c.querySelector(".report-marca-lista"));
+}
+
+function relatorioMarcasSelecionadas(card) {
+  return Array.from(card.querySelectorAll(".report-marca-lista input")).filter(cb => cb.checked).map(cb => cb.dataset.marca);
+}
+
+function atualizarBotaoMarcaRelatorio(card) {
+  const checkboxes = card.querySelectorAll(".report-marca-lista input");
+  const total = checkboxes.length;
+  const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
+  const btn = card.querySelector(".report-marca-btn");
+  if (total === 0 || marcados === total) btn.textContent = "Todas as marcas";
+  else if (marcados === 0) btn.textContent = "Nenhuma marca selecionada";
+  else btn.textContent = `${marcados} marca${marcados > 1 ? "s" : ""} selecionada${marcados > 1 ? "s" : ""}`;
+}
+
+function renderRelatorioMarcaListas() {
+  relatorioMarcaCards().forEach(card => {
+    const lista = card.querySelector(".report-marca-lista");
+    const jaTinhaItens = lista.children.length > 0;
+    const anterior = jaTinhaItens ? new Set(relatorioMarcasSelecionadas(card)) : null;
+    lista.innerHTML = marcasDoCadastro().map(m => `
+      <label class="dash-filter-item">
+        <input type="checkbox" data-marca="${escapeAttr(m)}" ${(!jaTinhaItens || anterior.has(m)) ? "checked" : ""}>
+        ${m ? escapeHtml(m) : "Sem marca"}
+      </label>
+    `).join("");
+    atualizarBotaoMarcaRelatorio(card);
+  });
+}
+
+function marcasResumo(marcas) {
+  if (!Array.isArray(marcas)) return null;
+  const todas = marcasDoCadastro();
+  if (marcas.length >= todas.length) return null; // todas selecionadas = sem filtro
+  if (marcas.length === 0) return "Nenhuma marca selecionada";
+  return marcas.map(m => m || "Sem marca").join(", ");
+}
+
+// fecha os painéis de filtro (código e marca) de todos os cartões de relatório
+function fecharPaineisFiltroRelatorio() {
+  document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
+  document.querySelectorAll(".report-marca-btn, .report-codigo-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+}
+
+function initRelatorioMarcaFiltros() {
+  relatorioMarcaCards().forEach(card => {
+    const btn = card.querySelector(".report-marca-btn");
+    const panel = card.querySelector(".report-marca-panel");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const abrir = panel.style.display === "none";
+      fecharPaineisFiltroRelatorio();
+      panel.style.display = abrir ? "block" : "none";
+      btn.setAttribute("aria-expanded", String(abrir));
+    });
+    card.querySelector(".report-marca-lista").addEventListener("change", (e) => {
+      if (!e.target.matches("[data-marca]")) return;
+      atualizarBotaoMarcaRelatorio(card);
+    });
+    card.querySelector(".report-marca-todas").addEventListener("click", () => {
+      card.querySelectorAll(".report-marca-lista input").forEach(cb => { cb.checked = true; });
+      atualizarBotaoMarcaRelatorio(card);
+    });
+    card.querySelector(".report-marca-nenhuma").addEventListener("click", () => {
+      card.querySelectorAll(".report-marca-lista input").forEach(cb => { cb.checked = false; });
+      atualizarBotaoMarcaRelatorio(card);
+    });
+  });
+}
+
 function initRelatorioCodigoFiltros() {
   relatorioCodigoCards().forEach(card => {
     const btn = card.querySelector(".report-codigo-btn");
@@ -1355,8 +1512,9 @@ function initRelatorioCodigoFiltros() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const abrir = panel.style.display === "none";
-      document.querySelectorAll(".report-codigo-panel").forEach(p => { p.style.display = "none"; });
+      fecharPaineisFiltroRelatorio();
       panel.style.display = abrir ? "block" : "none";
+      btn.setAttribute("aria-expanded", String(abrir));
     });
     card.querySelector(".report-codigo-lista").addEventListener("change", (e) => {
       if (!e.target.matches("[data-codigo]")) return;
@@ -1372,9 +1530,7 @@ function initRelatorioCodigoFiltros() {
     });
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".report-codigo-wrap")) {
-      document.querySelectorAll(".report-codigo-panel").forEach(p => { p.style.display = "none"; });
-    }
+    if (!e.target.closest(".report-codigo-wrap, .report-marca-wrap")) fecharPaineisFiltroRelatorio();
   });
 }
 
@@ -1420,6 +1576,100 @@ function resetItens(containerId) {
   container.innerHTML = "";
   container.appendChild(createItemRow(containerId));
   updateItemRemoveVisibility(containerId);
+}
+
+/* ---------------- entrada: puxa as medidas do Estoque Previsto pelo processo ---------------- */
+
+// último processo já consultado nesta entrada (normalizado); evita consultar duas vezes o mesmo
+// valor (Enter + perda de foco) e perguntar "substituir?" de novo à toa
+let entProcessoUltimoBuscado = "";
+// quando as medidas foram puxadas pela última vez; o submit usa isso pra não registrar na mesma
+// ação do clique (blur do campo -> medidas aparecem -> clique em Registrar) sem a pessoa ver
+let entMedidasPuxadasEm = 0;
+
+function normalizarProcesso(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function mostrarFaixaProcessoEntrada(tipo, titulo, detalhe) {
+  const el = document.getElementById("entProcessoHint");
+  if (!tipo) {
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  el.className = "proc-hint proc-hint-" + tipo;
+  el.innerHTML = `<div class="proc-hint-titulo">${escapeHtml(titulo)}</div>` +
+    (detalhe ? `<div class="proc-hint-detalhe">${escapeHtml(detalhe)}</div>` : "");
+  el.style.display = "";
+}
+
+function limparProcessoEntrada() {
+  entProcessoUltimoBuscado = "";
+  entMedidasPuxadasEm = 0;
+  mostrarFaixaProcessoEntrada(null);
+}
+
+function entradaTemMedidasDigitadas() {
+  const rows = document.querySelectorAll("#entItens .item-row");
+  if (rows.length > 1) return true;
+  return Array.from(rows).some(r =>
+    r.querySelector(".item-qtd").value !== "" || r.querySelector(".item-produto").selectedIndex > 0);
+}
+
+async function puxarMedidasDoProcessoEntrada() {
+  if (editingMovimentoId) return;
+  const processo = document.getElementById("entProcesso").value.trim();
+  const chave = normalizarProcesso(processo);
+  if (!chave) { limparProcessoEntrada(); return; }
+  if (chave === entProcessoUltimoBuscado) return;
+  entProcessoUltimoBuscado = chave;
+
+  const achados = state.previsoes.filter(p => normalizarProcesso(p.numeroProcesso) === chave);
+  if (achados.length === 0) {
+    mostrarFaixaProcessoEntrada("info", `Processo ${processo} não está no Estoque Previsto.`, "Preencha as medidas manualmente.");
+    return;
+  }
+  if (achados.length > 1) {
+    mostrarFaixaProcessoEntrada("aviso", `${achados.length} cadastros com o processo ${processo} no Estoque Previsto.`,
+      "Nenhuma medida foi puxada; confira o Estoque Previsto ou digite à mão.");
+    return;
+  }
+
+  const prev = achados[0];
+  const validos = (prev.itens || []).filter(it => it && state.produtos.some(p => p.codigo === it.codigo) && it.quantidade > 0);
+  const ignorados = (prev.itens || []).length - validos.length;
+  if (validos.length === 0) {
+    mostrarFaixaProcessoEntrada("aviso", `O processo ${processo} não tem medidas que possam ser puxadas.`,
+      "Preencha as medidas manualmente.");
+    return;
+  }
+
+  const plural = validos.length === 1;
+  if (entradaTemMedidasDigitadas()) {
+    const ok = await confirmModal(
+      "Substituir as medidas?",
+      `Esta entrada já tem medidas preenchidas. Trocar ${plural ? "pela medida" : `pelas ${validos.length} medidas`} do processo ${processo}, do Estoque Previsto?`,
+      "Substituir", "Manter as minhas");
+    if (!ok) { mostrarFaixaProcessoEntrada(null); return; }
+  }
+
+  const container = document.getElementById("entItens");
+  container.innerHTML = "";
+  validos.forEach(it => {
+    const row = createItemRow("entItens");
+    container.appendChild(row);
+    row.querySelector(".item-produto").value = it.codigo;
+    row.querySelector(".item-qtd").value = it.quantidade;
+  });
+  updateItemRemoveVisibility("entItens");
+  entMedidasPuxadasEm = Date.now();
+
+  const partes = [`Processo ${processo}`, prev.status];
+  if (prev.dataChegada) partes.push(`${prev.status === "CHEGOU" ? "chegada" : "chegada prevista"} em ${formatDateBR(prev.dataChegada)}`);
+  if (ignorados > 0) partes.push(`${ignorados} ${ignorados === 1 ? "medida ignorada" : "medidas ignoradas"} (produto não cadastrado)`);
+  mostrarFaixaProcessoEntrada(ignorados > 0 ? "aviso" : "ok",
+    `${validos.length} ${plural ? "medida puxada" : "medidas puxadas"} do Estoque Previsto`, partes.join(" · "));
 }
 
 /* ---------------- render: MOVIMENTAÇÕES ---------------- */
@@ -1643,6 +1893,7 @@ function startEditMovimento(movId) {
     document.getElementById("entNumero").value = m.numero || "";
     document.getElementById("entPedido").value = m.pedido || "";
     document.getElementById("entProcesso").value = m.processo || "";
+    limparProcessoEntrada();
     document.getElementById("entObs").value = m.obs || "";
     const container = document.getElementById("entItens");
     container.innerHTML = "";
@@ -1686,6 +1937,7 @@ function cancelEditMovimento(which) {
     document.getElementById("formEntrada").reset();
     document.getElementById("entData").value = todayISO();
     resetItens("entItens");
+    limparProcessoEntrada();
     document.getElementById("btnAddItemEntrada").style.display = "";
     document.getElementById("entFormTitle").textContent = "Nova entrada";
     document.getElementById("entEditBanner").style.display = "none";
@@ -3376,6 +3628,7 @@ async function abrirRomaneioDetalhe(romaneioId) {
   const r = state.romaneios.find(x => x.id === romaneioId);
   const e = r && state.entregas.find(x => x.id === r.entregaId);
   if (!r || !e) { toast("Romaneio não encontrado."); return; }
+  fecharPopupAssinatura();
   coletaEditingId = romaneioId;
 
   document.getElementById("romResumo").innerHTML = `
@@ -3407,7 +3660,8 @@ async function abrirRomaneioDetalhe(romaneioId) {
       `Assinado em ${new Date(r.assinadoEm).toLocaleString("pt-BR")}${r.motoristaNome ? " por " + r.motoristaNome : ""}.`;
   }
 
-  await prepararCanvasAssinatura(r, travado);
+  await mostrarAssinaturaSalva(r, travado);
+  atualizarBlocoAssinatura();
 
   document.getElementById("coletaListaWrap").style.display = "none";
   document.getElementById("coletaDetalheWrap").style.display = "block";
@@ -3462,7 +3716,7 @@ async function excluirRomaneio(romaneioId) {
 
 /* ---- assinatura (canvas desenhável) ---- */
 
-let romCtx = null, romDrawing = false, romHasStroke = false, romLast = null;
+let romCtx = null, romDrawing = false, romHasStroke = false, romLast = null, romSalvando = false;
 
 function resizeAssinaturaCanvas() {
   const canvas = document.getElementById("assinaturaCanvas");
@@ -3481,58 +3735,125 @@ function resizeAssinaturaCanvas() {
   romCtx.strokeStyle = "#161616";
 }
 
+// recomeça o quadro do zero (e mede de novo -- só dá certo com o popup visível: medido escondido o
+// bitmap sairia 1x1 e o traço não apareceria)
 function limparCanvasAssinatura() {
   const canvas = document.getElementById("assinaturaCanvas");
   resizeAssinaturaCanvas();
   romCtx.clearRect(0, 0, canvas.width, canvas.height);
   romHasStroke = false;
+  document.getElementById("romCanvasHint").style.display = "flex";
+  atualizarBotoesPopupAssinatura();
 }
 
-// mostra o quadro pra desenhar (romaneio novo) ou a imagem já salva (romaneio assinado, inclusive
-// reaberto por "Ver" na lista) -- URL assinada porque o bucket é privado, igual aos anexos de Entregas
-async function prepararCanvasAssinatura(r, travado) {
-  const box = document.getElementById("romCanvasBox");
-  box.classList.toggle("travado", travado);
-  box.style.borderColor = "";
+// romaneio já assinado (inclusive reaberto por "Ver" na lista): mostra a imagem salva no bloco da tela
+// principal -- URL assinada porque o bucket é privado, igual aos anexos de Entregas
+async function mostrarAssinaturaSalva(r, travado) {
+  const box = document.getElementById("romAssinaturaSalva");
   const imgAntiga = box.querySelector("img");
   if (imgAntiga) imgAntiga.remove();
-  const canvas = document.getElementById("assinaturaCanvas");
-  const hint = document.getElementById("romCanvasHint");
-  if (travado) {
-    canvas.style.display = "none";
-    hint.style.display = "none";
-    if (r.assinaturaPath) {
-      const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 300);
-      if (!error && data) {
-        const img = document.createElement("img");
-        img.src = data.signedUrl;
-        img.alt = "Assinatura do motorista";
-        box.appendChild(img);
-      }
-    }
-  } else {
-    canvas.style.display = "block";
-    limparCanvasAssinatura();
-    hint.style.display = "flex";
+  if (!travado || !r.assinaturaPath) return;
+  const { data, error } = await sb.storage.from(ROMANEIO_BUCKET).createSignedUrl(r.assinaturaPath, 300);
+  if (!error && data) {
+    const img = document.createElement("img");
+    img.src = data.signedUrl;
+    img.alt = "Assinatura do motorista";
+    box.appendChild(img);
   }
+}
+
+// o popup de tela cheia só abre com os 4 campos do motorista preenchidos (os mesmos que
+// salvarEAssinarRomaneio exige); até lá o bloco da assinatura fica bloqueado e diz o que falta
+const ROM_CAMPOS_MOTORISTA = [
+  { id: "romMotorista", rotulo: "Motorista" },
+  { id: "romDocumento", rotulo: "Documento" },
+  { id: "romPlaca", rotulo: "Placa do veículo" },
+  { id: "romData", rotulo: "Data da coleta" }
+];
+
+function romCamposFaltando() {
+  return ROM_CAMPOS_MOTORISTA.filter(c => !document.getElementById(c.id).value.trim()).map(c => c.rotulo);
+}
+
+function atualizarBlocoAssinatura() {
+  const faltam = romCamposFaltando();
+  const pronto = faltam.length === 0;
+  document.getElementById("romaneioAcoesAntes").dataset.estado = pronto ? "pronto" : "bloqueado";
+  document.getElementById("romAssinarTitulo").textContent = pronto ? "Dados completos. Já dá pra assinar." : "Assinatura ainda bloqueada";
+  const sub = document.getElementById("romAssinarSub");
+  if (pronto) {
+    sub.textContent = "Entregue o tablet pro motorista — a tela inteira vira o quadro de assinatura.";
+  } else {
+    const nomes = faltam.map(n => `<strong>${n}</strong>`); // rótulos fixos acima, nada digitado pelo usuário
+    sub.innerHTML = "Falta preencher: " + (nomes.length > 1 ? nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1] : nomes[0]) + ".";
+  }
+  document.getElementById("btnAbrirAssinatura").disabled = !pronto;
+}
+
+function atualizarBotoesPopupAssinatura() {
+  document.getElementById("btnLimparAssinatura").disabled = !romHasStroke || romSalvando;
+  document.getElementById("btnConfirmarAssinatura").disabled = !romHasStroke || romSalvando;
+  document.getElementById("btnPopupCancelarAssinatura").disabled = romSalvando;
+}
+
+function abrirPopupAssinatura() {
+  const r = coletaRomaneioAtual();
+  const e = r && state.entregas.find(x => x.id === r.entregaId);
+  if (!r || !e || r.assinadoEm) return;
+  if (romCamposFaltando().length) {
+    atualizarBlocoAssinatura();
+    toast("Preencha motorista, documento, placa e data antes de assinar.");
+    return;
+  }
+  const motorista = document.getElementById("romMotorista").value.trim();
+  const documento = document.getElementById("romDocumento").value.trim();
+  const placa = document.getElementById("romPlaca").value.trim();
+  document.getElementById("romPopupNome").textContent = motorista;
+  document.getElementById("romPopupMeta").innerHTML =
+    `NF <span class="mono">${escapeHtml(e.numeroNF || "—")}</span> · ${escapeHtml(e.cliente || "—")} · ${escapeHtml(placa)}`;
+  document.getElementById("romPopupLegenda").textContent = `${motorista} · Documento ${documento}`;
+  document.getElementById("romCanvasBox").style.borderColor = "";
+  document.getElementById("romAssinaturaPopup").hidden = false;
+  document.body.classList.add("rom-popup-aberto");
+  limparCanvasAssinatura(); // já com o popup visível, pra medir o quadro de verdade
+}
+
+function fecharPopupAssinatura() {
+  document.getElementById("romAssinaturaPopup").hidden = true;
+  document.body.classList.remove("rom-popup-aberto");
+  romDrawing = false;
+}
+
+// "Cancelar" só pergunta se já tem traço no quadro -- quadro em branco fecha direto
+async function cancelarPopupAssinatura() {
+  if (romSalvando) return;
+  if (romHasStroke) {
+    const sair = await confirmModal("Sair sem assinar?", "O desenho feito até agora será apagado.", "Sair sem assinar", "Continuar assinando");
+    if (!sair) return;
+  }
+  fecharPopupAssinatura();
 }
 
 function initAssinaturaCanvas() {
   const canvas = document.getElementById("assinaturaCanvas");
   window.addEventListener("resize", () => {
-    // sai logo se a tela de Coleta nem está aberta (é o caso a quase todo instante da sessão) --
-    // sem isso, cada resize da janela inteira varria state.romaneios à toa (achado em revisão)
-    if (!coletaEditingId) return;
-    const r = coletaRomaneioAtual();
-    if (r && !r.assinadoEm) resizeAssinaturaCanvas(); // redesenhar do zero é aceitável (assina de novo)
+    // girar o tablet muda o tamanho do quadro: recomeça do zero (e zera romHasStroke junto, senão o
+    // Confirmar ficaria ligado com o quadro em branco). Sai logo se o popup está fechado -- é o caso
+    // a quase todo instante da sessão.
+    if (document.getElementById("romAssinaturaPopup").hidden || romSalvando) return;
+    limparCanvasAssinatura();
   });
   const pos = (e) => { const rect = canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; };
   canvas.addEventListener("pointerdown", (e) => {
+    if (romSalvando) return;
+    // reforço: se o bitmap ficou do tamanho errado (medido com o quadro escondido), conserta antes do 1º traço
+    if (canvas.width <= 1) resizeAssinaturaCanvas();
     romDrawing = true; romHasStroke = true; romLast = pos(e);
     // captura o ponteiro pra continuar recebendo pointermove mesmo se o dedo/mouse sair do quadro
     // no meio do traço -- só um reforço, então uma falha aqui não pode travar o desenho
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     document.getElementById("romCanvasHint").style.display = "none";
+    atualizarBotoesPopupAssinatura();
   });
   canvas.addEventListener("pointermove", (e) => {
     if (!romDrawing) return;
@@ -3551,6 +3872,7 @@ async function salvarEAssinarRomaneio() {
   // motorista demorou pra assinar) -- sem essa checagem, assinar reviveria um romaneio cancelado
   // (achado em revisão)
   if (r.cancelado) {
+    fecharPopupAssinatura();
     toast("Este romaneio foi cancelado nesse meio-tempo -- volte pra lista e gere um novo.");
     voltarColetaLista();
     return;
@@ -3561,6 +3883,9 @@ async function salvarEAssinarRomaneio() {
   const placa = document.getElementById("romPlaca").value.trim();
   const data = document.getElementById("romData").value;
   if (!motorista || !documento || !placa || !data) {
+    // os campos ficam atrás do popup e não dá pra editar com ele aberto -- fecha pra corrigir
+    fecharPopupAssinatura();
+    atualizarBlocoAssinatura();
     toast("Preencha motorista, documento, placa e data antes de assinar.");
     return;
   }
@@ -3572,10 +3897,11 @@ async function salvarEAssinarRomaneio() {
     return;
   }
 
-  const btn = document.getElementById("btnConfirmarAssinatura");
-  const rotuloOriginal = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Salvando…";
+  const rotulo = document.getElementById("btnConfirmarAssinaturaRotulo");
+  const rotuloOriginal = rotulo.textContent;
+  romSalvando = true;
+  rotulo.textContent = "Salvando…";
+  atualizarBotoesPopupAssinatura();
   try {
     const canvas = document.getElementById("assinaturaCanvas");
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
@@ -3592,14 +3918,16 @@ async function salvarEAssinarRomaneio() {
     await registrarLog("romaneios", r.id, "edicao", "Ação automática",
       `Romaneio assinado — NF ${e.numeroNF || "—"}, motorista ${motorista}`);
     toast("Romaneio assinado.");
+    fecharPopupAssinatura();
     await abrirRomaneioDetalhe(r.id);
     renderColeta();
   } catch (err) {
     console.error("Erro ao assinar romaneio:", err);
     toast("Não foi possível assinar o romaneio: " + (err.message || err));
   } finally {
-    btn.disabled = false;
-    btn.textContent = rotuloOriginal;
+    romSalvando = false;
+    rotulo.textContent = rotuloOriginal;
+    atualizarBotoesPopupAssinatura();
   }
 }
 
@@ -6217,6 +6545,17 @@ async function confirmarMesclagemClientes() {
   const outros = Array.from(clientesSelecionadosParaMesclar).filter(n => n !== survivorNome);
   if (!outros.length) { toast("Selecione ao menos 2 clientes para mesclar."); return; }
 
+  // só os duplicados (que serão apagados) importam: o principal pode ter reserva sem problema
+  const reservasSV = await reservasSemVendaDosClientes(outros);
+  const comReservaSV = reservasSV ? outros.filter(n => reservasSV[n]) : [];
+  if (comReservaSV.length) {
+    const nomesComReserva = comReservaSV.map(n => `"${n}"`).join(", ");
+    toast(comReservaSV.length === 1
+      ? `Não é possível mesclar: ${nomesComReserva} tem reserva no Sem Venda e não pode ser removido. Escolha esse cadastro como principal ou tire-o da seleção.`
+      : `Não é possível mesclar: ${nomesComReserva} têm reserva no Sem Venda e não podem ser removidos. Tire-os da seleção (um deles pode ser o principal).`);
+    return;
+  }
+
   const motivo = await motivoModal("Confirmar mesclagem?",
     `"${outros.join('", "')}" será(ão) removido(s), e suas vendas/pedidos passam a apontar para "${survivorNome}". Informe o motivo.`);
   if (!motivo) return;
@@ -6541,6 +6880,20 @@ function openClienteModal(nome) {
   renderClienteNotas();
 }
 
+// Reservas do Sem Venda (sv_reservas) apontam pro cliente por chave estrangeira "restrict": o banco não
+// deixa excluir nem apagar o duplicado de uma mesclagem se o cliente tem reserva, mesmo cancelada (fica no
+// histórico). Pergunta por uma função security definer (sql/clientes_com_reserva_sem_venda.sql) porque o
+// RLS de sv_reservas esconde as linhas de quem não tem acesso ao Sem Venda -- e esse alguém também pode
+// excluir/mesclar clientes. Devolve { nome: quantidade } só dos que têm reserva, ou null se não deu pra
+// checar (função ainda não criada, erro de rede): aí o fluxo segue como antes e o banco continua barrando.
+async function reservasSemVendaDosClientes(nomes) {
+  const { data, error } = await sb.rpc("clientes_com_reserva_sem_venda", { p_nomes: nomes });
+  if (error) { console.warn("Não deu pra checar reservas do Sem Venda:", error.message); return null; }
+  const porCliente = {};
+  (data || []).forEach(r => { porCliente[r.cliente] = Number(r.reservas); });
+  return porCliente;
+}
+
 async function excluirClienteAtual() {
   const nome = currentClienteModalNome;
   if (!nome) return;
@@ -6557,6 +6910,11 @@ async function excluirClienteAtual() {
   const temEntrega = state.entregas.some(e => e.cliente === nome);
   if (temEntrega) {
     toast("Não é possível excluir: esse cliente já tem pedido em Entregas.");
+    return;
+  }
+  const reservasSV = await reservasSemVendaDosClientes([nome]);
+  if (reservasSV && reservasSV[nome]) {
+    toast(`Não é possível excluir: esse cliente tem ${reservasSV[nome]} reserva(s) no Sem Venda (as canceladas também ficam no histórico).`);
     return;
   }
   const motivo = await motivoModal("Excluir cliente?", `Remover "${nome}" do cadastro? Informe o motivo da exclusão.`);
@@ -7697,14 +8055,23 @@ function initForms() {
     cancelEditPrevisto();
   });
 
+  initPrevRepresentantes();
+  initPrevContainers();
   document.getElementById("formPrevisto").addEventListener("submit", async (e) => {
     e.preventDefault();
     const numeroProcesso = document.getElementById("prevNumeroProcesso").value.trim();
     const dataChegada = document.getElementById("prevDataChegada").value;
     const status = document.getElementById("prevStatus").value;
     const obs = document.getElementById("prevObs").value.trim();
-    const representante = document.getElementById("prevRepresentante").value || null;
+    const representantes = prevRepSelecionados();
     if (!numeroProcesso) { toast("Informe o número do processo."); return; }
+    // Number() e não parseInt: "2.5" tem que ser barrado, não virar 2 em silêncio (o campo já bloqueia
+    // pelo navegador; isto cobre quem burla)
+    const quantidadeContainers = Number(document.getElementById("prevContainers").value);
+    if (!Number.isInteger(quantidadeContainers) || quantidadeContainers < 1) {
+      toast("Informe a quantidade de contêineres (mínimo 1).");
+      return;
+    }
 
     const rows = Array.from(document.querySelectorAll("#prevItens .item-row"));
     const itens = [];
@@ -7722,7 +8089,7 @@ function initForms() {
       const p = state.previsoes.find(x => x.id === editingPrevistoId);
       const { conflict, error, row } = await updateWithConflictCheck(
         "previsoes", editingPrevistoId, editingPrevistoUpdatedAt,
-        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representante })
+        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
@@ -7739,13 +8106,13 @@ function initForms() {
       return;
     }
 
-    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representante };
+    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers };
     const { data: inserido, error } = await sb.from("previsoes").insert({ ...previstoToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
     state.previsoes.push(previstoFromRow(inserido[0]));
     e.target.reset();
     document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
-    document.getElementById("prevRepresentante").value = "";
+    renderPrevRepLista([]);
     resetItens("prevItens");
     renderPrevistos();
     toast("Processo previsto adicionado.");
@@ -7781,8 +8148,23 @@ function initForms() {
     if (e.target.id === "entradaModalOverlay") cancelEditMovimento("entrada");
   });
 
+  const entProcessoInput = document.getElementById("entProcesso");
+  entProcessoInput.addEventListener("change", puxarMedidasDoProcessoEntrada);
+  // Enter no campo Processo (entrada nova) consulta o processo em vez de registrar de uma vez,
+  // pra pessoa ver as medidas antes; se o processo já foi consultado, o Enter envia normalmente
+  entProcessoInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || editingMovimentoId) return;
+    if (normalizarProcesso(entProcessoInput.value) === entProcessoUltimoBuscado) return;
+    e.preventDefault();
+    puxarMedidasDoProcessoEntrada();
+  });
+
   document.getElementById("formEntrada").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!editingMovimentoId && Date.now() - entMedidasPuxadasEm < 1000) {
+      toast("Medidas puxadas do processo. Confira e clique em Registrar entrada de novo.");
+      return;
+    }
     const data = document.getElementById("entData").value || todayISO();
     const numero = document.getElementById("entNumero").value.trim();
     const pedido = document.getElementById("entPedido").value.trim();
@@ -7842,6 +8224,7 @@ function initForms() {
     e.target.reset();
     document.getElementById("entData").value = todayISO();
     resetItens("entItens");
+    limparProcessoEntrada();
     closeEntradaModal();
     renderMovimentos();
     toast(itens.length > 1 ? `${itens.length} entradas registradas.` : "Entrada registrada.");
@@ -8646,16 +9029,19 @@ const REPORT_DEFS = {
   estoque: {
     title: "Relatório de Estoque Atual",
     hasDateRange: false,
-    build(de, ate, filtro, codigos, agrupar) {
+    // filtro2 = marcas escolhidas no cartão (lista de marcas, "" = sem marca); todas marcadas = sem filtro
+    build(de, ate, filtro, codigos, agrupar, filtro2) {
       let produtos = listEstoque().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
       if (filtro === "disponivel") produtos = produtos.filter(p => p.saldo > 0);
       if (filtro === "zerado") produtos = produtos.filter(p => p.saldo <= 0);
       if (Array.isArray(codigos)) produtos = produtos.filter(p => codigos.includes(p.codigo));
+      if (marcasResumo(filtro2)) produtos = produtos.filter(p => filtro2.includes((p.marca || "").trim()));
 
       const filtroLabel = filtro === "disponivel" ? "Só com saldo disponível" : filtro === "zerado" ? "Só com saldo zerado" : "Todos";
       const totalSaldo = produtos.reduce((a, p) => a + p.saldo, 0);
       const summaryBase = [
         { label: "Filtro aplicado", value: filtroLabel },
+        ...(marcasResumo(filtro2) ? [{ label: "Marcas incluídas", value: marcasResumo(filtro2) }] : []),
         ...(codigosResumo(codigos) ? [{ label: "Códigos incluídos", value: codigosResumo(codigos) }] : [])
       ];
 
@@ -9092,6 +9478,9 @@ function initRelatorios() {
     const filtro3Input = card.querySelector(".report-filtro3");
     const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
+    const temMarcas = !!card.querySelector(".report-marca-lista");
+    // no cartão com filtro de marca, o 2º filtro é a lista de marcas escolhidas; nos outros, o select (ex: Estado)
+    const filtro2Valor = () => temMarcas ? relatorioMarcasSelecionadas(card) : (filtro2Input ? filtro2Input.value : null);
     // "Relatório de Preço" precisa de uma região escolhida pra saber qual preço
     // mostrar -- sem isso o relatório sairia vazio, então barra antes de gerar.
     const validoPraGerar = () => {
@@ -9105,21 +9494,22 @@ function initRelatorios() {
       if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); } // pega vendedor/estado novo, se houve venda desde o init
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
     });
     if (btnExcel) btnExcel.addEventListener("click", () => {
       if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); }
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
     });
     if (btnCsv) btnCsv.addEventListener("click", () => {
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Input ? filtro2Input.value : null, filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
     });
   });
   initRelatorioCodigoFiltros();
+  initRelatorioMarcaFiltros();
 }
 
 function capturarGraficoParaImpressao(chart) {
@@ -9562,10 +9952,14 @@ async function init() {
   document.getElementById("coletaBusca").addEventListener("input", renderColeta);
   document.getElementById("btnColetaVoltar").addEventListener("click", voltarColetaLista);
   document.getElementById("btnCancelarRomaneio").addEventListener("click", cancelarRomaneioAtual);
-  document.getElementById("btnLimparAssinatura").addEventListener("click", () => {
-    limparCanvasAssinatura();
-    document.getElementById("romCanvasHint").style.display = "flex";
+  document.getElementById("btnAbrirAssinatura").addEventListener("click", abrirPopupAssinatura);
+  document.getElementById("btnPopupCancelarAssinatura").addEventListener("click", cancelarPopupAssinatura);
+  ROM_CAMPOS_MOTORISTA.forEach(c => {
+    const el = document.getElementById(c.id);
+    el.addEventListener("input", atualizarBlocoAssinatura);
+    el.addEventListener("change", atualizarBlocoAssinatura); // campo de data só dispara "change" em alguns navegadores
   });
+  document.getElementById("btnLimparAssinatura").addEventListener("click", limparCanvasAssinatura);
   document.getElementById("btnConfirmarAssinatura").addEventListener("click", salvarEAssinarRomaneio);
   document.getElementById("btnBaixarRomaneioPdf").addEventListener("click", () => gerarRomaneioPdf(coletaEditingId));
   initAssinaturaCanvas();
