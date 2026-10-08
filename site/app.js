@@ -6521,6 +6521,17 @@ async function confirmarMesclagemClientes() {
   const outros = Array.from(clientesSelecionadosParaMesclar).filter(n => n !== survivorNome);
   if (!outros.length) { toast("Selecione ao menos 2 clientes para mesclar."); return; }
 
+  // só os duplicados (que serão apagados) importam: o principal pode ter reserva sem problema
+  const reservasSV = await reservasSemVendaDosClientes(outros);
+  const comReservaSV = reservasSV ? outros.filter(n => reservasSV[n]) : [];
+  if (comReservaSV.length) {
+    const nomesComReserva = comReservaSV.map(n => `"${n}"`).join(", ");
+    toast(comReservaSV.length === 1
+      ? `Não é possível mesclar: ${nomesComReserva} tem reserva no Sem Venda e não pode ser removido. Escolha esse cadastro como principal ou tire-o da seleção.`
+      : `Não é possível mesclar: ${nomesComReserva} têm reserva no Sem Venda e não podem ser removidos. Tire-os da seleção (um deles pode ser o principal).`);
+    return;
+  }
+
   const motivo = await motivoModal("Confirmar mesclagem?",
     `"${outros.join('", "')}" será(ão) removido(s), e suas vendas/pedidos passam a apontar para "${survivorNome}". Informe o motivo.`);
   if (!motivo) return;
@@ -6845,6 +6856,20 @@ function openClienteModal(nome) {
   renderClienteNotas();
 }
 
+// Reservas do Sem Venda (sv_reservas) apontam pro cliente por chave estrangeira "restrict": o banco não
+// deixa excluir nem apagar o duplicado de uma mesclagem se o cliente tem reserva, mesmo cancelada (fica no
+// histórico). Pergunta por uma função security definer (sql/clientes_com_reserva_sem_venda.sql) porque o
+// RLS de sv_reservas esconde as linhas de quem não tem acesso ao Sem Venda -- e esse alguém também pode
+// excluir/mesclar clientes. Devolve { nome: quantidade } só dos que têm reserva, ou null se não deu pra
+// checar (função ainda não criada, erro de rede): aí o fluxo segue como antes e o banco continua barrando.
+async function reservasSemVendaDosClientes(nomes) {
+  const { data, error } = await sb.rpc("clientes_com_reserva_sem_venda", { p_nomes: nomes });
+  if (error) { console.warn("Não deu pra checar reservas do Sem Venda:", error.message); return null; }
+  const porCliente = {};
+  (data || []).forEach(r => { porCliente[r.cliente] = Number(r.reservas); });
+  return porCliente;
+}
+
 async function excluirClienteAtual() {
   const nome = currentClienteModalNome;
   if (!nome) return;
@@ -6861,6 +6886,11 @@ async function excluirClienteAtual() {
   const temEntrega = state.entregas.some(e => e.cliente === nome);
   if (temEntrega) {
     toast("Não é possível excluir: esse cliente já tem pedido em Entregas.");
+    return;
+  }
+  const reservasSV = await reservasSemVendaDosClientes([nome]);
+  if (reservasSV && reservasSV[nome]) {
+    toast(`Não é possível excluir: esse cliente tem ${reservasSV[nome]} reserva(s) no Sem Venda (as canceladas também ficam no histórico).`);
     return;
   }
   const motivo = await motivoModal("Excluir cliente?", `Remover "${nome}" do cadastro? Informe o motivo da exclusão.`);
