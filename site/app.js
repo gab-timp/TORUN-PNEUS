@@ -586,6 +586,9 @@ const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
+// Só o TÍTULO da aba no editor de preços (Editar/Novo produto) -- as 3 tabelas de preço continuam
+// separadas e o resto do sistema (cadastro de cliente, catálogo, relatórios) segue chamando de Frota/TTD.
+const PRECO_ABA_LABEL = { ...TIPO_CLIENTE_LABEL, FROTA: "Revenda/Frota/TTD" };
 
 function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
   const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipoCliente && x.condicaoPagamento === condicaoPagamento);
@@ -2387,7 +2390,7 @@ function buildPrecoMatrixHtml(codigo, tipoCliente) {
 // (array vazio quando é produto novo).
 function buildPrecoEditorHtml(precosExistentes) {
   const tabs = TIPO_CLIENTE_OPCOES.map((tipo, i) =>
-    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(TIPO_CLIENTE_LABEL[tipo])}</button>`
+    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(PRECO_ABA_LABEL[tipo])}</button>`
   ).join("");
   const grades = TIPO_CLIENTE_OPCOES.map((tipo, i) => {
     const precos = (precosExistentes || []).filter(p => p.tipoCliente === tipo);
@@ -2441,7 +2444,7 @@ function coletarPrecosEditor(container, codigo) {
       const raw = inp.value.trim();
       if (raw === "") { if (existente) remocoesIds.push(existente.id); return; }
       const valor = parseFloat(raw.replace(",", "."));
-      if (!(valor >= 0)) { invalidos.push(`${TIPO_CLIENTE_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
+      if (!(valor >= 0)) { invalidos.push(`${PRECO_ABA_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
       if (!existente || existente.preco !== valor) {
         upserts.push({ codigo, regiao, tipo_cliente: tipo, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
       }
