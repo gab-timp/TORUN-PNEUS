@@ -42,6 +42,13 @@ const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const CATALOGO_TODOS_TIPOS = "TODOS"; // valor do filtro "Tipo de cliente" que lista todos os pneus
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
+
+// Tabela de PREÇOS: Frota/TTD e Revenda têm o mesmo preço, então são uma tabela só, guardada em
+// produtos_precos com tipo_cliente = 'REVENDA'. O CLIENTE continua nos 3 tipos acima; só a busca de
+// preço junta Frota/TTD com Revenda. (Mesma regra do app.js do escritório.)
+const TIPO_PRECO_OPCOES = ["CONSUMO", "REVENDA"];
+const TIPO_PRECO_LABEL = { CONSUMO: "Consumo", REVENDA: "Revenda/Frota/TTD" };
+function tipoPrecoDoCliente(tipoCliente) { return tipoCliente === "FROTA" ? "REVENDA" : tipoCliente; }
 const UF_PARA_REGIAO = { SC: "SC/RS", RS: "SC/RS", PR: "PR", MG: "MG", MT: "MT" };
 const CATEGORIA_LABEL = { PASSEIO: "Passeio", CARGAS_TBR: "Cargas/TBR", AGRICOLA_FLORESTAL: "Agrícola/Florestal", OUTRO: "Outro" };
 const MES_ABREV = {
@@ -641,7 +648,7 @@ function preencherValorSugerido(tr, codigo) {
   // tipo/condição diferente, ou já desmarcada) parecer que ainda é o certo.
   const preco = (regiao && tipoCliente && condicao)
     ? produtosPrecos.find(p =>
-        p.codigo === codigo && p.regiao === regiao && p.tipo_cliente === tipoCliente && p.condicao_pagamento === condicao)
+        p.codigo === codigo && p.regiao === regiao && p.tipo_cliente === tipoPrecoDoCliente(tipoCliente) && p.condicao_pagamento === condicao)
     : null;
   valorInput.value = preco ? Number(preco.preco).toFixed(2) : "";
   recalcularTotais();
@@ -664,7 +671,8 @@ function fotoProdutoUrlRep(path) {
 }
 
 function getPrecoProdutoRep(codigo, regiao, tipoCliente, condicao) {
-  const p = produtosPrecos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipo_cliente === tipoCliente && x.condicao_pagamento === condicao);
+  const tipo = tipoPrecoDoCliente(tipoCliente);
+  const p = produtosPrecos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipo_cliente === tipo && x.condicao_pagamento === condicao);
   return p ? Number(p.preco) : null;
 }
 
@@ -690,7 +698,7 @@ function populateRepCatalogoFiltros() {
     selRegiao.innerHTML = `<option value="">Todas as regiões</option>` + CATALOGO_REGIOES.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
   }
 
-  const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  const opcoesHtml = TIPO_PRECO_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_PRECO_LABEL[t])}</option>`).join("");
   // "Todos os tipos" só existe no filtro da lista (mostra todos os pneus, sem valores); o
   // seletor do modal precisa de um tipo concreto pra montar a grade de preços.
   [[document.getElementById("repCatTipoClienteView"), `<option value="${CATALOGO_TODOS_TIPOS}">Todos os tipos</option>`],
@@ -703,13 +711,14 @@ function populateRepCatalogoFiltros() {
 }
 
 function getPrecosDoProdutoRep(codigo, tipoCliente) {
-  return produtosPrecos.filter(p => p.codigo === codigo && (!tipoCliente || p.tipo_cliente === tipoCliente));
+  const tipo = tipoPrecoDoCliente(tipoCliente);
+  return produtosPrecos.filter(p => p.codigo === codigo && (!tipo || p.tipo_cliente === tipo));
 }
 
 function buildPrecoMatrixHtmlRep(codigo, tipoCliente) {
   const precos = getPrecosDoProdutoRep(codigo, tipoCliente);
   if (precos.length === 0) {
-    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
+    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
   }
   const linhas = CATALOGO_CONDICOES.map(cond => {
     const cells = CATALOGO_REGIOES.map(r => precos.find(x => x.regiao === r && x.condicao_pagamento === cond));
@@ -789,7 +798,7 @@ function renderRepCatalogo() {
   const empty = document.getElementById("repCatalogoEmpty");
   if (rows.length === 0) {
     const alvoPartes = [];
-    if (!todosTipos) alvoPartes.push(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente);
+    if (!todosTipos) alvoPartes.push(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente);
     if (condicao) alvoPartes.push(condicao);
     if (regiao) alvoPartes.push(`região ${regiao}`);
     const alvo = alvoPartes.join(" · ");
@@ -820,10 +829,10 @@ function renderRepCatalogo() {
     const statusSaldo = statusEstoque(saldoProduto);
 
     const semPrecoNenhum = !codigosComPreco.has(p.codigo);
-    const chipsTipos = todosTipos ? TIPO_CLIENTE_OPCOES.map(t => {
+    const chipsTipos = todosTipos ? TIPO_PRECO_OPCOES.map(t => {
       const tem = getPrecosDoProdutoRep(p.codigo, t).some(x =>
         (!condicao || x.condicao_pagamento === condicao) && (!regiao || x.regiao === regiao));
-      return `<span class="cat-tipo-chip${tem ? " tem" : ""}">${tem ? "✓ " : "— "}${escapeHtml(TIPO_CLIENTE_LABEL[t])}</span>`;
+      return `<span class="cat-tipo-chip${tem ? " tem" : ""}">${tem ? "✓ " : "— "}${escapeHtml(TIPO_PRECO_LABEL[t])}</span>`;
     }).join("") : "";
     const temPrecoNestaCondicao = getPrecosDoProdutoRep(p.codigo, tipoCliente)
       .some(x => x.condicao_pagamento === condicaoAtual && (!regiao || x.regiao === regiao));
@@ -878,10 +887,10 @@ function renderRepCatalogo() {
         <div class="catalogo-preco-condicao">Preços cadastrados</div>
         <div class="cat-tipos">${chipsTipos}</div>
         <div class="cat-dica">Escolha um tipo de cliente acima para ver os valores.</div>` : `
-        <div class="catalogo-preco-condicao">Preço —${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
+        <div class="catalogo-preco-condicao">Preço —${escapeHtml(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
         ${temPrecoNestaCondicao
           ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
-          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}
+          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}
 
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-reptoggleprazos="${escapeHtml(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" style="display:${aberto ? "" : "none"};">
@@ -1549,7 +1558,7 @@ function initRepCatalogo() {
 
 function initRepRelatorioPreco() {
   document.getElementById("repRelPrecoTipoCliente").innerHTML = `<option value="">Selecione…</option>` +
-    TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+    TIPO_PRECO_OPCOES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TIPO_PRECO_LABEL[t])}</option>`).join("");
   document.getElementById("repRelPrecoCondicao").innerHTML = `<option value="">Selecione…</option>` +
     CATALOGO_CONDICOES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   document.getElementById("repRelPrecoRegiao").innerHTML = `<option value="">Selecione…</option>` +
@@ -1572,7 +1581,7 @@ function buildRelatorioPrecoRepHtml(tipo, cond, regiao, rows) {
     : `<tr><td colspan="4" style="text-align:center;color:#888;">Nenhum produto encontrado.</td></tr>`;
 
   const summaryHtml = [
-    { label: "Tipo de cliente", value: TIPO_CLIENTE_LABEL[tipo] || tipo },
+    { label: "Tipo de cliente", value: TIPO_PRECO_LABEL[tipo] || tipo },
     { label: "Condição de pagamento", value: cond },
     { label: "Região", value: regiao },
     { label: "Produtos incluídos", value: String(rows.length), total: true }

@@ -587,13 +587,22 @@ const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
 
+// Tabela de PREÇOS: Frota/TTD e Revenda têm o mesmo preço, então são uma tabela só, guardada em
+// produtos_precos com tipo_cliente = 'REVENDA'. O CLIENTE continua classificado nos 3 tipos acima
+// (isso importa pra parte fiscal e pra proposta); só a busca de preço junta Frota/TTD com Revenda.
+const TIPO_PRECO_OPCOES = ["CONSUMO", "REVENDA"];
+const TIPO_PRECO_LABEL = { CONSUMO: "Consumo", REVENDA: "Revenda/Frota/TTD" };
+function tipoPrecoDoCliente(tipoCliente) { return tipoCliente === "FROTA" ? "REVENDA" : tipoCliente; }
+
 function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
-  const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipoCliente && x.condicaoPagamento === condicaoPagamento);
+  const tipo = tipoPrecoDoCliente(tipoCliente);
+  const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipo && x.condicaoPagamento === condicaoPagamento);
   return p ? p.preco : null;
 }
 
 function getPrecosDoProduto(codigo, tipoCliente) {
-  return state.produtos_precos.filter(p => p.codigo === codigo && (!tipoCliente || p.tipoCliente === tipoCliente));
+  const tipo = tipoPrecoDoCliente(tipoCliente);
+  return state.produtos_precos.filter(p => p.codigo === codigo && (!tipo || p.tipoCliente === tipo));
 }
 
 function fotoProdutoUrl(fotoPath) {
@@ -2351,7 +2360,7 @@ function populateCatalogoCondicao() {
 }
 
 function populateCatalogoTipoCliente() {
-  const opcoesHtml = TIPO_CLIENTE_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_CLIENTE_LABEL[t])}</option>`).join("");
+  const opcoesHtml = TIPO_PRECO_OPCOES.map(t => `<option value="${escapeAttr(t)}">${escapeHtml(TIPO_PRECO_LABEL[t])}</option>`).join("");
   // "Todos os tipos" só existe no filtro da lista (mostra todos os pneus, sem valores); o
   // seletor do modal precisa de um tipo concreto pra montar a grade de preços.
   [[document.getElementById("catTipoCliente"), `<option value="${CATALOGO_TODOS_TIPOS}">Todos os tipos</option>`],
@@ -2366,7 +2375,7 @@ function populateCatalogoTipoCliente() {
 function buildPrecoMatrixHtml(codigo, tipoCliente) {
   const precos = getPrecosDoProduto(codigo, tipoCliente);
   if (precos.length === 0) {
-    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
+    return `<div class="muted" style="padding:8px 0;">Nenhum preço cadastrado para este produto (${escapeHtml(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente)}) ainda.</div>`;
   }
   const linhas = CATALOGO_CONDICOES.map(cond => {
     const cells = CATALOGO_REGIOES.map(r => precos.find(x => x.regiao === r && x.condicaoPagamento === cond));
@@ -2386,10 +2395,10 @@ function buildPrecoMatrixHtml(codigo, tipoCliente) {
 // as 3 de uma vez. `precosExistentes` = linhas de produtos_precos do produto
 // (array vazio quando é produto novo).
 function buildPrecoEditorHtml(precosExistentes) {
-  const tabs = TIPO_CLIENTE_OPCOES.map((tipo, i) =>
-    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(TIPO_CLIENTE_LABEL[tipo])}</button>`
+  const tabs = TIPO_PRECO_OPCOES.map((tipo, i) =>
+    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(TIPO_PRECO_LABEL[tipo])}</button>`
   ).join("");
-  const grades = TIPO_CLIENTE_OPCOES.map((tipo, i) => {
+  const grades = TIPO_PRECO_OPCOES.map((tipo, i) => {
     const precos = (precosExistentes || []).filter(p => p.tipoCliente === tipo);
     const linhas = CATALOGO_CONDICOES.map(cond => {
       const cells = CATALOGO_REGIOES.map(r => {
@@ -2431,7 +2440,7 @@ function coletarPrecosEditor(container, codigo) {
   const upserts = [];
   const remocoesIds = [];
   const invalidos = [];
-  TIPO_CLIENTE_OPCOES.forEach(tipo => {
+  TIPO_PRECO_OPCOES.forEach(tipo => {
     const grade = container.querySelector(`.preco-editor-grade[data-tipo="${tipo}"]`);
     if (!grade) return;
     const existentes = getPrecosDoProduto(codigo, tipo);
@@ -2441,7 +2450,7 @@ function coletarPrecosEditor(container, codigo) {
       const raw = inp.value.trim();
       if (raw === "") { if (existente) remocoesIds.push(existente.id); return; }
       const valor = parseFloat(raw.replace(",", "."));
-      if (!(valor >= 0)) { invalidos.push(`${TIPO_CLIENTE_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
+      if (!(valor >= 0)) { invalidos.push(`${TIPO_PRECO_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
       if (!existente || existente.preco !== valor) {
         upserts.push({ codigo, regiao, tipo_cliente: tipo, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
       }
@@ -2592,7 +2601,7 @@ function renderCatalogo() {
   const empty = document.getElementById("catalogoEmpty");
   if (rows.length === 0) {
     const alvoPartes = [];
-    if (!todosTipos) alvoPartes.push(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente);
+    if (!todosTipos) alvoPartes.push(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente);
     if (condicao) alvoPartes.push(condicao);
     if (regiao) alvoPartes.push(`região ${regiao}`);
     const alvo = alvoPartes.join(" · ");
@@ -2627,10 +2636,10 @@ function renderCatalogo() {
     const semPrecoNenhum = !codigosComPreco.has(p.codigo);
     // modo "Todos os tipos": um chip por tipo de cliente, marcado quando o pneu tem preço daquele
     // tipo (respeitando os filtros de condição/região, se ligados) -- igual à regra da lista.
-    const chipsTipos = todosTipos ? TIPO_CLIENTE_OPCOES.map(t => {
+    const chipsTipos = todosTipos ? TIPO_PRECO_OPCOES.map(t => {
       const tem = getPrecosDoProduto(p.codigo, t).some(x =>
         (!condicao || x.condicaoPagamento === condicao) && (!regiao || x.regiao === regiao));
-      return `<span class="cat-tipo-chip${tem ? " tem" : ""}">${tem ? "✓ " : "— "}${escapeHtml(TIPO_CLIENTE_LABEL[t])}</span>`;
+      return `<span class="cat-tipo-chip${tem ? " tem" : ""}">${tem ? "✓ " : "— "}${escapeHtml(TIPO_PRECO_LABEL[t])}</span>`;
     }).join("") : "";
     const temPrecoNestaCondicao = getPrecosDoProduto(p.codigo, tipoCliente)
       .some(x => x.condicaoPagamento === condicaoAtual && (!regiao || x.regiao === regiao));
@@ -2686,10 +2695,10 @@ function renderCatalogo() {
         <div class="catalogo-preco-condicao">Preços cadastrados</div>
         <div class="cat-tipos">${chipsTipos}</div>
         <div class="cat-dica">Escolha um tipo de cliente acima para ver os valores.</div>` : `
-        <div class="catalogo-preco-condicao">Preço —${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
+        <div class="catalogo-preco-condicao">Preço —${escapeHtml(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente)} · ${escapeHtml(condicaoAtual)}${regiao ? ` · ${escapeHtml(regiao)}` : ""}</div>
         ${temPrecoNestaCondicao
           ? `<div class="catalogo-prazos-lista aberto">${precoPorRegiao}</div>`
-          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_CLIENTE_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}
+          : `<div class="catalogo-preco-aviso">Tem preço de ${escapeHtml(TIPO_PRECO_LABEL[tipoCliente] || tipoCliente)}, mas não pra "${escapeHtml(condicaoAtual)}"${regiao ? ` na região ${escapeHtml(regiao)}` : ""}. Veja "Ver todos os prazos" abaixo.</div>`}
 
         <button type="button" class="btn small outline" style="width:100%;margin-top:10px;" data-toggleprazos="${escapeAttr(p.codigo)}">${aberto ? "Ocultar todos os prazos" : "Ver todos os prazos"}</button>
         <div class="catalogo-prazos-matriz" data-prazoslista="${escapeAttr(p.codigo)}" style="display:${aberto ? "" : "none"};">
@@ -9407,7 +9416,7 @@ const REPORT_DEFS = {
         .map(p => ({ codigo: p.codigo, medida: p.medida, saldo: p.saldo, preco: getPrecoProduto(p.codigo, regiao, tipo, cond) }))
         .filter(r => r.preco !== null);
       const summaryLines = [
-        { label: "Tipo de cliente", value: TIPO_CLIENTE_LABEL[tipo] || tipo },
+        { label: "Tipo de cliente", value: TIPO_PRECO_LABEL[tipo] || tipo },
         { label: "Condição de pagamento", value: cond },
         { label: "Região", value: regiao },
         { label: "Produtos incluídos", value: fmt(rows.length), total: true }
