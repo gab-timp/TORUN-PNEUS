@@ -588,7 +588,7 @@ const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
 // Só o TÍTULO da aba no editor de preços (Editar/Novo produto) -- as 3 tabelas de preço continuam
 // separadas e o resto do sistema (cadastro de cliente, catálogo, relatórios) segue chamando de Frota/TTD.
-const PRECO_ABA_LABEL = { ...TIPO_CLIENTE_LABEL, FROTA: "Revenda/Frota/TTD" };
+const PRECO_ABA_LABEL = { ...TIPO_CLIENTE_LABEL, FROTA: "Revenda TTD/Frota" };
 
 function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
   const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipoCliente && x.condicaoPagamento === condicaoPagamento);
