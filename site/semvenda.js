@@ -781,7 +781,7 @@ async function svExcluirPrevisto(id) {
 
 /* ---------- Saldo: calculado dos processos que chegaram menos as reservas ---------- */
 
-// linhas: uma por produto + armazém, com o que chegou (processos CHEGOU), o que está reservado
+// linhas: uma por produto + armazém, com o que chegou (processos FINALIZADO), o que está reservado
 //   (reservas ativas), o que já foi vendido e o disponível = chegou − reservado − vendido.
 // aChegar: uma por processo ainda não chegado + produto, com o que ainda dá pra reservar (livres).
 // Nada disso é gravado: a tela recalcula a cada carga, então não existe saldo "errado" no banco.
@@ -798,7 +798,7 @@ function svCalcularEstoque() {
     p.itens.forEach(it => {
       const qtd = Number(it.quantidade) || 0;
       if (!it.codigo || qtd <= 0) return;
-      if (p.status === "CHEGOU") {
+      if (p.status === "FINALIZADO") {
         const l = linha(it.codigo, p.armazem);
         l.chegou += qtd;
         // desde: a chegada mais antiga entre os processos desse produto nesse armazém (base do "parado há")
@@ -815,7 +815,7 @@ function svCalcularEstoque() {
     if (r.situacao === "CANCELADA") return;
     const campo = r.situacao === "VENDIDA" ? "vendido" : "reservado";
     const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
-    if (r.previsaoId && (!prev || prev.status !== "CHEGOU")) {
+    if (r.previsaoId && (!prev || prev.status !== "FINALIZADO")) {
       const a = aChegar.get(r.previsaoId + "|" + r.codigo);
       if (a) a[campo] += r.quantidade;
       return;
@@ -855,7 +855,7 @@ function svProblemaDeSaldo(novas, alterado) {
 
   // reservas ligadas ao próprio processo (ainda a caminho): o total do produto não pode cair abaixo do comprometido
   const novo = alterado ? novas.find(p => p.id === alterado.id) : null;
-  if (novo && novo.status !== "CHEGOU") {
+  if (novo && novo.status !== "FINALIZADO") {
     const comprometido = {};
     svState.reservas.filter(r => r.previsaoId === novo.id && r.situacao !== "CANCELADA")
       .forEach(r => { comprometido[r.codigo] = (comprometido[r.codigo] || 0) + r.quantidade; });
@@ -909,7 +909,7 @@ function svRenderCatalogo() {
   const vazio = document.getElementById("svCatEmpty");
   vazio.style.display = rows.length === 0 ? "block" : "none";
   vazio.textContent = todas.length === 0
-    ? "Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui."
+    ? "Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como FINALIZADO (com o armazém), os pneus aparecem aqui."
     : "Nenhum pneu com esses filtros.";
 
   document.getElementById("svCatGrid").innerHTML = rows.map(l => {
@@ -938,14 +938,14 @@ function svSituacaoReserva(r) {
   if (r.situacao === "CANCELADA") return { chave: "CANCELADA", rotulo: "Cancelada", pill: "pill-neutro" };
   if (r.situacao === "VENDIDA") return { chave: "VENDIDA", rotulo: "Vendido", pill: "pill-normal" };
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
-  if (prev && prev.status !== "CHEGOU") return { chave: "AGUARDANDO", rotulo: "Aguardando chegada", pill: "pill-azul" };
+  if (prev && prev.status !== "FINALIZADO") return { chave: "AGUARDANDO", rotulo: "Aguardando chegada", pill: "pill-azul" };
   return { chave: "RESERVADO", rotulo: "Reservado", pill: "pill-baixo" };
 }
 
 function svOrigemReserva(r) {
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
   if (!prev) return r.previsaoId ? "processo removido" : svNomeArmazem(r.armazem);
-  if (prev.status === "CHEGOU") return `Processo ${prev.numeroProcesso} · ${svNomeArmazem(prev.armazem)}`;
+  if (prev.status === "FINALIZADO") return `Processo ${prev.numeroProcesso} · ${svNomeArmazem(prev.armazem)}`;
   return `Estoque Previsto — processo ${prev.numeroProcesso}${prev.dataChegada ? " · chega " + formatDateBR(prev.dataChegada) : ""}`;
 }
 
@@ -987,7 +987,7 @@ function svAtualizarNotaDisponivel() {
   const o = svOpcaoSelecionada();
   document.getElementById("svResDisp").textContent = o
     ? `Disponível pra reservar: ${fmt(o.disp)} un.`
-    : (svOpcoesReserva.length === 0 ? "Nada disponível: marque um processo como CHEGOU (com armazém) ou cadastre um processo a caminho no Estoque Previsto." : "");
+    : (svOpcoesReserva.length === 0 ? "Nada disponível: marque um processo como FINALIZADO (com armazém) ou cadastre um processo a caminho no Estoque Previsto." : "");
   document.getElementById("svResQuantidade").max = o ? String(o.disp) : "";
 }
 
@@ -1134,7 +1134,7 @@ async function svSalvarReservaDados() {
     disponivel = l ? l.disp : 0;
   } else {
     const prev = svState.previsoes.find(x => x.id === opcao.previsaoId);
-    if (!prev || prev.status === "CHEGOU") {
+    if (!prev || prev.status === "FINALIZADO") {
       svRenderReserva();
       toast("Esse processo já chegou. As opções foram atualizadas — escolha o produto em estoque.");
       return;
@@ -1235,7 +1235,7 @@ function svRenderDashboard() {
     .filter(a => a.qtd > 0);
   const maior = Math.max(1, ...porArmazem.map(a => a.qtd));
   document.getElementById("svDashArmazens").innerHTML = porArmazem.length === 0
-    ? `<div class="empty-state">Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui.</div>`
+    ? `<div class="empty-state">Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como FINALIZADO (com o armazém), os pneus aparecem aqui.</div>`
     : `<div class="sv-bar-lista">${porArmazem.map(a => `
         <div>
           <div class="sv-bar-linha"><b>${escapeHtml(a.nome)}</b><span class="mono">${fmt(a.qtd)} un.</span></div>
@@ -1316,7 +1316,7 @@ function svRenderArmazenagem() {
   const vazio = document.getElementById("svArmEmpty");
   vazio.style.display = rows.length === 0 ? "block" : "none";
   vazio.textContent = est.length === 0
-    ? "Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui."
+    ? "Nenhum pneu em estoque ainda. Quando um processo do Estoque Previsto for marcado como FINALIZADO (com o armazém), os pneus aparecem aqui."
     : "Nenhum pneu nesse armazém.";
 }
 
@@ -1520,7 +1520,7 @@ function svRenderTabelaProposta() {
   vazio.style.display = linhas.length === 0 ? "block" : "none";
   vazio.textContent = svCalcularEstoque().linhas.some(l => l.disp > 0)
     ? "Nenhum pneu disponível com esses filtros."
-    : "Nenhum pneu disponível ainda. Quando um processo do Estoque Previsto for marcado como CHEGOU (com o armazém), os pneus aparecem aqui.";
+    : "Nenhum pneu disponível ainda. Quando um processo do Estoque Previsto for marcado como FINALIZADO (com o armazém), os pneus aparecem aqui.";
 }
 
 function svBuildPropostaHtml(linhas) {
