@@ -68,7 +68,16 @@ let vendasMostrarTodas = false;
 
 const CONFLITO_MSG = "Este registro foi alterado por outra pessoa enquanto você editava. A tela foi atualizada com a versão mais recente — confira e tente salvar de novo.";
 
-const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "DTC", "AGUARDANDO RETIRADA DO PORTO", "CHEGOU"];
+const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "DTC", "AGUARDANDO RETIRADA DO PORTO", "FINALIZADO"];
+// cor de cada coluna do kanban do Estoque Previsto (accent = borda/contador, deep = texto, pale = fundo do título)
+const PREVISTO_COR = {
+  "AGUARDANDO PRONTIDÃO": { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" },
+  "AGUARDANDO EMBARQUE": { accent: "#FF6A13", deep: "#C64F0C", pale: "#FFE7D6" },
+  "PROCESSO EM AGUA": { accent: "#2F80ED", deep: "#1D4FA8", pale: "#E4EEFD" },
+  "DTC": { accent: "#9B51E0", deep: "#6B2FA6", pale: "#F1E7FB" },
+  "AGUARDANDO RETIRADA DO PORTO": { accent: "#D97706", deep: "#92400E", pale: "#FCECC9" },
+  "FINALIZADO": { accent: "#22C55E", deep: "#15803D", pale: "#E1F8E8" }
+};
 
 /* ---------------- persistence ---------------- */
 
@@ -1143,14 +1152,13 @@ function renderEstoque() {
 function populatePrevistoStatusSelects() {
   const optionsHtml = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
   document.getElementById("prevStatus").innerHTML = optionsHtml;
-  document.getElementById("prevFiltroStatus").innerHTML = `<option value="todos">Todos os status</option>${optionsHtml}`;
 }
 
 function statusBadgeClass(status) {
   if (status === "AGUARDANDO RETIRADA DO PORTO") return "st-porto";
   if (status === "PROCESSO EM AGUA") return "st-agua";
   if (status === "DTC") return "st-dtc";
-  if (status === "CHEGOU") return "st-chegou";
+  if (status === "FINALIZADO") return "st-chegou";
   return "st-aguardando";
 }
 
@@ -1206,10 +1214,85 @@ function initPrevRepresentantes() {
   });
 }
 
+
+/* ---- Estoque Previsto em kanban (igual ao de Entregas): uma coluna por status, arrasta o card pra mudar ---- */
+
+// Quem pode mexer em processos previstos: não é "viewer" e, se o usuário só edita certas telas, essa tela
+// está na lista. (Entregas só olha "viewer"; aqui também respeitamos editable_tables.)
+function podeEditarPrevisoes() {
+  if (currentUserRole === "viewer") return false;
+  return !currentUserEditableTables || currentUserEditableTables.includes("previsoes");
+}
+
+let prevSortables = [];
+
+// Monta as colunas uma vez só (lazy, no 1º render): a lista vem de PREVISTO_STATUS, então status novo
+// vira coluna nova sem editar HTML.
+function montarKanbanPrevisto() {
+  const board = document.getElementById("prevBoard");
+  board.innerHTML = PREVISTO_STATUS.map((status, i) => {
+    const cor = PREVISTO_COR[status] || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
+    return `
+      <div class="kanban-col" style="--col-accent:${cor.accent}; --col-deep:${cor.deep}; --col-pale:${cor.pale};">
+        <div class="kanban-col-head"><span>${escapeHtml(status)}</span><span class="kanban-count" id="prevCount${i}">0</span><span class="kanban-col-toggle">⌄</span></div>
+        <div class="kanban-cards" id="prevCol${i}" data-status="${escapeAttr(status)}"></div>
+      </div>`;
+  }).join("");
+
+  board.querySelectorAll(".kanban-col-head").forEach(head => {
+    head.addEventListener("click", () => head.closest(".kanban-col").classList.toggle("collapsed"));
+  });
+  board.addEventListener("click", (e) => {
+    const card = e.target.closest(".kanban-card");
+    if (card) abrirPrevistoDetalhe(card.dataset.id);
+  });
+  initKanbanBoardDragScroll("prevBoard");
+
+  prevSortables = PREVISTO_STATUS.map((_, i) => Sortable.create(document.getElementById("prevCol" + i), {
+    group: "prev-kanban",
+    animation: 150,
+    disabled: !podeEditarPrevisoes(),
+    onEnd: moverPrevistoDeColuna
+  }));
+}
+
+async function moverPrevistoDeColuna(evt) {
+  const id = evt.item.dataset.id;
+  const novoStatus = evt.to.dataset.status;
+  const statusAntigo = evt.from.dataset.status;
+  if (novoStatus === statusAntigo) return;
+  const alvo = state.previsoes.find(x => x.id === id);
+  if (!alvo) return;
+  const ok = await confirmModal("Mudar status do processo?",
+    `Tem certeza que deseja mudar o processo ${alvo.numeroProcesso} para "${novoStatus}"?`);
+  if (!ok) { renderPrevistos(); return; }
+
+  const anterior = alvo.status;
+  alvo.status = novoStatus;
+  // .select().single() pra atualizar o updatedAt local: sem isso, "Editar" logo em seguida (antes do realtime
+  // chegar) dava conflito de edição contra a própria ação do usuário (mesma causa corrigida em Entregas).
+  const { data: rowAtualizada, error } = await sb.from("previsoes").update({ status: novoStatus }).eq("id", id).select().single();
+  if (error) {
+    alvo.status = anterior;
+    toast("Erro ao mover processo: " + error.message);
+    renderPrevistos();
+    return;
+  }
+  if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at;
+  await registrarLog("previsoes", id, "edicao", "Ação automática",
+    `Status do processo ${alvo.numeroProcesso} alterado de ${anterior} para ${novoStatus}`);
+  renderPrevistos();
+  toast("Status atualizado.");
+}
+
+function prevTextoContainers(n) {
+  return `${n} ${n === 1 ? "contêiner" : "contêineres"}`;
+}
+
 function renderPrevistos() {
   renderPrevRepLista();
+  if (!document.getElementById("prevCol0")) montarKanbanPrevisto();
   const search = (document.getElementById("prevSearch").value || "").trim().toLowerCase();
-  const filtroStatus = document.getElementById("prevFiltroStatus").value;
 
   let rows = state.previsoes.slice();
   if (search) {
@@ -1218,110 +1301,121 @@ function renderPrevistos() {
       return (p.numeroProcesso + " " + medidas).toLowerCase().includes(search);
     });
   }
-  if (filtroStatus !== "todos") rows = rows.filter(p => p.status === filtroStatus);
-
   rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  const grid = document.getElementById("prevGrid");
-  const empty = document.getElementById("prevEmpty");
-  if (rows.length === 0) {
-    grid.innerHTML = "";
-    empty.style.display = "block";
-    return;
-  }
-  empty.style.display = "none";
+  document.getElementById("prevEmpty").style.display = state.previsoes.length === 0 ? "block" : "none";
 
-  grid.innerHTML = rows.map(p => {
-    const itensHtml = p.itens.map(it => {
-      const prod = getProduto(it.codigo);
+  PREVISTO_STATUS.forEach((status, i) => {
+    const doStatus = rows.filter(p => p.status === status);
+    document.getElementById("prevCount" + i).textContent = doStatus.length;
+    document.getElementById("prevCol" + i).innerHTML = doStatus.map(p => {
+      const itensHtml = p.itens.map(it => {
+        const prod = getProduto(it.codigo);
+        return `
+          <li>
+            <span class="mono">${escapeHtml(it.codigo)}</span>
+            <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
+            <span class="num mono">${fmt(it.quantidade)}</span>
+          </li>`;
+      }).join("");
       return `
-        <li>
-          <span class="mono">${escapeHtml(it.codigo)}</span>
-          <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
-          <span class="num mono">${fmt(it.quantidade)}</span>
-        </li>
-      `;
-    }).join("");
-
-    const statusOptions = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}" ${s === p.status ? "selected" : ""}>${escapeHtml(s)}</option>`).join("");
-
-    return `
-      <div class="prev-card ${statusBadgeClass(p.status)}">
-        <div class="prev-card-head">
-          <div>
-            <span class="prev-card-eyebrow">Processo</span>
-            <span class="mono prev-card-title">${escapeHtml(p.numeroProcesso)}</span>
-            <span class="prev-status-badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
+        <div class="kanban-card" data-id="${p.id}">
+          <div class="kanban-card-nf">${escapeHtml(p.numeroProcesso)}</div>
+          ${p.itens.length ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+          <div class="kanban-card-meta">
+            ${p.quantidadeContainers ? `<span class="kanban-card-tag containers" title="Quantidade de contêineres do processo">${prevTextoContainers(p.quantidadeContainers)}</span>` : ""}
+            ${p.dataChegada
+              ? `<span class="kanban-card-tag ${status === "FINALIZADO" ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
+              : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
             ${p.representantes.map(nome => `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(nome)}</span>`).join("")}
           </div>
-          <div class="prev-card-actions write-ui">
-            <button class="btn small outline" data-editprev="${p.id}">Editar</button>
-            <button class="btn small danger" data-delprev="${p.id}">✕</button>
-          </div>
-        </div>
-        <div class="prev-carga">
-          <span class="prev-carga-eyebrow">Carga</span>
-          ${p.quantidadeContainers ? `<span class="prev-container-pill" title="Quantidade de contêineres do processo"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5.5" width="16" height="9" rx="1"/><path d="M6 5.5v9M10 5.5v9M14 5.5v9"/></svg>${p.quantidadeContainers} ${p.quantidadeContainers === 1 ? "contêiner" : "contêineres"}</span>` : ""}
-        </div>
-        <ul class="prev-itens-list">${itensHtml}</ul>
-        ${p.obs ? `<div class="muted prev-card-obs">${escapeHtml(p.obs)}</div>` : ""}
-        <div class="prev-card-footer">
-          <div class="field">
-            <label>Data de chegada</label>
-            <input type="date" value="${escapeAttr(p.dataChegada || "")}" data-datachegada="${p.id}" ${currentUserRole === "viewer" ? "disabled" : ""}>
-          </div>
-          <div class="field">
-            <label>Status</label>
-            <select data-statusfield="${p.id}" ${currentUserRole === "viewer" ? "disabled" : ""}>${statusOptions}</select>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  grid.querySelectorAll("[data-datachegada]").forEach(inp => {
-    inp.addEventListener("change", async () => {
-      const p = state.previsoes.find(x => x.id === inp.dataset.datachegada);
-      if (!p) return;
-      const { error } = await sb.from("previsoes").update({ data_chegada: inp.value || null }).eq("id", p.id);
-      if (error) { toast("Erro ao salvar: " + error.message); return; }
-      p.dataChegada = inp.value;
-      await registrarLog("previsoes", p.id, "edicao", "Ação automática",
-        `Data de chegada do processo ${p.numeroProcesso} alterada para ${inp.value ? formatDateBR(inp.value) : "(vazio)"}`);
-      toast("Data de chegada atualizada.");
-    });
+          ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
+        </div>`;
+    }).join("");
   });
 
-  grid.querySelectorAll("[data-statusfield]").forEach(sel => {
-    sel.addEventListener("change", async () => {
-      const p = state.previsoes.find(x => x.id === sel.dataset.statusfield);
-      if (!p) return;
-      const { error } = await sb.from("previsoes").update({ status: sel.value }).eq("id", p.id);
-      if (error) { toast("Erro ao salvar: " + error.message); return; }
-      p.status = sel.value;
-      await registrarLog("previsoes", p.id, "edicao", "Ação automática", `Status do processo ${p.numeroProcesso} alterado para ${sel.value}`);
-      renderPrevistos();
-      toast("Status atualizado.");
-    });
-  });
+  // permissão pode mudar depois do 1º render (o perfil carrega junto com os dados)
+  prevSortables.forEach(s => s.option("disabled", !podeEditarPrevisoes()));
+}
 
-  grid.querySelectorAll("[data-editprev]").forEach(btn => {
-    btn.addEventListener("click", () => startEditPrevisto(btn.dataset.editprev));
-  });
+/* ---- janela do card (clique) ---- */
 
-  grid.querySelectorAll("[data-delprev]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const motivo = await motivoModal("Excluir processo previsto?", "Remove esse processo e as medidas associadas a ele desta lista. Informe o motivo da exclusão.");
-      if (!motivo) return;
-      const alvo = state.previsoes.find(p => p.id === btn.dataset.delprev);
-      const { error } = await sb.from("previsoes").delete().eq("id", btn.dataset.delprev);
-      if (error) { toast("Erro ao excluir: " + error.message); return; }
-      await registrarLog("previsoes", btn.dataset.delprev, "exclusao", motivo, alvo ? `Processo ${alvo.numeroProcesso}` : "");
-      if (editingPrevistoId === btn.dataset.delprev) cancelEditPrevisto();
-      state.previsoes = state.previsoes.filter(p => p.id !== btn.dataset.delprev);
-      renderPrevistos();
-      toast("Processo removido.");
-    });
+let prevDetalheId = null;
+
+function abrirPrevistoDetalhe(id) {
+  const p = state.previsoes.find(x => x.id === id);
+  if (!p) return;
+  prevDetalheId = id;
+
+  const cor = PREVISTO_COR[p.status];
+  document.querySelector("#prevDetalheOverlay .modal").style.setProperty("--col-accent", cor ? cor.accent : "var(--orange)");
+  document.getElementById("prevDetalheTitulo").textContent = p.numeroProcesso;
+  const badge = document.getElementById("prevDetalheStatus");
+  badge.className = "prev-status-badge " + statusBadgeClass(p.status);
+  badge.textContent = p.status;
+
+  const valor = (html, vazio) => `<div class="prev-detalhe-valor${vazio ? " vazio" : ""}">${html}</div>`;
+  document.getElementById("prevDetalheInfo").innerHTML = `
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Contêineres</span>${
+      p.quantidadeContainers ? valor(`<span class="mono">${p.quantidadeContainers}</span>`) : valor("Não informado", true)}</div>
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Data de chegada</span>${
+      p.dataChegada ? valor(`<span class="mono">${formatDateBR(p.dataChegada)}</span>`) : valor("Sem data de chegada", true)}</div>
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Representantes</span>${
+      p.representantes.length ? valor(p.representantes.map(n => `<span class="kanban-card-tag">${escapeHtml(n)}</span>`).join("")) : valor("Nenhum", true)}</div>`;
+
+  const total = p.itens.reduce((a, it) => a + (it.quantidade || 0), 0);
+  document.getElementById("prevDetalheMedidas").innerHTML = p.itens.length ? `
+    <table class="prev-detalhe-tabela">
+      <thead><tr><th style="width:20%;">Código</th><th>Medida</th><th class="num" style="width:14%;">Qtd.</th></tr></thead>
+      <tbody>
+        ${p.itens.map(it => { const prod = getProduto(it.codigo); return `
+          <tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td></tr>`; }).join("")}
+        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td></tr>
+      </tbody>
+    </table>` : `<div class="prev-detalhe-obs">Nenhuma medida cadastrada.</div>`;
+
+  document.getElementById("prevDetalheObs").textContent = p.obs || "Sem observação.";
+
+  const pode = podeEditarPrevisoes();
+  document.getElementById("prevDetalheEditar").style.display = pode ? "" : "none";
+  document.getElementById("prevDetalheExcluir").style.display = pode ? "" : "none";
+  document.getElementById("prevDetalheOverlay").classList.add("show");
+}
+
+function fecharPrevistoDetalhe() {
+  document.getElementById("prevDetalheOverlay").classList.remove("show");
+  prevDetalheId = null;
+}
+
+async function excluirPrevisto(id) {
+  const motivo = await motivoModal("Excluir processo previsto?", "Remove esse processo e as medidas associadas a ele desta lista. Informe o motivo da exclusão.");
+  if (!motivo) return false;
+  const alvo = state.previsoes.find(p => p.id === id);
+  const { error } = await sb.from("previsoes").delete().eq("id", id);
+  if (error) { toast("Erro ao excluir: " + error.message); return false; }
+  await registrarLog("previsoes", id, "exclusao", motivo, alvo ? `Processo ${alvo.numeroProcesso}` : "");
+  if (editingPrevistoId === id) cancelEditPrevisto();
+  state.previsoes = state.previsoes.filter(p => p.id !== id);
+  renderPrevistos();
+  toast("Processo removido.");
+  return true;
+}
+
+function initPrevDetalhe() {
+  document.getElementById("prevDetalheX").addEventListener("click", fecharPrevistoDetalhe);
+  document.getElementById("prevDetalheFechar").addEventListener("click", fecharPrevistoDetalhe);
+  document.getElementById("prevDetalheOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "prevDetalheOverlay") fecharPrevistoDetalhe();
+  });
+  document.getElementById("prevDetalheEditar").addEventListener("click", () => {
+    const id = prevDetalheId;
+    fecharPrevistoDetalhe();
+    if (id) startEditPrevisto(id);
+  });
+  document.getElementById("prevDetalheExcluir").addEventListener("click", async () => {
+    const id = prevDetalheId;
+    if (!id) return;
+    if (await excluirPrevisto(id)) fecharPrevistoDetalhe();
   });
 }
 
@@ -1666,7 +1760,7 @@ async function puxarMedidasDoProcessoEntrada() {
   entMedidasPuxadasEm = Date.now();
 
   const partes = [`Processo ${processo}`, prev.status];
-  if (prev.dataChegada) partes.push(`${prev.status === "CHEGOU" ? "chegada" : "chegada prevista"} em ${formatDateBR(prev.dataChegada)}`);
+  if (prev.dataChegada) partes.push(`${prev.status === "FINALIZADO" ? "chegada" : "chegada prevista"} em ${formatDateBR(prev.dataChegada)}`);
   if (ignorados > 0) partes.push(`${ignorados} ${ignorados === 1 ? "medida ignorada" : "medidas ignoradas"} (produto não cadastrado)`);
   mostrarFaixaProcessoEntrada(ignorados > 0 ? "aviso" : "ok",
     `${validos.length} ${plural ? "medida puxada" : "medidas puxadas"} do Estoque Previsto`, partes.join(" · "));
@@ -4500,8 +4594,8 @@ function copiarLinkRastreio() {
   );
 }
 
-function initKanbanBoardDragScroll() {
-  const board = document.getElementById("kanbanBoard");
+function initKanbanBoardDragScroll(boardId = "kanbanBoard") {
+  const board = document.getElementById(boardId);
   let arrastando = false;
   let startX = 0;
   let scrollStart = 0;
@@ -8057,6 +8151,7 @@ function initForms() {
 
   initPrevRepresentantes();
   initPrevContainers();
+  initPrevDetalhe();
   document.getElementById("formPrevisto").addEventListener("submit", async (e) => {
     e.preventDefault();
     const numeroProcesso = document.getElementById("prevNumeroProcesso").value.trim();
@@ -9980,7 +10075,6 @@ async function init() {
   });
   document.getElementById("dashMesFiltro").addEventListener("change", renderDashboard);
   document.getElementById("prevSearch").addEventListener("input", renderPrevistos);
-  document.getElementById("prevFiltroStatus").addEventListener("change", renderPrevistos);
 
   document.getElementById("chartModalClose").addEventListener("click", closeChartModal);
   document.getElementById("chartModalOverlay").addEventListener("click", (e) => {

@@ -1691,6 +1691,42 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 }
 .prev-card-footer input:disabled, .prev-card-footer select:disabled{opacity:.5;}
 
+/* Estoque Previsto em kanban (mesmas classes .kanban-* do Entregas; a cor de cada coluna vem do
+   --col-accent/--col-deep/--col-pale definidos na própria coluna, por status). As regras .prev-card* e
+   .prev-grid acima continuam porque o Estoque Previsto do Sem Venda ainda usa esse visual. */
+.kanban-card-tag.containers{background:var(--ink); color:var(--surface); border-color:var(--ink);}
+.kanban-card-tag.sem-data{background:transparent; color:var(--ink-soft); border-style:dashed; border-color:var(--ink-soft);}
+.kanban-card-obs{font-size:10.5px; font-style:italic; color:var(--ink-soft); margin-top:6px; line-height:1.35;}
+.prev-detalhe-modal{max-width:720px; padding:24px 26px; border-top-color:var(--col-accent, var(--orange));}
+.prev-detalhe-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:18px;}
+.prev-detalhe-titulo-linha{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.prev-detalhe-titulo{font-size:22px; font-weight:800; letter-spacing:-.01em;}
+.prev-detalhe-titulo-linha .prev-status-badge{margin-top:0;}
+.prev-detalhe-info{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:18px;}
+.prev-detalhe-cel{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:11px 13px;}
+.prev-detalhe-lbl{display:block; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px;}
+.prev-detalhe-valor{font-size:15px; font-weight:700; display:flex; flex-wrap:wrap; gap:6px;}
+.prev-detalhe-valor.vazio{font-size:13px; font-weight:500; color:var(--ink-soft);}
+.prev-detalhe-bloco{margin-bottom:16px;}
+.prev-detalhe-tabela{width:100%; border-collapse:collapse;}
+.prev-detalhe-tabela th{text-align:left; color:var(--ink-soft); font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:0 10px 8px; font-weight:700;}
+.prev-detalhe-tabela td{padding:9px 10px; border-top:1px solid var(--line); font-size:12.5px;}
+.prev-detalhe-tabela .num{text-align:right; font-weight:700;}
+.prev-detalhe-tabela .medida-txt{color:var(--ink-soft);}
+.prev-detalhe-tabela tr.total td{font-weight:800; background:var(--paper);}
+.prev-detalhe-obs{font-size:12.5px; color:var(--ink-soft); font-style:italic;}
+.prev-detalhe-rodape{
+  display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;
+  margin-top:20px; padding-top:16px; border-top:1px solid var(--line);
+}
+.prev-detalhe-rodape .note{font-size:11px; color:var(--ink-soft); max-width:300px; line-height:1.5;}
+.prev-detalhe-acoes{display:flex; gap:10px; align-items:center;}
+@media (max-width:640px){
+  .prev-detalhe-info{grid-template-columns:1fr;}
+  .prev-detalhe-rodape{flex-direction:column; align-items:stretch;}
+  .prev-detalhe-acoes{justify-content:flex-end;}
+}
+
 /* contêineres do processo: no formulário, um quadro "Carga do processo" (seletor − n +) em volta das
    medidas; no card, um cabeçalho "Carga" com a etiqueta escura "3 contêineres" */
 .prev-carga-box{

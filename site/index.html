@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=154">
+<link rel="stylesheet" href="styles.css?v=156">
 <link rel="stylesheet" href="semvenda.css?v=9">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1192,7 +1192,7 @@
       <div class="page-head">
         <div>
           <h1>Estoque Previsto</h1>
-          <div class="sub">Processos de compra em andamento — acompanhe a chegada e liberação de cada processo, por medida.</div>
+          <div class="sub">Processos de compra em andamento — arraste os cards entre as etapas, do pedido ao processo finalizado.</div>
         </div>
       </div>
 
@@ -1265,12 +1265,10 @@
 
       <div class="search-row">
         <input type="text" id="prevSearch" placeholder="Buscar por processo ou medida…">
-        <select id="prevFiltroStatus">
-          <option value="todos">Todos os status</option>
-        </select>
       </div>
 
-      <div class="prev-grid" id="prevGrid"></div>
+      <!-- as colunas (uma por status de PREVISTO_STATUS) são montadas por montarKanbanPrevisto() -->
+      <div class="kanban-board prev-kanban" id="prevBoard"></div>
       <div class="empty-state" id="prevEmpty" style="display:none;">Nenhum processo previsto cadastrado.</div>
     </section>
 
@@ -3664,6 +3662,38 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="prevDetalheOverlay">
+  <div class="modal prev-detalhe-modal" role="dialog" aria-modal="true" aria-labelledby="prevDetalheTitulo">
+    <div class="prev-detalhe-head">
+      <div>
+        <span class="prev-card-eyebrow">Processo</span>
+        <div class="prev-detalhe-titulo-linha">
+          <span class="mono prev-detalhe-titulo" id="prevDetalheTitulo"></span>
+          <span class="prev-status-badge" id="prevDetalheStatus"></span>
+        </div>
+      </div>
+      <button type="button" class="btn small outline" id="prevDetalheX" aria-label="Fechar">✕</button>
+    </div>
+    <div class="prev-detalhe-info" id="prevDetalheInfo"></div>
+    <div class="prev-detalhe-bloco">
+      <span class="prev-detalhe-lbl">Medidas do processo</span>
+      <div id="prevDetalheMedidas"></div>
+    </div>
+    <div class="prev-detalhe-bloco">
+      <span class="prev-detalhe-lbl">Observação</span>
+      <div class="prev-detalhe-obs" id="prevDetalheObs"></div>
+    </div>
+    <div class="prev-detalhe-rodape">
+      <div class="note">Para mudar o status, arraste o card para outra coluna do kanban.</div>
+      <div class="prev-detalhe-acoes">
+        <button type="button" class="btn small outline danger" id="prevDetalheExcluir">Excluir</button>
+        <button type="button" class="btn outline" id="prevDetalheFechar">Fechar</button>
+        <button type="button" class="btn primary" id="prevDetalheEditar">Editar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="chartModalOverlay">
   <div class="modal chart-modal">
     <div class="chart-modal-head">
@@ -3686,6 +3716,6 @@
 </div>
 
 <script src="semvenda.js?v=9"></script>
-<script src="app.js?v=234"></script>
+<script src="app.js?v=236"></script>
 </body>
 </html>
