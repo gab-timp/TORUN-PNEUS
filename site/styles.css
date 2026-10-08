@@ -1691,6 +1691,49 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 }
 .prev-card-footer input:disabled, .prev-card-footer select:disabled{opacity:.5;}
 
+/* contêineres do processo: no formulário, um quadro "Carga do processo" (seletor − n +) em volta das
+   medidas; no card, um cabeçalho "Carga" com a etiqueta escura "3 contêineres" */
+.prev-carga-box{
+  background:var(--paper); border:1px solid var(--line); border-radius:12px;
+  padding:14px 16px; margin-bottom:12px;
+}
+.prev-carga-head{
+  display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;
+}
+.prev-carga-titulo{
+  font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft);
+}
+.prev-containers{display:flex; align-items:center; gap:10px;}
+.prev-containers label{display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--ink);}
+.prev-stepper{
+  display:inline-flex; align-items:center; overflow:hidden;
+  border:1px solid var(--line-strong); border-radius:9px; background:var(--surface);
+}
+.prev-stepper:focus-within{border-color:var(--orange); box-shadow:0 0 0 3px var(--orange-pale);}
+.prev-stepper button{
+  width:34px; height:34px; padding:0; border:none; border-radius:0; background:var(--paper); color:var(--ink);
+  font-family:inherit; font-size:17px; font-weight:700; cursor:pointer;
+}
+.prev-stepper button:hover{background:var(--paper-2);}
+.prev-stepper input{
+  width:54px; height:34px; box-sizing:border-box; padding:0; border:none; border-radius:0;
+  border-left:1px solid var(--line); border-right:1px solid var(--line);
+  background:var(--surface); color:var(--ink); text-align:center;
+  font-family:'Space Mono',monospace; font-size:14px; font-weight:700;
+  -moz-appearance:textfield; appearance:textfield;
+}
+.prev-stepper input::-webkit-outer-spin-button,
+.prev-stepper input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+.prev-stepper input:focus{outline:none; box-shadow:none;}
+.prev-carga{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:-4px;}
+.prev-carga-eyebrow{
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-soft);
+}
+.prev-container-pill{
+  display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 8px; border-radius:999px;
+  background:var(--ink); color:var(--surface); font-size:11px; font-weight:700;
+}
+
 /* ---------------- relatórios ---------------- */
 .report-grid{
   display:grid;

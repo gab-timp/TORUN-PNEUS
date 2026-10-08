@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=152">
+<link rel="stylesheet" href="styles.css?v=153">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -635,9 +635,22 @@
             </div>
           </div>
 
-          <div class="field" style="margin-bottom:12px;">
-            <label>Medidas do processo</label>
-            <div id="prevItens" class="item-list"></div>
+          <div class="prev-carga-box">
+            <div class="prev-carga-head">
+              <span class="prev-carga-titulo">Carga do processo</span>
+              <div class="prev-containers">
+                <label for="prevContainers">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5.5" width="16" height="9" rx="1"/><path d="M6 5.5v9M10 5.5v9M14 5.5v9"/></svg>
+                  Contêineres
+                </label>
+                <div class="prev-stepper">
+                  <button type="button" id="prevContainersMenos" aria-label="Diminuir contêineres">−</button>
+                  <input type="number" id="prevContainers" min="1" step="1" inputmode="numeric" placeholder="—" required>
+                  <button type="button" id="prevContainersMais" aria-label="Aumentar contêineres">+</button>
+                </div>
+              </div>
+            </div>
+            <div id="prevItens" class="item-list" role="group" aria-label="Medidas do processo"></div>
             <button type="button" class="btn small outline" id="btnAddItemPrevisto" style="margin-top:8px;">+ Adicionar medida</button>
           </div>
 
@@ -3073,6 +3086,6 @@
   </div>
 </div>
 
-<script src="app.js?v=232"></script>
+<script src="app.js?v=233"></script>
 </body>
 </html>

@@ -342,7 +342,8 @@ function previstoToRow(p) {
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [],
     data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null,
-    representantes, representante: representantes[0] || null
+    representantes, representante: representantes[0] || null,
+    quantidade_containers: p.quantidadeContainers || null
   };
 }
 function previstoFromRow(r) {
@@ -351,6 +352,7 @@ function previstoFromRow(r) {
   return {
     id: r.id, numeroProcesso: r.numero_processo, itens: r.itens || [],
     dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representantes,
+    quantidadeContainers: r.quantidade_containers || null,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -1253,6 +1255,10 @@ function renderPrevistos() {
             <button class="btn small danger" data-delprev="${p.id}">✕</button>
           </div>
         </div>
+        <div class="prev-carga">
+          <span class="prev-carga-eyebrow">Carga</span>
+          ${p.quantidadeContainers ? `<span class="prev-container-pill" title="Quantidade de contêineres do processo"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5.5" width="16" height="9" rx="1"/><path d="M6 5.5v9M10 5.5v9M14 5.5v9"/></svg>${p.quantidadeContainers} ${p.quantidadeContainers === 1 ? "contêiner" : "contêineres"}</span>` : ""}
+        </div>
         <ul class="prev-itens-list">${itensHtml}</ul>
         ${p.obs ? `<div class="muted prev-card-obs">${escapeHtml(p.obs)}</div>` : ""}
         <div class="prev-card-footer">
@@ -1315,6 +1321,19 @@ function renderPrevistos() {
   });
 }
 
+// Seletor − n + da quantidade de contêineres (Estoque Previsto). Campo vazio: "+" começa em 1 e "−" não
+// faz nada; depois disso nunca desce de 1. O valor também pode ser digitado direto.
+function initPrevContainers() {
+  const input = document.getElementById("prevContainers");
+  const passo = (delta) => {
+    const atual = parseInt(input.value, 10);
+    if (Number.isNaN(atual)) { if (delta > 0) input.value = 1; return; }
+    input.value = Math.max(1, atual + delta);
+  };
+  document.getElementById("prevContainersMais").addEventListener("click", () => passo(1));
+  document.getElementById("prevContainersMenos").addEventListener("click", () => passo(-1));
+}
+
 function startEditPrevisto(id) {
   const p = state.previsoes.find(x => x.id === id);
   if (!p) return;
@@ -1325,6 +1344,7 @@ function startEditPrevisto(id) {
   document.getElementById("prevDataChegada").value = p.dataChegada || "";
   document.getElementById("prevStatus").value = p.status;
   document.getElementById("prevObs").value = p.obs || "";
+  document.getElementById("prevContainers").value = p.quantidadeContainers || ""; // processo antigo vem vazio: precisa preencher pra salvar
   renderPrevRepLista(p.representantes);
 
   const container = document.getElementById("prevItens");
@@ -8032,6 +8052,7 @@ function initForms() {
   });
 
   initPrevRepresentantes();
+  initPrevContainers();
   document.getElementById("formPrevisto").addEventListener("submit", async (e) => {
     e.preventDefault();
     const numeroProcesso = document.getElementById("prevNumeroProcesso").value.trim();
@@ -8040,6 +8061,13 @@ function initForms() {
     const obs = document.getElementById("prevObs").value.trim();
     const representantes = prevRepSelecionados();
     if (!numeroProcesso) { toast("Informe o número do processo."); return; }
+    // Number() e não parseInt: "2.5" tem que ser barrado, não virar 2 em silêncio (o campo já bloqueia
+    // pelo navegador; isto cobre quem burla)
+    const quantidadeContainers = Number(document.getElementById("prevContainers").value);
+    if (!Number.isInteger(quantidadeContainers) || quantidadeContainers < 1) {
+      toast("Informe a quantidade de contêineres (mínimo 1).");
+      return;
+    }
 
     const rows = Array.from(document.querySelectorAll("#prevItens .item-row"));
     const itens = [];
@@ -8057,7 +8085,7 @@ function initForms() {
       const p = state.previsoes.find(x => x.id === editingPrevistoId);
       const { conflict, error, row } = await updateWithConflictCheck(
         "previsoes", editingPrevistoId, editingPrevistoUpdatedAt,
-        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representantes })
+        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
@@ -8074,7 +8102,7 @@ function initForms() {
       return;
     }
 
-    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes };
+    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers };
     const { data: inserido, error } = await sb.from("previsoes").insert({ ...previstoToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
     state.previsoes.push(previstoFromRow(inserido[0]));
