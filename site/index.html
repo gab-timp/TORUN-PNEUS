@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=156">
-<link rel="stylesheet" href="semvenda.css?v=11">
+<link rel="stylesheet" href="semvenda.css?v=12">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -302,6 +302,13 @@
         </button>
         <button class="nav-item" data-view="sv-armazenagem" data-label="Armazenagem">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-warehouse"/></svg> Armazenagem
+        </button>
+      </div>
+      <!-- mesma tela Administração do menu do Torun (só admin): é nela que o admin cadastra os vendedores internos da Reserva -->
+      <div class="nav-group admin-only" data-group="sv-gestao">
+        <button type="button" class="nav-label">Gestão <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item admin-only" data-view="administracao" data-label="Administração">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-settings"/></svg> Administração
         </button>
       </div>
     </nav>

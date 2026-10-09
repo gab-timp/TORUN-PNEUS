@@ -102,6 +102,10 @@ body.is-viewer .sv-write{display:none !important;}
 .sv-reserva-direita{display:flex;flex-direction:column;gap:14px;min-width:0;}
 .sv-reserva-direita .kpis{margin-bottom:0;}
 .sv-sub{font-size:10.5px;}
+/* grupo "Gestão" do menu do Sem Venda (só admin): .nav-group define o próprio display e venceria .admin-only,
+   deixando o rótulo "Gestão" vazio na tela de quem não é admin */
+.nav-group.admin-only{display:none;}
+body.is-admin .nav-group.admin-only{display:block;}
 .sv-sem-rep{color:var(--ink-soft);font-style:italic;}
 /* a lista de Reservas tem duas colunas de pessoa (vendedor e representante): cabeçalho quebra e os dois
    links de ação ficam um embaixo do outro, senão a tabela passa da largura do cartão em tela de 1440px */
