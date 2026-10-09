@@ -462,11 +462,25 @@ async function fetchComRetry(builderFn, tentativas = 3, delayMs = 800) {
   return ultimoResultado;
 }
 
+// O servidor devolve no MÁXIMO 1000 linhas por consulta, e um select sem ordem sai na ordem física do
+// banco -- onde uma linha editada vai pro FIM. Com a tabela acima de 1000 linhas, a carga trazia um pedaço
+// qualquer e os preços de uma medida recém-editada caíam fora: a tela mostrava tudo vazio ao reabrir a
+// edição, mesmo com os preços intactos no banco. Aqui traz tudo, em páginas, ordenado por uma coluna fixa.
+async function selectTudoPaginado(tabela, ordenarPor, tamanhoPagina = 1000) {
+  const linhas = [];
+  for (let de = 0; ; de += tamanhoPagina) {
+    const { data, error } = await sb.from(tabela).select("*").order(ordenarPor).range(de, de + tamanhoPagina - 1);
+    if (error) return { data: null, error };
+    linhas.push(...data);
+    if (data.length < tamanhoPagina) return { data: linhas, error: null };
+  }
+}
+
 async function loadState() {
   const [results, configRes] = await Promise.all([
     Promise.all([
       fetchComRetry(() => sb.from("produtos").select("*").order("codigo")),
-      fetchComRetry(() => sb.from("produtos_precos").select("*")),
+      fetchComRetry(() => selectTudoPaginado("produtos_precos", "id")),
       fetchComRetry(() => sb.from("movimentos").select("*").order("data")),
       fetchComRetry(() => sb.from("fretes").select("*").order("data")),
       fetchComRetry(() => sb.from("clientes").select("*").order("nome")),
@@ -555,7 +569,8 @@ async function loadState() {
 
   state = {
     produtos: (produtosRes.data || []).map(produtoFromRow),
-    produtos_precos: (precosRes.data || []).map(precoFromRow),
+    // se a leitura falhou, mantém os preços que já estavam na tela em vez de zerar tudo (o aviso de erro já saiu acima)
+    produtos_precos: precosRes.error ? (state.produtos_precos || []) : (precosRes.data || []).map(precoFromRow),
     movimentos: (movRes.data || []).map(movimentoFromRow),
     fretes: (fretesRes.data || []).map(freteFromRow),
     clientes: (clientesRes.data || []).map(clienteFromRow),
@@ -588,6 +603,9 @@ const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
+// Só o TÍTULO da aba no editor de preços (Editar/Novo produto) -- as 3 tabelas de preço continuam
+// separadas e o resto do sistema (cadastro de cliente, catálogo, relatórios) segue chamando de Frota/TTD.
+const PRECO_ABA_LABEL = { ...TIPO_CLIENTE_LABEL, FROTA: "Revenda TTD/Frota" };
 
 function getPrecoProduto(codigo, regiao, tipoCliente, condicaoPagamento) {
   const p = state.produtos_precos.find(x => x.codigo === codigo && x.regiao === regiao && x.tipoCliente === tipoCliente && x.condicaoPagamento === condicaoPagamento);
@@ -2391,7 +2409,7 @@ function buildPrecoMatrixHtml(codigo, tipoCliente) {
 // (array vazio quando é produto novo).
 function buildPrecoEditorHtml(precosExistentes) {
   const tabs = TIPO_CLIENTE_OPCOES.map((tipo, i) =>
-    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(TIPO_CLIENTE_LABEL[tipo])}</button>`
+    `<button type="button" class="preco-editor-tab${i === 0 ? " ativo" : ""}" data-tipo="${escapeAttr(tipo)}">${escapeHtml(PRECO_ABA_LABEL[tipo])}</button>`
   ).join("");
   const grades = TIPO_CLIENTE_OPCOES.map((tipo, i) => {
     const precos = (precosExistentes || []).filter(p => p.tipoCliente === tipo);
@@ -2445,7 +2463,7 @@ function coletarPrecosEditor(container, codigo) {
       const raw = inp.value.trim();
       if (raw === "") { if (existente) remocoesIds.push(existente.id); return; }
       const valor = parseFloat(raw.replace(",", "."));
-      if (!(valor >= 0)) { invalidos.push(`${TIPO_CLIENTE_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
+      if (!(valor >= 0)) { invalidos.push(`${PRECO_ABA_LABEL[tipo]} · ${regiao} · ${condicao}`); return; }
       if (!existente || existente.preco !== valor) {
         upserts.push({ codigo, regiao, tipo_cliente: tipo, condicao_pagamento: condicao, preco: valor, atualizado_em: new Date().toISOString() });
       }
@@ -2472,7 +2490,13 @@ async function salvarPrecosProduto(container, codigo) {
     mexeu = true;
   }
   if (mexeu) {
-    const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+    const { data, error: erroLer } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+    if (erroLer) {
+      // antes o erro era ignorado e os preços do produto sumiam da tela (state sem eles) mesmo salvos no banco
+      console.error("Preços salvos, mas a releitura falhou:", erroLer);
+      toast("Preços salvos, mas não consegui atualizar a tela. Recarregue a página para ver os valores.");
+      return { ok: true, mexeu, invalidos };
+    }
     state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
   }
   return { ok: true, mexeu, invalidos };

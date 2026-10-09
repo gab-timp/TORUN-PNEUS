@@ -378,6 +378,20 @@ function initAuthUI() {
   });
 }
 
+// O servidor devolve no MÁXIMO 1000 linhas por consulta, na ordem física do banco (onde uma linha editada
+// vai pro FIM). Com a tabela acima de 1000 linhas, a carga trazia um pedaço qualquer: preços de uma medida
+// recém-editada sumiam e o estoque (soma dos movimentos) saía errado. Traz tudo, em páginas de 1000,
+// ordenado por uma coluna fixa. Mesma ideia do selectTudoPaginado do app.js do escritório.
+async function selectTudoPaginadoRep(tabela, colunas, ordenarPor, tamanhoPagina = 1000) {
+  const linhas = [];
+  for (let de = 0; ; de += tamanhoPagina) {
+    const { data, error } = await sb.from(tabela).select(colunas).order(ordenarPor).range(de, de + tamanhoPagina - 1);
+    if (error) return { data: null, error };
+    linhas.push(...data);
+    if (data.length < tamanhoPagina) return { data: linhas, error: null };
+  }
+}
+
 async function afterLogin() {
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("loadingScreen").style.display = "flex";
@@ -395,8 +409,8 @@ async function afterLogin() {
 
   const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, clientesRes, previsoesRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, marca, carcaca, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, ncm, situacao, foto_path, foto_path_2").order("codigo"),
-    sb.from("produtos_precos").select("id, codigo, regiao, tipo_cliente, condicao_pagamento, preco"),
-    sb.from("movimentos").select("id, codigo, tipo, quantidade, data, entrega_id"),
+    selectTudoPaginadoRep("produtos_precos", "id, codigo, regiao, tipo_cliente, condicao_pagamento, preco", "id"),
+    selectTudoPaginadoRep("movimentos", "id, codigo, tipo, quantidade, data, entrega_id", "id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
     sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, valor_recebido, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false }),
     sb.from("clientes").select("nome, estado"),
