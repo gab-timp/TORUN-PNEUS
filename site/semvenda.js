@@ -586,8 +586,8 @@ function svRenderPrevistos() {
   let rows = svState.previsoes.slice();
   if (search) {
     rows = rows.filter(p => {
-      const medidas = p.itens.map(it => { const prod = svGetProduto(it.codigo); return prod ? prod.medida : it.codigo; }).join(" ");
-      return (p.numeroProcesso + " " + medidas).toLowerCase().includes(search);
+      const itens = p.itens.map(it => { const prod = svGetProduto(it.codigo); return it.codigo + " " + (prod ? prod.medida : ""); }).join(" ");
+      return (p.numeroProcesso + " " + itens).toLowerCase().includes(search);
     });
   }
   rows.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
