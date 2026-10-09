@@ -110,6 +110,9 @@ function svReservaFromRow(r) {
     representante: r.representante || null, // vazio = "Sem representante"
     armazem: r.armazem === null || r.armazem === undefined ? null : r.armazem,
     previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
+    // preço e dia gravados no "Confirmar venda"; vazios nas vendas confirmadas antes dessa mudança
+    precoUnitario: r.preco_unitario === null || r.preco_unitario === undefined ? null : Number(r.preco_unitario),
+    vendidoEm: r.vendido_em || "",
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -1178,15 +1181,77 @@ function svRenderReserva() {
   svRenderReservaTabela();
 }
 
+// Janela do "Confirmar venda": pede o preço por unidade (já preenchido com o preço de proposta do produto) e
+// mostra o total ao vivo. Devolve o preço (número >= 0, com 2 casas) ou null se a pessoa cancelou.
+function svVendaModal(r) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById("svVendaOverlay");
+    const input = document.getElementById("svVendaPreco");
+    const erro = document.getElementById("svVendaErro");
+    const totalEl = document.getElementById("svVendaTotal");
+    const contaEl = document.getElementById("svVendaConta");
+    const okBtn = document.getElementById("svVendaOk");
+    const cancelBtn = document.getElementById("svVendaCancelar");
+    const produto = svGetProduto(r.codigo);
+    const temPreco = !!produto && produto.preco !== null;
+    document.getElementById("svVendaTexto").textContent =
+      `Marcar as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente} como vendidas?`;
+    document.getElementById("svVendaDica").textContent = temPreco
+      ? "Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor."
+      : "Esse produto não tem preço de proposta no cadastro: digite o preço da venda.";
+    input.value = temPreco ? produto.preco : "";
+    erro.style.display = "none";
+
+    // vazio ou ilegível = NaN (o campo numérico devolve "" quando o texto digitado não é um número)
+    const lerPreco = () => (input.value.trim() === "" ? NaN : Math.round(Number(input.value) * 100) / 100);
+    const atualizarTotal = () => {
+      const p = lerPreco();
+      const valido = p >= 0;
+      totalEl.textContent = valido ? formatMoney(Math.round(p * r.quantidade * 100) / 100) : "—";
+      contaEl.textContent = valido ? `${fmt(r.quantidade)} un. × ${formatMoney(p)}` : "";
+    };
+    const onInput = () => { erro.style.display = "none"; atualizarTotal(); };
+    const cleanup = (resultado) => {
+      overlay.classList.remove("show");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      input.removeEventListener("input", onInput);
+      input.removeEventListener("keydown", onTecla);
+      resolve(resultado);
+    };
+    const onOk = () => {
+      const p = lerPreco();
+      if (Number.isNaN(p)) { erro.textContent = "Informe o preço por unidade."; erro.style.display = "block"; return; }
+      if (p < 0) { erro.textContent = "O preço não pode ser negativo."; erro.style.display = "block"; return; }
+      cleanup(p);
+    };
+    const onCancel = () => cleanup(null);
+    const onTecla = (e) => { if (e.key === "Enter") { e.preventDefault(); onOk(); } };
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    input.addEventListener("input", onInput);
+    input.addEventListener("keydown", onTecla);
+    atualizarTotal();
+    overlay.classList.add("show");
+    input.focus();
+    input.select();
+  });
+}
+
 async function svMudarSituacaoReserva(id, nova) {
   const r = svState.reservas.find(x => x.id === id);
   if (!r) return;
-  const [titulo, texto] = nova === "VENDIDA"
-    ? ["Confirmar venda?", `Marcar as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente} como vendidas?`]
-    : ["Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`];
-  if (!(await confirmModal(titulo, texto))) return;
+  let campos = { situacao: nova };
+  if (nova === "VENDIDA") {
+    // a venda grava o preço por unidade e o dia: é daí que o Dashboard tira o "Valor vendido" e o mês
+    const preco = await svVendaModal(r);
+    if (preco === null) return;
+    campos = { situacao: nova, preco_unitario: preco, vendido_em: todayISO() };
+  } else if (!(await confirmModal("Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`))) {
+    return;
+  }
   // só muda se ainda estiver ativa: se outra pessoa já vendeu ou cancelou, não sobrescreve
-  const { data, error } = await sb.from("sv_reservas").update({ situacao: nova }).eq("id", id).eq("situacao", "ATIVA").select();
+  const { data, error } = await sb.from("sv_reservas").update(campos).eq("id", id).eq("situacao", "ATIVA").select();
   if (error) { toast("Erro ao salvar: " + error.message); return; }
   if (!data || data.length === 0) {
     toast("Essa reserva já foi alterada por outra pessoa. Atualizando a lista.");
@@ -1353,6 +1418,66 @@ function svRenderDashboard() {
   const vazio = document.getElementById("svDashEmpty");
   vazio.style.display = parados.length === 0 ? "block" : "none";
   vazio.textContent = est.length === 0 ? "Nenhum pneu em estoque ainda." : "Nenhum item com data de chegada nos processos.";
+
+  svRenderDashboardVendas();
+}
+
+/* ---------- Dashboard: vendas do mês (Vendedores e Valor vendido) ---------- */
+
+const SV_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+// "" = ainda não escolheu (abre no mês atual); "__tudo" = soma desde o início; senão "AAAA-MM"
+let svDashMes = "";
+
+function svNomeMes(chave) {
+  const [ano, mes] = chave.split("-");
+  return `${SV_MESES[Number(mes) - 1]} de ${ano}`;
+}
+
+// Dia (AAAA-MM-DD, no fuso do navegador) em que a venda foi confirmada. Venda confirmada antes de existir
+// a coluna vendido_em usa o dia da última alteração da reserva, que foi justamente a confirmação.
+function svDiaDaVenda(r) {
+  if (r.vendidoEm) return r.vendidoEm;
+  const d = r.updatedAt ? new Date(r.updatedAt) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Preço gravado na venda; sem ele (venda antiga), o preço de proposta do produto; sem nenhum dos dois, null
+function svPrecoDaVenda(r) {
+  if (r.precoUnitario !== null) return r.precoUnitario;
+  const p = svGetProduto(r.codigo);
+  return p && p.preco !== null ? p.preco : null;
+}
+
+function svRenderDashboardVendas() {
+  const vendas = svState.reservas.filter(r => r.situacao === "VENDIDA").map(r => ({ r, dia: svDiaDaVenda(r) }));
+  const atual = todayISO().slice(0, 7);
+  // meses da lista: o atual e cada mês em que houve venda, do mais novo pro mais antigo
+  const meses = [...new Set([atual, ...vendas.map(v => v.dia.slice(0, 7)).filter(Boolean)])].sort().reverse();
+  if (svDashMes !== "__tudo" && !meses.includes(svDashMes)) svDashMes = atual;
+  const sel = document.getElementById("svDashMes");
+  sel.innerHTML = `<option value="__tudo">Tudo</option>` + meses.map(m => `<option value="${m}">${escapeHtml(svNomeMes(m))}</option>`).join("");
+  sel.value = svDashMes;
+
+  const doPeriodo = svDashMes === "__tudo" ? vendas : vendas.filter(v => v.dia.startsWith(svDashMes));
+  const quando = svDashMes === "__tudo" ? "desde o início" : "no mês";
+  const vendedores = new Set(doPeriodo.map(v => v.r.vendedorInterno).filter(Boolean)).size;
+  let total = 0, semPreco = 0;
+  doPeriodo.forEach(v => {
+    const preco = svPrecoDaVenda(v.r);
+    if (preco === null) semPreco++;
+    else total += Math.round(preco * v.r.quantidade * 100) / 100;
+  });
+  const n = doPeriodo.length;
+  const notaVendas = n === 0 ? `nenhuma venda confirmada ${quando}` : `${fmt(n)} ${n === 1 ? "venda confirmada" : "vendas confirmadas"} ${quando}`;
+  const aviso = semPreco > 0
+    ? `<div class="sv-kpi-aviso">${fmt(semPreco)} ${semPreco === 1 ? "venda sem preço ficou" : "vendas sem preço ficaram"} fora da soma</div>`
+    : "";
+  document.getElementById("svDashVendas").innerHTML = `
+    <div class="kpi"><div class="lbl">Vendedores</div><div class="val">${fmt(vendedores)}</div><div class="muted sv-sub sv-kpi-nota">com venda confirmada ${quando}</div></div>
+    <div class="kpi accent"><div class="lbl">Valor vendido</div><div class="val">${escapeHtml(formatMoney(total))}</div><div class="muted sv-sub sv-kpi-nota">${notaVendas}</div>${aviso}</div>
+  `;
 }
 
 /* ---------- Armazenagem ---------- */
@@ -1685,6 +1810,10 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderCatalogo);
   });
 
+  document.getElementById("svDashMes").addEventListener("change", (e) => {
+    svDashMes = e.target.value;
+    svRenderDashboardVendas();
+  });
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
   document.getElementById("svFormReserva").addEventListener("submit", svSalvarReserva);
   document.getElementById("svResProduto").addEventListener("change", svAtualizarNotaDisponivel);

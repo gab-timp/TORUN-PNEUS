@@ -107,6 +107,12 @@ body.is-viewer .sv-write{display:none !important;}
 .nav-group.admin-only{display:none;}
 body.is-admin .nav-group.admin-only{display:block;}
 .sv-sem-rep{color:var(--ink-soft);font-style:italic;}
+/* janela "Confirmar venda": preço por unidade e total */
+.sv-venda-total{display:flex;justify-content:space-between;align-items:baseline;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-top:14px;}
+.sv-venda-total-rotulo{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);}
+.sv-venda-total-valor{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;}
+.sv-venda-erro{color:var(--danger);font-weight:600;}
+#svVendaConta{margin:6px 0 0;}
 /* a lista de Reservas tem duas colunas de pessoa (vendedor e representante): cabeçalho quebra e os dois
    links de ação ficam um embaixo do outro, senão a tabela passa da largura do cartão em tela de 1440px */
 #view-sv-reserva .table-wrap th{white-space:normal;}
@@ -148,6 +154,13 @@ body.sistema-semvenda .help-card,
 body.sistema-semvenda .sidebar-divider{display:none;}
 
 /* ---------------- Dashboard ---------------- */
+/* faixa "Vendas": os dois cartões seguem o mês escolhido; o estoque em cima não */
+.sv-dash-vendas-topo{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:6px 0 12px;}
+.sv-dash-vendas-titulo{font-size:15px;font-weight:800;margin:0 0 2px;}
+.sv-dash-vendas-topo .note{font-size:12px;color:var(--ink-soft);}
+.sv-dash-mes{flex:0 0 220px;}
+.sv-dash-vendas{grid-template-columns:repeat(auto-fit,minmax(220px,340px));}
+.kpi .sv-kpi-aviso{margin-top:6px;font-size:11px;font-weight:700;color:var(--warning);}
 .sv-dash-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;}
 .sv-dash-sub{margin:-6px 0 12px;font-size:11.5px;color:var(--ink-soft);}
 .sv-bar-lista{display:flex;flex-direction:column;gap:12px;}
