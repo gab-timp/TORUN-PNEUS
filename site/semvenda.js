@@ -186,14 +186,9 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
-  // o Frete tem tabela própria e carga própria: se a tabela ainda não existir, só essa tela reclama
-  if (view === "sv-frete") {
-    if (await svCarregarFretes()) svRenderFrete();
-    return;
-  }
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
-  // a lista de vendedores tem carga própria (como o Frete): se a tabela não existir, só a Reserva reclama
+  // a lista de vendedores tem carga própria: se a tabela não existir, só a Reserva reclama
   if (view === "sv-reserva") await svCarregarVendedores();
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
@@ -1425,129 +1420,9 @@ function svRenderArmazenagem() {
     : "Nenhum pneu nesse armazém.";
 }
 
-/* ---------- Frete ---------- */
-
-const SV_FRETE_LINHAS = 50;
-
-// carga própria (fora do svState): a tabela sv_fretes é da etapa 4 e só a tela de Frete depende dela
-let svFretes = [];
-let svFretesEmAndamento = null;
-
-function svFreteFromRow(r) {
-  return {
-    id: r.id, data: r.data || "", pagoPor: r.pago_por, transportadora: r.transportadora,
-    valor: Number(r.valor) || 0, referente: r.referente, createdAt: r.created_at, updatedAt: r.updated_at
-  };
-}
-
-function svOrdenarFretes() {
-  svFretes.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
-}
-
-function svCarregarFretes() {
-  if (svFretesEmAndamento) return svFretesEmAndamento;
-  svFretesEmAndamento = (async () => {
-    const { data, error } = await sb.from("sv_fretes").select("*").order("data", { ascending: false }).order("created_at", { ascending: false });
-    if (error) {
-      toast("Erro ao carregar os fretes: " + error.message);
-      return false;
-    }
-    svFretes = (data || []).map(svFreteFromRow);
-    return true;
-  })().finally(() => { svFretesEmAndamento = null; });
-  return svFretesEmAndamento;
-}
-
-function svRenderFrete() {
-  const mes = todayISO().slice(0, 7);
-  const doMes = svFretes.filter(f => (f.data || "").startsWith(mes));
-  const nossos = doMes.filter(f => f.pagoPor === "NOSSO");
-  const clientes = doMes.filter(f => f.pagoPor === "CLIENTE");
-  const lancamentos = n => `${fmt(n)} ${n === 1 ? "lançamento" : "lançamentos"}`;
-  document.getElementById("svFreKpis").innerHTML = `
-    <div class="kpi accent"><div class="lbl">Total gasto (mês)</div><div class="val">${escapeHtml(formatMoney(nossos.reduce((s, f) => s + f.valor, 0)))}</div><div class="muted sv-sub sv-kpi-nota">só frete nosso</div></div>
-    <div class="kpi"><div class="lbl">Frete nosso</div><div class="val">${lancamentos(nossos.length)}</div><div class="muted sv-sub sv-kpi-nota">neste mês</div></div>
-    <div class="kpi"><div class="lbl">Frete do cliente</div><div class="val">${lancamentos(clientes.length)}</div><div class="muted sv-sub sv-kpi-nota">neste mês</div></div>
-  `;
-
-  const rows = svFretes.slice(0, SV_FRETE_LINHAS);
-  document.getElementById("svFreCount").textContent = svFretes.length > SV_FRETE_LINHAS
-    ? `Mostrando os ${SV_FRETE_LINHAS} mais recentes de ${svFretes.length}`
-    : `${svFretes.length} lançamento(s)`;
-  const vazio = document.getElementById("svFreEmpty");
-  vazio.style.display = rows.length === 0 ? "block" : "none";
-  vazio.textContent = "Nenhum frete lançado ainda.";
-
-  const tbody = document.getElementById("svFreTbody");
-  tbody.innerHTML = rows.map(f => `
-    <tr>
-      <td class="mono">${f.data ? formatDateBR(f.data) : "—"}</td>
-      <td>${escapeHtml(f.transportadora)}</td>
-      <td>${escapeHtml(f.referente)}</td>
-      <td><span class="status-pill ${f.pagoPor === "NOSSO" ? "pill-baixo" : "pill-neutro"}">${f.pagoPor === "NOSSO" ? "Nosso" : "Cliente"}</span></td>
-      <td class="sv-num">${escapeHtml(formatMoney(f.valor))}</td>
-      <td class="sv-acoes"><button type="button" class="sv-link sv-write" data-svfreexcluir="${escapeAttr(f.id)}">Excluir</button></td>
-    </tr>`).join("");
-  tbody.querySelectorAll("[data-svfreexcluir]").forEach(btn => {
-    btn.addEventListener("click", () => svExcluirFrete(btn.dataset.svfreexcluir));
-  });
-}
-
-async function svExcluirFrete(id) {
-  const f = svFretes.find(x => x.id === id);
-  if (!f) return;
-  if (!(await confirmModal("Excluir lançamento?", `${f.transportadora} · ${f.referente} · ${formatMoney(f.valor)}. Não dá pra desfazer.`))) return;
-  const { data, error } = await sb.from("sv_fretes").delete().eq("id", id).select();
-  if (error) { toast("Erro ao excluir: " + error.message); return; }
-  if (!data || data.length === 0) {
-    toast("Não foi possível excluir (já removido ou sem permissão). Atualizando a lista.");
-    if (await svCarregarFretes()) svRenderFrete();
-    return;
-  }
-  svFretes = svFretes.filter(x => x.id !== id);
-  svRenderFrete();
-  toast("Lançamento excluído.");
-}
-
-async function svSalvarFrete(e) {
-  e.preventDefault();
-  const botao = document.getElementById("svBtnSubmitFrete");
-  if (botao.disabled) return;
-  botao.disabled = true;
-  try { await svSalvarFreteDados(); } finally { botao.disabled = false; }
-}
-
-async function svSalvarFreteDados() {
-  const pagoPor = document.querySelector('input[name="svFretePagoPor"]:checked').value;
-  const transportadora = document.getElementById("svFreTransportadora").value.trim();
-  const referente = document.getElementById("svFreReferente").value.trim();
-  const data = document.getElementById("svFreData").value;
-  const textoValor = document.getElementById("svFreValor").value;
-  // frete do cliente: o valor é opcional (quem gastou foi o cliente, não entra no total gasto)
-  const valor = textoValor === "" ? (pagoPor === "CLIENTE" ? 0 : NaN) : Math.round(Number(textoValor) * 100) / 100;
-
-  if (!transportadora) { toast("Informe a transportadora."); return; }
-  if (!referente) { toast("Informe a que pedido ou proposta o frete se refere."); return; }
-  if (!data) { toast("Informe a data."); return; }
-  if (!(valor >= 0) || (pagoPor === "NOSSO" && valor === 0)) { toast("Informe o valor gasto do frete."); return; }
-
-  const { data: inserido, error } = await sb.from("sv_fretes").insert({
-    id: uid("svfre"), data, pago_por: pagoPor, transportadora, valor, referente,
-    created_by: currentUser ? currentUser.id : null
-  }).select();
-  if (error) { toast("Erro ao lançar o frete: " + error.message); return; }
-  if (!inserido || inserido.length === 0) { toast("Não foi possível lançar o frete (sem permissão)."); return; }
-  svFretes.push(svFreteFromRow(inserido[0]));
-  svOrdenarFretes();
-  document.getElementById("svFormFrete").reset();
-  document.getElementById("svFreData").value = todayISO();
-  svRenderFrete();
-  toast("Frete lançado.");
-}
-
 /* ---------- Vendedores internos (lista que a Reserva usa; cadastro na Administração) ---------- */
 
-// carga própria (fora do svState), como o Frete: a tabela sv_vendedores é da etapa de vendedor/representante
+// carga própria (fora do svState): a tabela sv_vendedores é da etapa de vendedor/representante
 // e só a Reserva e o quadro da Administração dependem dela
 let svVendedores = [];
 let svVendedoresEmAndamento = null;
@@ -1846,8 +1721,6 @@ function initSemVendaTelas() {
     }
   });
 
-  document.getElementById("svFormFrete").addEventListener("submit", svSalvarFrete);
-  document.getElementById("svFreData").value = todayISO();
   document.getElementById("svArmFiltro").addEventListener("change", (e) => {
     svArmSelecionado = e.target.value;
     svRenderArmazenagem();

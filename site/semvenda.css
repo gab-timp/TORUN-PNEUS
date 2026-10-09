@@ -175,20 +175,7 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .sv-arm-qtd{font-family:'Space Mono',monospace;font-size:20px;font-weight:800;}
 .sv-arm-sub{font-size:11.5px;color:var(--ink-soft);}
 
-/* ---------------- Frete ---------------- */
-.sv-frete-form form{display:flex;flex-direction:column;gap:10px;}
-.sv-frete-form form > .field{flex:0 0 auto;}
-.sv-toggle-campo{display:flex;flex-direction:column;gap:5px;}
-.sv-toggle-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
-.sv-toggle2{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
-.sv-toggle2 label{flex:1;position:relative;cursor:pointer;margin:0;}
-.sv-toggle2 input{position:absolute;opacity:0;pointer-events:none;}
-.sv-toggle2 span{
-  display:block;text-align:center;padding:9px 0;font-size:12px;font-weight:700;
-  background:var(--surface);color:var(--ink-soft);
-}
-.sv-toggle2 input:checked + span{background:var(--orange);color:#161616;}
-.sv-toggle2 input:focus-visible + span{outline:2px solid var(--ink);outline-offset:-3px;}
+/* ---------------- Dashboard: nota embaixo dos cartões ---------------- */
 .kpi .sv-kpi-nota{margin-top:6px;}
 
 /* ---------------- Relatório de Preço ---------------- */
