@@ -461,11 +461,25 @@ async function fetchComRetry(builderFn, tentativas = 3, delayMs = 800) {
   return ultimoResultado;
 }
 
+// O servidor devolve no MÁXIMO 1000 linhas por consulta, e um select sem ordem sai na ordem física do
+// banco -- onde uma linha editada vai pro FIM. Com a tabela acima de 1000 linhas, a carga trazia um pedaço
+// qualquer e os preços de uma medida recém-editada caíam fora: a tela mostrava tudo vazio ao reabrir a
+// edição, mesmo com os preços intactos no banco. Aqui traz tudo, em páginas, ordenado por uma coluna fixa.
+async function selectTudoPaginado(tabela, ordenarPor, tamanhoPagina = 1000) {
+  const linhas = [];
+  for (let de = 0; ; de += tamanhoPagina) {
+    const { data, error } = await sb.from(tabela).select("*").order(ordenarPor).range(de, de + tamanhoPagina - 1);
+    if (error) return { data: null, error };
+    linhas.push(...data);
+    if (data.length < tamanhoPagina) return { data: linhas, error: null };
+  }
+}
+
 async function loadState() {
   const [results, configRes] = await Promise.all([
     Promise.all([
       fetchComRetry(() => sb.from("produtos").select("*").order("codigo")),
-      fetchComRetry(() => sb.from("produtos_precos").select("*")),
+      fetchComRetry(() => selectTudoPaginado("produtos_precos", "id")),
       fetchComRetry(() => sb.from("movimentos").select("*").order("data")),
       fetchComRetry(() => sb.from("fretes").select("*").order("data")),
       fetchComRetry(() => sb.from("clientes").select("*").order("nome")),
@@ -553,7 +567,8 @@ async function loadState() {
 
   state = {
     produtos: (produtosRes.data || []).map(produtoFromRow),
-    produtos_precos: (precosRes.data || []).map(precoFromRow),
+    // se a leitura falhou, mantém os preços que já estavam na tela em vez de zerar tudo (o aviso de erro já saiu acima)
+    produtos_precos: precosRes.error ? (state.produtos_precos || []) : (precosRes.data || []).map(precoFromRow),
     movimentos: (movRes.data || []).map(movimentoFromRow),
     fretes: (fretesRes.data || []).map(freteFromRow),
     clientes: (clientesRes.data || []).map(clienteFromRow),
@@ -2471,7 +2486,13 @@ async function salvarPrecosProduto(container, codigo) {
     mexeu = true;
   }
   if (mexeu) {
-    const { data } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+    const { data, error: erroLer } = await sb.from("produtos_precos").select("*").eq("codigo", codigo);
+    if (erroLer) {
+      // antes o erro era ignorado e os preços do produto sumiam da tela (state sem eles) mesmo salvos no banco
+      console.error("Preços salvos, mas a releitura falhou:", erroLer);
+      toast("Preços salvos, mas não consegui atualizar a tela. Recarregue a página para ver os valores.");
+      return { ok: true, mexeu, invalidos };
+    }
     state.produtos_precos = state.produtos_precos.filter(p => p.codigo !== codigo).concat((data || []).map(precoFromRow));
   }
   return { ok: true, mexeu, invalidos };
