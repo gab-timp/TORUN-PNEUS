@@ -945,7 +945,7 @@ function setView(view) {
   if (view === "fluxocaixa") renderFluxoCaixa();
   if (view === "historico") renderHistorico();
   if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); }
-  if (view === "administracao") renderAdministracao();
+  if (view === "administracao") { renderAdministracao(); svAoAbrirAdministracao(); }
   if (view.startsWith("sv-")) svAoAbrirView(view);
 }
 

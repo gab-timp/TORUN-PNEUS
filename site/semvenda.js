@@ -78,6 +78,7 @@ function initSistemas() {
    o log do sistema é legível por quem não tem acesso ao Sem Venda. */
 
 const SV_ARMAZENS = ["Nguedes", "RF", "ZR", "Multilog"];
+const SV_SEM_REPRESENTANTE = "__sem"; // valor da opção "Sem representante" (no banco, representante fica vazio)
 const SV_RECARGA_MIN_MS = 3000;
 
 const SV_FOTOS_BUCKET = "sem-venda-fotos";
@@ -103,7 +104,10 @@ function svProdutoFromRow(r) {
 
 function svReservaFromRow(r) {
   return {
-    id: r.id, codigo: r.codigo, quantidade: Number(r.quantidade), cliente: r.cliente, responsavel: r.responsavel,
+    id: r.id, codigo: r.codigo, quantidade: Number(r.quantidade), cliente: r.cliente,
+    // reserva feita antes da mudança (ou por tela antiga) só tem o responsável: ele vale como vendedor interno
+    vendedorInterno: r.vendedor_interno || r.responsavel || "",
+    representante: r.representante || null, // vazio = "Sem representante"
     armazem: r.armazem === null || r.armazem === undefined ? null : r.armazem,
     previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
     createdAt: r.created_at, updatedAt: r.updated_at
@@ -112,7 +116,8 @@ function svReservaFromRow(r) {
 
 function svReservaToRow(r) {
   return {
-    id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente, responsavel: r.responsavel,
+    id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente,
+    vendedor_interno: r.vendedorInterno, representante: r.representante || null,
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
     situacao: r.situacao, data: r.data, obs: r.obs || null
   };
@@ -188,6 +193,8 @@ async function svAoAbrirView(view) {
   }
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
+  // a lista de vendedores tem carga própria (como o Frete): se a tabela não existir, só a Reserva reclama
+  if (view === "sv-reserva") await svCarregarVendedores();
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
@@ -1090,8 +1097,23 @@ function svRenderReservaForm() {
 
   document.getElementById("svListaClientes").innerHTML =
     (state.clientes || []).map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
-  const responsaveis = [...new Set([...(state.representantes || []), ...(state.vendas || []).map(v => v.vendedor)].filter(Boolean))].sort();
-  document.getElementById("svListaResponsaveis").innerHTML = responsaveis.map(n => `<option value="${escapeAttr(n)}"></option>`).join("");
+
+  // Vendedor interno (lista cadastrada em Administração) e Representante (ativos, ou "Sem representante").
+  // Os dois começam em "Selecione…": nenhum vem preenchido sozinho.
+  const selVendedor = document.getElementById("svResVendedor");
+  const vendedorAnterior = selVendedor.value;
+  selVendedor.innerHTML = `<option value="">${svVendedores.length ? "Selecione…" : "Nenhum vendedor cadastrado"}</option>` +
+    svVendedores.map(v => `<option value="${escapeAttr(v.nome)}">${escapeHtml(v.nome)}</option>`).join("");
+  if (svVendedores.some(v => v.nome === vendedorAnterior)) selVendedor.value = vendedorAnterior;
+  selVendedor.disabled = svVendedores.length === 0;
+  document.getElementById("svResVendedorAviso").style.display = svVendedores.length === 0 ? "" : "none";
+
+  const selRep = document.getElementById("svResRepresentante");
+  const repAnterior = selRep.value;
+  const representantes = [...new Set(state.representantes || [])].sort((a, b) => a.localeCompare(b));
+  selRep.innerHTML = `<option value="">Selecione…</option><option value="${SV_SEM_REPRESENTANTE}">Sem representante</option>` +
+    representantes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
+  if ([...selRep.options].some(o => o.value === repAnterior)) selRep.value = repAnterior;
 }
 
 function svRenderReservaKpis() {
@@ -1115,7 +1137,7 @@ function svRenderReservaTabela() {
   if (busca) {
     rows = rows.filter(r => {
       const p = svGetProduto(r.codigo);
-      return [r.cliente, r.responsavel, r.codigo, p ? p.medida : ""].join(" ").toLowerCase().includes(busca);
+      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : ""].join(" ").toLowerCase().includes(busca);
     });
   }
   rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -1137,7 +1159,8 @@ function svRenderReservaTabela() {
       <tr>
         <td><span class="mono">${escapeHtml(r.codigo)}</span><div class="muted sv-sub">${escapeHtml(p ? p.medida : "(produto removido)")}</div><div class="muted sv-sub">${escapeHtml(svOrigemReserva(r))}</div></td>
         <td>${escapeHtml(r.cliente)}</td>
-        <td>${escapeHtml(r.responsavel)}</td>
+        <td>${escapeHtml(r.vendedorInterno)}</td>
+        <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
         <td class="mono">${fmt(r.quantidade)}</td>
         <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span></td>
         <td class="mono">${r.data ? formatDateBR(r.data) : "—"}</td>
@@ -1192,7 +1215,8 @@ async function svSalvarReserva(e) {
 async function svSalvarReservaDados() {
   const opcao = svOpcaoSelecionada();
   const clienteDigitado = document.getElementById("svResCliente").value.trim();
-  const responsavel = document.getElementById("svResResponsavel").value.trim();
+  const vendedorInterno = document.getElementById("svResVendedor").value;
+  const escolhaRepresentante = document.getElementById("svResRepresentante").value;
   const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
   const data = document.getElementById("svResData").value;
   const obs = document.getElementById("svResObs").value.trim();
@@ -1200,7 +1224,9 @@ async function svSalvarReservaDados() {
   if (!opcao) { toast("Escolha o produto."); return; }
   const cliente = (state.clientes || []).find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
   if (!cliente) { toast("Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."); return; }
-  if (!responsavel) { toast("Informe o responsável pela venda."); return; }
+  if (!vendedorInterno) { toast("Escolha o vendedor interno."); return; }
+  if (!escolhaRepresentante) { toast('Escolha o representante ou marque "Sem representante".'); return; }
+  const representante = escolhaRepresentante === SV_SEM_REPRESENTANTE ? null : escolhaRepresentante;
   if (!(quantidade > 0)) { toast("Informe a quantidade."); return; }
   if (!data) { toast("Informe a data."); return; }
 
@@ -1228,7 +1254,7 @@ async function svSalvarReservaDados() {
   }
 
   const nova = {
-    id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, responsavel,
+    id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, vendedorInterno, representante,
     armazem: opcao.tipo === "E" ? opcao.armazem : null,
     previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
     situacao: "ATIVA", data, obs
@@ -1519,6 +1545,82 @@ async function svSalvarFreteDados() {
   toast("Frete lançado.");
 }
 
+/* ---------- Vendedores internos (lista que a Reserva usa; cadastro na Administração) ---------- */
+
+// carga própria (fora do svState), como o Frete: a tabela sv_vendedores é da etapa de vendedor/representante
+// e só a Reserva e o quadro da Administração dependem dela
+let svVendedores = [];
+let svVendedoresEmAndamento = null;
+
+function svCarregarVendedores() {
+  if (svVendedoresEmAndamento) return svVendedoresEmAndamento;
+  svVendedoresEmAndamento = (async () => {
+    const { data, error } = await sb.from("sv_vendedores").select("*").order("nome");
+    if (error) {
+      toast("Erro ao carregar os vendedores: " + error.message);
+      return false;
+    }
+    svVendedores = (data || []).map(v => ({ id: v.id, nome: v.nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+    return true;
+  })().finally(() => { svVendedoresEmAndamento = null; });
+  return svVendedoresEmAndamento;
+}
+
+// chamado pelo setView() do app.js quando a tela Administração abre (só admin chega lá)
+async function svAoAbrirAdministracao() {
+  if (!document.getElementById("svVendedoresCard")) return;
+  if (await svCarregarVendedores()) svRenderVendedoresAdmin();
+}
+
+function svRenderVendedoresAdmin() {
+  const n = svVendedores.length;
+  document.getElementById("svVendCount").textContent = n === 0 ? "" : `${n} ${n === 1 ? "vendedor cadastrado" : "vendedores cadastrados"}`;
+  document.getElementById("svVendEmpty").style.display = n === 0 ? "block" : "none";
+  const tbody = document.getElementById("svVendTbody");
+  tbody.innerHTML = svVendedores.map(v => `
+    <tr>
+      <td>${escapeHtml(v.nome)}</td>
+      <td class="sv-acoes"><button type="button" class="sv-link" data-svvenddel="${escapeAttr(v.id)}">Excluir</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("[data-svvenddel]").forEach(btn => {
+    btn.addEventListener("click", () => svExcluirVendedor(btn.dataset.svvenddel));
+  });
+}
+
+async function svAdicionarVendedor(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnAddVendedor");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try {
+    const campo = document.getElementById("svVendNome");
+    const nome = campo.value.replace(/\s+/g, " ").trim();
+    if (!nome) { toast("Informe o nome do vendedor."); return; }
+    if (svVendedores.some(v => v.nome.toLowerCase() === nome.toLowerCase())) { toast("Esse vendedor já está na lista."); return; }
+    const { data, error } = await sb.from("sv_vendedores").insert({ id: uid("svven"), nome, created_by: currentUser ? currentUser.id : null }).select();
+    if (error) { toast("Erro ao adicionar vendedor: " + error.message); return; }
+    if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
+    svVendedores.push({ id: data[0].id, nome: data[0].nome });
+    svVendedores.sort((a, b) => a.nome.localeCompare(b.nome));
+    campo.value = "";
+    svRenderVendedoresAdmin();
+    toast("Vendedor adicionado.");
+  } finally { botao.disabled = false; }
+}
+
+async function svExcluirVendedor(id) {
+  const v = svVendedores.find(x => x.id === id);
+  if (!v) return;
+  const ok = await confirmModal("Excluir vendedor?", `Remove "${v.nome}" da lista de vendedores internos. As reservas que já foram feitas com esse nome continuam como estão.`);
+  if (!ok) return;
+  const { data, error } = await sb.from("sv_vendedores").delete().eq("id", id).select();
+  if (error) { toast("Erro ao excluir vendedor: " + error.message); return; }
+  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removido)."); return; }
+  svVendedores = svVendedores.filter(x => x.id !== id);
+  svRenderVendedoresAdmin();
+  toast("Vendedor removido.");
+}
+
 /* ---------- Relatório de Preço (proposta em PDF) ---------- */
 
 // preço digitado só pra esta proposta, por código (null = "Sob consulta"); zera sempre que a tela abre,
@@ -1708,6 +1810,7 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderCatalogo);
   });
 
+  document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
   document.getElementById("svFormReserva").addEventListener("submit", svSalvarReserva);
   document.getElementById("svResProduto").addEventListener("change", svAtualizarNotaDisponivel);
   ["svResSearch", "svResFiltro"].forEach(id => {

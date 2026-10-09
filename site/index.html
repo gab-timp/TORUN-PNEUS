@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=156">
-<link rel="stylesheet" href="semvenda.css?v=9">
+<link rel="stylesheet" href="semvenda.css?v=10">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -684,9 +684,13 @@
               <datalist id="svListaClientes"></datalist>
             </div>
             <div class="field">
-              <label>Responsável pela venda</label>
-              <input type="text" id="svResResponsavel" list="svListaResponsaveis" placeholder="Quem está vendendo" autocomplete="off" required>
-              <datalist id="svListaResponsaveis"></datalist>
+              <label>Vendedor interno</label>
+              <select id="svResVendedor"></select>
+              <div class="note" id="svResVendedorAviso" style="display:none;">Peça a um administrador para cadastrar os vendedores em Administração, Vendedores internos. Sem isso não dá para reservar.</div>
+            </div>
+            <div class="field">
+              <label>Representante</label>
+              <select id="svResRepresentante"></select>
             </div>
             <div class="form-row">
               <div class="field">
@@ -715,7 +719,7 @@
             <div class="form-row">
               <div class="field grow">
                 <label>Buscar</label>
-                <input type="text" id="svResSearch" placeholder="Cliente, produto ou responsável…">
+                <input type="text" id="svResSearch" placeholder="Cliente, produto, vendedor ou representante…">
               </div>
               <div class="field">
                 <label>Mostrar</label>
@@ -733,7 +737,8 @@
                   <tr>
                     <th>Produto</th>
                     <th>Cliente</th>
-                    <th>Responsável</th>
+                    <th>Vendedor interno</th>
+                    <th>Representante</th>
                     <th>Qtd.</th>
                     <th>Situação</th>
                     <th>Data</th>
@@ -2919,6 +2924,28 @@
         </div>
       </div>
 
+      <div class="card" id="svVendedoresCard">
+        <div class="card-head"><h2>Vendedores internos</h2><span class="sv-tag-sistema">Sem Venda</span></div>
+        <div class="note">É a lista que aparece em "Vendedor interno" na Reserva do Sem Venda. Tirar um nome daqui não muda as reservas que já foram feitas com ele.</div>
+        <form id="svFormVendedor" class="form-row sv-vend-form">
+          <div class="field grow">
+            <label>Nome do vendedor</label>
+            <input type="text" id="svVendNome" maxlength="80" placeholder="Ex: Rogério" autocomplete="off">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="svBtnAddVendedor">Adicionar</button>
+          </div>
+        </form>
+        <div class="note" id="svVendCount"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th></th></tr></thead>
+            <tbody id="svVendTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svVendEmpty" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
+      </div>
+
       <div class="card">
         <div class="card-head"><h2>Usuários</h2></div>
         <div class="note">Edite o papel, permissões e telas visíveis de quem já tem login. Criar um login novo continua sendo feito pelo Supabase.</div>
@@ -3745,7 +3772,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=12"></script>
-<script src="app.js?v=242"></script>
+<script src="semvenda.js?v=13"></script>
+<script src="app.js?v=243"></script>
 </body>
 </html>

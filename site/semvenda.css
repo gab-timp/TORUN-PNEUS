@@ -102,6 +102,15 @@ body.is-viewer .sv-write{display:none !important;}
 .sv-reserva-direita{display:flex;flex-direction:column;gap:14px;min-width:0;}
 .sv-reserva-direita .kpis{margin-bottom:0;}
 .sv-sub{font-size:10.5px;}
+.sv-sem-rep{color:var(--ink-soft);font-style:italic;}
+/* a lista de Reservas tem duas colunas de pessoa (vendedor e representante): cabeçalho quebra e os dois
+   links de ação ficam um embaixo do outro, senão a tabela passa da largura do cartão em tela de 1440px */
+#view-sv-reserva .table-wrap th{white-space:normal;}
+#svResTbody .sv-acoes{white-space:normal;}
+#svResTbody .sv-acoes .sv-link{display:block;margin:0 0 4px;text-align:left;}
+.sv-tag-sistema{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--paper);border-radius:5px;padding:3px 7px;}
+.sv-vend-form{align-items:flex-end;margin-top:10px;}
+.sv-vend-form .form-actions{margin:0;}
 .sv-acoes{white-space:nowrap;}
 .sv-link{
   background:none;border:none;padding:0;margin-right:10px;
