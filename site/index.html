@@ -404,7 +404,7 @@
       <div class="page-head">
         <div>
           <h1>Estoque Previsto</h1>
-          <div class="sub">Processos de compra em andamento — acompanhe a chegada de cada processo e em qual armazém ele vai entrar.</div>
+          <div class="sub">Processos de compra em andamento — arraste os cards entre as etapas e acompanhe em qual armazém cada processo vai entrar.</div>
         </div>
       </div>
 
@@ -457,12 +457,10 @@
 
       <div class="search-row">
         <input type="text" id="svPrevSearch" placeholder="Buscar por processo ou medida…">
-        <select id="svPrevFiltroStatus">
-          <option value="todos">Todos os status</option>
-        </select>
       </div>
 
-      <div class="prev-grid" id="svPrevGrid"></div>
+      <!-- as colunas (uma por status de PREVISTO_STATUS) são montadas por svMontarKanbanPrevisto() -->
+      <div class="kanban-board prev-kanban" id="svPrevBoard"></div>
       <div class="empty-state" id="svPrevEmpty" style="display:none;">Nenhum processo previsto cadastrado.</div>
     </section>
     <section id="view-sv-produtos" class="view">
@@ -3694,6 +3692,38 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="svPrevDetalheOverlay">
+  <div class="modal prev-detalhe-modal" role="dialog" aria-modal="true" aria-labelledby="svPrevDetalheTitulo">
+    <div class="prev-detalhe-head">
+      <div>
+        <span class="prev-card-eyebrow">Processo</span>
+        <div class="prev-detalhe-titulo-linha">
+          <span class="mono prev-detalhe-titulo" id="svPrevDetalheTitulo"></span>
+          <span class="prev-status-badge" id="svPrevDetalheStatus"></span>
+        </div>
+      </div>
+      <button type="button" class="btn small outline" id="svPrevDetalheX" aria-label="Fechar">✕</button>
+    </div>
+    <div class="prev-detalhe-info" id="svPrevDetalheInfo"></div>
+    <div class="prev-detalhe-bloco">
+      <span class="prev-detalhe-lbl">Medidas do processo</span>
+      <div id="svPrevDetalheMedidas"></div>
+    </div>
+    <div class="prev-detalhe-bloco">
+      <span class="prev-detalhe-lbl">Observação</span>
+      <div class="prev-detalhe-obs" id="svPrevDetalheObs"></div>
+    </div>
+    <div class="prev-detalhe-rodape">
+      <div class="note">Para mudar o status, arraste o card para outra coluna do kanban.</div>
+      <div class="prev-detalhe-acoes">
+        <button type="button" class="btn small outline danger" id="svPrevDetalheExcluir">Excluir</button>
+        <button type="button" class="btn outline" id="svPrevDetalheFechar">Fechar</button>
+        <button type="button" class="btn primary" id="svPrevDetalheEditar">Editar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="chartModalOverlay">
   <div class="modal chart-modal">
     <div class="chart-modal-head">
@@ -3715,7 +3745,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=10"></script>
+<script src="semvenda.js?v=11"></script>
 <script src="app.js?v=242"></script>
 </body>
 </html>

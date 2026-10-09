@@ -519,11 +519,69 @@ function svAtualizarSelectsProduto() {
   document.getElementById("svPrevSemProdutos").style.display = svState.produtos.length === 0 ? "block" : "none";
 }
 
+/* ---------- Estoque Previsto em kanban (mesmo desenho do Torun): uma coluna por status, arrasta o card pra mudar ---------- */
+
+// Mesma regra dos controles que já existiam no card (somenteLeitura): só "viewer" não mexe.
+function svPodeEditarPrevisto() {
+  return currentUserRole !== "viewer";
+}
+
+let svPrevSortables = [];
+
+// Monta as colunas uma vez só (no 1º render). A lista vem de PREVISTO_STATUS e as cores de PREVISTO_COR
+// (os dois definidos no app.js, compartilhados com o Estoque Previsto do Torun).
+function svMontarKanbanPrevisto() {
+  const board = document.getElementById("svPrevBoard");
+  board.innerHTML = PREVISTO_STATUS.map((status, i) => {
+    const cor = PREVISTO_COR[status] || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
+    return `
+      <div class="kanban-col" style="--col-accent:${cor.accent}; --col-deep:${cor.deep}; --col-pale:${cor.pale};">
+        <div class="kanban-col-head"><span>${escapeHtml(status)}</span><span class="kanban-count" id="svPrevCount${i}">0</span><span class="kanban-col-toggle">⌄</span></div>
+        <div class="kanban-cards" id="svPrevCol${i}" data-status="${escapeAttr(status)}"></div>
+      </div>`;
+  }).join("");
+
+  board.querySelectorAll(".kanban-col-head").forEach(head => {
+    head.addEventListener("click", () => head.closest(".kanban-col").classList.toggle("collapsed"));
+  });
+  board.addEventListener("click", (e) => {
+    const card = e.target.closest(".kanban-card");
+    if (card) svAbrirPrevistoDetalhe(card.dataset.id);
+  });
+  initKanbanBoardDragScroll("svPrevBoard");
+
+  svPrevSortables = PREVISTO_STATUS.map((_, i) => Sortable.create(document.getElementById("svPrevCol" + i), {
+    group: "sv-prev-kanban",
+    animation: 150,
+    disabled: !svPodeEditarPrevisto(),
+    onEnd: svMoverPrevistoDeColuna
+  }));
+}
+
+// Soltar o card em outra coluna = trocar o status. Passa por svAtualizarCampoPrevisto, a mesma função do
+// seletor de status de antes: ela recarrega os dados e confere o saldo (não deixa um processo que já
+// chegou voltar de etapa se isso deixar reserva ou venda sem estoque) antes de gravar.
+async function svMoverPrevistoDeColuna(evt) {
+  const id = evt.item.dataset.id;
+  const novoStatus = evt.to.dataset.status;
+  const statusAntigo = evt.from.dataset.status;
+  if (novoStatus === statusAntigo) return;
+  const alvo = svState.previsoes.find(x => x.id === id);
+  if (!alvo) return;
+  const ok = await confirmModal("Mudar status do processo?",
+    `Tem certeza que deseja mudar o processo ${alvo.numeroProcesso} para "${novoStatus}"?`);
+  if (ok) await svAtualizarCampoPrevisto(id, { status: novoStatus }, "Status atualizado.");
+  svRenderPrevistos(); // se foi barrado ou cancelado, o card volta pra coluna de antes
+}
+
+function svPrevTextoArmazem(p) {
+  return p.armazem ? svNomeArmazem(p.armazem) : "";
+}
+
 function svRenderPrevistos() {
   svAtualizarSelectsProduto();
+  if (!document.getElementById("svPrevCol0")) svMontarKanbanPrevisto();
   const search = (document.getElementById("svPrevSearch").value || "").trim().toLowerCase();
-  const filtroStatus = document.getElementById("svPrevFiltroStatus").value;
-  const somenteLeitura = currentUserRole === "viewer";
 
   let rows = svState.previsoes.slice();
   if (search) {
@@ -532,91 +590,110 @@ function svRenderPrevistos() {
       return (p.numeroProcesso + " " + medidas).toLowerCase().includes(search);
     });
   }
-  if (filtroStatus !== "todos") rows = rows.filter(p => p.status === filtroStatus);
   rows.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
-  const grid = document.getElementById("svPrevGrid");
-  const vazio = document.getElementById("svPrevEmpty");
-  if (rows.length === 0) {
-    grid.innerHTML = "";
-    vazio.style.display = "block";
-    return;
-  }
-  vazio.style.display = "none";
+  document.getElementById("svPrevEmpty").style.display = svState.previsoes.length === 0 ? "block" : "none";
 
-  grid.innerHTML = rows.map(p => {
-    const itensHtml = p.itens.map(it => {
-      const prod = svGetProduto(it.codigo);
+  PREVISTO_STATUS.forEach((status, i) => {
+    const doStatus = rows.filter(p => p.status === status);
+    document.getElementById("svPrevCount" + i).textContent = doStatus.length;
+    document.getElementById("svPrevCol" + i).innerHTML = doStatus.map(p => {
+      const itensHtml = p.itens.map(it => {
+        const prod = svGetProduto(it.codigo);
+        return `
+          <li>
+            <span class="mono">${escapeHtml(it.codigo)}</span>
+            <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
+            <span class="num mono">${fmt(it.quantidade)}</span>
+          </li>`;
+      }).join("");
       return `
-        <li>
-          <span class="mono">${escapeHtml(it.codigo)}</span>
-          <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
-          <span class="num mono">${fmt(it.quantidade)}</span>
-        </li>
-      `;
+        <div class="kanban-card" data-id="${escapeAttr(p.id)}">
+          <div class="kanban-card-nf">${escapeHtml(p.numeroProcesso)}</div>
+          ${p.itens.length ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+          <div class="kanban-card-meta">
+            ${p.armazem
+              ? `<span class="kanban-card-tag containers" title="Armazém onde o processo vai entrar">${escapeHtml(svPrevTextoArmazem(p))}</span>`
+              : `<span class="kanban-card-tag sem-data">Sem armazém</span>`}
+            ${p.dataChegada
+              ? `<span class="kanban-card-tag ${status === "FINALIZADO" ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
+              : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
+          </div>
+          ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
+        </div>`;
     }).join("");
-    const statusOptions = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}" ${s === p.status ? "selected" : ""}>${escapeHtml(s)}</option>`).join("");
-    const armazens = p.armazem && !SV_ARMAZENS.includes(p.armazem) ? [...SV_ARMAZENS, p.armazem] : SV_ARMAZENS;
-    const armazemOptions = `<option value="" ${p.armazem ? "" : "selected"}>—</option>` +
-      armazens.map(a => `<option value="${escapeAttr(a)}" ${a === p.armazem ? "selected" : ""}>${escapeHtml(a)}</option>`).join("");
-    const bloqueio = somenteLeitura ? "disabled" : "";
+  });
 
-    return `
-      <div class="prev-card ${statusBadgeClass(p.status)}">
-        <div class="prev-card-head">
-          <div>
-            <span class="prev-card-eyebrow">Processo</span>
-            <span class="mono prev-card-title">${escapeHtml(p.numeroProcesso)}</span>
-            <span class="prev-status-badge ${statusBadgeClass(p.status)}">${escapeHtml(p.status)}</span>
-          </div>
-          <div class="prev-card-actions sv-write">
-            <button class="btn small outline" data-svprevedit="${escapeAttr(p.id)}">Editar</button>
-            <button class="btn small danger" data-svprevdel="${escapeAttr(p.id)}">✕</button>
-          </div>
-        </div>
-        <ul class="prev-itens-list">${itensHtml}</ul>
-        ${p.obs ? `<div class="muted prev-card-obs">${escapeHtml(p.obs)}</div>` : ""}
-        <div class="prev-card-footer">
-          <div class="field">
-            <label>Data de chegada</label>
-            <input type="date" value="${escapeAttr(p.dataChegada || "")}" data-svprevdata="${escapeAttr(p.id)}" ${bloqueio}>
-          </div>
-          <div class="field">
-            <label>Armazém</label>
-            <select data-svprevarmazem="${escapeAttr(p.id)}" ${bloqueio}>${armazemOptions}</select>
-          </div>
-          <div class="field">
-            <label>Status</label>
-            <select data-svprevstatus="${escapeAttr(p.id)}" ${bloqueio}>${statusOptions}</select>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join("");
+  // permissão pode mudar depois do 1º render (o perfil carrega junto com os dados)
+  svPrevSortables.forEach(s => s.option("disabled", !svPodeEditarPrevisto()));
+}
 
-  grid.querySelectorAll("[data-svprevdata]").forEach(inp => {
-    inp.addEventListener("change", async () => {
-      await svAtualizarCampoPrevisto(inp.dataset.svprevdata, { data_chegada: inp.value || null }, "Data de chegada atualizada.");
-      svRenderPrevistos();
-    });
+/* ---------- janela do card (clique) ---------- */
+
+let svPrevDetalheId = null;
+
+function svAbrirPrevistoDetalhe(id) {
+  const p = svState.previsoes.find(x => x.id === id);
+  if (!p) return;
+  svPrevDetalheId = id;
+
+  const cor = PREVISTO_COR[p.status];
+  document.querySelector("#svPrevDetalheOverlay .modal").style.setProperty("--col-accent", cor ? cor.accent : "var(--orange)");
+  document.getElementById("svPrevDetalheTitulo").textContent = p.numeroProcesso;
+  const badge = document.getElementById("svPrevDetalheStatus");
+  badge.className = "prev-status-badge " + statusBadgeClass(p.status);
+  badge.textContent = p.status;
+
+  const ativas = svState.reservas.filter(r => r.previsaoId === p.id && r.situacao !== "CANCELADA");
+  const qtdReservada = ativas.reduce((a, r) => a + (Number(r.quantidade) || 0), 0);
+  const valor = (html, vazio) => `<div class="prev-detalhe-valor${vazio ? " vazio" : ""}">${html}</div>`;
+  document.getElementById("svPrevDetalheInfo").innerHTML = `
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Armazém</span>${
+      p.armazem ? valor(escapeHtml(svPrevTextoArmazem(p))) : valor("Sem armazém", true)}</div>
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Data de chegada</span>${
+      p.dataChegada ? valor(`<span class="mono">${formatDateBR(p.dataChegada)}</span>`) : valor("Sem data de chegada", true)}</div>
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Reservas ligadas</span>${
+      ativas.length ? valor(`<span class="mono">${fmt(qtdReservada)}</span> un. em ${ativas.length} reserva${ativas.length > 1 ? "s" : ""}`) : valor("Nenhuma", true)}</div>`;
+
+  const total = p.itens.reduce((a, it) => a + (Number(it.quantidade) || 0), 0);
+  document.getElementById("svPrevDetalheMedidas").innerHTML = p.itens.length ? `
+    <table class="prev-detalhe-tabela">
+      <thead><tr><th style="width:20%;">Código</th><th>Medida</th><th class="num" style="width:14%;">Qtd.</th></tr></thead>
+      <tbody>
+        ${p.itens.map(it => { const prod = svGetProduto(it.codigo); return `
+          <tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td></tr>`; }).join("")}
+        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td></tr>
+      </tbody>
+    </table>` : `<div class="prev-detalhe-obs">Nenhuma medida cadastrada.</div>`;
+
+  document.getElementById("svPrevDetalheObs").textContent = p.obs || "Sem observação.";
+
+  const pode = svPodeEditarPrevisto();
+  document.getElementById("svPrevDetalheEditar").style.display = pode ? "" : "none";
+  document.getElementById("svPrevDetalheExcluir").style.display = pode ? "" : "none";
+  document.getElementById("svPrevDetalheOverlay").classList.add("show");
+}
+
+function svFecharPrevistoDetalhe() {
+  document.getElementById("svPrevDetalheOverlay").classList.remove("show");
+  svPrevDetalheId = null;
+}
+
+function svInitPrevDetalhe() {
+  document.getElementById("svPrevDetalheX").addEventListener("click", svFecharPrevistoDetalhe);
+  document.getElementById("svPrevDetalheFechar").addEventListener("click", svFecharPrevistoDetalhe);
+  document.getElementById("svPrevDetalheOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "svPrevDetalheOverlay") svFecharPrevistoDetalhe();
   });
-  grid.querySelectorAll("[data-svprevstatus]").forEach(sel => {
-    sel.addEventListener("change", async () => {
-      await svAtualizarCampoPrevisto(sel.dataset.svprevstatus, { status: sel.value }, "Status atualizado.");
-      svRenderPrevistos();
-    });
+  document.getElementById("svPrevDetalheEditar").addEventListener("click", () => {
+    const id = svPrevDetalheId;
+    svFecharPrevistoDetalhe();
+    if (id) svIniciarEdicaoPrevisto(id);
   });
-  grid.querySelectorAll("[data-svprevarmazem]").forEach(sel => {
-    sel.addEventListener("change", async () => {
-      await svAtualizarCampoPrevisto(sel.dataset.svprevarmazem, { armazem: sel.value || null }, "Armazém atualizado.");
-      svRenderPrevistos();
-    });
-  });
-  grid.querySelectorAll("[data-svprevedit]").forEach(btn => {
-    btn.addEventListener("click", () => svIniciarEdicaoPrevisto(btn.dataset.svprevedit));
-  });
-  grid.querySelectorAll("[data-svprevdel]").forEach(btn => {
-    btn.addEventListener("click", () => svExcluirPrevisto(btn.dataset.svprevdel));
+  document.getElementById("svPrevDetalheExcluir").addEventListener("click", async () => {
+    const id = svPrevDetalheId;
+    if (!id) return;
+    if (await svExcluirPrevisto(id)) svFecharPrevistoDetalhe();
   });
 }
 
@@ -762,21 +839,23 @@ async function svSalvarPrevistoDados(e) {
   toast("Processo previsto adicionado.");
 }
 
+// Devolve true só se o processo foi mesmo excluído (a janela do card usa isso pra decidir se fecha).
 async function svExcluirPrevisto(id) {
-  if (!(await svCarregarDados(true))) return; // reservas atualizadas: alguém pode ter reservado agora há pouco
+  if (!(await svCarregarDados(true))) return false; // reservas atualizadas: alguém pode ter reservado agora há pouco
   const alvo = svState.previsoes.find(p => p.id === id);
-  if (svState.reservas.some(r => r.previsaoId === id)) { toast("Não é possível excluir: há reservas ligadas a esse processo."); return; }
+  if (svState.reservas.some(r => r.previsaoId === id)) { toast("Não é possível excluir: há reservas ligadas a esse processo."); return false; }
   const problemaSaldo = svProblemaDeSaldo(svState.previsoes.filter(p => p.id !== id), null);
-  if (problemaSaldo) { toast(problemaSaldo); return; }
+  if (problemaSaldo) { toast(problemaSaldo); return false; }
   const ok = await confirmModal("Excluir processo previsto?", `Remove o processo ${alvo ? alvo.numeroProcesso : ""} e as medidas dele desta lista.`);
-  if (!ok) return;
+  if (!ok) return false;
   const { data, error } = await sb.from("sv_previsoes").delete().eq("id", id).select();
-  if (error) { toast("Erro ao excluir: " + error.message); return; }
-  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou processo já removido)."); return; }
+  if (error) { toast("Erro ao excluir: " + error.message); return false; }
+  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou processo já removido)."); return false; }
   if (svEditandoPrevistoId === id) svCancelarEdicaoPrevisto();
   svState.previsoes = svState.previsoes.filter(p => p.id !== id);
   svRenderPrevistos();
   toast("Processo removido.");
+  return true;
 }
 
 /* ---------- Saldo: calculado dos processos que chegaram menos as reservas ---------- */
@@ -1592,7 +1671,6 @@ async function svGerarProposta(e) {
 function initSemVendaTelas() {
   const statusHtml = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
   document.getElementById("svPrevStatus").innerHTML = statusHtml;
-  document.getElementById("svPrevFiltroStatus").innerHTML = `<option value="todos">Todos os status</option>${statusHtml}`;
   document.getElementById("svPrevArmazem").innerHTML = `<option value="">—</option>` +
     SV_ARMAZENS.map(a => `<option value="${escapeAttr(a)}">${escapeHtml(a)}</option>`).join("");
   document.getElementById("svProdCategoria").innerHTML = svOpcoesCategoria("—");
@@ -1618,9 +1696,8 @@ function initSemVendaTelas() {
     document.getElementById("svPrevItens").appendChild(svCriarLinhaItem("svPrevItens"));
     updateItemRemoveVisibility("svPrevItens");
   });
-  ["svPrevSearch", "svPrevFiltroStatus"].forEach(id => {
-    document.getElementById(id).addEventListener("input", svRenderPrevistos);
-  });
+  document.getElementById("svPrevSearch").addEventListener("input", svRenderPrevistos);
+  svInitPrevDetalhe();
   svResetItens();
 
   document.getElementById("svBtnProdFoto").addEventListener("click", () => document.getElementById("svProdFotoInput").click());
