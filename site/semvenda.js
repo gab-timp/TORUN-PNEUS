@@ -1684,6 +1684,11 @@ function svAbrirProposta() {
   svRenderTabelaProposta();
 }
 
+// célula de modelo ou marca da proposta: o texto do cadastro, ou um traço quando o produto não tem (ou foi removido)
+function svCelulaTexto(valor, classeVazio) {
+  return valor ? `<td>${escapeHtml(valor)}</td>` : `<td class="${classeVazio}">—</td>`;
+}
+
 function svRenderTabelaProposta() {
   const linhas = svLinhasProposta();
   document.getElementById("svPropTbody").innerHTML = linhas.map(l => {
@@ -1692,6 +1697,8 @@ function svRenderTabelaProposta() {
       <tr>
         <td class="mono">${escapeHtml(l.codigo)}</td>
         <td>${escapeHtml(l.produto ? l.produto.medida : "(produto removido)")}</td>
+        ${svCelulaTexto(l.produto && l.produto.modelo, "muted")}
+        ${svCelulaTexto(l.produto && l.produto.marca, "muted")}
         <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
         <td class="sv-num">${fmt(l.disp)}</td>
         <td class="sv-num"><input type="number" class="sv-prop-preco" data-svpreco="${escapeAttr(l.codigo)}" min="0" step="0.01" placeholder="Sob consulta" value="${preco === null ? "" : preco}" aria-label="Preço por unidade de ${escapeAttr(l.codigo)}"></td>
@@ -1711,6 +1718,8 @@ function svBuildPropostaHtml(linhas) {
     return `<tr>
         <td class="mono">${escapeHtml(l.codigo)}</td>
         <td>${escapeHtml(l.produto ? l.produto.medida : "")}</td>
+        ${svCelulaTexto(l.produto && l.produto.modelo, "vazio")}
+        ${svCelulaTexto(l.produto && l.produto.marca, "vazio")}
         <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
         <td class="num">${fmt(l.disp)}</td>
         <td class="num">${preco === null ? "Sob consulta" : escapeHtml(formatMoney(preco))}</td>
@@ -1726,7 +1735,7 @@ function svBuildPropostaHtml(linhas) {
         </div>
       </div>
       <table class="pp-tabela">
-        <thead><tr><th>Código</th><th>Medida</th><th>Armazém</th><th class="num">Qtd.</th><th class="num">Preço/un.</th></tr></thead>
+        <thead><tr><th class="pp-col-cod">Código</th><th>Medida</th><th class="pp-col-modelo">Modelo</th><th class="pp-col-marca">Marca</th><th class="pp-col-arm">Armazém</th><th class="num pp-col-qtd">Qtd.</th><th class="num pp-col-preco">Preço/un.</th></tr></thead>
         <tbody>${trs}</tbody>
       </table>
       <div class="pp-rodape">${escapeHtml(svRodapeProposta())}</div>

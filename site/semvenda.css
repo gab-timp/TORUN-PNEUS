@@ -214,8 +214,12 @@ td.sv-num{font-family:'Space Mono',monospace;}
   padding:9px 12px;margin-bottom:14px;font-size:11.5px;color:var(--ink-soft);line-height:1.5;
 }
 .sv-prop-aviso strong{color:var(--ink);}
+/* a prévia tem 7 colunas (com Modelo e Marca): cabeçalho quebra e o respiro lateral encolhe, senão a tabela
+   ganha barra de rolagem em tela de 1280px */
+.sv-prop-previa th{white-space:normal;}
+.sv-prop-previa th,.sv-prop-previa td{padding-left:8px;padding-right:8px;}
 .sv-prop-preco{
-  width:120px;text-align:right;font-family:'Space Mono',monospace;font-size:12px;padding:6px 8px;
+  width:96px;text-align:right;font-family:'Space Mono',monospace;font-size:12px;padding:6px 8px;
   border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);outline:none;
 }
 .sv-prop-preco:focus{border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
@@ -233,6 +237,14 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .pp-tabela th{background:#F2F2F2;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;color:#5a5a55;border:1px solid #ccc;}
 .pp-tabela td{padding:6px 8px;border:1px solid #ccc;}
 .pp-tabela .num{text-align:right;}
+.pp-tabela .vazio{color:#8a8a8a;}
+/* 7 colunas em A4 retrato: as de texto curto têm largura fixa e a Medida ocupa o resto */
+.pp-tabela .pp-col-cod{width:62px;}
+.pp-tabela .pp-col-modelo{width:74px;}
+.pp-tabela .pp-col-marca{width:92px;}
+.pp-tabela .pp-col-arm{width:66px;}
+.pp-tabela .pp-col-qtd{width:40px;}
+.pp-tabela .pp-col-preco{width:92px;}
 .pp-tabela thead{display:table-header-group;}
 .pp-tabela tr{break-inside:avoid;}
 .pp-rodape{margin-top:16px;font-size:11px;color:#5a5a55;max-width:480px;}
