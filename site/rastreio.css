@@ -2,12 +2,25 @@
   --ink:#161616; --ink-soft:#6B6B6B; --paper:#F7F7F5; --surface:#FFFFFF;
   --line:#E2E0D8; --orange:#FF6A13; --orange-deep:#C64F0C; --orange-pale:#FFE7D6;
   --status-good:#15803D; --danger:#B91C1C;
+  --sb-trilho:#F1F0EC; --sb-thumb:#C3C0B6; --sb-thumb-h:#9F9C90;
 }
 @media (prefers-color-scheme: dark){
   :root{
     --ink:#EDEDED; --ink-soft:#A0A0A0; --paper:#101010; --surface:#1C1C1C;
     --line:#2C2C2C; --orange-pale:#2A1F16;
+    --sb-trilho:#141414; --sb-thumb:#4A4A4A; --sb-thumb-h:#6A6A6A;
   }
+}
+/* barra de rolagem igual à do sistema (a página de rastreio não carrega o styles.css) */
+::-webkit-scrollbar{width:16px; height:16px;}
+::-webkit-scrollbar-track{background:var(--sb-trilho); border-radius:16px; box-shadow:inset 0 0 0 1px var(--line);}
+::-webkit-scrollbar-thumb{background:var(--sb-thumb); border-radius:16px; border:4px solid var(--sb-trilho); min-height:40px; min-width:40px;}
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active{background:var(--sb-thumb-h);}
+::-webkit-scrollbar-button{display:none;}
+::-webkit-scrollbar-corner{background:var(--sb-trilho);}
+html::-webkit-scrollbar-track{border-radius:0; box-shadow:inset 1px 0 0 var(--line);}
+@supports not selector(::-webkit-scrollbar){
+  *{scrollbar-width:auto; scrollbar-color:var(--sb-thumb) var(--sb-trilho);}
 }
 *{box-sizing:border-box;}
 body{margin:0; font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink); -webkit-font-smoothing:antialiased;}
