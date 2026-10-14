@@ -21,6 +21,9 @@
   --indigo:#6366F1;
   --indigo-deep:#4338CA;
   --indigo-pale:#E7E7FE;
+  --sb-trilho:#F1F0EC;
+  --sb-thumb:#C3C0B6;
+  --sb-thumb-h:#9F9C90;
   --tint-orange:#FFF4EC;
   --tint-blue:#EEF4FF;
   --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 10px 24px -14px rgba(0,0,0,.14);
@@ -56,6 +59,9 @@
     --tint-orange:#2A1F16;
     --tint-blue:#182236;
     --mapa-sem-dado:#544C3C;
+    --sb-trilho:#141414;
+    --sb-thumb:#4A4A4A;
+    --sb-thumb-h:#6A6A6A;
   }
 }
 :root[data-theme="dark"]{
@@ -69,6 +75,25 @@
   --mapa-sem-dado:#544C3C;
   --tint-orange:#2A1F16;
   --tint-blue:#182236;
+  --sb-trilho:#141414;
+  --sb-thumb:#4A4A4A;
+  --sb-thumb-h:#6A6A6A;
+}
+
+/* barra de rolagem padrão do site (Chrome, Edge, Safari): traço cinza arredondado num trilho com contorno, sem as
+   setinhas. Vale para a página e para toda janela, lista e tabela que rola. Quem já tem barra própria (o menu lateral
+   preto, a lista de produtos do portal) e o Kanban (sem barra visível) têm regra mais específica e ficam como estão. */
+::-webkit-scrollbar{width:16px; height:16px;}
+::-webkit-scrollbar-track{background:var(--sb-trilho); border-radius:16px; box-shadow:inset 0 0 0 1px var(--line);}
+::-webkit-scrollbar-thumb{background:var(--sb-thumb); border-radius:16px; border:4px solid var(--sb-trilho); min-height:40px; min-width:40px;}
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active{background:var(--sb-thumb-h);}
+::-webkit-scrollbar-button{display:none;}
+::-webkit-scrollbar-corner{background:var(--sb-trilho);}
+/* a barra da página inteira fica encostada na borda da janela: trilho reto, só com a linha do lado de dentro */
+html::-webkit-scrollbar-track{border-radius:0; box-shadow:inset 1px 0 0 var(--line);}
+/* o Firefox não entende ::-webkit-scrollbar: usa a versão simples, com as mesmas cores */
+@supports not selector(::-webkit-scrollbar){
+  *{scrollbar-width:auto; scrollbar-color:var(--sb-thumb) var(--sb-trilho);}
 }
 
 /* tamanho da letra: escala visual via zoom (o CSS do site inteiro é em px,
