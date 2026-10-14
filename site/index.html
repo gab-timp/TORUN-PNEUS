@@ -444,6 +444,10 @@
               <label>Status</label>
               <select id="svPrevStatus"></select>
             </div>
+            <div class="field prev-dtc-field">
+              <label for="svPrevDtc">Etiqueta</label>
+              <label class="prev-dtc-caixa" for="svPrevDtc"><input type="checkbox" id="svPrevDtc"><span>DTC</span></label>
+            </div>
             <div class="field">
               <label>Armazém de destino</label>
               <select id="svPrevArmazem"></select>
@@ -3713,11 +3717,16 @@
         <div class="prev-detalhe-titulo-linha">
           <span class="mono prev-detalhe-titulo" id="svPrevDetalheTitulo"></span>
           <span class="prev-status-badge" id="svPrevDetalheStatus"></span>
+          <span class="kanban-card-tag dtc" id="svPrevDetalheDtcTag" style="display:none;">DTC</span>
         </div>
       </div>
       <button type="button" class="btn small outline" id="svPrevDetalheX" aria-label="Fechar">✕</button>
     </div>
     <div class="prev-detalhe-info" id="svPrevDetalheInfo"></div>
+    <label class="prev-dtc-caixa prev-dtc-janela" for="svPrevDetalheDtc">
+      <input type="checkbox" id="svPrevDetalheDtc">
+      <span><b>DTC</b><small>Marcada, o card mostra a etiqueta DTC. Vale em qualquer coluna e salva na hora.</small></span>
+    </label>
     <div class="prev-detalhe-bloco">
       <span class="prev-detalhe-lbl">Medidas do processo</span>
       <div id="svPrevDetalheMedidas"></div>
@@ -3758,7 +3767,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=16"></script>
+<script src="semvenda.js?v=17"></script>
 <script src="app.js?v=245"></script>
 </body>
 </html>

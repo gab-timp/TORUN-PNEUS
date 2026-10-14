@@ -145,14 +145,14 @@ function svProdutoToRow(p) {
 function svPrevistoFromRow(r) {
   return {
     id: r.id, numeroProcesso: r.numero_processo, itens: Array.isArray(r.itens) ? r.itens.filter(it => it && typeof it === "object") : [], dataChegada: r.data_chegada || "",
-    status: r.status, armazem: r.armazem || "", obs: r.obs || "", createdAt: r.created_at, updatedAt: r.updated_at
+    status: r.status, armazem: r.armazem || "", obs: r.obs || "", dtc: !!r.dtc, createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
 
 function svPrevistoToRow(p) {
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [], data_chegada: p.dataChegada || null,
-    status: p.status, armazem: p.armazem || null, obs: p.obs || null
+    status: p.status, armazem: p.armazem || null, obs: p.obs || null, dtc: !!p.dtc
   };
 }
 
@@ -623,6 +623,7 @@ function svRenderPrevistos() {
             ${p.dataChegada
               ? `<span class="kanban-card-tag ${status === "FINALIZADO" ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
               : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
+            ${p.dtc ? `<span class="kanban-card-tag dtc" title="Processo com DTC">DTC</span>` : ""}
           </div>
           ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
         </div>`;
@@ -648,6 +649,7 @@ function svAbrirPrevistoDetalhe(id) {
   const badge = document.getElementById("svPrevDetalheStatus");
   badge.className = "prev-status-badge " + statusBadgeClass(p.status);
   badge.textContent = p.status;
+  svAtualizarDtcDaJanela(p);
 
   const ativas = svState.reservas.filter(r => r.previsaoId === p.id && r.situacao !== "CANCELADA");
   const qtdReservada = ativas.reduce((a, r) => a + (Number(r.quantidade) || 0), 0);
@@ -684,7 +686,43 @@ function svFecharPrevistoDetalhe() {
   svPrevDetalheId = null;
 }
 
+// etiqueta DTC ao lado do status e caixa "DTC" da janela do card (só quem edita mexe na caixa)
+function svAtualizarDtcDaJanela(p) {
+  document.getElementById("svPrevDetalheDtcTag").style.display = p.dtc ? "" : "none";
+  const caixa = document.getElementById("svPrevDetalheDtc");
+  caixa.checked = !!p.dtc;
+  caixa.disabled = !svPodeEditarPrevisto();
+}
+
+// Marca/desmarca o DTC na hora, sem passar pelo formulário. Não mexe no saldo (só o status mexe), então não
+// precisa da conferência de saldo do svAtualizarCampoPrevisto.
+async function svAlternarDtcPrevisto(id, valor) {
+  const alvo = svState.previsoes.find(x => x.id === id);
+  if (!alvo) return;
+  const anterior = !!alvo.dtc;
+  alvo.dtc = valor;
+  const { data, error } = await sb.from("sv_previsoes").update({ dtc: valor }).eq("id", id).select();
+  if (error || !data || data.length === 0) {
+    alvo.dtc = anterior;
+    svAtualizarDtcDaJanela(alvo);
+    toast(error ? "Erro ao salvar o DTC: " + error.message : "Não foi possível salvar o DTC (sem permissão ou processo removido).");
+    return;
+  }
+  alvo.updatedAt = data[0].updated_at;
+  // se esse mesmo processo está aberto no formulário de edição, a caixa e o instante de referência do conflito acompanham
+  if (svEditandoPrevistoId === id) {
+    svEditandoPrevistoUpdatedAt = data[0].updated_at;
+    document.getElementById("svPrevDtc").checked = valor;
+  }
+  svAtualizarDtcDaJanela(alvo);
+  svRenderPrevistos();
+  toast(valor ? "DTC marcado." : "DTC desmarcado.");
+}
+
 function svInitPrevDetalhe() {
+  document.getElementById("svPrevDetalheDtc").addEventListener("change", (e) => {
+    if (svPrevDetalheId) svAlternarDtcPrevisto(svPrevDetalheId, e.target.checked);
+  });
   document.getElementById("svPrevDetalheX").addEventListener("click", svFecharPrevistoDetalhe);
   document.getElementById("svPrevDetalheFechar").addEventListener("click", svFecharPrevistoDetalhe);
   document.getElementById("svPrevDetalheOverlay").addEventListener("click", (e) => {
@@ -742,6 +780,7 @@ function svIniciarEdicaoPrevisto(id) {
   document.getElementById("svPrevNumeroProcesso").value = p.numeroProcesso;
   document.getElementById("svPrevDataChegada").value = p.dataChegada;
   document.getElementById("svPrevStatus").value = p.status;
+  document.getElementById("svPrevDtc").checked = !!p.dtc;
   document.getElementById("svPrevArmazem").value = p.armazem;
   document.getElementById("svPrevObs").value = p.obs;
 
@@ -790,6 +829,7 @@ async function svSalvarPrevistoDados(e) {
   const numeroProcesso = document.getElementById("svPrevNumeroProcesso").value.trim();
   const dataChegada = document.getElementById("svPrevDataChegada").value;
   const status = document.getElementById("svPrevStatus").value;
+  const dtc = document.getElementById("svPrevDtc").checked;
   const armazem = document.getElementById("svPrevArmazem").value;
   const obs = document.getElementById("svPrevObs").value.trim();
   if (!numeroProcesso) { toast("Informe o número do processo."); return; }
@@ -802,7 +842,7 @@ async function svSalvarPrevistoDados(e) {
     if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
     itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10) });
   }
-  const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs };
+  const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs, dtc };
 
   if (svEditandoPrevistoId) {
     // com dados atualizados: alguém pode ter reservado desse processo agora há pouco
