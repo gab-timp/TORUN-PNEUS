@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=156">
+<link rel="stylesheet" href="styles.css?v=157">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -620,6 +620,10 @@
             <div class="field">
               <label>Status</label>
               <select id="prevStatus"></select>
+            </div>
+            <div class="field prev-dtc-field">
+              <label for="prevDtc">Etiqueta</label>
+              <label class="prev-dtc-caixa" for="prevDtc"><input type="checkbox" id="prevDtc"><span>DTC</span></label>
             </div>
             <div class="field">
               <label>Representantes (opcional)</label>
@@ -3071,11 +3075,16 @@
         <div class="prev-detalhe-titulo-linha">
           <span class="mono prev-detalhe-titulo" id="prevDetalheTitulo"></span>
           <span class="prev-status-badge" id="prevDetalheStatus"></span>
+          <span class="kanban-card-tag dtc" id="prevDetalheDtcTag" style="display:none;">DTC</span>
         </div>
       </div>
       <button type="button" class="btn small outline" id="prevDetalheX" aria-label="Fechar">✕</button>
     </div>
     <div class="prev-detalhe-info" id="prevDetalheInfo"></div>
+    <label class="prev-dtc-caixa prev-dtc-janela" for="prevDetalheDtc">
+      <input type="checkbox" id="prevDetalheDtc">
+      <span><b>DTC</b><small>Marcada, o card mostra a etiqueta DTC. Vale em qualquer coluna e salva na hora.</small></span>
+    </label>
     <div class="prev-detalhe-bloco">
       <span class="prev-detalhe-lbl">Medidas do processo</span>
       <div id="prevDetalheMedidas"></div>
@@ -3116,6 +3125,6 @@
   </div>
 </div>
 
-<script src="app.js?v=242"></script>
+<script src="app.js?v=243"></script>
 </body>
 </html>

@@ -18,6 +18,9 @@
   --pink:#EC4899;
   --pink-deep:#BE185D;
   --pink-pale:#FCE7F3;
+  --indigo:#6366F1;
+  --indigo-deep:#4338CA;
+  --indigo-pale:#E7E7FE;
   --tint-orange:#FFF4EC;
   --tint-blue:#EEF4FF;
   --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 10px 24px -14px rgba(0,0,0,.14);
@@ -1625,7 +1628,7 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .prev-card.st-porto{border-left-color:var(--orange);}
 .prev-card.st-agua{border-left-color:var(--blue);}
 .prev-card.st-presenca{border-left-color:var(--pink);}
-.prev-card.st-dtc{border-left-color:var(--status-good-border);}
+.prev-card.st-atracado{border-left-color:var(--indigo);}
 .prev-card.st-chegou{border-left-color:var(--status-good-border);}
 .prev-card-head{
   display:flex;
@@ -1661,7 +1664,7 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .prev-status-badge.st-porto{background:var(--orange-pale); color:var(--orange-deep); border:1px solid var(--orange);}
 .prev-status-badge.st-agua{background:var(--blue-pale); color:var(--blue-deep); border:1px solid var(--blue);}
 .prev-status-badge.st-presenca{background:var(--pink-pale); color:var(--pink-deep); border:1px solid var(--pink);}
-.prev-status-badge.st-dtc{background:var(--status-good-pale); color:var(--status-good); border:1px solid var(--status-good-border);}
+.prev-status-badge.st-atracado{background:var(--indigo-pale); color:var(--indigo-deep); border:1px solid var(--indigo);}
 .prev-status-badge.st-chegou{background:var(--status-good-pale); color:var(--status-good); border:1px solid var(--status-good-border);}
 .prev-itens-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; font-size:12.5px;}
 .prev-itens-list li{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);}
@@ -2570,6 +2573,17 @@ body.rom-popup-aberto #confirmOverlay, body.rom-popup-aberto #toast{z-index:130;
 .kanban-card-tag.entregue{background:var(--status-good-pale); color:var(--status-good); border-color:var(--status-good-border);}
 .kanban-card-tag.reserva{background:var(--danger-pale); color:var(--danger); border-color:var(--danger-border);}
 .kanban-card-tag.representante{background:#F1E7FB; color:#6B2FA6; border-color:#9B51E0;}
+/* etiqueta DTC do Estoque Previsto (Torun e Sem Venda): mesmo roxo que a coluna DTC tinha antes de virar etiqueta */
+.kanban-card-tag.dtc{background:#F1E7FB; color:#6B2FA6; border-color:#9B51E0;}
+/* caixa "DTC": no formulário (prev-dtc-field) e na janela do card (prev-dtc-janela) */
+.prev-dtc-caixa{display:flex; align-items:center; gap:10px; background:#F1E7FB; border:1px solid #9B51E0; border-radius:10px;
+  padding:9px 12px; min-height:38px; box-sizing:border-box; cursor:pointer; color:#6B2FA6; font-size:13px; font-weight:800;}
+.prev-dtc-caixa input{width:18px; height:18px; margin:0; accent-color:#9B51E0; flex:none;}
+.prev-dtc-caixa input:disabled{cursor:not-allowed;}
+.prev-dtc-caixa span{display:flex; flex-direction:column; gap:2px;}
+.prev-dtc-caixa small{font-size:11.5px; font-weight:500; color:#5C3A85;}
+.prev-dtc-field{flex:0 1 120px; min-width:100px;}
+.prev-dtc-janela{margin-bottom:18px;}
 
 .cte-tag{
   border:1px solid var(--orange); background:var(--orange-pale); color:var(--orange-deep);
