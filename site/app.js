@@ -68,14 +68,15 @@ let vendasMostrarTodas = false;
 
 const CONFLITO_MSG = "Este registro foi alterado por outra pessoa enquanto você editava. A tela foi atualizada com a versão mais recente — confira e tente salvar de novo.";
 
-const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "AGUARDANDO PRESENÇA", "DTC", "AGUARDANDO RETIRADA DO PORTO", "FINALIZADO"];
+// O DTC não é mais uma coluna: virou a etiqueta `dtc` do processo (previsoes.dtc), que vale em qualquer coluna.
+const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "ATRACADO", "AGUARDANDO PRESENÇA", "AGUARDANDO RETIRADA DO PORTO", "FINALIZADO"];
 // cor de cada coluna do kanban do Estoque Previsto (accent = borda/contador, deep = texto, pale = fundo do título)
 const PREVISTO_COR = {
   "AGUARDANDO PRONTIDÃO": { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" },
   "AGUARDANDO EMBARQUE": { accent: "#FF6A13", deep: "#C64F0C", pale: "#FFE7D6" },
   "PROCESSO EM AGUA": { accent: "#2F80ED", deep: "#1D4FA8", pale: "#E4EEFD" },
+  "ATRACADO": { accent: "#6366F1", deep: "#4338CA", pale: "#E7E7FE" },
   "AGUARDANDO PRESENÇA": { accent: "#EC4899", deep: "#BE185D", pale: "#FCE7F3" },
-  "DTC": { accent: "#9B51E0", deep: "#6B2FA6", pale: "#F1E7FB" },
   "AGUARDANDO RETIRADA DO PORTO": { accent: "#D97706", deep: "#92400E", pale: "#FCECC9" },
   "FINALIZADO": { accent: "#22C55E", deep: "#15803D", pale: "#E1F8E8" }
 };
@@ -354,7 +355,8 @@ function previstoToRow(p) {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [],
     data_chegada: p.dataChegada || null, status: p.status, obs: p.obs || null,
     representantes, representante: representantes[0] || null,
-    quantidade_containers: p.quantidadeContainers || null
+    quantidade_containers: p.quantidadeContainers || null,
+    dtc: !!p.dtc
   };
 }
 function previstoFromRow(r) {
@@ -364,6 +366,7 @@ function previstoFromRow(r) {
     id: r.id, numeroProcesso: r.numero_processo, itens: r.itens || [],
     dataChegada: r.data_chegada || "", status: r.status, obs: r.obs || "", representantes,
     quantidadeContainers: r.quantidade_containers || null,
+    dtc: !!r.dtc,
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -1176,8 +1179,8 @@ function populatePrevistoStatusSelects() {
 function statusBadgeClass(status) {
   if (status === "AGUARDANDO RETIRADA DO PORTO") return "st-porto";
   if (status === "PROCESSO EM AGUA") return "st-agua";
+  if (status === "ATRACADO") return "st-atracado";
   if (status === "AGUARDANDO PRESENÇA") return "st-presenca";
-  if (status === "DTC") return "st-dtc";
   if (status === "FINALIZADO") return "st-chegou";
   return "st-aguardando";
 }
@@ -1347,6 +1350,7 @@ function renderPrevistos() {
             ${p.dataChegada
               ? `<span class="kanban-card-tag ${status === "FINALIZADO" ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
               : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
+            ${p.dtc ? `<span class="kanban-card-tag dtc" title="Processo com DTC">DTC</span>` : ""}
             ${p.representantes.map(nome => `<span class="kanban-card-tag" title="Representante vinculado">${escapeHtml(nome)}</span>`).join("")}
           </div>
           ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
@@ -1373,6 +1377,7 @@ function abrirPrevistoDetalhe(id) {
   const badge = document.getElementById("prevDetalheStatus");
   badge.className = "prev-status-badge " + statusBadgeClass(p.status);
   badge.textContent = p.status;
+  atualizarDtcDaJanela(p);
 
   const valor = (html, vazio) => `<div class="prev-detalhe-valor${vazio ? " vazio" : ""}">${html}</div>`;
   document.getElementById("prevDetalheInfo").innerHTML = `
@@ -1407,6 +1412,36 @@ function fecharPrevistoDetalhe() {
   prevDetalheId = null;
 }
 
+// etiqueta DTC ao lado do status e caixa "DTC" da janela do card (só quem edita mexe na caixa)
+function atualizarDtcDaJanela(p) {
+  document.getElementById("prevDetalheDtcTag").style.display = p.dtc ? "" : "none";
+  const caixa = document.getElementById("prevDetalheDtc");
+  caixa.checked = !!p.dtc;
+  caixa.disabled = !podeEditarPrevisoes();
+}
+
+// Marca/desmarca o DTC na hora, sem passar pelo formulário (mesmo jeito de mover o card de coluna).
+async function alternarDtcPrevisto(id, valor) {
+  const alvo = state.previsoes.find(x => x.id === id);
+  if (!alvo) return;
+  const anterior = !!alvo.dtc;
+  alvo.dtc = valor;
+  // .select().single() pra atualizar o updatedAt local: sem isso, "Editar" logo em seguida dava conflito de edição
+  const { data: rowAtualizada, error } = await sb.from("previsoes").update({ dtc: valor }).eq("id", id).select().single();
+  if (error) {
+    alvo.dtc = anterior;
+    atualizarDtcDaJanela(alvo);
+    toast("Erro ao salvar o DTC: " + error.message);
+    return;
+  }
+  if (rowAtualizada) alvo.updatedAt = rowAtualizada.updated_at;
+  await registrarLog("previsoes", id, "edicao", "Ação automática",
+    `DTC do processo ${alvo.numeroProcesso} ${valor ? "marcado" : "desmarcado"}`);
+  atualizarDtcDaJanela(alvo);
+  renderPrevistos();
+  toast(valor ? "DTC marcado." : "DTC desmarcado.");
+}
+
 async function excluirPrevisto(id) {
   const motivo = await motivoModal("Excluir processo previsto?", "Remove esse processo e as medidas associadas a ele desta lista. Informe o motivo da exclusão.");
   if (!motivo) return false;
@@ -1426,6 +1461,9 @@ function initPrevDetalhe() {
   document.getElementById("prevDetalheFechar").addEventListener("click", fecharPrevistoDetalhe);
   document.getElementById("prevDetalheOverlay").addEventListener("click", (e) => {
     if (e.target.id === "prevDetalheOverlay") fecharPrevistoDetalhe();
+  });
+  document.getElementById("prevDetalheDtc").addEventListener("change", (e) => {
+    if (prevDetalheId) alternarDtcPrevisto(prevDetalheId, e.target.checked);
   });
   document.getElementById("prevDetalheEditar").addEventListener("click", () => {
     const id = prevDetalheId;
@@ -1461,6 +1499,7 @@ function startEditPrevisto(id) {
   document.getElementById("prevNumeroProcesso").value = p.numeroProcesso;
   document.getElementById("prevDataChegada").value = p.dataChegada || "";
   document.getElementById("prevStatus").value = p.status;
+  document.getElementById("prevDtc").checked = !!p.dtc;
   document.getElementById("prevObs").value = p.obs || "";
   document.getElementById("prevContainers").value = p.quantidadeContainers || ""; // processo antigo vem vazio: precisa preencher pra salvar
   renderPrevRepLista(p.representantes);
@@ -8183,6 +8222,7 @@ function initForms() {
     const numeroProcesso = document.getElementById("prevNumeroProcesso").value.trim();
     const dataChegada = document.getElementById("prevDataChegada").value;
     const status = document.getElementById("prevStatus").value;
+    const dtc = document.getElementById("prevDtc").checked;
     const obs = document.getElementById("prevObs").value.trim();
     const representantes = prevRepSelecionados();
     if (!numeroProcesso) { toast("Informe o número do processo."); return; }
@@ -8210,7 +8250,7 @@ function initForms() {
       const p = state.previsoes.find(x => x.id === editingPrevistoId);
       const { conflict, error, row } = await updateWithConflictCheck(
         "previsoes", editingPrevistoId, editingPrevistoUpdatedAt,
-        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers })
+        previstoToRow({ id: editingPrevistoId, numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers, dtc })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
@@ -8227,7 +8267,7 @@ function initForms() {
       return;
     }
 
-    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers };
+    const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers, dtc };
     const { data: inserido, error } = await sb.from("previsoes").insert({ ...previstoToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
     state.previsoes.push(previstoFromRow(inserido[0]));
