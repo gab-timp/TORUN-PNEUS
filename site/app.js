@@ -67,12 +67,13 @@ let vendasMostrarTodas = false;
 
 const CONFLITO_MSG = "Este registro foi alterado por outra pessoa enquanto você editava. A tela foi atualizada com a versão mais recente — confira e tente salvar de novo.";
 
-const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "DTC", "AGUARDANDO RETIRADA DO PORTO", "FINALIZADO"];
+const PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "AGUARDANDO PRESENÇA", "DTC", "AGUARDANDO RETIRADA DO PORTO", "FINALIZADO"];
 // cor de cada coluna do kanban do Estoque Previsto (accent = borda/contador, deep = texto, pale = fundo do título)
 const PREVISTO_COR = {
   "AGUARDANDO PRONTIDÃO": { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" },
   "AGUARDANDO EMBARQUE": { accent: "#FF6A13", deep: "#C64F0C", pale: "#FFE7D6" },
   "PROCESSO EM AGUA": { accent: "#2F80ED", deep: "#1D4FA8", pale: "#E4EEFD" },
+  "AGUARDANDO PRESENÇA": { accent: "#EC4899", deep: "#BE185D", pale: "#FCE7F3" },
   "DTC": { accent: "#9B51E0", deep: "#6B2FA6", pale: "#F1E7FB" },
   "AGUARDANDO RETIRADA DO PORTO": { accent: "#D97706", deep: "#92400E", pale: "#FCECC9" },
   "FINALIZADO": { accent: "#22C55E", deep: "#15803D", pale: "#E1F8E8" }
@@ -1171,6 +1172,7 @@ function populatePrevistoStatusSelects() {
 function statusBadgeClass(status) {
   if (status === "AGUARDANDO RETIRADA DO PORTO") return "st-porto";
   if (status === "PROCESSO EM AGUA") return "st-agua";
+  if (status === "AGUARDANDO PRESENÇA") return "st-presenca";
   if (status === "DTC") return "st-dtc";
   if (status === "FINALIZADO") return "st-chegou";
   return "st-aguardando";
