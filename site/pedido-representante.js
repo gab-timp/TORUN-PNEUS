@@ -610,10 +610,12 @@ function createItemRowRep() {
     // não faz sentido continuar "travado" pro produto novo.
     delete tr.querySelector(".rep-item-valor").dataset.manual;
     preencherValorSugerido(tr, codigo);
+    atualizarAvisoEstoqueRep(tr);
   }
 
   buscaInput.addEventListener("input", () => {
     codigoInput.value = "";
+    atualizarAvisoEstoqueRep(tr);
     renderProdutoComboLista(combolista, buscaInput.value);
   });
   buscaInput.addEventListener("focus", () => renderProdutoComboLista(combolista, buscaInput.value));
@@ -635,8 +637,55 @@ function createItemRowRep() {
     tr.remove();
     recalcularTotais();
     updateRemoveVisibilityRep();
+    atualizarBannerEstoqueRep(false);
   });
   return tr;
+}
+
+/* ---------------- aviso e trava de estoque por item (pedido novo) ---------------- */
+
+// "zerado" = saldo <= 0 (trava o envio); "baixo" = saldo > 0 e abaixo do limite
+// configurado em Administração (só avisa). Mesmo critério de statusEstoque().
+function atualizarAvisoEstoqueRep(tr) {
+  const antigo = tr.querySelector(".estoque-aviso-linha");
+  if (antigo) antigo.remove();
+  tr.classList.remove("estoque-baixo", "estoque-zerado");
+  const codigo = tr.querySelector(".rep-item-produto").value;
+  if (codigo) {
+    const saldo = computeSaldoProduto(codigo);
+    const status = statusEstoque(saldo);
+    const nivel = status === "esgotado" ? "zerado" : (status === "baixo" ? "baixo" : null);
+    if (nivel) {
+      tr.classList.add("estoque-" + nivel);
+      const aviso = nivel === "zerado"
+        ? `<div class="estoque-aviso zerado">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>
+            <span>Sem estoque — não dá pra pedir</span>
+          </div>`
+        : `<div class="estoque-aviso baixo">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4.5"/><path d="M12 17.6v.1"/></svg>
+            <span>Estoque baixo: <span class="mono">${saldo} un.</span></span>
+          </div>`;
+      tr.querySelector(".produto-combo").insertAdjacentHTML("afterend", `<div class="estoque-aviso-linha">${aviso}</div>`);
+      atualizarBannerEstoqueRep(false);
+      return { nivel, saldo };
+    }
+  }
+  atualizarBannerEstoqueRep(false);
+  return null;
+}
+
+// Faixa vermelha acima do botão: só aparece depois de tentar salvar com medida zerada, e
+// some sozinha quando a última linha zerada é trocada ou removida.
+function atualizarBannerEstoqueRep(forcarMostrar) {
+  const banner = document.getElementById("repAvisoEstoque");
+  const zerados = [...new Set(Array.from(document.querySelectorAll("#repItens tr.estoque-zerado"))
+    .map(tr => tr.querySelector(".rep-item-produto-busca").value))];
+  if (!zerados.length) { banner.style.display = "none"; return; }
+  if (!forcarMostrar && banner.style.display === "none") return;
+  document.getElementById("repAvisoEstoqueTexto").textContent =
+    `Tire ${zerados.length > 1 ? "as medidas sem estoque" : "a medida sem estoque"} pra continuar: ${zerados.join("; ")}.`;
+  banner.style.display = "flex";
 }
 
 function preencherValorSugerido(tr, codigo) {
@@ -1726,6 +1775,7 @@ function resetFormularioRep() {
   document.getElementById("repClienteGrid").style.display = "none";
   document.getElementById("repItensBox").style.display = "none";
   document.getElementById("repItens").innerHTML = "";
+  document.getElementById("repAvisoEstoque").style.display = "none";
   document.getElementById("repClienteErro").style.display = "none";
   document.getElementById("repNumeroPedido").textContent = "a gerar";
   clienteAtual = null;
@@ -1789,6 +1839,17 @@ async function salvarPedidoRep() {
   }
   if (!itens.length) {
     toast("Adicione ao menos um item ao pedido.");
+    return;
+  }
+  // Trava: medida com saldo zerado não passa, pra ninguém. Só na tela -- o banco não barra.
+  let temSemEstoque = false;
+  rows.forEach(tr => {
+    const info = atualizarAvisoEstoqueRep(tr);
+    if (info && info.nivel === "zerado") temSemEstoque = true;
+  });
+  if (temSemEstoque) {
+    atualizarBannerEstoqueRep(true);
+    document.getElementById("repAvisoEstoque").scrollIntoView({ block: "nearest", behavior: "smooth" });
     return;
   }
   const btnProposta = document.getElementById("btnGerarPropostaRep");
