@@ -818,12 +818,12 @@ function atualizarAlertaNovaProposta() {
 /* ---------------- toast / modal ---------------- */
 
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, ms) {
   const el = document.getElementById("toast");
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+  toastTimer = setTimeout(() => el.classList.remove("show"), ms || 2600);
 }
 
 function confirmModal(title, text, okLabel, cancelLabel) {
@@ -1696,6 +1696,46 @@ function renderProdutoSelects() {
   });
 }
 
+/* ---------------- novo pedido: aviso e trava de estoque por medida ---------------- */
+
+// "zerado" = saldo <= 0 (trava o pedido novo); "baixo" = saldo > 0 e abaixo do limite
+// configurado em Administração (só avisa). Mesmo critério de statusEstoque().
+function nivelEstoqueItem(codigo) {
+  if (!codigo) return null;
+  const saldo = computeProdutoTotais(codigo).saldo;
+  const status = statusEstoque(saldo);
+  if (status === "esgotado") return { nivel: "zerado", saldo };
+  if (status === "baixo") return { nivel: "baixo", saldo };
+  return null;
+}
+
+function estoqueAvisoHTML(info) {
+  if (info.nivel === "zerado") {
+    return `<div class="estoque-aviso zerado">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>
+      <span>Sem estoque — não dá pra pedir</span>
+    </div>`;
+  }
+  return `<div class="estoque-aviso baixo">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4.5"/><path d="M12 17.6v.1"/></svg>
+    <span>Estoque baixo: <span class="mono">${info.saldo} un.</span></span>
+  </div>`;
+}
+
+// Redesenha o aviso da linha conforme a medida escolhida; devolve o nível ou null.
+// Só vale pra pedido NOVO: ao editar um pedido que já existe, a linha fica como estava.
+function atualizarAvisoEstoqueLinha(row) {
+  const antigo = row.querySelector(".estoque-aviso-linha");
+  if (antigo) antigo.remove();
+  row.classList.remove("estoque-baixo", "estoque-zerado");
+  if (editingPedidoId) return null;
+  const info = nivelEstoqueItem(row.querySelector(".item-produto").value);
+  if (!info) return null;
+  row.classList.add("estoque-" + info.nivel);
+  row.insertAdjacentHTML("beforeend", `<div class="estoque-aviso-linha">${estoqueAvisoHTML(info)}</div>`);
+  return info;
+}
+
 /* ---------------- entrada/saída: linhas de medida (item rows) ---------------- */
 
 function createItemRow(containerId, comProcesso) {
@@ -1707,6 +1747,11 @@ function createItemRow(containerId, comProcesso) {
     ${comProcesso ? `<input type="text" class="item-processo" placeholder="Processo (ex: 3061-26)">` : ""}
     <button type="button" class="btn small danger item-remove" title="Remover medida">✕</button>
   `;
+  if (containerId === "pedItens") {
+    const atualizarAviso = () => atualizarAvisoEstoqueLinha(row);
+    row.querySelector(".item-produto").addEventListener("change", atualizarAviso);
+    row.querySelector(".item-qtd").addEventListener("input", atualizarAviso);
+  }
   row.querySelector(".item-remove").addEventListener("click", () => {
     const container = document.getElementById(containerId);
     if (container.children.length > 1) {
@@ -4786,6 +4831,22 @@ function initEntregas() {
       if (!codigo && !quantidadeRaw) continue;
       if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
       itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10), processo: processoItem || null });
+    }
+
+    // Trava de pedido NOVO: medida com saldo zerado não passa, pra ninguém. Só na tela --
+    // o banco não barra. Pedido já existente (edição) segue como antes.
+    if (!editingPedidoId) {
+      const semEstoque = new Set();
+      rows.forEach(row => {
+        const info = atualizarAvisoEstoqueLinha(row);
+        if (info && info.nivel === "zerado") {
+          semEstoque.add(row.querySelector(".item-produto").selectedOptions[0].textContent);
+        }
+      });
+      if (semEstoque.size) {
+        toast(`Pedido não foi salvo. Tire ${semEstoque.size > 1 ? "as medidas sem estoque" : "a medida sem estoque"} pra continuar: ${[...semEstoque].join("; ")}.`, 6000);
+        return;
+      }
     }
 
     const dados = {

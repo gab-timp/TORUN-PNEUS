@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=131">
+<link rel="stylesheet" href="styles.css?v=132">
 <link rel="stylesheet" href="pedido-representante.css?v=22">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -225,6 +225,14 @@
         <div class="rep-doc-obs-grid">
           <div class="field"><label>Observações para o pedido</label><textarea id="repObs" rows="2"></textarea></div>
           <div class="field"><label>Observações para impressão na NF</label><textarea id="repObsImpressaoNF" rows="2"></textarea></div>
+        </div>
+
+        <div class="rep-aviso-estoque" id="repAvisoEstoque" role="alert" style="display:none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>
+          <div>
+            <div class="rep-aviso-estoque-titulo">Pedido não foi salvo</div>
+            <div class="rep-aviso-estoque-texto" id="repAvisoEstoqueTexto"></div>
+          </div>
         </div>
 
         <div class="rep-doc-actions">
@@ -678,6 +686,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=50"></script>
+<script src="pedido-representante.js?v=51"></script>
 </body>
 </html>
