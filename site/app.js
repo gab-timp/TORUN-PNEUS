@@ -4068,6 +4068,40 @@ function initAssinaturaCanvas() {
   ["pointerup", "pointerleave", "pointercancel"].forEach(ev => canvas.addEventListener(ev, () => { romDrawing = false; }));
 }
 
+// A imagem salva é o quadro inteiro do tablet, quase todo vazio -- na tela do romaneio e no PDF ela
+// é encolhida pra caber (150 px / 160 px de altura) e o traço vira miniatura. Recorta em volta do
+// traço, com margem de 20 px (em px da tela, então escala com o dpr do aparelho). Sem nenhum pixel
+// desenhado (ex: só um toque, sem arrastar), ou se a leitura do quadro falhar, devolve o quadro inteiro.
+function recortarCanvasAssinatura(canvas) {
+  try {
+    const w = canvas.width, h = canvas.height;
+    const px = canvas.getContext("2d").getImageData(0, 0, w, h).data;
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      const linha = y * w * 4;
+      for (let x = 0; x < w; x++) {
+        if (px[linha + x * 4 + 3] === 0) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        maxY = y;
+      }
+    }
+    if (maxX < 0) return canvas;
+    const margem = Math.round(20 * (window.devicePixelRatio || 1));
+    const x0 = Math.max(0, minX - margem), y0 = Math.max(0, minY - margem);
+    const x1 = Math.min(w, maxX + 1 + margem), y1 = Math.min(h, maxY + 1 + margem);
+    const recorte = document.createElement("canvas");
+    recorte.width = x1 - x0;
+    recorte.height = y1 - y0;
+    recorte.getContext("2d").drawImage(canvas, x0, y0, x1 - x0, y1 - y0, 0, 0, x1 - x0, y1 - y0);
+    return recorte;
+  } catch (err) {
+    console.error("Não deu pra recortar a assinatura, salvando o quadro inteiro:", err);
+    return canvas;
+  }
+}
+
 async function salvarEAssinarRomaneio() {
   const r = coletaRomaneioAtual();
   const e = r && state.entregas.find(x => x.id === r.entregaId);
@@ -4107,7 +4141,7 @@ async function salvarEAssinarRomaneio() {
   rotulo.textContent = "Salvando…";
   atualizarBotoesPopupAssinatura();
   try {
-    const canvas = document.getElementById("assinaturaCanvas");
+    const canvas = recortarCanvasAssinatura(document.getElementById("assinaturaCanvas"));
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error("Não foi possível gerar a imagem da assinatura.");
     const path = `${r.id}/assinatura-${Date.now()}.png`;
