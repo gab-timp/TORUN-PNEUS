@@ -2028,7 +2028,6 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
   background:#F7F7F5; overflow:hidden; touch-action:none;
 }
 .romaneio-canvas-box img{width:100%; height:100%; object-fit:contain; display:block;}
-.romaneio-canvas-linha{position:absolute; left:24px; right:24px; bottom:46px; border-top:1px solid #111111; opacity:.35; pointer-events:none;}
 .romaneio-canvas-box.travado{border-style:solid; cursor:default;}
 #romAssinaturaSalva{height:150px;}
 
