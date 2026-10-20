@@ -130,7 +130,15 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-link-ok{color:var(--status-good);}
 .sv-link-ok:hover{color:var(--status-good-deep);}
 .status-pill.pill-azul{background:var(--blue-pale);color:var(--blue-deep);}
-@media (max-width: 980px){.sv-reserva-layout{grid-template-columns:1fr;}}
+/* a lista de Reservas tem 8 colunas: com menos espaço lateral nas células e a pílula de situação quebrando em
+   duas linhas ("AGUARDANDO / CHEGADA") ela cabe ao lado do formulário em 1440px; abaixo disso o formulário
+   passa pra cima da lista, em vez de a lista rolar na horizontal e cortar os links de ação */
+#view-sv-reserva thead th, #view-sv-reserva tbody td{padding-left:8px;padding-right:8px;}
+#view-sv-reserva .status-pill{white-space:normal;line-height:1.25;}
+@media (max-width: 1400px){
+  .sv-reserva-layout{grid-template-columns:minmax(0,1fr);}
+  .sv-reserva-form{max-width:560px;}
+}
 /* viewer não vê o formulário (.sv-write some): sem isso a tabela ficaria espremida na coluna de 320px */
 body.is-viewer .sv-reserva-layout{grid-template-columns:minmax(0,1fr);}
 
