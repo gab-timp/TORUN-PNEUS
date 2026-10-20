@@ -1254,9 +1254,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .report-select-btn:focus-visible, .report-select-btn[aria-expanded="true"]{
   border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);
 }
-.report-marca-panel, .report-codigo-panel, .prev-rep-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
+.report-marca-panel, .report-codigo-panel, .report-status-panel, .prev-rep-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
 /* o painel de representantes fica dentro de um .field, cujo label vira "MAIÚSCULA PEQUENA"; aqui os nomes ficam normais */
-.prev-rep-panel .dash-filter-item{text-transform:none; letter-spacing:0; font-size:12.5px; font-weight:400; color:var(--ink);}
+.report-status-panel .dash-filter-item, .prev-rep-panel .dash-filter-item{text-transform:none; letter-spacing:0; font-size:12.5px; font-weight:400; color:var(--ink);}
 /* várias tags de representante no cartão do processo: quebram por tag inteira, não no meio do nome */
 .prev-card-head .kanban-card-tag{white-space:nowrap;}
 
@@ -1870,6 +1870,17 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .print-report-table th{background:#f2f2f2; font-weight:700;}
 .print-report-table td.num{text-align:right; font-family:'Space Mono',monospace;}
 .print-report-table td.list-cell{line-height:1.7; font-size:9.5px;}
+/* relatório largo (colunas com "width"): layout fixo pra caber no A4, quebra palavra longa em vez de estourar */
+.print-report-table.fixed{table-layout:fixed;}
+.print-report-table.fixed th, .print-report-table.fixed td{overflow-wrap:anywhere; vertical-align:top; padding:4px;}
+.print-report-table.fixed td{font-size:9px; line-height:1.4;}
+/* o "thead th" global é nowrap e 10,5px: em coluna estreita o cabeçalho passaria por cima da vizinha */
+.print-report-table.fixed th{font-size:8px; letter-spacing:.02em; white-space:normal;}
+.print-report-table td.mono{font-family:'Space Mono',monospace;}
+.print-report-table.fixed td.m{font-size:8.5px;}
+/* grupo mesclado (várias linhas com a mesma célula de processo/medida) fica inteiro numa página */
+.print-report-table tbody.grupo{page-break-inside:avoid; break-inside:avoid;}
+.print-report-table tr.gi td{border-top:2px solid #555;}
 /* grupo com muitos itens gera uma linha bem alta -- evita que ela seja cortada
    ao meio entre duas páginas na hora de imprimir/gerar PDF */
 .print-report-table tr{page-break-inside:avoid; break-inside:avoid;}
