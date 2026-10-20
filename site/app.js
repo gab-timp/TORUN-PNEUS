@@ -945,7 +945,7 @@ function setView(view) {
   if (view === "historicocredito") renderHistoricoCredito();
   if (view === "fluxocaixa") renderFluxoCaixa();
   if (view === "historico") renderHistorico();
-  if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); }
+  if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); renderRelatorioStatusListas(); }
   if (view === "administracao") renderAdministracao();
 }
 
@@ -1622,10 +1622,88 @@ function marcasResumo(marcas) {
   return marcas.map(m => m || "Sem marca").join(", ");
 }
 
-// fecha os painéis de filtro (código e marca) de todos os cartões de relatório
+/* ---- filtro de status do relatório de Estoque previsto: mesmo painel de caixas; Finalizado já vem desmarcado ---- */
+
+const PREVISTO_STATUS_FORA_DO_PADRAO = ["FINALIZADO"];
+
+// "AGUARDANDO PRONTIDÃO" -> "Aguardando prontidão" (o status é gravado em caixa alta)
+function statusLegivel(s) {
+  const t = String(s || "").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function relatorioStatusCards() {
+  return Array.from(document.querySelectorAll(".report-card")).filter(c => c.querySelector(".report-status-lista"));
+}
+
+function relatorioStatusSelecionados(card) {
+  return Array.from(card.querySelectorAll(".report-status-lista input")).filter(cb => cb.checked).map(cb => cb.dataset.status);
+}
+
+function atualizarBotaoStatusRelatorio(card) {
+  const checkboxes = card.querySelectorAll(".report-status-lista input");
+  const total = checkboxes.length;
+  const marcados = Array.from(checkboxes).filter(cb => cb.checked).length;
+  const btn = card.querySelector(".report-status-btn");
+  if (total === 0 || marcados === total) btn.textContent = "Todos os status";
+  else if (marcados === 0) btn.textContent = "Nenhum status selecionado";
+  else btn.textContent = `${marcados} status selecionado${marcados > 1 ? "s" : ""}`;
+}
+
+function renderRelatorioStatusListas() {
+  relatorioStatusCards().forEach(card => {
+    const lista = card.querySelector(".report-status-lista");
+    const jaTinhaItens = lista.children.length > 0;
+    const anterior = jaTinhaItens ? new Set(relatorioStatusSelecionados(card)) : null;
+    lista.innerHTML = PREVISTO_STATUS.map(s => `
+      <label class="dash-filter-item">
+        <input type="checkbox" data-status="${escapeAttr(s)}" ${(jaTinhaItens ? anterior.has(s) : !PREVISTO_STATUS_FORA_DO_PADRAO.includes(s)) ? "checked" : ""}>
+        ${escapeHtml(statusLegivel(s))}
+      </label>
+    `).join("");
+    atualizarBotaoStatusRelatorio(card);
+  });
+}
+
+// texto do resumo do PDF: "Todos", "Todos, exceto Finalizado" ou a lista dos escolhidos
+function statusResumo(selecionados) {
+  const faltando = PREVISTO_STATUS.filter(s => !selecionados.includes(s));
+  if (faltando.length === 0) return "Todos";
+  if (selecionados.length === 0) return "Nenhum status selecionado";
+  if (faltando.length < selecionados.length) return "Todos, exceto " + faltando.map(statusLegivel).join(", ");
+  return selecionados.map(statusLegivel).join(", ");
+}
+
+function initRelatorioStatusFiltros() {
+  relatorioStatusCards().forEach(card => {
+    const btn = card.querySelector(".report-status-btn");
+    const panel = card.querySelector(".report-status-panel");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const abrir = panel.style.display === "none";
+      fecharPaineisFiltroRelatorio();
+      panel.style.display = abrir ? "block" : "none";
+      btn.setAttribute("aria-expanded", String(abrir));
+    });
+    card.querySelector(".report-status-lista").addEventListener("change", (e) => {
+      if (!e.target.matches("[data-status]")) return;
+      atualizarBotaoStatusRelatorio(card);
+    });
+    card.querySelector(".report-status-todos").addEventListener("click", () => {
+      card.querySelectorAll(".report-status-lista input").forEach(cb => { cb.checked = true; });
+      atualizarBotaoStatusRelatorio(card);
+    });
+    card.querySelector(".report-status-nenhum").addEventListener("click", () => {
+      card.querySelectorAll(".report-status-lista input").forEach(cb => { cb.checked = false; });
+      atualizarBotaoStatusRelatorio(card);
+    });
+  });
+}
+
+// fecha os painéis de filtro (código, marca e status) de todos os cartões de relatório
 function fecharPaineisFiltroRelatorio() {
-  document.querySelectorAll(".report-codigo-panel, .report-marca-panel").forEach(p => { p.style.display = "none"; });
-  document.querySelectorAll(".report-marca-btn, .report-codigo-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+  document.querySelectorAll(".report-codigo-panel, .report-marca-panel, .report-status-panel").forEach(p => { p.style.display = "none"; });
+  document.querySelectorAll(".report-marca-btn, .report-codigo-btn, .report-status-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
 }
 
 function initRelatorioMarcaFiltros() {
@@ -1679,7 +1757,7 @@ function initRelatorioCodigoFiltros() {
     });
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".report-codigo-wrap, .report-marca-wrap")) fecharPaineisFiltroRelatorio();
+    if (!e.target.closest(".report-codigo-wrap, .report-marca-wrap, .report-status-wrap")) fecharPaineisFiltroRelatorio();
   });
 }
 
@@ -9363,27 +9441,96 @@ const REPORT_DEFS = {
   },
   previsto: {
     title: "Relatório de Estoque Previsto",
+    // o período aqui é o de CHEGADA: em vez do "Período: ..." padrão, o cabeçalho usa o "subtitulo" devolvido pelo build
     hasDateRange: false,
-    build() {
-      const previsoes = state.previsoes.slice().sort((a, b) => a.numeroProcesso.localeCompare(b.numeroProcesso));
+    // filtro2 = status escolhidos no cartão (lista); agrupar = Visualização ("" = por processo, "medida" = por medida).
+    // "grupo" nas linhas + "merge" nas colunas: o PDF mescla a célula nas linhas do mesmo grupo (ver buildReportPrintHtml);
+    // "excelFirstOnly": no Excel o valor só aparece na 1ª linha do grupo, pra não dobrar a soma de quem filtra/soma a coluna.
+    build(de, ate, filtro, codigos, agrupar, filtro2) {
+      const statusEscolhidos = Array.isArray(filtro2) ? filtro2 : PREVISTO_STATUS;
+      const temPeriodo = !!(de || ate);
+      // mais perto de chegar primeiro, sem data no fim; empate pelo número do processo
+      const porChegada = (a, b) => (a.dataChegada ? 0 : 1) - (b.dataChegada ? 0 : 1)
+        || a.dataChegada.localeCompare(b.dataChegada)
+        || a.numeroProcesso.localeCompare(b.numeroProcesso);
+      // com período preenchido, processo sem data de chegada fica de fora (não dá pra saber se cai no intervalo)
+      const previsoes = state.previsoes
+        .filter(p => statusEscolhidos.includes(p.status))
+        .filter(p => !temPeriodo || (p.dataChegada && (!de || p.dataChegada >= de) && (!ate || p.dataChegada <= ate)))
+        .sort(porChegada);
+      const medidaDe = codigo => { const prod = getProduto(codigo); return prod ? prod.medida : "(produto removido)"; };
+      const dataTxt = p => p.dataChegada ? formatDateBR(p.dataChegada) : "";
+      const totalPneus = previsoes.reduce((a, p) => a + p.itens.reduce((s, it) => s + (it.quantidade || 0), 0), 0);
+
+      const chegadaTxt = de && ate ? `de ${formatDateBR(de)} até ${formatDateBR(ate)}` : de ? `a partir de ${formatDateBR(de)}` : `até ${formatDateBR(ate)}`;
+      const subtitulo = `Situação em ${formatDateBR(todayISO())} · Visualização: ${agrupar === "medida" ? "por medida" : "por processo"}`
+        + (temPeriodo ? ` · Chegada ${chegadaTxt}` : "");
+      const resumoBase = [{ label: "Status incluídos", value: statusResumo(statusEscolhidos) }];
+
+      if (agrupar === "medida") {
+        // 1 grupo por código; dentro dele, 1 linha por processo (mesmo código repetido no processo soma)
+        const porCodigo = {};
+        previsoes.forEach(p => p.itens.forEach(it => {
+          const g = porCodigo[it.codigo] || (porCodigo[it.codigo] = { codigo: it.codigo, total: 0, processos: new Map() });
+          const q = it.quantidade || 0;
+          g.total += q;
+          const ja = g.processos.get(p.id);
+          if (ja) ja.qtd += q; else g.processos.set(p.id, { p, qtd: q });
+        }));
+        const grupos = Object.values(porCodigo).sort((a, b) => a.codigo.localeCompare(b.codigo));
+        const columns = [
+          { key: "codigo", label: "Código", merge: true, mono: true, width: 48 },
+          { key: "medida", label: "Medida", merge: true, width: 190 },
+          { key: "total", label: "Total a chegar", numeric: true, merge: true, excelFirstOnly: true, width: 56 },
+          { key: "processo", label: "Processo", mono: true, width: 62 },
+          { key: "qtd", label: "Qtd.", numeric: true, width: 38 },
+          { key: "chegada", label: "Chegada", width: 62 },
+          { key: "status", label: "Status", width: 227 }
+        ];
+        const rows = grupos.flatMap(g => [...g.processos.values()].map(({ p, qtd }) => ({
+          grupo: g.codigo, codigo: g.codigo, medida: medidaDe(g.codigo), total: g.total,
+          processo: p.numeroProcesso, qtd, chegada: dataTxt(p), status: p.status
+        })));
+        const processosIncluidos = new Set(grupos.flatMap(g => [...g.processos.keys()])).size;
+        const summaryLines = [
+          ...resumoBase,
+          { label: "Medidas incluídas", value: fmt(grupos.length) },
+          { label: "Processos incluídos", value: fmt(processosIncluidos) },
+          { label: "Total de pneus a chegar", value: fmt(totalPneus) + " un.", total: true }
+        ];
+        return { columns, rows, summaryLines, subtitulo, grupoBorda: true };
+      }
+
+      // por processo: 1 linha por medida do processo; as colunas do processo são mescladas
       const columns = [
-        { key: "processo", label: "Processo" },
-        { key: "medidas", label: "Medidas", list: true },
-        { key: "status", label: "Status" },
-        { key: "dataChegada", label: "Data de chegada" },
-        { key: "obs", label: "Obs." }
+        { key: "processo", label: "Processo", merge: true, mono: true, width: 62 },
+        { key: "status", label: "Status", merge: true, width: 84 },
+        { key: "dtc", label: "DTC", merge: true, width: 32 },
+        { key: "chegada", label: "Chegada", merge: true, width: 62 },
+        { key: "containers", label: "Contêineres", labelPdf: "Cont.", numeric: true, merge: true, excelFirstOnly: true, width: 36 },
+        { key: "representantes", label: "Representantes", labelPdf: "Repres.", merge: true, width: 52 },
+        { key: "codigo", label: "Código", mono: true, width: 48 },
+        { key: "medida", label: "Medida", small: true, width: 176 },
+        { key: "qtd", label: "Qtd.", numeric: true, width: 38 },
+        { key: "obs", label: "Obs.", merge: true, width: 93 }
       ];
-      const rows = previsoes.map(p => ({
-        processo: p.numeroProcesso,
-        medidas: p.itens.map(it => `${it.codigo} (${fmt(it.quantidade)})`),
-        status: p.status,
-        dataChegada: p.dataChegada ? formatDateBR(p.dataChegada) : "—",
-        obs: p.obs || "—"
-      }));
+      const rows = previsoes.flatMap(p => {
+        const base = {
+          grupo: p.id, processo: p.numeroProcesso, status: p.status, dtc: p.dtc ? "Sim" : "", chegada: dataTxt(p),
+          containers: p.quantidadeContainers, representantes: (p.representantes || []).join(", "), obs: p.obs || ""
+        };
+        const itens = p.itens.length ? p.itens : [null]; // processo sem medida lançada ainda aparece, com a linha em branco
+        return itens.map(it => ({
+          ...base,
+          codigo: it ? it.codigo : "", medida: it ? medidaDe(it.codigo) : "", qtd: it ? (it.quantidade || 0) : null
+        }));
+      });
       const summaryLines = [
-        { label: "Processos em andamento", value: fmt(previsoes.length), total: true }
+        ...resumoBase,
+        { label: "Processos incluídos", value: fmt(previsoes.length) },
+        { label: "Total de pneus a chegar", value: fmt(totalPneus) + " un.", total: true }
       ];
-      return { columns, rows, summaryLines };
+      return { columns, rows, summaryLines, subtitulo };
     }
   },
   frete: {
@@ -9580,25 +9727,54 @@ const REPORT_DEFS = {
 
 function buildReportPrintHtml(def, de, ate, data) {
   const { columns, rows, summaryLines } = data;
-  const periodoTxt = def.hasDateRange
+  // o relatório pode trazer o próprio subtítulo (ex.: Estoque previsto, cujo período é de chegada)
+  const periodoTxt = data.subtitulo || (def.hasDateRange
     ? `Período: ${de ? formatDateBR(de) : "início"} até ${ate ? formatDateBR(ate) : "hoje"}`
-    : `Situação em ${formatDateBR(todayISO())}`;
+    : `Situação em ${formatDateBR(todayISO())}`);
 
-  const theadHtml = columns.map(c => `<th${c.numeric || c.money ? ' style="text-align:right;"' : ""}>${escapeHtml(c.label)}</th>`).join("");
+  const theadHtml = columns.map(c => `<th${c.numeric || c.money ? ' style="text-align:right;"' : ""}>${escapeHtml(c.labelPdf || c.label)}</th>`).join("");
 
-  const tbodyHtml = rows.length
-    ? rows.map(r => `<tr>${columns.map(c => {
-        let val = r[c.key];
-        if (c.list) {
-          const conteudo = Array.isArray(val) && val.length ? val.map(escapeHtml).join("<br>") : "—";
-          return `<td class="list-cell">${conteudo}</td>`;
-        }
-        if (val === undefined || val === null || val === "") val = "—";
-        else if (c.money) val = formatMoney(val);
-        else if (c.numeric) val = fmt(val);
-        return `<td class="${c.numeric || c.money ? "num" : ""}">${escapeHtml(val)}</td>`;
-      }).join("")}</tr>`).join("")
-    : `<tr><td colspan="${columns.length}" style="text-align:center;color:#888;">Nenhum dado encontrado.</td></tr>`;
+  // "width" nas colunas (peso relativo) liga o layout fixo, pra uma tabela larga caber na página A4
+  const larguraTotal = columns.reduce((a, c) => a + (c.width || 0), 0);
+  const temLargura = columns.every(c => c.width);
+  const colgroupHtml = temLargura
+    ? `<colgroup>${columns.map(c => `<col style="width:${(c.width / larguraTotal * 100).toFixed(2)}%">`).join("")}</colgroup>`
+    : "";
+
+  const celulaHtml = (c, r, rowspan) => {
+    let val = r[c.key];
+    const span = rowspan > 1 ? ` rowspan="${rowspan}"` : "";
+    if (c.list) {
+      const conteudo = Array.isArray(val) && val.length ? val.map(escapeHtml).join("<br>") : "—";
+      return `<td class="list-cell"${span}>${conteudo}</td>`;
+    }
+    if (val === undefined || val === null || val === "") val = "—";
+    else if (c.money) val = formatMoney(val);
+    else if (c.numeric) val = fmt(val);
+    const classes = [c.numeric || c.money ? "num" : "", c.mono ? "mono" : "", c.small ? "m" : ""].filter(Boolean).join(" ");
+    return `<td class="${classes}"${span}>${escapeHtml(val)}</td>`;
+  };
+
+  // linhas com "grupo" + colunas com "merge": a célula mesclada ocupa todas as linhas do mesmo grupo,
+  // e cada grupo vira um <tbody> próprio (o navegador não corta um grupo ao meio entre duas páginas)
+  const agrupado = columns.some(c => c.merge) && rows.some(r => r.grupo !== undefined);
+  let tbodyHtml;
+  if (!rows.length) {
+    tbodyHtml = `<tbody><tr><td colspan="${columns.length}" style="text-align:center;color:#888;">Nenhum dado encontrado.</td></tr></tbody>`;
+  } else if (agrupado) {
+    const grupos = [];
+    rows.forEach((r, i) => {
+      if (i > 0 && r.grupo === rows[i - 1].grupo) grupos[grupos.length - 1].push(r);
+      else grupos.push([r]);
+    });
+    tbodyHtml = grupos.map(g => `<tbody class="grupo">${g.map((r, i) =>
+      `<tr${i === 0 && data.grupoBorda ? ' class="gi"' : ""}>${columns.map(c =>
+        c.merge ? (i === 0 ? celulaHtml(c, r, g.length) : "") : celulaHtml(c, r, 1)
+      ).join("")}</tr>`
+    ).join("")}</tbody>`).join("");
+  } else {
+    tbodyHtml = `<tbody>${rows.map(r => `<tr>${columns.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
+  }
 
   const summaryHtml = summaryLines.map(s => `
     <div class="print-report-summary-row ${s.total ? "total" : ""}">
@@ -9616,9 +9792,10 @@ function buildReportPrintHtml(def, de, ate, data) {
           <div class="print-report-sub">Gerado em ${formatDateBR(todayISO())} às ${new Date().toLocaleTimeString("pt-BR")}</div>
         </div>
       </div>
-      <table class="print-report-table">
+      <table class="print-report-table${temLargura ? " fixed" : ""}">
+        ${colgroupHtml}
         <thead><tr>${theadHtml}</tr></thead>
-        <tbody>${tbodyHtml}</tbody>
+        ${tbodyHtml}
       </table>
       <div class="print-report-summary">${summaryHtml}</div>
     </div>
@@ -9661,7 +9838,10 @@ function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar, filtro
       })
     : rows;
 
-  const wsData = [columns.map(c => c.label)].concat(linhas.map(r => columns.map(c => r[c.key] ?? "")));
+  // coluna "excelFirstOnly" (ex.: contêineres, total a chegar): só a 1ª linha de cada grupo leva o valor,
+  // senão quem soma a coluna na planilha conta o mesmo número várias vezes
+  const primeiraDoGrupo = (r, i) => i === 0 || r.grupo === undefined || r.grupo !== linhas[i - 1].grupo;
+  const wsData = [columns.map(c => c.label)].concat(linhas.map((r, i) => columns.map(c => (c.excelFirstOnly && !primeiraDoGrupo(r, i)) ? "" : (r[c.key] ?? ""))));
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, def.title.replace("Relatório de ", "").slice(0, 31));
@@ -9731,13 +9911,14 @@ function initRelatorios() {
     const agruparInput = card.querySelector(".report-agrupar");
     const temCodigos = !!card.querySelector(".report-codigo-lista");
     const temMarcas = !!card.querySelector(".report-marca-lista");
-    // no cartão com filtro de marca, o 2º filtro é a lista de marcas escolhidas; nos outros, o select (ex: Estado)
-    const filtro2Valor = () => temMarcas ? relatorioMarcasSelecionadas(card) : (filtro2Input ? filtro2Input.value : null);
+    const temStatus = !!card.querySelector(".report-status-lista");
+    // no cartão com filtro de marca (ou de status), o 2º filtro é a lista escolhida; nos outros, o select (ex: Estado)
+    const filtro2Valor = () => temMarcas ? relatorioMarcasSelecionadas(card) : temStatus ? relatorioStatusSelecionados(card) : (filtro2Input ? filtro2Input.value : null);
     // "Relatório de Preço" precisa de uma região escolhida pra saber qual preço
     // mostrar -- sem isso o relatório sairia vazio, então barra antes de gerar.
     const validoPraGerar = () => {
       if (reportKey === "precos" && !filtro3Input.value) { toast("Escolha uma região."); return false; }
-      return true;
+      if (temStatus && relatorioStatusSelecionados(card).length === 0) { toast("Escolha ao menos um status."); return false; }      return true;
     };
     const btnPdf = card.querySelector(".report-btn-pdf");
     const btnExcel = card.querySelector(".report-btn-excel");
@@ -9762,6 +9943,7 @@ function initRelatorios() {
   });
   initRelatorioCodigoFiltros();
   initRelatorioMarcaFiltros();
+  initRelatorioStatusFiltros();
 }
 
 function capturarGraficoParaImpressao(chart) {
