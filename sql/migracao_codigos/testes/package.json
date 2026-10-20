@@ -1,0 +1,7 @@
+{
+  "name": "testes-migracao-codigos",
+  "private": true,
+  "type": "module",
+  "description": "Testes do motor de troca de codigos (Postgres em memoria). Nao faz parte do site.",
+  "dependencies": { "@electric-sql/pglite": "0.2.17" }
+}
