@@ -94,7 +94,13 @@ que o saldo de cada produto ficou idêntico.
   recriadas idênticas, dupla execução recusada, desfazer pelo mapa inverso, e cada conferência de segurança
   abortando sem gravar.
 - **Não testado:** o banco real. Por isso o **ensaio** existe: ele roda tudo no banco de verdade, confere e
-  desfaz. Se o ensaio passar, o real passa.
+  desfaz. O real executa exatamente os mesmos passos do ensaio e só difere no final (grava o histórico,
+  limpa o mapa e confirma), então um ensaio sem problemas é um bom sinal, mas não uma garantia absoluta
+  (por exemplo, alguém pode escrever no banco entre o ensaio e o real; por isso a janela sem ninguém).
+- **Repetir os testes** (sempre que alguém editar o motor; não toca em banco nenhum, precisa só de Node):
+  `cd sql/migracao_codigos/testes`, `npm install`, depois `node teste_motor.mjs`,
+  `node teste_motor.mjs 04b_migracao_semvenda.sql` e `node teste_auxiliares.mjs`. Todos devem terminar com
+  "0 falha(s)".
 
 ## Reforços possíveis para o futuro (decisão sua, nada disso é necessário agora)
 
