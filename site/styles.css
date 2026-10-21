@@ -2179,9 +2179,11 @@ body.rom-popup-aberto #confirmOverlay, body.rom-popup-aberto #toast{z-index:130;
 
 /* ---------------- clientes ---------------- */
 .cliente-modal{max-width:720px; max-height:88vh; overflow-y:auto;}
-.cliente-modal-head{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:6px;}
+/* com 3 botões (Arquivos, Editar, Excluir) o nome do cliente era espremido ou os botões passavam da borda do painel
+   em telas médias: sem espaço, os botões descem pra linha de baixo */
+.cliente-modal-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px 12px; margin-bottom:6px;}
 .cliente-modal-head h3{font-size:18px;}
-.cliente-modal-head-actions{display:flex; gap:8px; flex:0 0 auto;}
+.cliente-modal-head-actions{display:flex; flex-wrap:wrap; gap:8px; flex:0 0 auto; max-width:100%;}
 .cliente-modal-edit-form{margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--line);}
 .cliente-modal-info{
   display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; margin:14px 0;
@@ -2493,6 +2495,43 @@ body.rom-popup-aberto #confirmOverlay, body.rom-popup-aberto #toast{z-index:130;
 }
 .anexo-nome:hover{color:var(--orange-deep);}
 .anexo-tamanho{color:var(--ink-soft); font-size:10.5px; flex:0 0 auto;}
+
+/* ---- Arquivos do cliente (botão em Clientes + pasta em pop-up) ---- */
+.btn-ic{width:13px; height:13px; vertical-align:-2px; margin-right:2px;}
+.cli-arq-count{
+  display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 5px;
+  margin-left:3px; border-radius:99px; background:var(--orange); color:#161616; font-size:10.5px; font-weight:800; box-sizing:border-box;
+}
+.cli-arq-modal{width:640px;}
+.cli-arq-sub{font-size:12.5px; color:var(--ink-soft); margin-top:3px;}
+.cli-arq-barra{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 22px;
+  background:var(--paper); border-bottom:1px solid var(--line);
+}
+.cli-arq-dica{font-size:12px; color:var(--ink-soft);}
+.cli-arq-avisos{padding:10px 22px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:4px; background:var(--danger-pale);}
+.cli-arq-avisos div{font-size:12px; color:var(--danger); line-height:1.45;}
+.cli-arq-lista{padding:0; gap:0; min-height:90px;}
+.cli-arq-item{display:flex; align-items:center; gap:14px; padding:13px 22px; border-bottom:1px solid var(--line);}
+.cli-arq-ico{
+  flex:0 0 40px; height:40px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:800; letter-spacing:.04em; border:1px solid var(--line); background:var(--paper-2); color:var(--ink-soft);
+}
+.cli-arq-ico.pdf{background:var(--danger-pale); border-color:var(--danger-border); color:var(--danger);}
+.cli-arq-ico.xls{background:var(--status-good-pale); border-color:var(--status-good-border); color:var(--status-good-deep);}
+.cli-arq-ico.doc{background:var(--warning-pale); border-color:var(--warning-border); color:var(--warning);}
+.cli-arq-corpo{flex:1; min-width:0;}
+.cli-arq-nome{
+  display:block; max-width:100%; padding:0; border:0; background:none; font:inherit; font-size:13.5px; font-weight:600; color:var(--ink);
+  text-align:left; cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.cli-arq-nome:hover{color:var(--orange-deep);}
+.cli-arq-meta{font-size:11.5px; color:var(--ink-soft); margin-top:3px;}
+.cli-arq-estado{font-size:12px; font-weight:700; color:var(--ink-soft); flex:0 0 auto;}
+.cli-arq-vazio{padding:34px 24px; text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.55;}
+.cli-arq-pe{justify-content:space-between; align-items:center;}
+body.is-admin .nao-admin-only{display:none;}
 
 .rastreio-link-box{
   display:flex; align-items:center; gap:8px; margin-bottom:8px;
