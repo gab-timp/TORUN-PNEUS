@@ -8,6 +8,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let currentUserRole = "editor";
 let currentUserVisibleViews = null;
+let currentUserVisibleEtapas = null; // etapas de Entregas liberadas (user_roles.visible_etapas); null = todas
 let currentUserIsAdmin = false;
 let currentUserPodeAutorizarGerencia = false;
 let currentUserPodeExportarBackup = false;
@@ -480,7 +481,10 @@ async function selectTudoPaginado(tabela, ordenarPor, tamanhoPagina = 1000) {
 }
 
 async function loadState() {
-  const [results, configRes] = await Promise.all([
+  // visible_etapas vem numa consulta à parte, sem fetchComRetry e sem aviso: se a coluna ainda não existir no banco
+  // a consulta falha e fica sem restrição de etapas, em vez de derrubar o perfil de todo mundo (ver o select de
+  // user_roles logo abaixo, que não pode ganhar coluna nova antes do SQL rodar).
+  const [results, configRes, etapasRes] = await Promise.all([
     Promise.all([
       fetchComRetry(() => sb.from("produtos").select("*").order("codigo")),
       fetchComRetry(() => selectTudoPaginado("produtos_precos", "id")),
@@ -498,7 +502,8 @@ async function loadState() {
       fetchComRetry(() => sb.from("clientes_pendentes").select("*").eq("status", "pendente").order("created_at")),
       fetchComRetry(() => sb.from("notificacoes").select("*").order("created_at", { ascending: false }).limit(50))
     ]),
-    fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle())
+    fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle()),
+    sb.from("user_roles").select("visible_etapas").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true }))
   ]);
   const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, rastreioEventosRes, representantesRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
@@ -533,6 +538,9 @@ async function loadState() {
   }
   currentUserRole = (roleRes.data && roleRes.data.role) || "editor";
   currentUserVisibleViews = (roleRes.data && roleRes.data.visible_views) || null;
+  currentUserVisibleEtapas = (!etapasRes.error && etapasRes.data && Array.isArray(etapasRes.data.visible_etapas) && etapasRes.data.visible_etapas.length)
+    ? etapasRes.data.visible_etapas : null;
+  document.body.classList.toggle("etapas-restritas", !!currentUserVisibleEtapas);
   currentUserIsAdmin = !!(roleRes.data && roleRes.data.is_admin);
   currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
   currentUserPodeExportarBackup = !!(roleRes.data && roleRes.data.pode_exportar_backup);
@@ -923,6 +931,23 @@ function primeiraViewPermitida() {
 function viewPermitida(view) {
   if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
   return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || view === primeiraViewPermitida();
+}
+
+// Etapas de Entregas que o usuário enxerga; sem lista = todas. Quem tem lista também só manda o pedido pra uma
+// etapa liberada ou pra SEGUINTE à última liberada (a coluna dessa etapa aparece vazia, só pra receber o card).
+function etapaVisivel(etapa) {
+  return !currentUserVisibleEtapas || currentUserVisibleEtapas.includes(etapa);
+}
+function etapaDestinoPermitida(etapa) {
+  if (!currentUserVisibleEtapas) return true;
+  const idx = currentUserVisibleEtapas.map(e => ETAPAS_PEDIDO.indexOf(e)).filter(i => i >= 0);
+  if (!idx.length) return true;
+  const alvo = ETAPAS_PEDIDO.indexOf(etapa);
+  return alvo >= Math.min(...idx) && alvo <= Math.max(...idx) + 1;
+}
+function pedidoVisivelPorId(id) {
+  const e = state.entregas.find(x => x.id === id);
+  return !!e && etapaVisivel(e.etapa);
 }
 
 function setView(view) {
@@ -4374,7 +4399,7 @@ function pedidoCamposFaltando(p) {
 
 function renderEntregas() {
   const search = (document.getElementById("entregaSearch").value || "").trim().toLowerCase();
-  let rows = state.entregas.filter(e => e.reservaStatus !== "pendente" && e.reservaStatus !== "estornada" && !e.cancelado);
+  let rows = state.entregas.filter(e => e.reservaStatus !== "pendente" && e.reservaStatus !== "estornada" && !e.cancelado && etapaVisivel(e.etapa));
   if (search) {
     rows = rows.filter(e => [e.numeroNF, e.numeroPedido, e.cliente, e.transportadora].join(" ").toLowerCase().includes(search));
   }
@@ -4383,8 +4408,14 @@ function renderEntregas() {
 
   ETAPAS_PEDIDO.forEach(etapa => {
     const col = document.getElementById("col" + etapa);
+    // usuário com etapas restritas: só as liberadas aparecem; a seguinte à última aparece vazia ("só envio"),
+    // pra ele conseguir arrastar o pedido pra lá
+    const soEnvio = !etapaVisivel(etapa) && etapaDestinoPermitida(etapa);
+    const colunaEl = col.closest(".kanban-col");
+    colunaEl.style.display = (etapaVisivel(etapa) || soEnvio) ? "" : "none";
+    colunaEl.classList.toggle("so-envio", soEnvio);
     const itens = rows.filter(e => e.etapa === etapa);
-    document.getElementById("count" + etapa).textContent = itens.length;
+    document.getElementById("count" + etapa).textContent = soEnvio ? "→" : itens.length;
     col.innerHTML = itens.map(e => {
       const temValores = (e.itens || []).some(it => it.valorUnitario != null);
       const totalPedido = temValores ? (e.itens || []).reduce((a, it) => a + (it.valorTotal || 0), 0) : 0;
@@ -4462,6 +4493,11 @@ function initKanbanDrag() {
         if (novaEtapa === antigaEtapa) return;
         const alvo = state.entregas.find(x => x.id === id);
         if (!alvo) return;
+        if (!etapaDestinoPermitida(novaEtapa)) {
+          toast("Você só pode mover pedidos entre as etapas liberadas pra você.");
+          renderEntregas();
+          return;
+        }
         if (movimentoExigeAutorizacaoGerencia(antigaEtapa, novaEtapa) && !podeTirarDeAutorizacaoGerencia()) {
           toast("Só um usuário autorizado pode mover esse pedido pra depois de Autorização de Gerência.");
           renderEntregas();
@@ -4514,6 +4550,11 @@ function renderCteToggle() {
 }
 
 function openPedidoModal(id) {
+  // etapas restritas: só abre pedido de etapa liberada (cobre card, busca do topo e sino) e não cria pedido novo
+  if (currentUserVisibleEtapas) {
+    if (!id) { toast("Seu acesso não permite criar pedidos."); return; }
+    if (!pedidoVisivelPorId(id)) { toast("Você não tem acesso a esse pedido."); return; }
+  }
   editingPedidoId = id || null;
 
   if (id) {
@@ -4584,6 +4625,8 @@ function openPedidoModal(id) {
     document.getElementById("btnCancelarPedido").style.display = "none";
   }
 
+  // só as etapas pra onde esse usuário pode mandar o pedido ficam selecionáveis
+  document.querySelectorAll("#pedEtapa option").forEach(o => { o.disabled = !etapaDestinoPermitida(o.value); });
   renderAnexosPedido();
   renderRastreioPedido();
   document.getElementById("pedidoModalOverlay").classList.add("show");
@@ -4995,6 +5038,11 @@ function initEntregas() {
     const clienteCadastro = getCliente(dados.cliente);
     if (clienteCadastro && clienteCadastro.documento) {
       dados.documentoCliente = clienteCadastro.documento;
+    }
+
+    if (!etapaDestinoPermitida(dados.etapa)) {
+      toast("Você não pode mandar o pedido para essa etapa.");
+      return;
     }
 
     if (dados.etapa === "FINALIZADOS") {
@@ -6590,7 +6638,9 @@ function formatTempoRelativo(iso) {
 // Quem tem lista de telas restrita só recebe aviso de tela que pode abrir (o sino e o número vermelho
 // saem daqui). Aviso sem tela de destino (link_view vazio) vale pra todo mundo.
 function notificacoesVisiveis() {
-  return (state.notificacoes || []).filter(n => currentUserAceitaNotifTipo(n.tipo) && (!n.linkView || viewPermitida(n.linkView)));
+  return (state.notificacoes || []).filter(n => currentUserAceitaNotifTipo(n.tipo) && (!n.linkView || viewPermitida(n.linkView))
+    // aviso de pedido: só se o pedido está numa etapa que o usuário enxerga
+    && (!currentUserVisibleEtapas || n.linkView !== "entregas" || pedidoVisivelPorId(n.linkId)));
 }
 
 function renderSinoNotificacoes() {
@@ -6672,6 +6722,7 @@ function buscaGeralResultados(query) {
     .filter(c => c.nome.toLowerCase().includes(q) || (c.documento || "").toLowerCase().includes(q))
     .slice(0, 4);
   const entregas = state.entregas
+    .filter(e => etapaVisivel(e.etapa)) // etapas restritas: pedido de outra etapa nem aparece na busca
     .filter(e =>
       (e.numeroNF || "").toLowerCase().includes(q) ||
       (e.numeroPedido || "").toLowerCase().includes(q) ||

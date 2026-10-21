@@ -2613,6 +2613,13 @@ body.is-admin .nao-admin-only{display:none;}
   transition:transform .15s ease;
   flex:0 0 auto;
 }
+/* coluna "só envio": quem tem etapas restritas vê a etapa seguinte à última liberada vazia, só pra soltar o card */
+.kanban-col.so-envio{border-style:dashed; border-top-style:solid; background:transparent;}
+.kanban-col.so-envio .kanban-col-head span:first-child::after{content:" · só envio"; font-weight:600; text-transform:none; letter-spacing:0; opacity:.8;}
+.kanban-col.so-envio .kanban-cards{min-height:110px; margin:10px; border:2px dashed var(--line); border-radius:10px; padding:0; align-items:center; justify-content:center;}
+.kanban-col.so-envio .kanban-cards:empty::before{content:"Solte aqui para enviar o pedido"; font-size:12px; color:var(--ink-soft); text-align:center; padding:0 12px;}
+/* etapas restritas: sem criar pedido novo nem cancelar pedido */
+body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{display:none !important;}
 .kanban-col.collapsed .kanban-col-toggle{transform:rotate(-90deg);}
 .kanban-col.collapsed .kanban-cards{display:none;}
 .kanban-col.collapsed .kanban-col-head{border-bottom:none; border-radius:8px;}
