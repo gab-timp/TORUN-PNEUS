@@ -6587,8 +6587,10 @@ function formatTempoRelativo(iso) {
   return formatDateBR(iso.slice(0, 10));
 }
 
+// Quem tem lista de telas restrita só recebe aviso de tela que pode abrir (o sino e o número vermelho
+// saem daqui). Aviso sem tela de destino (link_view vazio) vale pra todo mundo.
 function notificacoesVisiveis() {
-  return (state.notificacoes || []).filter(n => currentUserAceitaNotifTipo(n.tipo));
+  return (state.notificacoes || []).filter(n => currentUserAceitaNotifTipo(n.tipo) && (!n.linkView || viewPermitida(n.linkView)));
 }
 
 function renderSinoNotificacoes() {
