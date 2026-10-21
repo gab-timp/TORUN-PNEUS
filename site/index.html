@@ -1913,8 +1913,9 @@
             </div>
             <div class="field">
               <label>Vendedor</label>
-              <input type="text" id="venVendedor" list="listVendedor" placeholder="Ex: Rogério" required>
-              <datalist id="listVendedor"></datalist>
+              <select id="venVendedor" required>
+                <option value="">Selecione…</option>
+              </select>
             </div>
             <div class="field">
               <label>Comissão (%, opcional)</label>
@@ -3517,7 +3518,9 @@
         </div>
         <div class="field">
           <label>Vendedor</label>
-          <input type="text" id="pedVendedor" list="listVendedor" placeholder="Ex: Rogério">
+          <select id="pedVendedor">
+            <option value="">Selecione…</option>
+          </select>
         </div>
       </div>
       <div class="form-row">
@@ -3798,6 +3801,6 @@
 </div>
 
 <script src="semvenda.js?v=17"></script>
-<script src="app.js?v=248"></script>
+<script src="app.js?v=249"></script>
 </body>
 </html>

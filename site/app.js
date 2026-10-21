@@ -4518,7 +4518,7 @@ function openPedidoModal(id) {
     document.getElementById("pedNumero").value = e.numeroPedido || "";
     document.getElementById("pedData").value = e.data || "";
     document.getElementById("pedCliente").value = e.cliente || "";
-    document.getElementById("pedVendedor").value = e.vendedor || "";
+    preencherVendedorSelect(document.getElementById("pedVendedor"), e.vendedor || "");
     document.getElementById("pedDestino").value = e.destino || "";
     document.getElementById("pedTransportadora").value = e.transportadora || "";
     document.getElementById("pedEtapa").value = e.etapa;
@@ -4565,6 +4565,7 @@ function openPedidoModal(id) {
     editingPedidoUpdatedAt = null;
     document.getElementById("pedidoModalTitle").textContent = "Novo pedido";
     document.getElementById("formPedido").reset();
+    preencherVendedorSelect(document.getElementById("pedVendedor"), "");
     document.getElementById("pedData").value = todayISO();
     document.getElementById("pedEtapa").value = "ENTRADA";
     document.getElementById("pedItens").innerHTML = "";
@@ -5173,10 +5174,28 @@ function renderClienteSelect() {
   document.getElementById("listCliente").innerHTML = opts;
 }
 
+// Vendedor (Faturamento e Pedido) é seleção, não digitação: as opções são os nomes que já aparecem nas vendas.
+function vendedoresDasVendas() {
+  return Array.from(new Set(state.vendas.map(v => (v.vendedor || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+// valorAtual (sem ele, mantém o que o select já tem). Um nome que nenhuma venda tem (pedido ou venda antiga)
+// entra como opção "(fora da lista)", senão salvar a edição apagaria o vendedor sem ninguém perceber.
+function preencherVendedorSelect(sel, valorAtual) {
+  const atual = ((valorAtual !== undefined ? valorAtual : sel.value) || "").trim();
+  const nomes = vendedoresDasVendas();
+  const foraDaLista = atual !== "" && !nomes.includes(atual);
+  const opcoes = (foraDaLista ? [...nomes, atual] : nomes).sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = `<option value="">${opcoes.length ? "Selecione…" : "Nenhum vendedor ainda"}</option>` +
+    opcoes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}${n === atual && foraDaLista ? " (fora da lista)" : ""}</option>`).join("");
+  sel.value = atual;
+  sel.disabled = opcoes.length === 0;
+}
+
 function renderFaturamentoDatalists() {
+  preencherVendedorSelect(document.getElementById("venVendedor"));
+  preencherVendedorSelect(document.getElementById("pedVendedor"));
   const uniq = (arr) => Array.from(new Set(arr.filter(Boolean)));
-  document.getElementById("listVendedor").innerHTML =
-    uniq(state.vendas.map(v => v.vendedor)).sort().map(v => `<option value="${escapeAttr(v)}">`).join("");
   document.getElementById("listTransportadora").innerHTML =
     uniq(state.vendas.map(v => v.transportadora)).filter(v => v !== "Cliente retira").sort().map(v => `<option value="${escapeAttr(v)}">`).join("");
 }
@@ -8163,7 +8182,7 @@ function startEditVenda(vendaId) {
   document.getElementById("venQtd").value = v.quantidadePneus;
   document.getElementById("venValor").value = v.valorVenda;
   document.getElementById("venFormaPagamento").value = v.formaPagamento || "";
-  document.getElementById("venVendedor").value = v.vendedor || "";
+  preencherVendedorSelect(document.getElementById("venVendedor"), v.vendedor || "");
   document.getElementById("venComissaoPct").value = v.comissaoPercentual || "";
   document.getElementById("venComissaoCalc").value = formatMoney(v.comissao || 0);
 
@@ -8228,6 +8247,7 @@ function cancelEditVenda() {
   resetarFretePuxado();
   resetDivisaoPagamento();
   document.getElementById("formVenda").reset();
+  preencherVendedorSelect(document.getElementById("venVendedor"), ""); // tira a opção "(fora da lista)" de uma edição anterior
   document.getElementById("venData").value = todayISO();
   document.getElementById("venTransportadora").disabled = false;
   document.getElementById("venValorFrete").disabled = false;
@@ -8970,6 +8990,8 @@ function initForms() {
 
   document.getElementById("formVenda").addEventListener("submit", async (e) => {
     e.preventDefault();
+    // select desabilitado (nenhuma venda ainda, lista vazia) escapa do "required" nativo
+    if (!document.getElementById("venVendedor").value) { toast("Escolha o vendedor."); return; }
     const cliente = document.getElementById("venCliente").value.trim();
     const quantidade = parseInt(document.getElementById("venQtd").value, 10);
     const valorVenda = parseFloat(document.getElementById("venValor").value);
