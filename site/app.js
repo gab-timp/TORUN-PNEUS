@@ -6927,7 +6927,7 @@ async function confirmarMesclagemClientes() {
   }
 
   const motivo = await motivoModal("Confirmar mesclagem?",
-    `"${outros.join('", "')}" será(ão) removido(s), e suas vendas/pedidos passam a apontar para "${survivorNome}". Informe o motivo.`);
+    `"${outros.join('", "')}" será(ão) removido(s), e suas vendas, pedidos e arquivos passam a apontar para "${survivorNome}". Informe o motivo.`);
   if (!motivo) return;
 
   const survivor = getCliente(survivorNome);
@@ -6984,11 +6984,12 @@ async function confirmarMesclagemClientes() {
   const mescladosComSucesso = [];
   let falhou = null;
   for (const nomeAntigo of outros) {
-    const [vendasRes, entregasRes] = await Promise.all([
+    const [vendasRes, entregasRes, arquivosRes] = await Promise.all([
       sb.from("vendas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo),
-      sb.from("entregas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo)
+      sb.from("entregas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo),
+      sb.from("cliente_arquivos").update({ cliente: survivorNome }).eq("cliente", nomeAntigo) // os arquivos vão pro cliente que fica
     ]);
-    if (vendasRes.error || entregasRes.error) { falhou = nomeAntigo; break; }
+    if (vendasRes.error || entregasRes.error || arquivosRes.error) { falhou = nomeAntigo; break; }
 
     const { error: errDelete } = await sb.from("clientes").delete().eq("nome", nomeAntigo);
     if (errDelete) { falhou = nomeAntigo; break; }
@@ -7248,6 +7249,7 @@ function openClienteModal(nome) {
 
   renderClienteTags();
   renderClienteNotas();
+  atualizarContagemArquivosCliente(nome);
 }
 
 // Reservas do Sem Venda (sv_reservas) apontam pro cliente por chave estrangeira "restrict": o banco não
@@ -7262,6 +7264,176 @@ async function reservasSemVendaDosClientes(nomes) {
   const porCliente = {};
   (data || []).forEach(r => { porCliente[r.cliente] = Number(r.reservas); });
   return porCliente;
+}
+
+/* ---------------- arquivos do cliente (botão "Arquivos" em Clientes) ---------------- */
+// Uma linha por arquivo em cliente_arquivos + o arquivo no bucket privado clientes-arquivos (ver
+// sql/cliente_arquivos.sql). Editor anexa; só administrador remove; representante nem vê. A lista só é
+// buscada quando a pasta abre; o número do botão vem de uma contagem leve ao abrir o cliente.
+
+const CLIENTE_ARQUIVOS_BUCKET = "clientes-arquivos";
+const CLIENTE_ARQUIVO_MAX_BYTES = 10 * 1024 * 1024;
+let clienteArquivosNome = null;   // cliente da pasta aberta
+let clienteArquivosLista = [];    // linhas de cliente_arquivos da pasta aberta (mais novo primeiro)
+let clienteArquivosEnviando = []; // arquivos em envio agora: { nome, tamanho }
+
+const tamanhoArquivoBR = (bytes) => formatFileSize(bytes).replace(".", ",");
+
+function mostrarContagemArquivosCliente(n) {
+  const el = document.getElementById("clienteArquivosCount");
+  el.textContent = String(n);
+  el.style.display = n > 0 ? "" : "none";
+}
+
+async function atualizarContagemArquivosCliente(nome) {
+  document.getElementById("clienteArquivosCount").style.display = "none";
+  const { count, error } = await sb.from("cliente_arquivos").select("id", { count: "exact", head: true }).eq("cliente", nome);
+  if (error) { console.warn("Não deu pra contar os arquivos do cliente:", error.message); return; }
+  if (nome !== currentClienteModalNome) return; // abriu outro cliente enquanto a consulta voltava
+  mostrarContagemArquivosCliente(count || 0);
+}
+
+function iconeArquivoCliente(nomeArquivo) {
+  const ext = ((nomeArquivo.match(/\.([A-Za-z0-9]{1,5})$/) || [])[1] || "ARQ").toUpperCase();
+  const classe = ext === "PDF" ? "pdf" : ["XLS", "XLSX", "CSV"].includes(ext) ? "xls" : ["DOC", "DOCX"].includes(ext) ? "doc" : "";
+  return `<div class="cli-arq-ico ${classe}">${escapeHtml(ext.slice(0, 4))}</div>`;
+}
+
+function renderArquivosCliente() {
+  const lista = document.getElementById("clienteArquivosLista");
+  const enviando = clienteArquivosEnviando.map(a => `
+    <div class="cli-arq-item">
+      ${iconeArquivoCliente(a.nome)}
+      <div class="cli-arq-corpo"><span class="cli-arq-nome" style="cursor:default; text-decoration:none;">${escapeHtml(a.nome)}</span><div class="cli-arq-meta">${tamanhoArquivoBR(a.tamanho)} · enviando…</div></div>
+      <span class="cli-arq-estado">Enviando…</span>
+    </div>`).join("");
+  const itens = clienteArquivosLista.map(a => {
+    const d = new Date(a.created_at);
+    const quando = `${d.toLocaleDateString("pt-BR")} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    return `
+    <div class="cli-arq-item">
+      ${iconeArquivoCliente(a.nome)}
+      <div class="cli-arq-corpo">
+        <button type="button" class="cli-arq-nome" data-abrirarq="${escapeAttr(a.id)}" title="${escapeAttr(a.nome)}">${escapeHtml(a.nome)}</button>
+        <div class="cli-arq-meta">${tamanhoArquivoBR(a.tamanho)} · ${quando}${a.criado_por ? ` · ${escapeHtml(a.criado_por)}` : ""}</div>
+      </div>
+      <button type="button" class="btn small danger admin-only" data-removerarq="${escapeAttr(a.id)}" title="Remover arquivo" aria-label="Remover ${escapeAttr(a.nome)}">✕</button>
+    </div>`;
+  }).join("");
+  lista.innerHTML = (enviando + itens) ||
+    `<div class="cli-arq-vazio">Nenhum arquivo anexado ainda.<br>Use <b>Anexar arquivos</b> para guardar contrato, análise de crédito, documentos e comprovantes deste cliente.</div>`;
+  lista.querySelectorAll("[data-abrirarq]").forEach(el => el.addEventListener("click", () => abrirArquivoCliente(el.dataset.abrirarq)));
+  lista.querySelectorAll("[data-removerarq]").forEach(el => el.addEventListener("click", () => removerArquivoCliente(el.dataset.removerarq)));
+
+  const total = clienteArquivosLista.reduce((a, x) => a + (x.tamanho || 0), 0);
+  document.getElementById("clienteArquivosResumo").textContent =
+    `${clienteArquivosLista.length} arquivo${clienteArquivosLista.length === 1 ? "" : "s"} · ${tamanhoArquivoBR(total)}`;
+  if (clienteArquivosNome === currentClienteModalNome) mostrarContagemArquivosCliente(clienteArquivosLista.length);
+}
+
+function mostrarAvisosArquivosCliente(avisos) {
+  const el = document.getElementById("clienteArquivosAvisos");
+  el.innerHTML = avisos.map(a => `<div>${escapeHtml(a)}</div>`).join("");
+  el.style.display = avisos.length ? "" : "none";
+}
+
+async function abrirArquivosCliente() {
+  const nome = currentClienteModalNome;
+  if (!nome) return;
+  clienteArquivosNome = nome;
+  clienteArquivosLista = [];
+  clienteArquivosEnviando = [];
+  document.getElementById("clienteArquivosSub").textContent = nome;
+  mostrarAvisosArquivosCliente([]);
+  document.getElementById("clienteArquivosLista").innerHTML = `<div class="cli-arq-vazio">Carregando…</div>`;
+  document.getElementById("clienteArquivosResumo").textContent = "";
+  document.getElementById("clienteArquivosOverlay").classList.add("show");
+
+  const { data, error } = await sb.from("cliente_arquivos").select("*").eq("cliente", nome).order("created_at", { ascending: false });
+  if (nome !== clienteArquivosNome) return; // fechou ou abriu outra pasta enquanto carregava
+  if (error) {
+    toast("Erro ao carregar os arquivos: " + error.message);
+    document.getElementById("clienteArquivosLista").innerHTML = `<div class="cli-arq-vazio">Não foi possível carregar os arquivos.</div>`;
+    return;
+  }
+  clienteArquivosLista = data || [];
+  renderArquivosCliente();
+}
+
+function fecharArquivosCliente() {
+  document.getElementById("clienteArquivosOverlay").classList.remove("show");
+  clienteArquivosNome = null;
+}
+
+async function anexarArquivosCliente(arquivos) {
+  const nome = clienteArquivosNome;
+  if (!nome || !arquivos.length) return;
+  const avisos = [];
+  let enviados = 0;
+  for (const file of arquivos) {
+    if (file.size === 0) { avisos.push(`${file.name}: arquivo vazio. Não foi enviado.`); continue; }
+    if (file.size > CLIENTE_ARQUIVO_MAX_BYTES) { avisos.push(`${file.name}: ${tamanhoArquivoBR(file.size)} passa do limite de 10 MB. Não foi enviado.`); continue; }
+
+    const item = { nome: file.name, tamanho: file.size };
+    clienteArquivosEnviando.push(item);
+    if (nome === clienteArquivosNome) renderArquivosCliente();
+    const sai = () => { clienteArquivosEnviando = clienteArquivosEnviando.filter(x => x !== item); };
+
+    const pasta = sanitizarNomeArquivo(nome).slice(0, 60) || "cliente";
+    const path = `${pasta}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${sanitizarNomeArquivo(file.name)}`;
+    const { error: erroUpload } = await sb.storage.from(CLIENTE_ARQUIVOS_BUCKET).upload(path, file, { contentType: file.type || undefined });
+    if (erroUpload) { sai(); avisos.push(`${file.name}: erro ao enviar (${erroUpload.message}).`); continue; }
+
+    const { data: linha, error: erroLinha } = await sb.from("cliente_arquivos").insert({
+      cliente: nome, nome: file.name, path, tamanho: file.size, tipo: file.type || null,
+      criado_por: currentUser ? currentUser.email : null
+    }).select().single();
+    if (erroLinha) {
+      await sb.storage.from(CLIENTE_ARQUIVOS_BUCKET).remove([path]); // não deixa arquivo solto no bucket
+      sai();
+      avisos.push(`${file.name}: erro ao salvar (${erroLinha.message}).`);
+      continue;
+    }
+    sai();
+    enviados++;
+    if (nome === clienteArquivosNome) clienteArquivosLista.unshift(linha);
+    await registrarLog("clientes", nome, "edicao", "Ação automática", `Arquivo anexado ao cliente ${nome}: ${file.name}`);
+    if (nome === clienteArquivosNome) renderArquivosCliente();
+  }
+  if (nome === clienteArquivosNome) { renderArquivosCliente(); mostrarAvisosArquivosCliente(avisos); }
+  if (enviados) toast(enviados === 1 ? "Arquivo anexado." : `${enviados} arquivos anexados.`);
+  else if (avisos.length) toast("Nenhum arquivo foi anexado.");
+}
+
+async function abrirArquivoCliente(id) {
+  const arq = clienteArquivosLista.find(a => a.id === id);
+  if (!arq) return;
+  const { data, error } = await sb.storage.from(CLIENTE_ARQUIVOS_BUCKET).createSignedUrl(arq.path, 60);
+  if (error) { toast("Erro ao abrir o arquivo: " + error.message); return; }
+  window.open(data.signedUrl, "_blank");
+}
+
+async function removerArquivoCliente(id) {
+  const arq = clienteArquivosLista.find(a => a.id === id);
+  const nome = clienteArquivosNome;
+  if (!arq || !nome) return;
+  const motivo = await motivoModal("Remover arquivo?", `Informe o motivo da remoção de "${arq.nome}". O motivo fica registrado no Histórico.`);
+  if (!motivo) return;
+
+  // a linha primeiro: se o arquivo do bucket falhar em sair, sobra só um arquivo solto e escondido, nunca
+  // uma linha apontando pra arquivo que não existe
+  const { data: apagadas, error } = await sb.from("cliente_arquivos").delete().eq("id", id).select();
+  if (error) { toast("Erro ao remover o arquivo: " + error.message); return; }
+  if (!apagadas || !apagadas.length) { toast("Sem permissão para remover: só o administrador remove arquivos."); return; }
+  const { error: erroBucket } = await sb.storage.from(CLIENTE_ARQUIVOS_BUCKET).remove([arq.path]);
+  if (erroBucket) console.warn("Arquivo saiu da lista, mas ficou no armazenamento:", erroBucket.message);
+
+  await registrarLog("clientes", nome, "exclusao", motivo, `Arquivo removido do cliente ${nome}: ${arq.nome}`);
+  if (nome === clienteArquivosNome) {
+    clienteArquivosLista = clienteArquivosLista.filter(a => a.id !== id);
+    renderArquivosCliente();
+  }
+  toast("Arquivo removido.");
 }
 
 async function excluirClienteAtual() {
@@ -7285,6 +7457,12 @@ async function excluirClienteAtual() {
   const reservasSV = await reservasSemVendaDosClientes([nome]);
   if (reservasSV && reservasSV[nome]) {
     toast(`Não é possível excluir: esse cliente tem ${reservasSV[nome]} reserva(s) no Sem Venda (as canceladas também ficam no histórico).`);
+    return;
+  }
+  // arquivo anexado impede excluir (o banco também barra): só o administrador remove arquivo, então vem antes
+  const { count: qtdArquivos, error: erroArquivos } = await sb.from("cliente_arquivos").select("id", { count: "exact", head: true }).eq("cliente", nome);
+  if (!erroArquivos && qtdArquivos) {
+    toast(`Não é possível excluir: esse cliente tem ${qtdArquivos} arquivo${qtdArquivos === 1 ? "" : "s"} anexado${qtdArquivos === 1 ? "" : "s"}. Peça a um administrador para remover os arquivos antes.`);
     return;
   }
   const motivo = await motivoModal("Excluir cliente?", `Remover "${nome}" do cadastro? Informe o motivo da exclusão.`);
@@ -10479,6 +10657,18 @@ async function init() {
 
   document.getElementById("btnEditarCliente").addEventListener("click", abrirEdicaoCliente);
   document.getElementById("btnExcluirCliente").addEventListener("click", excluirClienteAtual);
+  document.getElementById("btnArquivosCliente").addEventListener("click", abrirArquivosCliente);
+  document.getElementById("clienteArquivosClose").addEventListener("click", fecharArquivosCliente);
+  document.getElementById("clienteArquivosFechar").addEventListener("click", fecharArquivosCliente);
+  document.getElementById("clienteArquivosOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "clienteArquivosOverlay") fecharArquivosCliente();
+  });
+  document.getElementById("btnClienteArquivosAnexar").addEventListener("click", () => document.getElementById("clienteArquivosInput").click());
+  document.getElementById("clienteArquivosInput").addEventListener("change", (e) => {
+    const arquivos = Array.from(e.target.files || []);
+    e.target.value = ""; // permite escolher o mesmo arquivo de novo depois
+    anexarArquivosCliente(arquivos);
+  });
   document.getElementById("btnCancelarEdicaoCliente").addEventListener("click", cancelarEdicaoCliente);
   document.getElementById("formEditarCliente").addEventListener("submit", (e) => {
     e.preventDefault();

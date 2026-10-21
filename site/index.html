@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=162">
+<link rel="stylesheet" href="styles.css?v=164">
 <link rel="stylesheet" href="semvenda.css?v=16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -153,6 +153,8 @@
         <circle cx="10" cy="10" r="7.2"/><path d="M7.7 7.6a2.3 2.3 0 1 1 3.2 2.1c-.8.4-1 .8-1 1.6"/><circle cx="10" cy="14" r=".15" fill="currentColor" stroke-width="1.4"/>
       </g>
       <g id="i-close" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></g>
+      <g id="i-clip" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.3 9.7 16.1a4.2 4.2 0 0 1-6-6l7-7a2.8 2.8 0 0 1 4 4l-7 7a1.4 1.4 0 0 1-2-2l6.4-6.4"/></g>
+      <g id="i-upload" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14V4m0 0L6 8m4-4 4 4M4 16h12"/></g>
       <g id="i-camera" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h2.4L7 4.5h6L14.6 7H17a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="3"/></g>
       <g id="i-user" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.7" r="3.2"/><path d="M3.3 16.5c.7-3.5 2.9-5.3 6.7-5.3s6 1.8 6.7 5.3"/></g>
       <g id="i-palette" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 0 0 15c1 0 1.6-.7 1.6-1.5 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.5A3.3 3.3 0 0 0 17 9.3C17 5.5 13.9 2.5 10 2.5Z"/><circle cx="6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="5.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="6.5" r=".9" fill="currentColor" stroke="none"/></g>
@@ -2453,6 +2455,7 @@
           <div class="cliente-modal-head">
             <h3 id="clienteModalNome"></h3>
             <div class="cliente-modal-head-actions">
+              <button type="button" class="btn small outline" id="btnArquivosCliente"><svg class="btn-ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-clip"/></svg> Arquivos <span class="cli-arq-count" id="clienteArquivosCount" style="display:none;"></span></button>
               <button type="button" class="btn small outline write-ui" id="btnEditarCliente">✎ Editar dados</button>
               <button type="button" class="btn small danger write-ui" id="btnExcluirCliente">🗑 Excluir</button>
             </div>
@@ -3304,6 +3307,33 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="clienteArquivosOverlay" data-table="clientes">
+  <div class="modal modal-popup-grande cli-arq-modal" role="dialog" aria-labelledby="clienteArquivosTitulo">
+    <div class="drawer-simple-head">
+      <div>
+        <h3 id="clienteArquivosTitulo">Arquivos</h3>
+        <div class="cli-arq-sub" id="clienteArquivosSub"></div>
+      </div>
+      <button type="button" class="drawer-simple-close" id="clienteArquivosClose" title="Fechar" aria-label="Fechar">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="write-ui">
+      <div class="cli-arq-barra">
+        <button type="button" class="btn primary" id="btnClienteArquivosAnexar"><svg class="btn-ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-upload"/></svg> Anexar arquivos</button>
+        <span class="cli-arq-dica">Escolha um ou vários · até 10 MB cada</span>
+        <input type="file" id="clienteArquivosInput" multiple hidden>
+      </div>
+    </div>
+    <div class="cli-arq-avisos" id="clienteArquivosAvisos" style="display:none;"></div>
+    <div class="drawer-simple-body cli-arq-lista" id="clienteArquivosLista"></div>
+    <div class="drawer-foot cli-arq-pe">
+      <span class="cli-arq-dica"><span id="clienteArquivosResumo"></span><span class="nao-admin-only"> · Só o administrador remove arquivos.</span></span>
+      <button type="button" class="btn outline" id="clienteArquivosFechar">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="nfAnexoOverlay">
   <div class="modal">
     <h3 id="nfAnexoTitulo">Anexos do pedido</h3>
@@ -3801,6 +3831,6 @@
 </div>
 
 <script src="semvenda.js?v=17"></script>
-<script src="app.js?v=252"></script>
+<script src="app.js?v=253"></script>
 </body>
 </html>
