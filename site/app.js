@@ -918,7 +918,16 @@ function primeiraViewPermitida() {
   return currentUserVisibleViews[0];
 }
 
+// Telas liberadas pro usuário (Administração > telas visíveis). Sem lista = todas. Sem Venda ("sv-") tem
+// permissão própria, fora dessa lista. A tela de entrada é sempre permitida (lista vazia cai no dashboard).
+// Só esconder o botão do menu não bastava: a busca do topo, o sino e os links dentro das telas abriam
+// qualquer tela por cima.
+function viewPermitida(view) {
+  return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || String(view).startsWith("sv-") || view === primeiraViewPermitida();
+}
+
 function setView(view) {
+  if (!viewPermitida(view)) { toast("Você não tem acesso a essa tela."); return; }
   // sair de Coleta com um romaneio aberto (ex: clicou em "Estoque" sem clicar em "Voltar pra
   // lista") sem isso deixava coletaEditingId pendurado -- ao voltar depois pra Coleta pelo menu, a
   // pessoa caía direto de volta no mesmo romaneio (às vezes com o quadro de assinatura quebrado, já
@@ -6615,7 +6624,7 @@ function renderSinoNotificacoes() {
       const view = el.dataset.notifview;
       const linkId = el.dataset.notiflinkid;
       fecharSinoDropdown();
-      if (!view) return;
+      if (!view || !viewPermitida(view)) return;
       setView(view);
       if (view === "entregas" && linkId) openPedidoModal(linkId);
     });
@@ -6686,7 +6695,13 @@ function buscaGeralResultados(query) {
     .map(r => ({ r, e: state.entregas.find(x => x.id === r.entregaId) }))
     .filter(x => x.e && coletaBuscaTexto(x.e, x.r).includes(q))
     .slice(0, 4);
-  return { produtos, clientes, entregas, vendas, romaneios };
+  // só mostra o que o usuário pode abrir: cada grupo leva a uma tela (produtos, clientes, entregas, faturamento, coleta)
+  const doUsuario = (view, lista) => viewPermitida(view) ? lista : [];
+  return {
+    produtos: doUsuario("produtos", produtos), clientes: doUsuario("clientes", clientes),
+    entregas: doUsuario("entregas", entregas), vendas: doUsuario("faturamento", vendas),
+    romaneios: doUsuario("coleta", romaneios)
+  };
 }
 
 function marcarTrechoBusca(texto, query) {
@@ -10250,7 +10265,7 @@ function rerenderViewAtual() {
   // refazer a tela a cada evento do varejo fecharia seletores abertos e repetiria consultas
   if (activeBtn && activeBtn.dataset.view.startsWith("sv-")) return;
   renderProdutoSelects();
-  setView(activeBtn ? activeBtn.dataset.view : "estoque");
+  setView(activeBtn ? activeBtn.dataset.view : primeiraViewPermitida());
 }
 
 async function refreshAll() {
