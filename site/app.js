@@ -916,11 +916,13 @@ function primeiraViewPermitida() {
 }
 
 // Telas liberadas pro usuário (Administração > telas visíveis). Sem lista = todas. Sem Venda ("sv-") tem
-// permissão própria, fora dessa lista. A tela de entrada é sempre permitida (lista vazia cai no dashboard).
+// permissão própria, fora dessa lista (temAcessoSemVenda() vem do semvenda.js; sem ele não existe tela sv-).
+// A tela de entrada é sempre permitida (lista vazia cai no dashboard).
 // Só esconder o botão do menu não bastava: a busca do topo, o sino e os links dentro das telas abriam
 // qualquer tela por cima.
 function viewPermitida(view) {
-  return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || String(view).startsWith("sv-") || view === primeiraViewPermitida();
+  if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
+  return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || view === primeiraViewPermitida();
 }
 
 function setView(view) {
@@ -6620,9 +6622,9 @@ function renderSinoNotificacoes() {
       const view = el.dataset.notifview;
       const linkId = el.dataset.notiflinkid;
       fecharSinoDropdown();
-      if (!view || !viewPermitida(view)) return;
-      setView(view);
-      if (view === "entregas" && linkId) openPedidoModal(linkId);
+      if (!view) return;
+      setView(view); // fora da lista do usuário o setView recusa e avisa; aí também não abre o pedido
+      if (view === "entregas" && linkId && viewPermitida(view)) openPedidoModal(linkId);
     });
   });
 }
