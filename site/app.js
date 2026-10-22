@@ -9227,6 +9227,11 @@ function initForms() {
       lista.appendChild(createDivisaoRow());
       lista.appendChild(createDivisaoRow());
     }
+    // Com a divisão desligada, as linhas escondidas ficam desabilitadas (e mantêm o que foi digitado, se a pessoa
+    // ligar de novo). Antes ficavam habilitadas e obrigatórias dentro da caixa escondida: o navegador validava o
+    // formulário, não conseguia focar nesses campos e o "Registrar venda" não fazia nada, sem nenhum aviso
+    // ("An invalid form control ... is not focusable").
+    lista.querySelectorAll("select, input").forEach(el => { el.disabled = !e.target.checked; });
     atualizarResumoDivisaoPagamento();
     atualizarSomaParcelas();
   });
