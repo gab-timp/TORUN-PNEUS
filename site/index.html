@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=164">
+<link rel="stylesheet" href="styles.css?v=165">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1816,6 +1816,13 @@
               <span class="autofill-spinner" id="spinnerCliDocumento"></span>
             </div>
             <div class="field">
+              <label>Tipo de pessoa</label>
+              <div class="tipo-pessoa" id="cliTipoPessoa">
+                <label class="tp-check"><input type="checkbox" value="PF"> Pessoa Física (PF)</label>
+                <label class="tp-check"><input type="checkbox" value="PJ"> Pessoa Jurídica (PJ)</label>
+              </div>
+            </div>
+            <div class="field">
               <label>Contato responsável (opcional)</label>
               <input type="text" id="cliContato" placeholder="Ex: João da Silva">
             </div>
@@ -1895,7 +1902,10 @@
           <div class="muted" id="clienteDetalheVazio" style="padding:60px 20px; text-align:center;">Selecione um cliente na lista à esquerda pra ver o perfil completo.</div>
           <div id="clienteDetalheConteudo" style="display:none;">
           <div class="cliente-modal-head">
-            <h3 id="clienteModalNome"></h3>
+            <div class="cliente-modal-titulo">
+              <h3 id="clienteModalNome"></h3>
+              <span class="cli-tp-selo" id="clienteModalTipoPessoa" style="display:none;"></span>
+            </div>
             <div class="cliente-modal-head-actions">
               <button type="button" class="btn small outline" id="btnArquivosCliente"><svg class="btn-ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-clip"/></svg> Arquivos <span class="cli-arq-count" id="clienteArquivosCount" style="display:none;"></span></button>
               <button type="button" class="btn small outline write-ui" id="btnEditarCliente">✎ Editar dados</button>
@@ -1914,6 +1924,13 @@
                 <label>CNPJ/CPF</label>
                 <input type="text" id="clienteEditDocumento" placeholder="Ex: 00.000.000/0001-00">
                 <span class="autofill-spinner" id="spinnerClienteEditDocumento"></span>
+              </div>
+              <div class="field">
+                <label>Tipo de pessoa</label>
+                <div class="tipo-pessoa" id="clienteEditTipoPessoa">
+                  <label class="tp-check"><input type="checkbox" value="PF"> Pessoa Física (PF)</label>
+                  <label class="tp-check"><input type="checkbox" value="PJ"> Pessoa Jurídica (PJ)</label>
+                </div>
               </div>
             </div>
             <div class="status-pill-row" id="clienteEditSituacaoCnpj" style="display:none;"></div>
@@ -3188,6 +3205,6 @@
   </div>
 </div>
 
-<script src="app.js?v=253"></script>
+<script src="app.js?v=254"></script>
 </body>
 </html>

@@ -2183,6 +2183,19 @@ body.rom-popup-aberto #confirmOverlay, body.rom-popup-aberto #toast{z-index:130;
    em telas médias: sem espaço, os botões descem pra linha de baixo */
 .cliente-modal-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px 12px; margin-bottom:6px;}
 .cliente-modal-head h3{font-size:18px;}
+.cliente-modal-titulo{display:flex; align-items:center; gap:8px; min-width:0;}
+.cliente-modal-titulo h3{margin:0;}
+/* selo PF/PJ ao lado do nome do cliente */
+.cli-tp-selo{
+  flex:0 0 auto; font-size:10.5px; font-weight:800; letter-spacing:.06em; padding:2px 8px; border-radius:99px;
+  border:1px solid var(--line); background:var(--paper-2); color:var(--ink-soft);
+}
+/* caixas "Tipo de pessoa" (PF e PJ, uma por vez) nos formulários de cliente */
+.tipo-pessoa{display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; min-height:38px;}
+.field .tp-check{
+  display:inline-flex; align-items:center; gap:6px; margin:0; font-weight:600; text-transform:none; letter-spacing:0;
+  font-size:13px; color:var(--ink); cursor:pointer;
+}
 .cliente-modal-head-actions{display:flex; flex-wrap:wrap; gap:8px; flex:0 0 auto; max-width:100%;}
 .cliente-modal-edit-form{margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--line);}
 .cliente-modal-info{

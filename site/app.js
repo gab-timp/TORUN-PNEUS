@@ -298,7 +298,8 @@ function clienteToRow(c) {
     endereco: c.endereco || null, cep: c.cep || null, contato: c.contato || null, razao_social: c.razaoSocial || null,
     tags: c.tags || [], notas: c.notas || [], tipo_cliente: c.tipoCliente || null,
     limite_credito: c.limiteCredito != null ? c.limiteCredito : null,
-    validade_analise_credito: c.validadeAnaliseCredito || null
+    validade_analise_credito: c.validadeAnaliseCredito || null,
+    tipo_pessoa: c.tipoPessoa || null
   };
 }
 function clienteFromRow(r) {
@@ -308,7 +309,8 @@ function clienteFromRow(r) {
     endereco: r.endereco || "", cep: r.cep || "", contato: r.contato || "", razaoSocial: r.razao_social || "",
     tags: r.tags || [], notas: r.notas || [], createdAt: r.created_at, tipoCliente: r.tipo_cliente || "",
     limiteCredito: r.limite_credito != null ? Number(r.limite_credito) : null,
-    validadeAnaliseCredito: r.validade_analise_credito || ""
+    validadeAnaliseCredito: r.validade_analise_credito || "",
+    tipoPessoa: r.tipo_pessoa || ""
   };
 }
 
@@ -6549,7 +6551,8 @@ async function aprovarPreCadastro(id) {
     nome: p.nome, estado: p.estado || "", cidade: p.cidade || "",
     documento: p.documento || "", razaoSocial: p.razao_social || "",
     telefone: p.telefone || "", email: p.email || "", endereco: p.endereco || "", contato: p.contato || "",
-    tipoCliente: p.tipo_cliente || null
+    tipoCliente: p.tipo_cliente || null,
+    tipoPessoa: inferirTipoPessoa(p.documento) || null // o pré-cadastro do representante não pergunta; sai do documento
   };
   const { data: inserido, error: errInsert } = await sb.from("clientes").insert(clienteToRow(novoCliente)).select();
   if (errInsert) { toast("Erro ao aprovar: " + errInsert.message); return; }
@@ -6983,7 +6986,7 @@ async function confirmarMesclagemClientes() {
   // "cep" faltava aqui -- mesclar descartava o CEP de qualquer duplicata sem
   // levar pro sobrevivente, mesmo quando o principal não tinha CEP nenhum
   // (achado em revisão).
-  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "cep", "contato", "estado", "cidade", "tipoCliente"];
+  const CAMPOS_MESCLAGEM = ["documento", "razaoSocial", "telefone", "email", "endereco", "cep", "contato", "estado", "cidade", "tipoCliente", "tipoPessoa"];
   const camposMesclados = {};
   CAMPOS_MESCLAGEM.forEach(f => {
     camposMesclados[f] = survivor[f] || (grupo.find(c => c[f]) || {})[f] || "";
@@ -7006,6 +7009,7 @@ async function confirmarMesclagemClientes() {
     estado: camposMesclados.estado || null,
     cidade: camposMesclados.cidade || null,
     tipo_cliente: camposMesclados.tipoCliente || null,
+    tipo_pessoa: camposMesclados.tipoPessoa || null,
     tags: tagsMescladas,
     notas: notasMescladas
   };
@@ -7020,7 +7024,8 @@ async function confirmarMesclagemClientes() {
     documento: camposMesclados.documento, razaoSocial: camposMesclados.razaoSocial, telefone: camposMesclados.telefone,
     email: camposMesclados.email, endereco: camposMesclados.endereco, cep: camposMesclados.cep,
     contato: camposMesclados.contato, estado: camposMesclados.estado, cidade: camposMesclados.cidade,
-    tipoCliente: camposMesclados.tipoCliente || null, tags: tagsMescladas, notas: notasMescladas
+    tipoCliente: camposMesclados.tipoCliente || null, tipoPessoa: camposMesclados.tipoPessoa || "",
+    tags: tagsMescladas, notas: notasMescladas
   });
 
   // Cada duplicata é removida do estado local assim que sua própria etapa no
@@ -7248,8 +7253,11 @@ function openClienteModal(nome) {
   const stats = getClienteStats(nome);
 
   document.getElementById("clienteModalNome").textContent = c.nome;
+  const seloTipoPessoa = document.getElementById("clienteModalTipoPessoa");
+  seloTipoPessoa.textContent = c.tipoPessoa || "";
+  seloTipoPessoa.style.display = c.tipoPessoa ? "" : "none";
   document.getElementById("clienteModalInfo").innerHTML = [
-    ["Documento", c.documento], ["Razão social", c.razaoSocial], ["Telefone", c.telefone], ["E-mail", c.email],
+    ["Documento", c.documento], ["Tipo de pessoa", TIPO_PESSOA_LABEL[c.tipoPessoa]], ["Razão social", c.razaoSocial], ["Telefone", c.telefone], ["E-mail", c.email],
     ["Endereço", c.endereco], ["Cidade/UF", [c.cidade, c.estado].filter(Boolean).join(" / ")],
     ["Contato responsável", c.contato], ["Tipo de cliente", TIPO_CLIENTE_LABEL[c.tipoCliente] || c.tipoCliente],
     ["Limite de crédito", c.limiteCredito != null ? formatMoney(c.limiteCredito) : null],
@@ -7526,11 +7534,50 @@ async function excluirClienteAtual() {
   toast("Cliente removido.");
 }
 
+/* ---- tipo de pessoa do cliente (PF/PJ): duas caixas que funcionam uma de cada vez ---- */
+
+const TIPO_PESSOA_LABEL = { PF: "Pessoa Física (PF)", PJ: "Pessoa Jurídica (PJ)" };
+
+// 11 dígitos (CPF) = PF, 14 (CNPJ) = PJ; qualquer outra coisa não decide ("")
+function inferirTipoPessoa(documento) {
+  const n = (documento || "").replace(/\D/g, "").length;
+  return n === 11 ? "PF" : n === 14 ? "PJ" : "";
+}
+
+function tipoPessoaMarcado(containerId) {
+  const marcada = document.querySelector(`#${containerId} input:checked`);
+  return marcada ? marcada.value : "";
+}
+
+function marcarTipoPessoa(containerId, tipo) {
+  document.querySelectorAll(`#${containerId} input`).forEach(cb => { cb.checked = cb.value === tipo; });
+}
+
+// prefixo: "cli" (Novo cliente) ou "clienteEdit" (Editar dados). Marcar uma caixa desmarca a outra; as duas
+// vazias = não informado. Ao digitar um documento de 11 ou 14 dígitos, marca sozinho, até a pessoa mexer
+// nas caixas (aí o documento digitado não muda mais a escolha dela).
+function initTipoPessoa(prefixo) {
+  const cont = document.getElementById(prefixo + "TipoPessoa");
+  const doc = document.getElementById(prefixo + "Documento");
+  cont.querySelectorAll("input").forEach(cb => cb.addEventListener("change", () => {
+    if (cb.checked) cont.querySelectorAll("input").forEach(outra => { if (outra !== cb) outra.checked = false; });
+    cont.dataset.manual = "1";
+  }));
+  doc.addEventListener("input", () => {
+    if (cont.dataset.manual === "1") return;
+    const tipo = inferirTipoPessoa(doc.value);
+    if (tipo) marcarTipoPessoa(prefixo + "TipoPessoa", tipo);
+  });
+  if (doc.form) doc.form.addEventListener("reset", () => { delete cont.dataset.manual; });
+}
+
 function abrirEdicaoCliente() {
   const c = getCliente(currentClienteModalNome);
   if (!c) return;
   document.getElementById("clienteEditNome").value = c.nome || "";
   document.getElementById("clienteEditDocumento").value = c.documento || "";
+  marcarTipoPessoa("clienteEditTipoPessoa", c.tipoPessoa || "");
+  delete document.getElementById("clienteEditTipoPessoa").dataset.manual;
   document.getElementById("clienteEditRazaoSocial").value = c.razaoSocial || "";
   document.getElementById("clienteEditContato").value = c.contato || "";
   document.getElementById("clienteEditTelefone").value = c.telefone || "";
@@ -7572,7 +7619,8 @@ async function salvarEdicaoCliente() {
     cidade: document.getElementById("clienteEditCidade").value.trim(),
     endereco: document.getElementById("clienteEditEndereco").value.trim(),
     cep: document.getElementById("clienteEditCep").value.trim(),
-    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null
+    tipo_cliente: document.getElementById("clienteEditTipoCliente").value || null,
+    tipo_pessoa: tipoPessoaMarcado("clienteEditTipoPessoa") || null
   };
 
   const { error } = await sb.from("clientes").update(dados).eq("nome", nomeOriginal);
@@ -7603,6 +7651,7 @@ async function salvarEdicaoCliente() {
   c.endereco = dados.endereco;
   c.cep = dados.cep;
   c.tipoCliente = dados.tipo_cliente || "";
+  c.tipoPessoa = dados.tipo_pessoa || "";
 
   await registrarLog("clientes", novoNome, "edicao", "Ação automática",
     `Cadastro do cliente atualizado${renomeou ? ` (renomeado de "${nomeOriginal}")` : ""}`);
@@ -9393,7 +9442,9 @@ function initForms() {
       endereco: document.getElementById("cliEndereco").value.trim(),
       cep: document.getElementById("cliCep").value.trim(),
       contato: document.getElementById("cliContato").value.trim(),
-      tipoCliente: document.getElementById("cliTipoCliente").value || null
+      tipoCliente: document.getElementById("cliTipoCliente").value || null,
+      // as caixas já marcam sozinhas ao digitar o documento; o inferir cobre documento que entrou sem digitar
+      tipoPessoa: tipoPessoaMarcado("cliTipoPessoa") || inferirTipoPessoa(document.getElementById("cliDocumento").value) || null
     };
     const { data: inserido, error } = await sb.from("clientes").insert(clienteToRow(novoCliente)).select();
     if (error) { toast("Erro ao adicionar cliente: " + error.message); return; }
@@ -10706,6 +10757,8 @@ async function init() {
 
   document.getElementById("btnEditarCliente").addEventListener("click", abrirEdicaoCliente);
   document.getElementById("btnExcluirCliente").addEventListener("click", excluirClienteAtual);
+  initTipoPessoa("cli");
+  initTipoPessoa("clienteEdit");
   document.getElementById("btnArquivosCliente").addEventListener("click", abrirArquivosCliente);
   document.getElementById("clienteArquivosClose").addEventListener("click", fecharArquivosCliente);
   document.getElementById("clienteArquivosFechar").addEventListener("click", fecharArquivosCliente);
