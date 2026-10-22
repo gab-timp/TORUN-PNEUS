@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=170">
+<link rel="stylesheet" href="styles.css?v=171">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3278,6 +3278,46 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="baixaParcelasOverlay" data-table="vendas">
+  <div class="modal baixa-modal">
+    <div class="cliente-modal-head">
+      <div style="min-width:0;">
+        <h3>Dar baixa nas parcelas</h3>
+        <div class="note" id="baixaParcelasSubtitulo" style="margin:2px 0 0;"></div>
+      </div>
+      <button type="button" class="btn small outline" id="baixaParcelasClose">✕ Fechar</button>
+    </div>
+    <div class="baixa-atalhos">
+      <button type="button" class="btn small outline" id="baixaSelVencidas">Selecionar as vencidas</button>
+      <button type="button" class="btn small outline" id="baixaSelTodas">Selecionar todas as em aberto</button>
+      <button type="button" class="btn small outline" id="baixaSelLimpar">Limpar</button>
+    </div>
+    <div class="table-wrap">
+      <table class="baixa-tabela">
+        <thead>
+          <tr><th></th><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th>Situação</th></tr>
+        </thead>
+        <tbody id="baixaParcelasTbody"></tbody>
+      </table>
+    </div>
+    <div class="baixa-rodape">
+      <div class="field">
+        <label for="baixaDataPagamento">Data do pagamento</label>
+        <input type="date" id="baixaDataPagamento">
+        <div class="filtro-nota">Vale para todas as parcelas marcadas. Começa em hoje.</div>
+      </div>
+      <div class="baixa-resumo" id="baixaResumo"></div>
+    </div>
+    <div class="baixa-acoes">
+      <div class="note" style="margin:0; max-width:340px;">O cliente pagou outro valor? Use Editar em Faturamento.</div>
+      <div class="baixa-botoes">
+        <button type="button" class="btn outline" id="baixaParcelasCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="baixaParcelasConfirmar">Confirmar pagamento</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="comClienteDetalheOverlay">
   <div class="modal">
     <div class="chart-modal-head">
@@ -3288,6 +3328,6 @@
   </div>
 </div>
 
-<script src="app.js?v=264"></script>
+<script src="app.js?v=265"></script>
 </body>
 </html>
