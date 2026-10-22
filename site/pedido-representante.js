@@ -2426,7 +2426,8 @@ function statusValidadeAnaliseRep(validade) {
 // (statusAtividadeCliente em app.js) -- "novo" é quem nunca comprou, diferente de "inativo".
 function statusAtividadeClienteRep(ultimaCompra) {
   if (!ultimaCompra) return "novo";
-  const dias = Math.round((new Date() - new Date(ultimaCompra)) / 86400000);
+  // dias de calendário (só data, virada à meia-noite), igual ao statusValidadeAnaliseRep logo acima
+  const dias = Math.round((Date.parse(todayISO()) - Date.parse(String(ultimaCompra).slice(0, 10))) / 86400000);
   if (dias <= 60) return "ativo";
   if (dias <= 120) return "atencao";
   return "inativo";
