@@ -29,6 +29,7 @@
   --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 10px 24px -14px rgba(0,0,0,.14);
   --shadow-modal: 0 20px 60px -20px rgba(0,0,0,.35);
   --danger:#B91C1C;
+  --danger-text:#B91C1C; /* vermelho pra TEXTO solto sobre a superfície -- clareia no escuro */
   --danger-deep:#8C1010;
   --danger-pale:#FDE6E6;
   --danger-border:#EF4444;
@@ -58,6 +59,7 @@
     --line-strong:#D8D8D8;
     --tint-orange:#2A1F16;
     --tint-blue:#182236;
+    --danger-text:#F87171;
     --mapa-sem-dado:#544C3C;
     --sb-trilho:#141414;
     --sb-thumb:#4A4A4A;
@@ -75,6 +77,7 @@
   --mapa-sem-dado:#544C3C;
   --tint-orange:#2A1F16;
   --tint-blue:#182236;
+  --danger-text:#F87171;
   --sb-trilho:#141414;
   --sb-thumb:#4A4A4A;
   --sb-thumb-h:#6A6A6A;
@@ -672,6 +675,27 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .kpi.accent{border-color:var(--orange); background:var(--orange-pale);}
 .kpi.accent .lbl{color:var(--orange-deep);}
 .kpi.accent .val{color:var(--orange-deep);}
+/* Contas a Receber: cartões Total / Vencido (com faixas) / A vencer / Sem vencimento */
+.car-kpis{grid-template-columns:1fr 1.5fr 1fr 1fr;}
+@media (max-width:900px){.car-kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}}
+.car-kpi-sub{font-size:12px; color:var(--ink-soft); line-height:1.4; margin-top:4px;}
+.kpi.car-kpi-vencido{background:var(--danger-pale); border-color:var(--danger-border);}
+.kpi.car-kpi-vencido .lbl, .kpi.car-kpi-vencido .val{color:var(--danger-deep);}
+.kpi.car-kpi-vencido .car-kpi-sub{color:var(--danger-deep);}
+.car-faixas{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--danger-border);}
+.car-faixas div{display:flex; flex-direction:column; font-size:11px; color:var(--danger-deep);}
+.car-faixas b{font-family:'Space Mono',monospace; font-size:12.5px;}
+/* linha vencida e o texto miúdo embaixo de data/NF/valor */
+tr.car-vencido td{background:rgba(239,68,68,.09);} /* véu translúcido: funciona no claro e no escuro (a cor "pale" some o texto no escuro) */
+.car-sub{font-size:11px; margin-top:2px;}
+.car-sub-vencido{color:var(--danger-text); font-weight:600;}
+.link-btn{background:none; border:0; padding:0; font:inherit; font-size:12px; font-weight:700; color:var(--orange-deep); cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;}
+.link-btn:focus-visible{outline:2px solid var(--orange); outline-offset:2px; border-radius:3px;}
+/* "Ver parcelas": parcelas da venda, logo abaixo da linha */
+tr.car-parcelas-row > td{background:var(--paper); padding:12px 16px;}
+.car-parcelas-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:8px; font-size:13px;}
+.car-parcelas-table{width:auto; min-width:min(520px,100%);}
+.car-parcelas-table th, .car-parcelas-table td{padding:6px 14px 6px 0;}
 .kpi .delta{font-family:'Space Mono',monospace; font-size:10.5px; font-weight:800; margin-top:7px;}
 .kpi .delta.good{color:var(--status-good);}
 .kpi .delta.bad{color:var(--danger);}

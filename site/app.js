@@ -7131,10 +7131,22 @@ async function confirmarMesclagemClientes() {
 // isso, só existe pra Boleto Trademaster (deságio da financeira). Ver
 // sql/vendas_status_pagamento.sql e sql/vendas_parcelas_detalhe.sql.
 function saldoEmAbertoDaVenda(v) {
+  return partesEmAbertoDaVenda(v).reduce((a, p) => a + p.valor, 0);
+}
+
+// o que ainda está em aberto de UMA venda, em pedaços com vencimento próprio: cada
+// parcela em aberto (venda com parcelas_detalhe) ou a venda inteira numa parte só.
+// Fonte única -- saldoEmAbertoDaVenda soma isso e Contas a Receber classifica cada
+// pedaço pelo vencimento dele, então os dois nunca discordam.
+function partesEmAbertoDaVenda(v) {
   if (Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length) {
-    return v.parcelasDetalhe.filter(p => p.status === "em_aberto").reduce((a, p) => a + (p.valor || 0), 0);
+    return v.parcelasDetalhe
+      .map((p, i) => ({ valor: p.valor || 0, vencimento: p.vencimento || null, numero: p.numero || i + 1, status: p.status }))
+      .filter(p => p.status === "em_aberto");
   }
-  return v.statusPagamento === "em_aberto" ? v.valorVenda : 0;
+  return v.statusPagamento === "em_aberto"
+    ? [{ valor: v.valorVenda, vencimento: v.dataVencimento || null, numero: null }]
+    : [];
 }
 
 // pill de status da tabela de Faturamento -- venda com parcela detalhada mostra
@@ -7991,82 +8003,182 @@ function renderFluxoCaixa() {
 
 /* ---------------- contas a receber (Financeiro) ---------------- */
 
-function diasEmAberto(dataVenda) {
-  return diasDesde(dataVenda);
+// Situação de cada pedaço em aberto, só pelo vencimento: "vencido" (passou de ontem pra
+// trás), "hoje", "avencer" (de amanhã em diante) ou "semdata" (sem vencimento
+// informado -- não dá pra dizer se está atrasado, então não entra em nenhuma faixa).
+function situacaoDaParte(parte) {
+  if (!parte.vencimento) return "semdata";
+  const dias = diasDesde(parte.vencimento); // > 0 já passou, 0 é hoje, < 0 ainda falta
+  return dias > 0 ? "vencido" : dias === 0 ? "hoje" : "avencer";
 }
-function faixaAtraso(dias) {
-  if (dias <= 30) return "0-30";
-  if (dias <= 60) return "31-60";
+// faixas só existem pro que já venceu
+function faixaVencido(diasAtraso) {
+  if (diasAtraso <= 30) return "1-30";
+  if (diasAtraso <= 60) return "31-60";
   return "60+";
 }
-const FAIXA_ATRASO_PILL = { "0-30": "pill-normal", "31-60": "pill-atencao", "60+": "pill-esgotado" };
+const SITUACAO_CAR_ORDEM = { vencido: 0, hoje: 1, avencer: 2, semdata: 3 };
+const SITUACAO_CAR_PILL = { vencido: "pill-esgotado", hoje: "pill-atencao", avencer: "pill-normal", semdata: "pill-neutro" };
+const diasTexto = (n) => `${fmt(n)} ${Math.abs(n) === 1 ? "dia" : "dias"}`;
+
+function situacaoCarPillHtml(parte) {
+  if (!parte) return "";
+  const sit = situacaoDaParte(parte);
+  const dias = parte.vencimento ? diasDesde(parte.vencimento) : 0;
+  const texto = sit === "vencido" ? `Vencido há ${diasTexto(dias)}`
+    : sit === "hoje" ? "Vence hoje"
+    : sit === "avencer" ? `Vence em ${diasTexto(-dias)}`
+    : "Sem vencimento";
+  return `<span class="status-pill ${SITUACAO_CAR_PILL[sit]}">${texto}</span>`;
+}
+
+// uma linha de Contas a Receber por venda: o que está em aberto dela, separado em
+// vencido / a vencer / sem vencimento. Parcela vencida só leva o valor DELA pra
+// "vencido" -- o resto da venda continua "a vencer".
+function resumoContasReceber(v) {
+  const partes = partesEmAbertoDaVenda(v).map(p => ({ ...p, sit: situacaoDaParte(p) }));
+  const soma = (sit) => partes.filter(p => p.sit === sit).reduce((a, p) => a + p.valor, 0);
+  const faixas = { "1-30": 0, "31-60": 0, "60+": 0 };
+  partes.filter(p => p.sit === "vencido").forEach(p => { faixas[faixaVencido(diasDesde(p.vencimento))] += p.valor; });
+  // a parte que dá nome à linha: a mais atrasada; sem nenhuma vencida, a que vence primeiro
+  const ref = partes.slice().sort((a, b) =>
+    SITUACAO_CAR_ORDEM[a.sit] - SITUACAO_CAR_ORDEM[b.sit] || (a.vencimento || "").localeCompare(b.vencimento || ""))[0] || null;
+  return {
+    v, partes, ref, sit: ref ? ref.sit : null, faixas,
+    total: partes.reduce((a, p) => a + p.valor, 0),
+    vencido: soma("vencido"), hoje: soma("hoje"), aVencer: soma("avencer") + soma("hoje"), semData: soma("semdata"),
+    temVencido: partes.some(p => p.sit === "vencido"), temHoje: partes.some(p => p.sit === "hoje"),
+    temAVencer: partes.some(p => p.sit === "avencer" || p.sit === "hoje"), temSemData: partes.some(p => p.sit === "semdata")
+  };
+}
+
+// linhas de parcelas abertas ("Ver parcelas") -- guarda quais vendas estão abertas pra
+// não fechar sozinho quando a lista é redesenhada por um filtro
+const carParcelasAbertas = new Set();
+
+function carParcelasDetalheHtml(v) {
+  const linhas = v.parcelasDetalhe.map((p, i) => {
+    const numero = p.numero || i + 1;
+    const situacao = p.status === "pago"
+      ? `<span class="status-pill pill-neutro">Paga${p.dataPagamento ? " em " + formatDateBR(p.dataPagamento) : ""}</span>`
+      : situacaoCarPillHtml({ vencimento: p.vencimento || null });
+    return `<tr><td>${numero} de ${v.parcelasDetalhe.length}</td><td class="mono">${p.vencimento ? formatDateBR(p.vencimento) : "—"}</td><td class="num mono">${formatMoney(p.valor || 0)}</td><td>${situacao}</td></tr>`;
+  }).join("");
+  const podeEditar = viewPermitida("faturamento");
+  return `
+    <div class="car-parcelas">
+      <div class="car-parcelas-head">
+        <span><strong>${escapeHtml(v.cliente)}</strong> · NF ${escapeHtml(v.numeroNFVenda || v.numeroPedido || "—")} · venda de ${formatMoney(v.valorVenda)} em ${formatDateBR(v.data)}</span>
+        ${podeEditar ? `<span class="write-ui"><button type="button" class="link-btn" data-editarvendacar="${v.id}">Editar venda</button></span>` : ""}
+      </div>
+      <table class="car-parcelas-table">
+        <thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th>Situação</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>`;
+}
 
 function initContasReceberForm() {
   document.getElementById("carSearch").addEventListener("input", renderContasReceber);
   document.getElementById("carFiltroVendedor").addEventListener("change", renderContasReceber);
-  document.getElementById("carFiltroFaixa").addEventListener("change", renderContasReceber);
+  document.getElementById("carFiltroSituacao").addEventListener("change", renderContasReceber);
 }
 
 function renderContasReceber() {
-  const emAberto = state.vendas.filter(v => v.statusPagamento === "em_aberto");
+  // uma linha por venda que ainda tem algo em aberto (venda parcelada continua em UMA linha)
+  const todas = state.vendas.map(resumoContasReceber).filter(r => r.partes.length);
 
   const vendedorSelect = document.getElementById("carFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
-  const vendedoresUnicos = Array.from(new Set(emAberto.map(v => v.vendedor).filter(Boolean))).sort();
+  const vendedoresUnicos = Array.from(new Set(todas.map(r => r.v.vendedor).filter(Boolean))).sort();
   vendedorSelect.innerHTML = `<option value="">Todos os vendedores</option>` +
     vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
   vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
 
   const search = (document.getElementById("carSearch").value || "").trim().toLowerCase();
   const vendedor = vendedorSelect.value;
-  const faixaFiltro = document.getElementById("carFiltroFaixa").value;
+  const situacaoFiltro = document.getElementById("carFiltroSituacao").value;
 
-  let rows = emAberto.map(v => {
-    // pela data de vencimento (não pela data da venda) -- pra venda com parcelasDetalhe,
-    // v.dataVencimento já é o vencimento da PRÓXIMA parcela em aberto (ver
-    // saldoEmAbertoDaVenda); usar a data da venda classificava uma venda de 6x no prazo
-    // como "60+ dias" só por ser antiga, mesmo sem nada realmente atrasado ainda.
-    const dias = diasEmAberto(v.dataVencimento || v.data);
-    return { v, dias, faixa: faixaAtraso(dias) };
-  });
+  // os cartões do topo olham a carteira inteira (só o vendedor escolhido recorta) -- a
+  // busca e o filtro de situação só mexem na lista, senão filtrar "60+" zerava os outros
+  // cartões e o "Total em aberto" deixava de ser o total
+  const carteira = vendedor ? todas.filter(r => r.v.vendedor === vendedor) : todas;
+
+  let rows = carteira;
   if (search) rows = rows.filter(({ v }) => [v.cliente, v.numeroNFVenda, v.numeroPedido].join(" ").toLowerCase().includes(search));
-  if (vendedor) rows = rows.filter(({ v }) => v.vendedor === vendedor);
-  if (faixaFiltro) rows = rows.filter(r => r.faixa === faixaFiltro);
-  rows.sort((a, b) => (a.v.data || "").localeCompare(b.v.data || "")); // mais antiga primeiro
+  if (situacaoFiltro) rows = rows.filter(r => r.sit === situacaoFiltro);
+  // mais atrasado primeiro, depois quem vence mais perto; sem vencimento por último
+  rows = rows.slice().sort((a, b) =>
+    SITUACAO_CAR_ORDEM[a.sit] - SITUACAO_CAR_ORDEM[b.sit] ||
+    (a.ref.vencimento || "").localeCompare(b.ref.vencimento || "") ||
+    (a.v.data || "").localeCompare(b.v.data || "") ||
+    a.v.cliente.localeCompare(b.v.cliente));
 
-  document.getElementById("carEmpty").style.display = rows.length ? "none" : "block";
-  document.getElementById("carTbody").innerHTML = rows.map(({ v, dias, faixa }) => {
-    const temParcelas = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
-    const pagas = temParcelas ? v.parcelasDetalhe.filter(p => p.status === "pago").length : 0;
+  const empty = document.getElementById("carEmpty");
+  empty.style.display = rows.length ? "none" : "block";
+  empty.textContent = todas.length ? "Nenhuma venda encontrada com esses filtros." : "Nenhuma venda em aberto — tudo pago!";
+
+  document.getElementById("carTbody").innerHTML = rows.map(r => {
+    const { v, ref } = r;
+    const parcelada = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
+    const aberta = parcelada && carParcelasAbertas.has(v.id);
+    const parcial = parcelada && r.vencido > 0 && r.vencido < r.total;
     return `
-    <tr>
-      <td class="mono">${formatDateBR(v.data)}</td>
+    <tr class="${r.sit === "vencido" ? "car-vencido" : ""}">
+      <td class="mono">${ref.vencimento ? formatDateBR(ref.vencimento) : "—"}
+        ${parcelada ? `<div class="muted car-sub">parcela ${ref.numero} de ${v.parcelasDetalhe.length}</div>` : ""}</td>
+      <td>${situacaoCarPillHtml(ref)}</td>
       <td>${escapeHtml(v.cliente)}</td>
-      <td class="mono">${escapeHtml(v.numeroNFVenda || v.numeroPedido || "—")}</td>
+      <td class="mono">${escapeHtml(v.numeroNFVenda || v.numeroPedido || "—")}
+        <div class="muted car-sub">venda ${formatDateBR(v.data)}</div></td>
       <td>${escapeHtml(v.vendedor || "—")}</td>
       <td class="num mono">
-        ${formatMoney(saldoEmAbertoDaVenda(v))}
-        ${temParcelas ? `<div class="muted" style="font-size:11px;">${pagas} de ${v.parcelasDetalhe.length} parcelas pagas</div>` : ""}
+        ${formatMoney(r.total)}
+        ${parcial ? `<div class="car-sub car-sub-vencido">vencido ${formatMoney(r.vencido)}</div>` : ""}
       </td>
-      <td class="mono">${v.dataVencimento ? formatDateBR(v.dataVencimento) : "—"}</td>
-      <td><span class="status-pill ${FAIXA_ATRASO_PILL[faixa]}">${fmt(dias)} dias</span></td>
-      <td>${temParcelas ? "" : `<span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span>`}</td>
-    </tr>
-  `;
+      <td>${parcelada
+        ? `<button type="button" class="link-btn" data-verparcelas="${v.id}" aria-expanded="${aberta}">Ver parcelas ${aberta ? "▾" : "▸"}</button>`
+        : `<span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span>`}</td>
+    </tr>${aberta ? `<tr class="car-parcelas-row"><td colspan="7">${carParcelasDetalheHtml(v)}</td></tr>` : ""}`;
   }).join("");
 
-  const somaFaixa = (faixa) => rows.filter(r => r.faixa === faixa).reduce((a, { v }) => a + saldoEmAbertoDaVenda(v), 0);
-  document.getElementById("carKpis").innerHTML = [
-    { lbl: "Total em aberto", val: formatMoney(rows.reduce((a, { v }) => a + saldoEmAbertoDaVenda(v), 0)), accent: true },
-    { lbl: "0–30 dias", val: formatMoney(somaFaixa("0-30")) },
-    { lbl: "31–60 dias", val: formatMoney(somaFaixa("31-60")) },
-    { lbl: "60+ dias", val: formatMoney(somaFaixa("60+")) }
-  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+  const somaCarteira = (campo) => carteira.reduce((a, r) => a + r[campo], 0);
+  const totalAberto = somaCarteira("total");
+  const vencidoTotal = somaCarteira("vencido");
+  const aVencerTotal = somaCarteira("aVencer");
+  const semDataTotal = somaCarteira("semData");
+  const nVendas = (n) => `${fmt(n)} ${n === 1 ? "venda" : "vendas"}`;
+  const venceHojeTotal = somaCarteira("hoje");
+  const pctVencido = totalAberto > 0 ? Math.round(vencidoTotal / totalAberto * 100) : 0;
+  const faixaKpi = (rotulo, chave) => `<div>${rotulo}<b>${formatMoney(carteira.reduce((a, r) => a + r.faixas[chave], 0))}</b></div>`;
+  document.getElementById("carKpis").innerHTML = `
+    <div class="kpi accent"><div class="lbl">Total em aberto</div><div class="val" style="font-size:19px;">${formatMoney(totalAberto)}</div>
+      <div class="car-kpi-sub">${nVendas(carteira.length)}${vendedor ? " · " + escapeHtml(vendedor) : ""}</div></div>
+    <div class="kpi car-kpi-vencido"><div class="lbl">Vencido</div><div class="val" style="font-size:19px;">${formatMoney(vencidoTotal)}</div>
+      <div class="car-kpi-sub">${nVendas(carteira.filter(r => r.temVencido).length)} · ${pctVencido}% do total em aberto</div>
+      <div class="car-faixas">${faixaKpi("1–30 dias", "1-30")}${faixaKpi("31–60 dias", "31-60")}${faixaKpi("60+ dias", "60+")}</div></div>
+    <div class="kpi"><div class="lbl">A vencer</div><div class="val" style="font-size:19px;">${formatMoney(aVencerTotal)}</div>
+      <div class="car-kpi-sub">${venceHojeTotal > 0 ? `inclui ${formatMoney(venceHojeTotal)} que vence hoje` : nVendas(carteira.filter(r => r.temAVencer).length)}</div></div>
+    <div class="kpi"><div class="lbl">Sem vencimento</div><div class="val" style="font-size:19px;">${formatMoney(semDataTotal)}</div>
+      <div class="car-kpi-sub">${semDataTotal > 0 ? `${nVendas(carteira.filter(r => r.temSemData).length)} · informe a data` : "nenhuma venda"}</div></div>`;
 
   document.querySelectorAll("[data-marcarpagocar]").forEach(btn => {
     btn.addEventListener("click", async () => {
       const ok = await marcarVendaComoPaga(btn.dataset.marcarpagocar);
       if (ok) { renderContasReceber(); renderVendas(); renderFaturamento(); }
+    });
+  });
+  document.querySelectorAll("[data-verparcelas]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.verparcelas;
+      if (carParcelasAbertas.has(id)) carParcelasAbertas.delete(id); else carParcelasAbertas.add(id);
+      renderContasReceber();
+    });
+  });
+  document.querySelectorAll("[data-editarvendacar]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      setView("faturamento");
+      startEditVenda(btn.dataset.editarvendacar);
     });
   });
 }
@@ -8081,10 +8193,13 @@ async function marcarVendaComoPaga(vendaId) {
   const ok = await confirmModal("Confirmar pagamento?",
     `Marcar a venda NF ${v.numeroNFVenda || "—"} (${v.cliente}) como paga hoje, ${formatDateBR(dataPagamento)}? Pra usar outra data, edite a venda.`);
   if (!ok) return false;
-  const { error } = await sb.from("vendas").update({ status_pagamento: "pago", data_pagamento: dataPagamento }).eq("id", v.id);
+  // .select() devolve o updated_at novo: sem ele, "Editar" nessa mesma venda antes de
+  // recarregar a página levava o carimbo velho e dava falso aviso de conflito
+  const { data: atualizada, error } = await sb.from("vendas").update({ status_pagamento: "pago", data_pagamento: dataPagamento }).eq("id", v.id).select();
   if (error) { toast("Erro ao confirmar pagamento: " + error.message); return false; }
   v.statusPagamento = "pago";
   v.dataPagamento = dataPagamento;
+  if (atualizada && atualizada[0]) v.updatedAt = atualizada[0].updated_at;
   await registrarLog("vendas", v.id, "edicao", "Pagamento confirmado",
     `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente} marcada como paga em ${formatDateBR(dataPagamento)}`);
   toast("Pagamento confirmado.");
