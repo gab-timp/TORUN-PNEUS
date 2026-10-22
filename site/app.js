@@ -90,6 +90,14 @@ function todayISO() {
   return new Date(d - tz).toISOString().slice(0, 10);
 }
 
+// Dias de calendário desde uma data "AAAA-MM-DD": 0 = hoje, positivo = no passado, negativo = no futuro.
+// Os dois lados são só data (sem hora), então a virada é à meia-noite. A conta antiga, `new Date() - new Date(data)`,
+// comparava "agora" com a meia-noite UTC da data: depois das 9h em Brasília o resultado ganhava um dia, e os cortes
+// de 60 e 120 dias (selo do cliente), "vencida" da análise de crédito e a faixa de atraso viravam no meio da manhã.
+function diasDesde(dataISO) {
+  return Math.round((Date.parse(todayISO()) - Date.parse(String(dataISO || "").slice(0, 10))) / 86400000);
+}
+
 // "N dias atrás" em ISO local (mesma lógica de fuso que todayISO) -- usado
 // pro período padrão das listas pesadas (plano de capacidade, camada "fazer
 // em breve": Movimentações/Histórico carregavam tudo sem filtro padrão).
@@ -6391,7 +6399,7 @@ function resumoVendasPorCliente() {
 // de "inativo" (comprou antes, mas já faz tempo).
 function statusAtividadeCliente(ultimaCompra) {
   if (!ultimaCompra) return "novo";
-  const dias = Math.round((new Date() - new Date(ultimaCompra)) / 86400000);
+  const dias = diasDesde(ultimaCompra);
   if (dias <= 60) return "ativo";
   if (dias <= 120) return "atencao";
   return "inativo";
@@ -7727,7 +7735,7 @@ async function salvarEdicaoCliente() {
 function statusCreditoCliente(limite, validade) {
   if (limite == null) return "sem-limite";
   if (!validade) return "ok"; // tem limite mas sem validade cadastrada -- sem evidência de vencido
-  const dias = Math.round((new Date(validade) - new Date()) / 86400000);
+  const dias = -diasDesde(validade); // dias que faltam pra validade; análise que vence hoje (0) ainda vale
   if (dias < 0) return "vencida";
   if (dias <= 30) return "vence-em-breve";
   return "ok";
@@ -7984,7 +7992,7 @@ function renderFluxoCaixa() {
 /* ---------------- contas a receber (Financeiro) ---------------- */
 
 function diasEmAberto(dataVenda) {
-  return Math.round((new Date() - new Date(dataVenda)) / 86400000);
+  return diasDesde(dataVenda);
 }
 function faixaAtraso(dias) {
   if (dias <= 30) return "0-30";
