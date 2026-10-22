@@ -8054,6 +8054,7 @@ function initContasReceberForm() {
   document.getElementById("carSearch").addEventListener("input", renderContasReceber);
   document.getElementById("carFiltroVendedor").addEventListener("change", renderContasReceber);
   document.getElementById("carFiltroFaixa").addEventListener("change", renderContasReceber);
+  initBaixaParcelas();
 }
 
 function renderContasReceber() {
@@ -8108,7 +8109,9 @@ function renderContasReceber() {
       </td>
       <td class="mono">${ref.vencimento ? formatDateBR(ref.vencimento) : "—"}${temParcelas ? `<div class="muted" style="font-size:11px;">parcela ${ref.numero}</div>` : ""}</td>
       <td>${pillSituacaoCar(r)}</td>
-      <td>${temParcelas ? "" : `<span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span>`}</td>
+      <td>${temParcelas
+        ? `<span class="write-ui"><button class="btn small outline" data-baixaparcelas="${v.id}">Dar baixa nas parcelas</button></span>`
+        : `<span class="write-ui"><button class="btn small outline" data-marcarpagocar="${v.id}">Marcar como pago</button></span>`}</td>
     </tr>
   `;
   }).join("");
@@ -8130,6 +8133,9 @@ function renderContasReceber() {
       const ok = await marcarVendaComoPaga(btn.dataset.marcarpagocar);
       if (ok) { renderContasReceber(); renderVendas(); renderFaturamento(); }
     });
+  });
+  document.querySelectorAll("[data-baixaparcelas]").forEach(btn => {
+    btn.addEventListener("click", () => abrirBaixaParcelas(btn.dataset.baixaparcelas));
   });
 }
 
@@ -8154,6 +8160,141 @@ async function marcarVendaComoPaga(vendaId) {
     `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente} marcada como paga em ${formatDateBR(dataPagamento)}`);
   toast("Pagamento confirmado.");
   return true;
+}
+
+/* ---------------- baixa de parcelas (Contas a Receber) ---------------- */
+// Janela "Dar baixa nas parcelas" das vendas parceladas: marca uma ou várias parcelas como
+// pagas de uma vez, com a mesma data de pagamento. Grava os mesmos campos que "Editar venda"
+// (parcelas_detalhe + o agregado status/vencimento/pagamento da venda), só que sem abrir o
+// formulário inteiro. Pagamento de valor diferente do da parcela segue por Editar em Faturamento.
+let baixaVendaId = null;
+
+function vendaDaBaixa() {
+  return state.vendas.find(x => x.id === baixaVendaId) || null;
+}
+
+function pillParcelaBaixa(p) {
+  const sit = situacaoDaParte(p);
+  if (sit === "semdata") return `<span class="status-pill pill-neutro">Sem vencimento</span>`;
+  const dias = diasDesde(p.vencimento);
+  if (sit === "vencido") return `<span class="status-pill ${FAIXA_VENCIDO_PILL[faixaVencido(dias)]}">Vencida há ${diasTexto(dias)}</span>`;
+  return `<span class="status-pill pill-normal">${sit === "hoje" ? "Vence hoje" : `Vence em ${diasTexto(-dias)}`}</span>`;
+}
+
+function abrirBaixaParcelas(vendaId) {
+  const v = state.vendas.find(x => x.id === vendaId);
+  if (!v || !Array.isArray(v.parcelasDetalhe) || !v.parcelasDetalhe.length) return;
+  baixaVendaId = vendaId;
+  document.getElementById("baixaParcelasSubtitulo").textContent =
+    `${v.cliente} · NF ${v.numeroNFVenda || v.numeroPedido || "—"} · venda de ${formatMoney(v.valorVenda)} em ${formatDateBR(v.data)}${v.vendedor ? " · " + v.vendedor : ""}`;
+  const total = v.parcelasDetalhe.length;
+  document.getElementById("baixaParcelasTbody").innerHTML = v.parcelasDetalhe.map((p, i) => {
+    const paga = p.status === "pago";
+    const numero = p.numero || i + 1;
+    return `
+      <tr class="${paga ? "paga" : ""}">
+        <td><input type="checkbox" class="baixa-check" data-i="${i}" aria-label="Parcela ${numero} de ${total}" ${paga ? "checked disabled" : ""}></td>
+        <td>${numero} de ${total}</td>
+        <td class="mono">${p.vencimento ? formatDateBR(p.vencimento) : "—"}</td>
+        <td class="num mono">${formatMoney(p.valor || 0)}</td>
+        <td>${paga
+          ? `<span class="status-pill pill-neutro">Paga${p.dataPagamento ? " em " + formatDateBR(p.dataPagamento) : ""}</span>`
+          : pillParcelaBaixa(p)}</td>
+      </tr>`;
+  }).join("");
+  document.getElementById("baixaDataPagamento").value = todayISO();
+  document.querySelectorAll("#baixaParcelasTbody .baixa-check").forEach(c => c.addEventListener("change", atualizarResumoBaixa));
+  atualizarResumoBaixa();
+  document.getElementById("baixaParcelasOverlay").classList.add("show");
+}
+
+function fecharBaixaParcelas() {
+  document.getElementById("baixaParcelasOverlay").classList.remove("show");
+  baixaVendaId = null;
+}
+
+// índices (dentro de parcelasDetalhe) das parcelas marcadas na janela -- as já pagas ficam
+// desabilitadas e nunca entram
+function parcelasMarcadasBaixa() {
+  return Array.from(document.querySelectorAll("#baixaParcelasTbody .baixa-check:not(:disabled):checked")).map(c => Number(c.dataset.i));
+}
+
+function atualizarResumoBaixa() {
+  const v = vendaDaBaixa();
+  if (!v) return;
+  const marcadas = parcelasMarcadasBaixa();
+  document.querySelectorAll("#baixaParcelasTbody .baixa-check").forEach(c => {
+    c.closest("tr").classList.toggle("sel", c.checked && !c.disabled);
+  });
+  const valor = marcadas.reduce((a, i) => a + (v.parcelasDetalhe[i].valor || 0), 0);
+  document.getElementById("baixaResumo").innerHTML = marcadas.length
+    ? `<div>${marcadas.length === 1 ? "1 parcela selecionada" : `${marcadas.length} parcelas selecionadas`}</div>
+       <div class="total">${formatMoney(valor)}</div>
+       <div class="filtro-nota">Em aberto depois: ${formatMoney(saldoEmAbertoDaVenda(v) - valor)}</div>`
+    : `<div>Nenhuma parcela selecionada</div><div class="filtro-nota">Marque as parcelas que o cliente pagou.</div>`;
+  document.getElementById("baixaParcelasConfirmar").disabled = marcadas.length === 0;
+}
+
+async function confirmarBaixaParcelas() {
+  const v = vendaDaBaixa();
+  if (!v) return;
+  const marcadas = parcelasMarcadasBaixa();
+  if (!marcadas.length) { toast("Marque ao menos uma parcela."); return; }
+  const data = document.getElementById("baixaDataPagamento").value;
+  if (!data) { toast("Informe a data do pagamento."); return; }
+
+  const novas = v.parcelasDetalhe.map((p, i) => marcadas.includes(i) ? { ...p, status: "pago", dataPagamento: data } : p);
+  // agregado da venda: mesma regra do formulário de venda (Editar) -- "pago" só quando TODAS as
+  // parcelas estão pagas; vencimento = o da próxima parcela em aberto (ou o da última, se todas pagas)
+  const todasPagas = novas.every(p => p.status === "pago");
+  const proximaAberta = novas.find(p => p.status === "em_aberto");
+  const payload = {
+    parcelas_detalhe: novas,
+    status_pagamento: todasPagas ? "pago" : "em_aberto",
+    data_vencimento: (proximaAberta || novas[novas.length - 1]).vencimento || null,
+    data_pagamento: todasPagas ? ([...novas].sort((a, b) => (b.dataPagamento || "").localeCompare(a.dataPagamento || ""))[0].dataPagamento || null) : null
+  };
+
+  const btn = document.getElementById("baixaParcelasConfirmar");
+  btn.disabled = true; // evita clique duplo enquanto grava
+  const { conflict, error, row } = await updateWithConflictCheck("vendas", v.id, v.updatedAt, payload);
+  if (error) { toast("Erro ao confirmar pagamento: " + error.message); btn.disabled = false; return; }
+  if (conflict) {
+    fecharBaixaParcelas();
+    scheduleRefresh();
+    toast(CONFLITO_MSG);
+    return;
+  }
+  Object.assign(v, vendaFromRow(row));
+  const valor = marcadas.reduce((a, i) => a + (novas[i].valor || 0), 0);
+  const quais = marcadas.map(i => novas[i].numero || i + 1).join(", ");
+  await registrarLog("vendas", v.id, "edicao", "Pagamento confirmado",
+    `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente}: ${marcadas.length === 1 ? "parcela" : "parcelas"} ${quais} de ${novas.length} paga${marcadas.length === 1 ? "" : "s"} em ${formatDateBR(data)} (${formatMoney(valor)})`);
+  fecharBaixaParcelas();
+  toast(`Pagamento confirmado: ${marcadas.length === 1 ? "1 parcela" : `${marcadas.length} parcelas`} de ${v.cliente} (${formatMoney(valor)}).`);
+  renderContasReceber();
+  renderVendas();
+  renderFaturamento();
+}
+
+function initBaixaParcelas() {
+  const marcar = (filtro) => {
+    const v = vendaDaBaixa();
+    if (!v) return;
+    document.querySelectorAll("#baixaParcelasTbody .baixa-check:not(:disabled)").forEach(c => {
+      c.checked = filtro(v.parcelasDetalhe[Number(c.dataset.i)]);
+    });
+    atualizarResumoBaixa();
+  };
+  document.getElementById("baixaSelVencidas").addEventListener("click", () => marcar(p => situacaoDaParte(p) === "vencido"));
+  document.getElementById("baixaSelTodas").addEventListener("click", () => marcar(() => true));
+  document.getElementById("baixaSelLimpar").addEventListener("click", () => marcar(() => false));
+  document.getElementById("baixaParcelasConfirmar").addEventListener("click", confirmarBaixaParcelas);
+  document.getElementById("baixaParcelasClose").addEventListener("click", fecharBaixaParcelas);
+  document.getElementById("baixaParcelasCancelar").addEventListener("click", fecharBaixaParcelas);
+  document.getElementById("baixaParcelasOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "baixaParcelasOverlay") fecharBaixaParcelas();
+  });
 }
 
 /* ---------------- comissões consolidadas (Financeiro) ---------------- */
