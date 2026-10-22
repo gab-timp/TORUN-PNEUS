@@ -8671,6 +8671,7 @@ function startEditVenda(vendaId) {
   const temParcelasDetalheSalvo = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
   document.getElementById("venParcelas").value = temParcelasDetalheSalvo ? String(v.parcelasDetalhe.length) : "";
   document.getElementById("venStatusPagamento").value = v.statusPagamento || "em_aberto";
+  delete document.getElementById("venStatusPagamento").dataset.autoPix; // editando: vale o que está salvo
   document.getElementById("venDataVencimento").value = v.dataVencimento || "";
   document.getElementById("venDataPagamento").value = v.dataPagamento || "";
   document.getElementById("rowDataPagamento").style.display = v.statusPagamento === "pago" ? "" : "none";
@@ -8727,6 +8728,7 @@ function cancelEditVenda() {
   document.getElementById("venValorRecebido").required = false;
   document.getElementById("venDiferencaCalc").value = "R$ 0,00 (0%)";
   document.getElementById("venStatusPagamento").value = "em_aberto";
+  delete document.getElementById("venStatusPagamento").dataset.autoPix;
   document.getElementById("venDataPagamento").value = "";
   document.getElementById("rowDataPagamento").style.display = "none";
   document.getElementById("venDataVencimento").value = dataMaisDias(todayISO(), 30);
@@ -8857,6 +8859,9 @@ function initForms() {
   document.getElementById("entData").value = todayISO();
   document.getElementById("saiData").value = todayISO();
   document.getElementById("venData").value = todayISO();
+  // mesma sugestão de vencimento (venda + 30 dias) que "cancelar edição" já aplica --
+  // sem isso a primeira venda da página saía sem vencimento se ninguém mexesse na data
+  document.getElementById("venDataVencimento").value = dataMaisDias(todayISO(), 30);
   // período padrão dos últimos 45 dias -- lista não nasce mais mostrando tudo
   // desde o início (plano de capacidade, camada "fazer em breve"); "Até" fica
   // em aberto (sem limite superior = até hoje) e dá pra ampliar/limpar à vontade.
@@ -9412,6 +9417,23 @@ function initForms() {
     if (!temParcelas) document.getElementById("venParcelas").value = "";
     regenerarParcelasDetalhe();
 
+    // PIX é à vista: a venda já vem marcada como paga, com a data da venda como data de
+    // pagamento (dá pra mudar no formulário). A marca autoPix deixa trocar a forma de
+    // pagamento sem ficar "pago" de sobra; mexer no status à mão solta a marca.
+    const statusSel = document.getElementById("venStatusPagamento");
+    const dataPagInp = document.getElementById("venDataPagamento");
+    if (forma === "PIX") {
+      statusSel.value = "pago";
+      statusSel.dataset.autoPix = "1";
+      if (!dataPagInp.value) dataPagInp.value = document.getElementById("venData").value || todayISO();
+      document.getElementById("rowDataPagamento").style.display = "";
+    } else if (statusSel.dataset.autoPix) {
+      delete statusSel.dataset.autoPix;
+      statusSel.value = "em_aberto";
+      dataPagInp.value = "";
+      document.getElementById("rowDataPagamento").style.display = "none";
+    }
+
     document.getElementById("rowTrademaster").style.display = isTrademaster ? "" : "none";
     document.getElementById("venValorRecebido").required = isTrademaster;
     if (!isTrademaster) {
@@ -9427,6 +9449,7 @@ function initForms() {
   document.getElementById("venValor").addEventListener("input", atualizarSomaParcelas);
 
   document.getElementById("venStatusPagamento").addEventListener("change", (e) => {
+    delete e.target.dataset.autoPix; // escolha manual vale mais que o "PIX já vem pago"
     const pago = e.target.value === "pago";
     document.getElementById("rowDataPagamento").style.display = pago ? "" : "none";
     if (pago && !document.getElementById("venDataPagamento").value) {
@@ -9437,6 +9460,10 @@ function initForms() {
   // sugere o vencimento (venda + 30 dias) só se o campo ainda não foi tocado --
   // não sobrescreve um valor que a pessoa já ajustou.
   document.getElementById("venData").addEventListener("change", (e) => {
+    // PIX que veio pago sozinho: a data de pagamento acompanha a data da venda
+    if (document.getElementById("venStatusPagamento").dataset.autoPix && e.target.value) {
+      document.getElementById("venDataPagamento").value = e.target.value;
+    }
     if (!document.getElementById("venDataVencimento").value && e.target.value) {
       document.getElementById("venDataVencimento").value = dataMaisDias(e.target.value, 30);
     }
@@ -9586,16 +9613,9 @@ function initForms() {
     const { data: inserido, error } = await sb.from("vendas").insert({ ...vendaToRow(novaVenda), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao registrar venda: " + error.message); return; }
     state.vendas.push(vendaFromRow(inserido[0]));
-    e.target.reset();
-    resetarFretePuxado();
-    resetDivisaoPagamento();
-    document.getElementById("venData").value = todayISO();
-    document.getElementById("venTransportadora").disabled = false;
-    document.getElementById("venValorFrete").disabled = false;
-    document.getElementById("rowParcelas").style.display = "none";
-    document.getElementById("rowTrademaster").style.display = "none";
-    document.getElementById("venValorRecebido").required = false;
-    document.getElementById("venDiferencaCalc").value = "R$ 0,00 (0%)";
+    // mesmo reset de "cancelar edição" (inclui status, vencimento sugerido e a linha da
+    // data de pagamento, que o reset() sozinho deixava vazio/visível por engano)
+    cancelEditVenda();
     renderFaturamentoDatalists();
     renderFaturamento();
     renderVendas();
