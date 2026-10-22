@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=167">
+<link rel="stylesheet" href="styles.css?v=168">
 <link rel="stylesheet" href="semvenda.css?v=16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2116,6 +2116,9 @@
           <h1>Limite de Crédito</h1>
           <div class="sub">Limite, saldo em aberto e validade da análise de crédito de cada cliente.</div>
         </div>
+        <div class="page-head-actions">
+          <button type="button" class="btn small outline" id="btnRelatorioCredito">Relatório de vencimento</button>
+        </div>
       </div>
 
       <div class="kpis" id="limCredKpis"></div>
@@ -2354,6 +2357,9 @@
         <div>
           <h1>Clientes</h1>
           <div class="sub">Cadastro de clientes usados nas vendas e nos pedidos de entrega.</div>
+        </div>
+        <div class="page-head-actions">
+          <button type="button" class="btn small outline" id="btnRelatorioInativos">Relatório de inativos</button>
         </div>
       </div>
 
@@ -2842,6 +2848,81 @@
           <div class="form-actions">
             <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
             <button type="button" class="btn primary report-btn-csv">Gerar CSV</button>
+          </div>
+        </div>
+
+        <div class="card report-card" data-report="credito">
+          <div class="card-head"><h2>Vencimento do crédito</h2></div>
+          <div class="note">Análises de crédito vencidas ou perto de vencer, com limite, saldo em aberto e quanto ainda está disponível de cada cliente.</div>
+          <div class="form-row">
+            <div class="field">
+              <label>Situação da análise</label>
+              <select class="report-filtro">
+                <option value="">Vencidas e a vencer (30 dias)</option>
+                <option value="vencida">Só vencidas</option>
+                <option value="vence-em-breve">Só a vencer (30 dias)</option>
+                <option value="todos">Todos os clientes</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Estado</label>
+              <select class="report-filtro2" id="reportCredEstado">
+                <option value="">Todos os estados</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field" style="flex:0 0 auto;">
+              <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
+                <input type="checkbox" class="report-filtro3" style="width:auto;">
+                Só clientes com saldo em aberto
+              </label>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
+          </div>
+        </div>
+
+        <div class="card report-card" data-report="inativos">
+          <div class="card-head"><h2>Clientes em atenção ou inativos</h2></div>
+          <div class="note">Clientes que pararam de comprar: em atenção (61 a 120 dias) e inativos (mais de 120 dias), com telefone e histórico de compras.</div>
+          <div class="form-row">
+            <div class="field">
+              <label>Situação</label>
+              <select class="report-filtro">
+                <option value="">Atenção e inativos</option>
+                <option value="atencao">Só atenção</option>
+                <option value="inativo">Só inativos</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Ordenar por</label>
+              <select class="report-agrupar">
+                <option value="">Mais tempo sem comprar</option>
+                <option value="valor">Maior valor comprado</option>
+                <option value="nome">Nome do cliente</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label>Vendedor (da última compra)</label>
+              <select class="report-filtro3" id="reportInatVendedor">
+                <option value="">Todos os vendedores</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Estado</label>
+              <select class="report-filtro2" id="reportInatEstado">
+                <option value="">Todos os estados</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline report-btn-pdf">Gerar PDF</button>
+            <button type="button" class="btn primary report-btn-excel">Gerar Excel</button>
           </div>
         </div>
       </div>
@@ -3849,6 +3930,6 @@
 </div>
 
 <script src="semvenda.js?v=17"></script>
-<script src="app.js?v=261"></script>
+<script src="app.js?v=262"></script>
 </body>
 </html>

@@ -1908,7 +1908,10 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 /* grupo com muitos itens gera uma linha bem alta -- evita que ela seja cortada
    ao meio entre duas páginas na hora de imprimir/gerar PDF */
 .print-report-table tr{page-break-inside:avoid; break-inside:avoid;}
+.print-report-table td.neg{font-weight:800;}
 .print-report-summary{margin-top:18px; font-size:12px; max-width:360px;}
+.print-report-summary.wide{max-width:470px;} /* linhas com valor longo ("5 · em aberto R$ 60.205,00") */
+.print-report-summary-row{gap:16px;}
 .print-report-summary-row{display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dashed #ccc;}
 .print-report-summary-row.total{font-weight:800; font-size:14px; border-bottom:2px solid #0b0b0b; margin-top:4px;}
 
