@@ -5210,6 +5210,26 @@ function getCliente(nome) {
   return state.clientes.find(c => c.nome === nome);
 }
 
+// Regra única de duplicidade (cliente novo, edição e aprovação de pré-cadastro): mesmo nome, sem diferenciar
+// maiúscula/minúscula nem espaços nas pontas, ou mesmo CNPJ/CPF (só os dígitos). "ignorarNome" é o próprio cliente,
+// na edição. Devolve { cliente, motivo } do primeiro que bater, ou null.
+function clienteDuplicado(nome, documento, ignorarNome) {
+  const nomeNorm = (nome || "").trim().toLowerCase();
+  const docNorm = (documento || "").replace(/\D/g, "");
+  for (const c of state.clientes) {
+    if (c.nome === ignorarNome) continue;
+    if (nomeNorm && c.nome.trim().toLowerCase() === nomeNorm) return { cliente: c, motivo: "nome" };
+    if (docNorm && (c.documento || "").replace(/\D/g, "") === docNorm) return { cliente: c, motivo: "documento" };
+  }
+  return null;
+}
+
+function mensagemClienteDuplicado(dup) {
+  return dup.motivo === "nome"
+    ? `Já existe um cliente com esse nome ("${dup.cliente.nome}").`
+    : `Já existe um cliente cadastrado com esse CNPJ/CPF ("${dup.cliente.nome}").`;
+}
+
 function populateEstadoSelect() {
   const opts = UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
   document.getElementById("cliEstado").innerHTML = opts;
@@ -6980,7 +7000,7 @@ async function confirmarMesclagemClientes() {
   }
 
   const motivo = await motivoModal("Confirmar mesclagem?",
-    `"${outros.join('", "')}" será(ão) removido(s), e suas vendas, pedidos e arquivos passam a apontar para "${survivorNome}". Informe o motivo.`);
+    `"${outros.join('", "')}" será(ão) removido(s), e suas vendas, pedidos, arquivos e análises de crédito passam a apontar para "${survivorNome}". Informe o motivo.`);
   if (!motivo) return;
 
   const survivor = getCliente(survivorNome);
@@ -7001,7 +7021,16 @@ async function confirmarMesclagemClientes() {
   }));
   const notasMescladas = grupo.flatMap(c => c.notas || []);
 
+  // Limite de crédito: o principal só herda quando NÃO tem nenhum. Vem do duplicado com a análise mais recente
+  // (validade mais distante; empate: o maior limite), junto com a validade. Quem já tem limite fica como está.
+  let creditoHerdado = null;
+  if (survivor.limiteCredito == null) {
+    creditoHerdado = outros.map(getCliente).filter(c => c && c.limiteCredito != null)
+      .sort((a, b) => (b.validadeAnaliseCredito || "").localeCompare(a.validadeAnaliseCredito || "") || b.limiteCredito - a.limiteCredito)[0] || null;
+  }
+
   const payloadSurvivor = {
+    ...(creditoHerdado ? { limite_credito: creditoHerdado.limiteCredito, validade_analise_credito: creditoHerdado.validadeAnaliseCredito || null } : {}),
     documento: camposMesclados.documento || null,
     razao_social: camposMesclados.razaoSocial || null,
     telefone: camposMesclados.telefone || null,
@@ -7030,6 +7059,7 @@ async function confirmarMesclagemClientes() {
     tipoCliente: camposMesclados.tipoCliente || null, tipoPessoa: camposMesclados.tipoPessoa || "",
     tags: tagsMescladas, notas: notasMescladas
   });
+  if (creditoHerdado) Object.assign(survivor, { limiteCredito: creditoHerdado.limiteCredito, validadeAnaliseCredito: creditoHerdado.validadeAnaliseCredito || "" });
 
   // Cada duplicata é removida do estado local assim que sua própria etapa no
   // banco confirma -- antes só tirava tudo do state.clientes depois do loop
@@ -7038,13 +7068,19 @@ async function confirmarMesclagemClientes() {
   // dava "sucesso" numa linha que não existe mais (achado em revisão).
   const mescladosComSucesso = [];
   let falhou = null;
+  let falhouNasAnalises = false;
   for (const nomeAntigo of outros) {
-    const [vendasRes, entregasRes, arquivosRes] = await Promise.all([
+    // quantas análises de crédito o duplicado tem: o banco filtra em silêncio (0 linhas, sem erro) se faltar a
+    // permissão de mover (sql/credito_analises_mesclar.sql), e aí o apagar do duplicado bateria na chave estrangeira
+    const { count: qtdAnalises } = await sb.from("credito_analises").select("id", { count: "exact", head: true }).eq("cliente", nomeAntigo);
+    const [vendasRes, entregasRes, arquivosRes, analisesRes] = await Promise.all([
       sb.from("vendas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo),
       sb.from("entregas").update({ cliente: survivorNome }).eq("cliente", nomeAntigo),
-      sb.from("cliente_arquivos").update({ cliente: survivorNome }).eq("cliente", nomeAntigo) // os arquivos vão pro cliente que fica
+      sb.from("cliente_arquivos").update({ cliente: survivorNome }).eq("cliente", nomeAntigo), // os arquivos vão pro cliente que fica
+      sb.from("credito_analises").update({ cliente: survivorNome }).eq("cliente", nomeAntigo).select("id") // e o histórico de crédito
     ]);
-    if (vendasRes.error || entregasRes.error || arquivosRes.error) { falhou = nomeAntigo; break; }
+    if (vendasRes.error || entregasRes.error || arquivosRes.error || analisesRes.error) { falhou = nomeAntigo; break; }
+    if ((qtdAnalises || 0) > (analisesRes.data || []).length) { falhou = nomeAntigo; falhouNasAnalises = true; break; }
 
     const { error: errDelete } = await sb.from("clientes").delete().eq("nome", nomeAntigo);
     if (errDelete) { falhou = nomeAntigo; break; }
@@ -7057,7 +7093,8 @@ async function confirmarMesclagemClientes() {
 
   if (mescladosComSucesso.length) {
     await registrarLog("clientes", survivorNome, "exclusao", motivo,
-      `Cadastros mesclados em "${survivorNome}": ${mescladosComSucesso.join(", ")}`);
+      `Cadastros mesclados em "${survivorNome}": ${mescladosComSucesso.join(", ")}`
+      + (creditoHerdado ? ` · limite de crédito de ${formatMoney(creditoHerdado.limiteCredito)} veio de "${creditoHerdado.nome}"` : ""));
   }
 
   clientesSelecionadosParaMesclar.clear();
@@ -7065,7 +7102,9 @@ async function confirmarMesclagemClientes() {
   renderClientes();
   renderClienteSelect();
 
-  if (falhou) {
+  if (falhou && falhouNasAnalises) {
+    toast(`Não foi possível levar as análises de crédito de "${falhou}" pro cadastro principal (falta rodar sql/credito_analises_mesclar.sql no banco). ${mescladosComSucesso.length ? `"${mescladosComSucesso.join(", ")}" já foi mesclado; repita a mesclagem depois de rodar o SQL.` : "Repita a mesclagem depois de rodar o SQL."}`, 8000);
+  } else if (falhou) {
     toast(mescladosComSucesso.length
       ? `Mesclagem parcial: "${mescladosComSucesso.join(", ")}" mesclado(s), mas falhou em "${falhou}" — repita a mesclagem pra terminar.`
       : `Erro ao mesclar "${falhou}" — nada foi alterado.`);
@@ -7517,6 +7556,13 @@ async function excluirClienteAtual() {
     toast(`Não é possível excluir: esse cliente tem ${reservasSV[nome]} reserva(s) no Sem Venda (as canceladas também ficam no histórico).`);
     return;
   }
+  // análise de crédito também impede excluir (o banco barra com erro cru de chave estrangeira): o histórico de
+  // crédito não some com o cliente. Pra juntar com outro cadastro, a mesclagem leva as análises pro principal.
+  const { count: qtdAnalises, error: erroAnalises } = await sb.from("credito_analises").select("id", { count: "exact", head: true }).eq("cliente", nome);
+  if (!erroAnalises && qtdAnalises) {
+    toast(`Não é possível excluir: esse cliente tem ${qtdAnalises} análise${qtdAnalises === 1 ? "" : "s"} de crédito registrada${qtdAnalises === 1 ? "" : "s"} (fica no Histórico de Crédito).`);
+    return;
+  }
   // arquivo anexado impede excluir (o banco também barra): só o administrador remove arquivo, então vem antes
   const { count: qtdArquivos, error: erroArquivos } = await sb.from("cliente_arquivos").select("id", { count: "exact", head: true }).eq("cliente", nome);
   if (!erroArquivos && qtdArquivos) {
@@ -7606,10 +7652,15 @@ async function salvarEdicaoCliente() {
 
   const novoNome = document.getElementById("clienteEditNome").value.trim();
   if (!novoNome) { toast("O nome do cliente é obrigatório."); return; }
-  if (novoNome !== nomeOriginal && getCliente(novoNome)) {
-    toast("Já existe um cliente cadastrado com esse nome.");
-    return;
-  }
+  // o nome vale sempre (menos contra o próprio cliente); o documento só quando a pessoa mudou ele, pra um cadastro
+  // que já nasceu duplicado (o aviso "possível duplicado" da lista) poder ser editado sem mexer no documento
+  const docEditado = document.getElementById("clienteEditDocumento").value.trim();
+  const docMudou = docEditado.replace(/\D/g, "") !== (c.documento || "").replace(/\D/g, "");
+  const duplicado = clienteDuplicado(novoNome, docMudou ? docEditado : "", nomeOriginal);
+  if (duplicado) { toast(mensagemClienteDuplicado(duplicado)); return; }
+  // mesma exigência de quando o cliente é criado
+  if (!document.getElementById("clienteEditEstado").value) { toast("Escolha o estado do cliente."); return; }
+  if (!document.getElementById("clienteEditTipoCliente").value) { toast("Escolha o tipo de cliente."); return; }
 
   const dados = {
     nome: novoNome,
@@ -9434,7 +9485,8 @@ function initForms() {
     const estado = document.getElementById("cliEstado").value;
     const cidade = document.getElementById("cliCidade").value.trim();
     if (!nome) return;
-    if (getCliente(nome)) { toast("Já existe um cliente com esse nome."); return; }
+    const duplicado = clienteDuplicado(nome, document.getElementById("cliDocumento").value, null);
+    if (duplicado) { toast(mensagemClienteDuplicado(duplicado)); return; }
 
     const novoCliente = {
       nome, estado, cidade,
