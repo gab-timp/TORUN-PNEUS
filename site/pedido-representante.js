@@ -399,7 +399,17 @@ async function afterLogin() {
   const { data: roleData, error: roleError } = await sb.from("user_roles")
     .select("role, nome, is_admin").eq("user_id", currentUser.id).maybeSingle();
 
-  if (roleError || !roleData || (roleData.role !== "representante" && !roleData.is_admin)) {
+  let acessoPortal = !roleError && !!roleData && (roleData.role === "representante" || !!roleData.is_admin);
+  if (!roleError && roleData && !acessoPortal) {
+    // login do escritório liberado pro portal por permissão própria (user_roles.pode_acessar_portal_representante,
+    // sql/acesso_portal_representante.sql). Consulta à parte e só pra quem não é representante nem admin: o select
+    // acima não pode ganhar coluna nova, senão o portal de TODO representante cairia se a coluna ainda não existisse.
+    const { data: perm, error: erroPerm } = await sb.from("user_roles")
+      .select("pode_acessar_portal_representante").eq("user_id", currentUser.id).maybeSingle();
+    acessoPortal = !erroPerm && !!(perm && perm.pode_acessar_portal_representante);
+  }
+
+  if (!acessoPortal) {
     await sb.auth.signOut();
     showLogin("Este acesso é exclusivo para representantes.");
     return;

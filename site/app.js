@@ -5231,9 +5231,12 @@ function renderClienteSelect() {
   document.getElementById("listCliente").innerHTML = opts;
 }
 
-// Vendedor (Faturamento e Pedido) é seleção, não digitação: as opções são os nomes que já aparecem nas vendas.
+// Vendedor (Faturamento e Pedido) é seleção, não digitação: as opções são os nomes que já aparecem nas vendas mais
+// os vendedores cadastrados (state.representantes: quem tem papel Representante ou a permissão do portal), pra um
+// vendedor novo poder ser escolhido antes de ter a primeira venda.
 function vendedoresDasVendas() {
-  return Array.from(new Set(state.vendas.map(v => (v.vendedor || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const nomes = [...state.vendas.map(v => v.vendedor), ...(state.representantes || [])];
+  return Array.from(new Set(nomes.map(n => (n || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
 // valorAtual (sem ele, mantém o que o select já tem). Um nome que nenhuma venda tem (pedido ou venda antiga)
