@@ -672,6 +672,9 @@ body.is-admin .nav-item.admin-only{display:flex;}
 .kpi.accent{border-color:var(--orange); background:var(--orange-pale);}
 .kpi.accent .lbl{color:var(--orange-deep);}
 .kpi.accent .val{color:var(--orange-deep);}
+/* Contas a Receber tem 6 cartões: 3 por linha, pra um total de milhões não quebrar o número */
+.car-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
+@media (max-width:700px){.car-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));}}
 .kpi .delta{font-family:'Space Mono',monospace; font-size:10.5px; font-weight:800; margin-top:7px;}
 .kpi .delta.good{color:var(--status-good);}
 .kpi .delta.bad{color:var(--danger);}
