@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=170">
+<link rel="stylesheet" href="styles.css?v=171">
 <link rel="stylesheet" href="semvenda.css?v=16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2187,21 +2187,23 @@
       <div class="page-head">
         <div>
           <h1>Contas a Receber</h1>
-          <div class="sub">Vendas ainda não confirmadas como pagas, da mais antiga pra mais nova.</div>
+          <div class="sub">Vendas ainda não confirmadas como pagas: do mais atrasado ao que vence mais longe, e sem vencimento por último.</div>
         </div>
       </div>
 
-      <div class="kpis" id="carKpis"></div>
+      <div class="kpis car-kpis" id="carKpis"></div>
 
       <div class="card">
         <div class="search-row">
           <input type="text" id="carSearch" placeholder="Buscar por cliente, NF ou pedido…">
           <select id="carFiltroVendedor"><option value="">Todos os vendedores</option></select>
           <select id="carFiltroFaixa">
-            <option value="">Todas as faixas</option>
-            <option value="0-30">0–30 dias</option>
-            <option value="31-60">31–60 dias</option>
-            <option value="60+">60+ dias</option>
+            <option value="">Todas as situações</option>
+            <option value="1-30">Vencido há 1–30 dias</option>
+            <option value="31-60">Vencido há 31–60 dias</option>
+            <option value="60+">Vencido há 60+ dias</option>
+            <option value="avencer">A vencer</option>
+            <option value="semdata">Sem vencimento</option>
           </select>
         </div>
         <div class="table-wrap">
@@ -2209,7 +2211,7 @@
             <thead>
               <tr>
                 <th>Data</th><th>Cliente</th><th>NF/Pedido</th><th>Vendedor</th>
-                <th class="num">Valor</th><th>Vencimento</th><th>Em aberto há</th><th></th>
+                <th class="num">Valor</th><th>Vencimento</th><th>Situação</th><th></th>
               </tr>
             </thead>
             <tbody id="carTbody"></tbody>
@@ -3929,6 +3931,6 @@
 </div>
 
 <script src="semvenda.js?v=17"></script>
-<script src="app.js?v=264"></script>
+<script src="app.js?v=265"></script>
 </body>
 </html>
