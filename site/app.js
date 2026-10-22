@@ -9834,7 +9834,149 @@ function agruparEstoque(produtos, agrupar) {
     }));
 }
 
+/* ---- relatórios de crédito (vencimento) e de clientes parados (atenção/inativos) ----
+   Mesmas regras das telas: statusCreditoCliente (Limite de Crédito) e statusAtividadeCliente
+   (Clientes) -- o relatório nunca discorda do que a pessoa vê na tela. */
+const CREDITO_SITUACAO_REL = {
+  "": { label: "Vencidas e a vencer (30 dias)", status: ["vencida", "vence-em-breve"] },
+  vencida: { label: "Só vencidas", status: ["vencida"] },
+  "vence-em-breve": { label: "Só a vencer (30 dias)", status: ["vence-em-breve"] },
+  todos: { label: "Todos os clientes", status: ["vencida", "vence-em-breve", "ok", "sem-limite"] }
+};
+const INATIVOS_SITUACAO_REL = {
+  "": { label: "Atenção e inativos", status: ["atencao", "inativo"] },
+  atencao: { label: "Só atenção", status: ["atencao"] },
+  inativo: { label: "Só inativos", status: ["inativo"] }
+};
+const INATIVOS_ORDEM_REL = { "": "mais tempo sem comprar", valor: "maior valor comprado", nome: "nome do cliente" };
+
+// texto da coluna Situação: dias contados por dia de calendário (diasDesde), igual à tela
+function textoSituacaoCredito(status, validade) {
+  if (status === "sem-limite") return "Sem limite definido";
+  if (!validade) return "Ok"; // tem limite mas sem validade cadastrada -- sem evidência de vencido
+  const faltam = -diasDesde(validade); // negativo = já venceu
+  if (faltam < 0) return `Vencida há ${diasTexto(-faltam)}`;
+  if (faltam === 0) return "Vence hoje";
+  return `Vence em ${diasTexto(faltam)}`;
+}
+
 const REPORT_DEFS = {
+  credito: {
+    title: "Relatório de Vencimento do Crédito",
+    hasDateRange: false,
+    // filtro = situação ("" = vencidas e a vencer, "vencida", "vence-em-breve", "todos"); filtro2 = estado;
+    // filtro3 = só quem tem saldo em aberto (caixa de seleção, vem como true/false)
+    build(de, ate, filtro, codigos, agrupar, filtro2, filtro3) {
+      const sit = CREDITO_SITUACAO_REL[filtro] || CREDITO_SITUACAO_REL[""];
+      let lista = state.clientes.map(c => {
+        const limite = c.limiteCredito != null ? c.limiteCredito : null;
+        const validade = c.validadeAnaliseCredito || null;
+        return { c, limite, validade, saldo: getClienteStats(c.nome).saldoEmAberto, status: statusCreditoCliente(limite, validade) };
+      }).filter(r => sit.status.includes(r.status));
+      if (filtro2) lista = lista.filter(r => r.c.estado === filtro2);
+      if (filtro3) lista = lista.filter(r => r.saldo > 0);
+      // análise mais vencida primeiro; com limite mas sem validade e depois sem limite, no fim
+      const rank = r => r.status === "sem-limite" ? 2 : r.validade ? 0 : 1;
+      lista.sort((a, b) => rank(a) - rank(b) || (a.validade || "").localeCompare(b.validade || "") || a.c.nome.localeCompare(b.c.nome));
+
+      const columns = [
+        { key: "cliente", label: "Cliente", width: 160 },
+        { key: "local", label: "Cidade/UF", width: 100 },
+        { key: "limite", label: "Limite", money: true, width: 86 },
+        { key: "aberto", label: "Em aberto", money: true, width: 86 },
+        { key: "disponivel", label: "Disponível", money: true, width: 86 },
+        { key: "validade", label: "Validade", mono: true, width: 78 }, // data em fonte monoespaçada: 66 quebrava o ano
+        { key: "situacao", label: "Situação", width: 108 }
+      ];
+      const rows = lista.map(r => ({
+        cliente: r.c.nome,
+        local: [r.c.cidade, r.c.estado].filter(Boolean).join("/") || "—",
+        limite: r.limite,
+        aberto: r.saldo,
+        disponivel: r.limite != null ? r.limite - r.saldo : null,
+        validade: r.validade ? formatDateBR(r.validade) : "—",
+        situacao: textoSituacaoCredito(r.status, r.validade)
+      }));
+
+      const somaAberto = arr => arr.reduce((a, r) => a + r.saldo, 0);
+      const vencidas = lista.filter(r => r.status === "vencida");
+      const aVencer = lista.filter(r => r.status === "vence-em-breve");
+      const summaryLines = [
+        { label: "Situações incluídas", value: sit.label },
+        ...(filtro2 ? [{ label: "Estado", value: filtro2 }] : []),
+        ...(filtro3 ? [{ label: "Só com saldo em aberto", value: "Sim" }] : []),
+        { label: "Clientes incluídos", value: fmt(lista.length) },
+        ...(sit.status.includes("vencida") ? [{ label: "Análises vencidas", value: `${fmt(vencidas.length)} · em aberto ${formatMoney(somaAberto(vencidas))}` }] : []),
+        ...(sit.status.includes("vence-em-breve") ? [{ label: "Vencem em até 30 dias", value: `${fmt(aVencer.length)} · em aberto ${formatMoney(somaAberto(aVencer))}` }] : []),
+        { label: "Limite concedido (clientes listados)", value: formatMoney(lista.reduce((a, r) => a + (r.limite || 0), 0)) },
+        { label: "Total em aberto (listados)", value: formatMoney(somaAberto(lista)), total: true }
+      ];
+      return { columns, rows, summaryLines, summaryLarga: true, subtitulo: `Situação em ${formatDateBR(todayISO())} · ${sit.label}` };
+    }
+  },
+  inativos: {
+    title: "Relatório de Clientes em Atenção e Inativos",
+    hasDateRange: false,
+    // filtro = situação ("" = atenção e inativos, "atencao", "inativo"); filtro2 = estado; filtro3 = vendedor da
+    // última compra; agrupar = ordenar por ("" = mais tempo sem comprar, "valor", "nome") -- aqui o 5º parâmetro
+    // não agrupa nada, é só a vaga do select "Ordenar por" do cartão. Cliente que nunca comprou ("novo") fica de fora.
+    build(de, ate, filtro, codigos, agrupar, filtro2, filtro3) {
+      const sit = INATIVOS_SITUACAO_REL[filtro] || INATIVOS_SITUACAO_REL[""];
+      const resumo = resumoVendasPorCliente();
+      const ultimaVenda = {};
+      state.vendas.forEach(v => { const u = ultimaVenda[v.cliente]; if (!u || v.data > u.data) ultimaVenda[v.cliente] = v; });
+      let lista = state.clientes.map(c => {
+        const r = resumo[c.nome] || { faturamento: 0, ultimaCompra: null };
+        return {
+          c, faturamento: r.faturamento, ultimaCompra: r.ultimaCompra,
+          dias: r.ultimaCompra ? diasDesde(r.ultimaCompra) : 0,
+          vendedor: ultimaVenda[c.nome] ? ultimaVenda[c.nome].vendedor : "",
+          status: statusAtividadeCliente(r.ultimaCompra)
+        };
+      }).filter(r => sit.status.includes(r.status));
+      if (filtro2) lista = lista.filter(r => r.c.estado === filtro2);
+      if (filtro3) lista = lista.filter(r => r.vendedor === filtro3);
+      const porNome = (a, b) => a.c.nome.localeCompare(b.c.nome);
+      if (agrupar === "nome") lista.sort(porNome);
+      else if (agrupar === "valor") lista.sort((a, b) => b.faturamento - a.faturamento || b.dias - a.dias || porNome(a, b));
+      else lista.sort((a, b) => b.dias - a.dias || porNome(a, b));
+
+      const columns = [
+        { key: "cliente", label: "Cliente", width: 156 },
+        { key: "local", label: "Cidade/UF", width: 108 },
+        { key: "telefone", label: "Telefone", width: 84 },
+        { key: "ultima", label: "Última compra", mono: true, width: 70 },
+        { key: "dias", label: "Dias", numeric: true, width: 38 },
+        { key: "situacao", label: "Situação", width: 58 },
+        { key: "vendedor", label: "Vendedor", width: 78 },
+        { key: "total", label: "Total comprado", money: true, width: 112 }
+      ];
+      const rows = lista.map(r => ({
+        cliente: r.c.nome,
+        local: [r.c.cidade, r.c.estado].filter(Boolean).join("/") || "—",
+        telefone: r.c.telefone || "—",
+        ultima: formatDateBR(r.ultimaCompra),
+        dias: r.dias,
+        situacao: STATUS_ATIVIDADE_LABEL[r.status],
+        vendedor: r.vendedor || "—",
+        total: r.faturamento,
+        _negrito: { situacao: r.status === "inativo" } // PDF é P&B: inativo se destaca em negrito
+      }));
+
+      const emAtencao = lista.filter(r => r.status === "atencao");
+      const inativos = lista.filter(r => r.status === "inativo");
+      const somaCompras = arr => formatMoney(arr.reduce((a, r) => a + r.faturamento, 0));
+      const summaryLines = [
+        { label: "Situações incluídas", value: sit.label },
+        ...(filtro2 ? [{ label: "Estado", value: filtro2 }] : []),
+        ...(filtro3 ? [{ label: "Vendedor (da última compra)", value: filtro3 }] : []),
+        ...(sit.status.includes("atencao") ? [{ label: "Em atenção (61 a 120 dias)", value: `${fmt(emAtencao.length)} · já compraram ${somaCompras(emAtencao)}` }] : []),
+        ...(sit.status.includes("inativo") ? [{ label: "Inativos (mais de 120 dias)", value: `${fmt(inativos.length)} · já compraram ${somaCompras(inativos)}` }] : []),
+        { label: "Clientes no relatório", value: fmt(lista.length), total: true }
+      ];
+      return { columns, rows, summaryLines, summaryLarga: true, subtitulo: `Situação em ${formatDateBR(todayISO())} · Ordenado por ${INATIVOS_ORDEM_REL[agrupar || ""] || INATIVOS_ORDEM_REL[""]}` };
+    }
+  },
   faturamento: {
     title: "Relatório de Faturamento",
     hasDateRange: true,
@@ -10272,10 +10414,12 @@ function buildReportPrintHtml(def, de, ate, data) {
       const conteudo = Array.isArray(val) && val.length ? val.map(escapeHtml).join("<br>") : "—";
       return `<td class="list-cell"${span}>${conteudo}</td>`;
     }
+    // o PDF sai P&B: valor negativo (ex.: disponível acima do limite) e célula marcada em _negrito vão em negrito
+    const destaque = (c.money && typeof val === "number" && val < 0) || !!(r._negrito && r._negrito[c.key]);
     if (val === undefined || val === null || val === "") val = "—";
     else if (c.money) val = formatMoney(val);
     else if (c.numeric) val = fmt(val);
-    const classes = [c.numeric || c.money ? "num" : "", c.mono ? "mono" : "", c.small ? "m" : ""].filter(Boolean).join(" ");
+    const classes = [c.numeric || c.money ? "num" : "", c.mono ? "mono" : "", c.small ? "m" : "", destaque ? "neg" : ""].filter(Boolean).join(" ");
     return `<td class="${classes}"${span}>${escapeHtml(val)}</td>`;
   };
 
@@ -10321,7 +10465,7 @@ function buildReportPrintHtml(def, de, ate, data) {
         <thead><tr>${theadHtml}</tr></thead>
         ${tbodyHtml}
       </table>
-      <div class="print-report-summary">${summaryHtml}</div>
+      <div class="print-report-summary${data.summaryLarga ? " wide" : ""}">${summaryHtml}</div>
     </div>
   `;
 }
@@ -10422,9 +10566,36 @@ function populateReportFatEstado() {
   if (estados.includes(atual)) sel.value = atual;
 }
 
+// opções de Estado (cadastro dos clientes) e de Vendedor (nome que aparece nas vendas) dos
+// relatórios de crédito e de clientes parados -- repopula a cada geração, pra pegar cliente
+// ou venda nova sem precisar recarregar a página
+function populateReportCreditoInativos() {
+  const preencher = (id, vazio, valores) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const atual = sel.value;
+    sel.innerHTML = `<option value="">${vazio}</option>` + valores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+    if (valores.includes(atual)) sel.value = atual;
+  };
+  const estados = Array.from(new Set(state.clientes.map(c => c.estado).filter(Boolean))).sort();
+  const vendedores = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
+  preencher("reportCredEstado", "Todos os estados", estados);
+  preencher("reportInatEstado", "Todos os estados", estados);
+  preencher("reportInatVendedor", "Todos os vendedores", vendedores);
+}
+
 function initRelatorios() {
   populateReportFatVendedor();
   populateReportFatEstado();
+  populateReportCreditoInativos();
+  // atalhos dentro das telas Limite de Crédito e Clientes: mesmo relatório, opções padrão
+  // (quem não tem a tela Relatórios, como o financeiro, gera de onde já trabalha)
+  const atalho = (idBotao, reportKey) => {
+    const btn = document.getElementById(idBotao);
+    if (btn) btn.addEventListener("click", () => gerarRelatorioPDF(reportKey, null, null, "", null, "", "", reportKey === "credito" ? false : ""));
+  };
+  atalho("btnRelatorioCredito", "credito");
+  atalho("btnRelatorioInativos", "inativos");
   document.querySelectorAll(".report-card").forEach(card => {
     const reportKey = card.dataset.report;
     const deInput = card.querySelector(".report-de");
@@ -10444,25 +10615,31 @@ function initRelatorios() {
       if (reportKey === "precos" && !filtro3Input.value) { toast("Escolha uma região."); return false; }
       if (temStatus && relatorioStatusSelecionados(card).length === 0) { toast("Escolha ao menos um status."); return false; }      return true;
     };
+    // o 3º filtro é um select na maioria dos cartões; no de crédito é uma caixa de seleção (true/false)
+    const filtro3Valor = () => filtro3Input ? (filtro3Input.type === "checkbox" ? filtro3Input.checked : filtro3Input.value) : null;
+    const atualizarOpcoes = () => {
+      if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); } // pega vendedor/estado novo, se houve venda desde o init
+      if (reportKey === "credito" || reportKey === "inativos") populateReportCreditoInativos();
+    };
     const btnPdf = card.querySelector(".report-btn-pdf");
     const btnExcel = card.querySelector(".report-btn-excel");
     const btnCsv = card.querySelector(".report-btn-csv");
     if (btnPdf) btnPdf.addEventListener("click", () => {
-      if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); } // pega vendedor/estado novo, se houve venda desde o init
+      atualizarOpcoes();
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioPDF(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Valor());
     });
     if (btnExcel) btnExcel.addEventListener("click", () => {
-      if (reportKey === "faturamento") { populateReportFatVendedor(); populateReportFatEstado(); }
+      atualizarOpcoes();
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioExcel(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Valor());
     });
     if (btnCsv) btnCsv.addEventListener("click", () => {
       if (!validoPraGerar()) return;
       const codigos = temCodigos ? relatorioCodigosSelecionados(card) : null;
-      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Input ? filtro3Input.value : null);
+      gerarRelatorioCSV(reportKey, deInput ? deInput.value : null, ateInput ? ateInput.value : null, filtroInput ? filtroInput.value : null, codigos, agruparInput ? agruparInput.value : null, filtro2Valor(), filtro3Valor());
     });
   });
   initRelatorioCodigoFiltros();
