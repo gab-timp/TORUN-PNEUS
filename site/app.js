@@ -163,6 +163,21 @@ function createParcelaRow(numero, total, valorSugerido, vencimentoSugerido) {
 // Quanto as parcelas precisam somar. Venda sem divisão: o valor inteiro, de sempre.
 // Venda dividida (PIX + Boleto, por exemplo): só a parte de fora do PIX -- o PIX é
 // recebido à vista na hora, não faz sentido ele entrar no parcelamento do Boleto.
+// o select de parcelas vai de 1x a 6x pra venda NOVA. Uma venda dividida por pagamento parcial pode
+// passar de 6 parcelas: ao abrir "Editar" ela ganha a opção do seu número (sem isso o select ficava
+// em branco e salvar apagava as parcelas). Sai ao cancelar/salvar, então o limite de 6 pra venda
+// nova continua.
+function ajustarOpcoesParcelas(n) {
+  const sel = document.getElementById("venParcelas");
+  Array.from(sel.options).forEach(o => { if (Number(o.value) > 6) o.remove(); });
+  if (n > 6) {
+    const o = document.createElement("option");
+    o.value = String(n);
+    o.textContent = `${n}x`;
+    sel.appendChild(o);
+  }
+}
+
 function valorBaseParcelas() {
   const valorTotal = parseFloat(document.getElementById("venValor").value) || 0;
   if (!document.getElementById("venDividirPagamento").checked) return valorTotal;
@@ -8319,6 +8334,28 @@ function pillParcelaBaixa(p) {
   return `<span class="status-pill pill-normal">${sit === "hoje" ? "Vence hoje" : `Vence em ${diasTexto(-dias)}`}</span>`;
 }
 
+// Aplica os pagamentos nas parcelas. `pagamentos` = Map(índice da parcela -> valor pago). Valor igual ao
+// da parcela: ela fica paga por inteiro. Valor MENOR: a parcela é dividida em uma paga (com o valor
+// recebido) e outra em aberto (com o que faltou), no mesmo vencimento. As parcelas são renumeradas e
+// a soma delas não muda. Devolve { novas, divididas }.
+function aplicarPagamentoNasParcelas(parcelas, pagamentos, data) {
+  const centavos = (n) => Math.round((n || 0) * 100) / 100;
+  const novas = [];
+  const divididas = [];
+  parcelas.forEach((p, i) => {
+    if (!pagamentos.has(i)) { novas.push({ ...p }); return; }
+    const cheio = centavos(p.valor);
+    const pago = centavos(pagamentos.get(i));
+    if (pago >= cheio) { novas.push({ ...p, status: "pago", dataPagamento: data }); return; }
+    const resto = centavos(cheio - pago);
+    novas.push({ ...p, valor: pago, status: "pago", dataPagamento: data });
+    novas.push({ ...p, valor: resto, status: "em_aberto", dataPagamento: null });
+    divididas.push({ numero: p.numero || i + 1, cheio, pago, resto });
+  });
+  novas.forEach((p, i) => { p.numero = i + 1; });
+  return { novas, divididas };
+}
+
 function abrirBaixaParcelas(vendaId) {
   const v = state.vendas.find(x => x.id === vendaId);
   if (!v || !Array.isArray(v.parcelasDetalhe) || !v.parcelasDetalhe.length) return;
@@ -8335,14 +8372,19 @@ function abrirBaixaParcelas(vendaId) {
         <td>${numero} de ${total}</td>
         <td class="mono">${p.vencimento ? formatDateBR(p.vencimento) : "—"}</td>
         <td class="num mono">${formatMoney(p.valor || 0)}</td>
+        <td class="num">${paga
+          ? `<span class="muted">—</span>`
+          : `<input type="number" class="baixa-valor" data-i="${i}" min="0.01" step="0.01" value="${(p.valor || 0).toFixed(2)}" disabled aria-label="Valor pago da parcela ${numero}">`}</td>
         <td>${paga
           ? `<span class="status-pill pill-neutro">Paga${p.dataPagamento ? " em " + formatDateBR(p.dataPagamento) : ""}</span><button type="button" class="baixa-desfazer" data-desfazer="${i}">Desfazer</button>`
           : pillParcelaBaixa(p)}</td>
-      </tr>`;
+      </tr>${paga ? "" : `
+      <tr class="baixa-aviso-row" data-aviso="${i}" style="display:none;"><td colspan="6"><div class="baixa-aviso"></div></td></tr>`}`;
   }).join("");
   document.getElementById("baixaDataPagamento").value = todayISO();
   document.getElementById("baixaDataPagamento").max = todayISO(); // pagamento é o que já aconteceu
   document.querySelectorAll("#baixaParcelasTbody .baixa-check").forEach(c => c.addEventListener("change", atualizarResumoBaixa));
+  document.querySelectorAll("#baixaParcelasTbody .baixa-valor").forEach(inp => inp.addEventListener("input", atualizarResumoBaixa));
   atualizarResumoBaixa();
   document.getElementById("baixaParcelasOverlay").classList.add("show");
 }
@@ -8358,22 +8400,61 @@ function parcelasMarcadasBaixa() {
   return Array.from(document.querySelectorAll("#baixaParcelasTbody .baixa-check:not(:disabled):checked")).map(c => Number(c.dataset.i));
 }
 
+function valorPagoBaixa(i) {
+  const inp = document.querySelector(`#baixaParcelasTbody .baixa-valor[data-i="${i}"]`);
+  return inp ? parseFloat(inp.value) : NaN;
+}
+
 function atualizarResumoBaixa() {
   const v = vendaDaBaixa();
   if (!v) return;
-  const marcadas = parcelasMarcadasBaixa();
-  document.querySelectorAll("#baixaParcelasTbody .baixa-check").forEach(c => {
-    c.closest("tr").classList.toggle("sel", c.checked && !c.disabled);
+  const centavos = (n) => Math.round((n || 0) * 100) / 100;
+  let pago = 0, parcial = false, invalido = false, marcadas = 0;
+  document.querySelectorAll("#baixaParcelasTbody .baixa-check:not(:disabled)").forEach(c => {
+    const i = Number(c.dataset.i);
+    const p = v.parcelasDetalhe[i];
+    const cheio = centavos(p.valor);
+    const tr = c.closest("tr");
+    const inp = tr.querySelector(".baixa-valor");
+    const aviso = document.querySelector(`#baixaParcelasTbody tr[data-aviso="${i}"]`);
+    tr.classList.toggle("sel", c.checked);
+    // o campo "Valor pago" só liga com a parcela marcada e começa no valor cheio
+    if (c.checked) {
+      inp.disabled = false;
+      if (inp.dataset.ativo !== "1") { inp.value = cheio.toFixed(2); inp.dataset.ativo = "1"; }
+    } else {
+      inp.disabled = true; inp.value = cheio.toFixed(2); inp.dataset.ativo = "0";
+    }
+    let msg = "", erro = false;
+    if (c.checked) {
+      marcadas++;
+      const val = centavos(parseFloat(inp.value));
+      if (!(val > 0)) { erro = true; msg = "Informe um valor pago maior que zero."; }
+      else if (val > cheio) { erro = true; msg = `O valor pago não pode ser maior que o da parcela (${formatMoney(cheio)}).`; }
+      else {
+        pago += val;
+        if (val < cheio) {
+          parcial = true;
+          const resto = centavos(cheio - val);
+          msg = `<b>Faltam ${formatMoney(resto)}.</b> A parcela ${p.numero || i + 1} será dividida: ${formatMoney(val)} ficam como pagos e ${formatMoney(resto)} continuam em aberto, no mesmo vencimento${p.vencimento ? " (" + formatDateBR(p.vencimento) + ")" : ""}.`;
+        }
+      }
+      if (erro) invalido = true;
+    }
+    aviso.style.display = msg ? "" : "none";
+    const caixa = aviso.querySelector(".baixa-aviso");
+    caixa.className = "baixa-aviso" + (erro ? " erro" : "");
+    caixa.innerHTML = msg;
   });
-  const valor = marcadas.reduce((a, i) => a + (v.parcelasDetalhe[i].valor || 0), 0);
-  document.getElementById("baixaResumo").innerHTML = marcadas.length
-    ? `<div>${marcadas.length === 1 ? "1 parcela selecionada" : `${marcadas.length} parcelas selecionadas`}</div>
-       <div class="total">${formatMoney(valor)}</div>
-       <div class="filtro-nota">Em aberto depois: ${formatMoney(saldoEmAbertoDaVenda(v) - valor)}</div>`
+  pago = centavos(pago);
+  document.getElementById("baixaResumo").innerHTML = marcadas
+    ? `<div>${marcadas === 1 ? "1 parcela selecionada" : `${marcadas} parcelas selecionadas`}${parcial ? " · paga em parte" : ""}</div>
+       <div class="total">${formatMoney(pago)}</div>
+       <div class="filtro-nota">Em aberto depois: ${formatMoney(saldoEmAbertoDaVenda(v) - pago)}</div>`
     : (v.parcelasDetalhe.some(p => p.status === "em_aberto")
         ? `<div>Nenhuma parcela selecionada</div><div class="filtro-nota">Marque as parcelas que o cliente pagou.</div>`
         : `<div>Todas as parcelas estão pagas</div><div class="filtro-nota">Pagou uma por engano? Use "Desfazer" na parcela.</div>`);
-  document.getElementById("baixaParcelasConfirmar").disabled = marcadas.length === 0;
+  document.getElementById("baixaParcelasConfirmar").disabled = marcadas === 0 || invalido;
 }
 
 async function confirmarBaixaParcelas() {
@@ -8385,7 +8466,20 @@ async function confirmarBaixaParcelas() {
   if (!data) { toast("Informe a data do pagamento."); return; }
   if (data > todayISO()) { toast("A data do pagamento não pode ser no futuro."); return; }
 
-  const novas = v.parcelasDetalhe.map((p, i) => marcadas.includes(i) ? { ...p, status: "pago", dataPagamento: data } : p);
+  // mesmo teste da janela, caso o botão seja acionado antes da tela atualizar
+  const centavos = (n) => Math.round((n || 0) * 100) / 100;
+  const pagamentos = new Map();
+  for (const i of marcadas) {
+    const p = v.parcelasDetalhe[i];
+    const numero = p.numero || i + 1;
+    const val = centavos(valorPagoBaixa(i));
+    if (!(val > 0)) { toast(`Informe o valor pago da parcela ${numero}.`); return; }
+    if (val > centavos(p.valor)) { toast(`O valor pago da parcela ${numero} não pode ser maior que ${formatMoney(centavos(p.valor))}.`); return; }
+    pagamentos.set(i, val);
+  }
+  const numerosAntes = marcadas.map(i => v.parcelasDetalhe[i].numero || i + 1);
+  const totalAntes = v.parcelasDetalhe.length;
+  const { novas, divididas } = aplicarPagamentoNasParcelas(v.parcelasDetalhe, pagamentos, data);
   const payload = agregadoDaVenda(novas);
 
   const btn = document.getElementById("baixaParcelasConfirmar");
@@ -8399,12 +8493,15 @@ async function confirmarBaixaParcelas() {
     return;
   }
   Object.assign(v, vendaFromRow(row));
-  const valor = marcadas.reduce((a, i) => a + (novas[i].valor || 0), 0);
-  const quais = marcadas.map(i => novas[i].numero || i + 1).join(", ");
+  const valor = centavos(Array.from(pagamentos.values()).reduce((a, n) => a + n, 0));
+  const divisoes = divididas.map(d => `parcela ${d.numero}: ${formatMoney(d.pago)} pagos de ${formatMoney(d.cheio)}, faltam ${formatMoney(d.resto)}`);
   await registrarLog("vendas", v.id, "edicao", "Pagamento confirmado",
-    `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente}: ${marcadas.length === 1 ? "parcela" : "parcelas"} ${quais} de ${novas.length} paga${marcadas.length === 1 ? "" : "s"} em ${formatDateBR(data)} (${formatMoney(valor)})`);
+    `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente}: ${marcadas.length === 1 ? "parcela" : "parcelas"} ${numerosAntes.join(", ")} de ${totalAntes} paga${marcadas.length === 1 ? "" : "s"} em ${formatDateBR(data)} (${formatMoney(valor)})`
+    + (divisoes.length ? `; ${divisoes.join("; ")}; a venda passou de ${totalAntes} para ${novas.length} parcelas` : ""));
   fecharBaixaParcelas();
-  toast(`Pagamento confirmado: ${marcadas.length === 1 ? "1 parcela" : `${marcadas.length} parcelas`} de ${v.cliente} (${formatMoney(valor)}).`);
+  toast(divididas.length === 1 && marcadas.length === 1
+    ? `Pagamento confirmado: ${formatMoney(valor)} de ${v.cliente} (a parcela ${divididas[0].numero} foi dividida: faltam ${formatMoney(divididas[0].resto)}).`
+    : `Pagamento confirmado: ${marcadas.length === 1 ? "1 parcela" : `${marcadas.length} parcelas`} de ${v.cliente} (${formatMoney(valor)})${divididas.length ? `, ${divididas.length === 1 ? "1 dividida" : `${divididas.length} divididas`}` : ""}.`);
   renderContasReceber();
   renderVendas();
   renderFaturamento();
@@ -8935,6 +9032,7 @@ function startEditVenda(vendaId) {
   // antiga de "3x" e salvar sem mexer nessa seção virava 3 parcelas "Em aberto" de
   // mentira, sobrescrevendo o status/data de pagamento reais).
   const temParcelasDetalheSalvo = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
+  ajustarOpcoesParcelas(temParcelasDetalheSalvo ? v.parcelasDetalhe.length : 0);
   document.getElementById("venParcelas").value = temParcelasDetalheSalvo ? String(v.parcelasDetalhe.length) : "";
   document.getElementById("venStatusPagamento").value = v.statusPagamento || "em_aberto";
   delete document.getElementById("venStatusPagamento").dataset.autoPix; // editando: vale o que está salvo
@@ -8993,6 +9091,7 @@ function cancelEditVenda() {
   document.getElementById("rowTrademaster").style.display = "none";
   document.getElementById("venValorRecebido").required = false;
   document.getElementById("venDiferencaCalc").value = "R$ 0,00 (0%)";
+  ajustarOpcoesParcelas(0); // volta o limite de 6 parcelas pra venda nova
   document.getElementById("venStatusPagamento").value = "em_aberto";
   delete document.getElementById("venStatusPagamento").dataset.autoPix;
   document.getElementById("venDataPagamento").value = "";
