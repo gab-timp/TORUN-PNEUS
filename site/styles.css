@@ -675,6 +675,29 @@ body.is-admin .nav-item.admin-only{display:flex;}
 /* Contas a Receber tem 6 cartões: 3 por linha, pra um total de milhões não quebrar o número */
 .car-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
 @media (max-width:700px){.car-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));}}
+/* Fluxo de Caixa: 4 cartões, legenda do gráfico, linhas da tabela e a conferência no rodapé */
+.fc-kpis{grid-template-columns:repeat(4,minmax(0,1fr));}
+@media (max-width:900px){.fc-kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));}}
+.kpi-sub{font-size:12px; color:var(--ink-soft); line-height:1.4; margin-top:4px;}
+.kpi.kpi-atraso{background:var(--danger-pale); border-color:var(--danger-border);}
+.kpi.kpi-atraso .lbl, .kpi.kpi-atraso .val, .kpi.kpi-atraso .kpi-sub{color:var(--danger-deep);}
+.fc-legenda{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:11.5px; color:var(--ink-soft);}
+.fc-legenda span{display:flex; align-items:center; gap:6px;}
+.fc-legenda i{width:10px; height:10px; border-radius:2px; display:inline-block;}
+tr.fc-atraso td{background:rgba(239,68,68,.09);}
+tr.fc-atual td{background:var(--tint-orange);}
+tr.fc-total td{border-top:2px solid var(--line-strong); font-weight:800; background:var(--tint-orange);}
+.fc-sub{font-size:11px; color:var(--ink-soft); margin-top:2px; font-weight:400; font-family:'Inter',sans-serif;}
+.fc-tag{font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap;}
+.fc-tag.real{color:var(--status-good);}
+.fc-tag.atr{color:var(--danger);}
+.fc-tag.atu, .fc-tag.prev{color:var(--orange-deep);}
+.fc-tag.sd{color:var(--ink-soft);}
+.fc-rodape{display:flex; flex-direction:column; gap:6px; margin:-2px 2px 18px;}
+.fc-ok{display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--status-good);}
+.fc-ok i{display:inline-flex; width:16px; height:16px; border-radius:50%; background:var(--status-good-border); align-items:center; justify-content:center; flex:none; font-style:normal; font-size:11px; font-weight:800; color:#0b0b0b;}
+.fc-ok.erro{color:var(--danger);}
+.fc-ok.erro i{background:var(--danger-border);}
 .kpi .delta{font-family:'Space Mono',monospace; font-size:10.5px; font-weight:800; margin-top:7px;}
 .kpi .delta.good{color:var(--status-good);}
 .kpi .delta.bad{color:var(--danger);}
