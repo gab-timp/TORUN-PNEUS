@@ -17,6 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=175">
 <link rel="stylesheet" href="semvenda.css?v=16">
+<link rel="stylesheet" href="crm.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -68,8 +69,8 @@
       <span class="sistema-card-icone">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="15" height="9.5" rx="1.5"/><path d="M5 7V4.8A2.3 2.3 0 0 1 7.3 2.5h5.4A2.3 2.3 0 0 1 15 4.8V7"/><path d="M2.5 11h15"/></svg>
       </span>
-      <span class="sistema-card-nome">SEM VENDA</span>
-      <span class="sistema-card-desc">Pneus comprados a mais, ainda sem venda — estoque previsto, catálogo, propostas e armazenagem.</span>
+      <span class="sistema-card-nome" id="sistemaSvNome">SEM VENDA</span>
+      <span class="sistema-card-desc" id="sistemaSvDesc">Pneus comprados a mais, ainda sem venda — estoque previsto, catálogo, propostas e armazenagem.</span>
       <span class="sistema-card-entrar">Entrar →</span>
     </button>
   </div>
@@ -279,6 +280,16 @@
     </nav>
 
     <nav class="nav" id="navSemVenda" style="display:none;">
+      <!-- CRM Atacado e Encomenda: aparece só pra quem tem papel no CRM (Administração > Usuários) -->
+      <div class="nav-group" data-group="crm" id="crmNavGrupo" style="display:none;">
+        <button type="button" class="nav-label" id="crmNavRotulo">Atacado e Encomenda <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" data-view="sv-crm-hoje" data-label="Hoje">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-calendar"/></svg> Hoje
+        </button>
+        <button class="nav-item" data-view="sv-crm-clientes" data-label="Clientes">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
+        </button>
+      </div>
       <div class="nav-group" data-group="sv-geral">
         <button type="button" class="nav-label">Geral <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
         <button class="nav-item" data-view="sv-dashboard" data-label="Dashboard">
@@ -861,6 +872,81 @@
         </div>
         <div class="empty-state" id="svArmEmpty" style="display:none;"></div>
       </div>
+    </section>
+
+    <!-- ======================= CRM Atacado e Encomenda (etapa 1) ======================= -->
+    <section id="view-sv-crm-hoje" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Hoje</h1><div class="sub" id="crmHojeSub"></div></div>
+        <div class="page-head-actions">
+          <div class="field crm-campo-sistema" style="display:none;"><label>Sistema</label><select data-crm-sistema></select></div>
+        </div>
+      </div>
+      <div class="kpis" id="crmHojeKpis"></div>
+      <div class="card">
+        <div class="card-head"><h2 class="crm-titulo-atraso">Atrasados</h2><div class="note">a data combinada já passou</div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th class="crm-col-exec">Executivo</th><th>Contato</th><th>Última ligação</th><th>Previsto</th><th></th></tr></thead>
+            <tbody id="crmHojeAtrasados"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="crmHojeAtrasadosVazio" style="display:none;">Nenhum follow-up atrasado.</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Para hoje</h2><div class="note" id="crmHojeParaHojeData"></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th class="crm-col-exec">Executivo</th><th>Contato</th><th>Última ligação</th><th>Previsto</th><th></th></tr></thead>
+            <tbody id="crmHojeParaHoje"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="crmHojeParaHojeVazio" style="display:none;">Nenhum follow-up marcado para hoje.</div>
+      </div>
+    </section>
+
+    <section id="view-sv-crm-clientes" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Clientes</h1><div class="sub" id="crmCliSub"></div></div>
+        <div class="page-head-actions crm-acoes-topo">
+          <div class="crm-seg" id="crmModoSeg" style="display:none;" role="group" aria-label="Forma de ver a carteira">
+            <button type="button" data-crmmodo="lista" class="on">Lista</button><button type="button" data-crmmodo="kanban">Kanban</button>
+          </div>
+          <button type="button" class="btn primary sv-write" id="crmBtnAdicionar">+ Adicionar cliente</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="form-row crm-filtros">
+          <div class="field grow"><label for="crmCliBusca">Buscar</label><input type="text" id="crmCliBusca" placeholder="Nome do cliente, cidade ou contato…" autocomplete="off"></div>
+          <div class="field crm-campo-sistema" style="display:none;"><label>Sistema</label><select data-crm-sistema></select></div>
+          <div class="field" id="crmCliExecutivoCampo" style="display:none;"><label for="crmCliExecutivo">Executivo</label><select id="crmCliExecutivo"></select></div>
+          <div class="field"><label for="crmCliSituacao">Situação</label>
+            <select id="crmCliSituacao"><option value="">Todos os clientes</option><option value="atrasado">Follow-up atrasado</option><option value="sem30">Sem ligação há 30 dias ou mais</option></select></div>
+          <div class="field"><label for="crmCliOrdem">Ordenar por</label>
+            <select id="crmCliOrdem"><option value="followup">Próximo follow-up</option><option value="semligar">Sem ligar há mais tempo</option><option value="nome">Nome</option></select></div>
+        </div>
+        <div id="crmListaWrap">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th class="crm-col-exec">Executivo</th><th>Contato principal</th><th>Última ligação</th><th>Próximo follow-up</th><th>Atalhos</th></tr></thead>
+              <tbody id="crmCliTbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="crmKanbanWrap" style="display:none;">
+          <div class="crm-bandeja">
+            <div class="crm-bandeja-head"><b>Sem etapa</b> <span class="kanban-count" id="crmBandejaCount">0</span> <span class="muted sv-sub">Ainda não entraram no funil. Arraste o cartão para uma coluna.</span></div>
+            <div class="crm-bandeja-cards" id="crmBandejaCards"></div>
+          </div>
+          <div class="kanban-board crm-board" id="crmBoard"></div>
+        </div>
+        <div class="empty-state" id="crmCliVazio" style="display:none;"></div>
+        <div class="note crm-rodape" id="crmCliRodape"></div>
+      </div>
+    </section>
+
+    <section id="view-sv-crm-cliente" class="view crm-view">
+      <div id="crmFicha"></div>
     </section>
 
     <!-- ======================= VIEW: DASHBOARD ======================= -->
@@ -3367,6 +3453,25 @@
     <div class="field">
       <label><input type="checkbox" id="usuarioEditPodeSemVenda"> Pode acessar o Sem Venda (administradores sempre podem)</label>
     </div>
+    <div id="usuarioEditCrmBloco">
+      <div class="field">
+        <label for="usuarioEditCrmPapel">Papel no CRM (Atacado e Encomenda)</label>
+        <select id="usuarioEditCrmPapel">
+          <option value="">Sem acesso ao CRM</option>
+          <option value="executivo">Executivo — vê só a própria carteira</option>
+          <option value="financeiro">Financeiro — lê todas as carteiras</option>
+          <option value="gestao">Gestão / Direção — lê tudo e redistribui carteira</option>
+        </select>
+      </div>
+      <div class="field" id="usuarioEditCrmSistemaCampo">
+        <label for="usuarioEditCrmSistema">Sistema do executivo</label>
+        <select id="usuarioEditCrmSistema">
+          <option value="atacado">Atacado</option>
+          <option value="encomenda">Encomenda</option>
+        </select>
+      </div>
+    </div>
+    <div class="note" id="usuarioEditCrmAviso" style="display:none;">O papel no CRM só aparece depois de rodar o SQL do CRM (sql/crm_nucleo.sql).</div>
     <div class="field">
       <label>Telas visíveis (todas marcadas = sem restrição)</label>
       <div id="usuarioEditVisibleViewsLista" style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px;"></div>
@@ -3385,6 +3490,109 @@
     <div class="form-actions">
       <button class="btn outline" id="confirmCancel">Cancelar</button>
       <button class="btn primary" id="confirmOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmLigOverlay">
+  <div class="modal crm-modal" role="dialog" aria-labelledby="crmLigHeader">
+    <div class="crm-modal-topo">
+      <div>
+        <h3 id="crmLigHeader">Registrar ligação</h3>
+        <div class="crm-modal-cliente" id="crmLigTitulo"></div>
+        <div class="muted sv-sub" id="crmLigSub"></div>
+      </div>
+      <button type="button" class="crm-fechar" id="crmLigFechar" aria-label="Fechar">✕</button>
+    </div>
+    <div class="field">
+      <label for="crmLigContato">Falou com</label>
+      <select id="crmLigContato"></select>
+    </div>
+    <div class="field" id="crmLigOutroCampo" style="display:none;">
+      <label for="crmLigOutro">Nome de quem atendeu</label>
+      <input type="text" id="crmLigOutro" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Resultado da ligação</label>
+      <div class="crm-chips" id="crmLigResultados"></div>
+    </div>
+    <div class="field" id="crmLigEtapaCampo">
+      <label for="crmLigEtapa">Etapa no kanban</label>
+      <select id="crmLigEtapa"></select>
+      <div class="note">Não atendeu e Pediu retorno mantêm a etapa atual. Interesse sugere Em negociação, Estimativa enviada sugere Estimativa enviada, Fechou negócio sugere Fechado e Sem interesse sugere Declinou. Você pode mudar.</div>
+    </div>
+    <div class="field">
+      <label for="crmLigObs">Observação</label>
+      <textarea id="crmLigObs" rows="3"></textarea>
+    </div>
+    <div class="field">
+      <label for="crmLigFu">Próximo follow-up</label>
+      <div class="crm-fu-linha">
+        <input type="date" id="crmLigFu">
+        <div class="crm-chips" id="crmLigFuAtalhos"></div>
+      </div>
+      <div class="note" id="crmLigAviso">Obrigatório para Pediu retorno, Interesse e Estimativa enviada. Nos outros resultados pode ficar em branco.</div>
+    </div>
+    <div class="note crm-erro" id="crmLigErro" style="display:none;"></div>
+    <div class="crm-modal-rodape">
+      <span class="muted sv-sub" id="crmLigRodape"></span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="crmLigCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="crmLigSalvar">Salvar ligação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmContOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmContTitulo">
+    <h3 id="crmContTitulo">Novo contato</h3>
+    <div class="field"><label for="crmContNome">Nome</label><input type="text" id="crmContNome" autocomplete="off"></div>
+    <div class="field"><label for="crmContCargo">Cargo</label><input type="text" id="crmContCargo" autocomplete="off"></div>
+    <div class="field"><label for="crmContTelefone">Telefone</label><input type="text" id="crmContTelefone" autocomplete="off"></div>
+    <div class="field"><label for="crmContWhats">WhatsApp</label><input type="text" id="crmContWhats" autocomplete="off"></div>
+    <div class="field"><label for="crmContEmail">E-mail</label><input type="email" id="crmContEmail" autocomplete="off"></div>
+    <div class="field"><label><input type="checkbox" id="crmContPrincipal"> Contato principal</label></div>
+    <div class="note crm-erro" id="crmContErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmContCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmContSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmAddOverlay">
+  <div class="modal crm-modal-largo" role="dialog" aria-labelledby="crmAddHeader">
+    <div class="crm-modal-topo">
+      <div>
+        <h3 id="crmAddHeader">Adicionar cliente à carteira</h3>
+        <div class="muted sv-sub">Escolha um cliente que já existe no cadastro do Torun e informe quem é o contato.</div>
+      </div>
+      <button type="button" class="crm-fechar" id="crmAddFechar" aria-label="Fechar">✕</button>
+    </div>
+    <div class="crm-add-layout">
+      <div class="crm-add-esq">
+        <div class="crm-add-passo">1. Buscar no cadastro do Torun</div>
+        <div class="field"><label for="crmAddBusca">Nome do cliente</label><input type="text" id="crmAddBusca" autocomplete="off"></div>
+        <div class="crm-add-resultados" id="crmAddResultados"></div>
+        <div class="muted sv-sub">Não achou? O cliente precisa estar cadastrado no Torun (Varejo, tela Clientes) antes de entrar na carteira.</div>
+      </div>
+      <div class="crm-add-dir">
+        <div class="crm-add-passo">2. Na carteira de <span id="crmAddSistemaNome"></span></div>
+        <div class="crm-add-selecionado" id="crmAddSelecionado"></div>
+        <div class="field" id="crmAddExecCampo"><label for="crmAddExec">Executivo responsável</label><select id="crmAddExec"></select></div>
+        <label class="crm-add-outro"><input type="checkbox" id="crmAddOutro"> Este cliente também compra no outro sistema (<span id="crmAddOutroTexto"></span>)</label>
+        <div class="crm-add-contatos-topo"><b>Contatos</b><button type="button" class="btn small outline" id="crmAddMaisContato">+ Adicionar contato</button></div>
+        <div id="crmAddContatos"></div>
+      </div>
+    </div>
+    <div class="note crm-erro" id="crmAddErro" style="display:none;"></div>
+    <div class="crm-modal-rodape">
+      <span class="muted sv-sub">O cliente entra sem ligações; a primeira ligação aparece em Hoje.</span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="crmAddCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="crmAddSalvar">Adicionar à carteira</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3990,7 +4198,8 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=17"></script>
-<script src="app.js?v=271"></script>
+<script src="semvenda.js?v=19"></script>
+<script src="crm.js?v=1"></script>
+<script src="app.js?v=272"></script>
 </body>
 </html>

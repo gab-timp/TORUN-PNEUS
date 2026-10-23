@@ -4,8 +4,14 @@
 
 const SISTEMA_KEY = "torun_sistema_atual_v1";
 
-function temAcessoSemVenda() {
+// estoque do Sem Venda (produtos, previsto, reserva...): admin ou a caixa "Pode acessar o Sem Venda"
+function temAcessoEstoqueSemVenda() {
   return currentUserIsAdmin || currentUserPodeAcessarSemVenda;
+}
+
+// entrar no sistema Sem Venda: estoque OU papel no CRM (Atacado e Encomenda mora dentro dele, no crm.js)
+function temAcessoSemVenda() {
+  return temAcessoEstoqueSemVenda() || temAcessoCrm();
 }
 
 function sistemaLembrado() {
@@ -29,10 +35,32 @@ function aplicarSistema(sistema) {
   document.getElementById("brandSub").textContent = semVenda ? "Sem Venda" : "Controle de Estoque";
   document.getElementById("btnTrocarSistema").style.display = temAcessoSemVenda() ? "" : "none";
   document.title = semVenda ? "TORUN PNEUS · Sem Venda" : "TORUN PNEUS · Painel de Controle";
-  setView(semVenda ? "sv-dashboard" : primeiraViewPermitida());
+  if (semVenda) crmAplicarMenu();
+  // quem só tem o CRM (sem o estoque do Sem Venda) cai direto na tela do CRM
+  setView(semVenda ? (temAcessoEstoqueSemVenda() ? "sv-dashboard" : crmViewInicial()) : primeiraViewPermitida());
+}
+
+// O cartão "Sem Venda" também é a porta do CRM (Atacado e Encomenda mora dentro dele): o texto acompanha o acesso do usuário.
+function atualizarCartaoSemVenda() {
+  const nome = document.getElementById("sistemaSvNome");
+  const desc = document.getElementById("sistemaSvDesc");
+  if (!nome || !desc) return;
+  const estoque = temAcessoEstoqueSemVenda();
+  const crm = temAcessoCrm();
+  if (estoque && !crm) return; // texto original do cartão
+  const sistemas = crmSistemasVisiveis().map(s => CRM_SISTEMAS[s].toUpperCase());
+  const rotuloCrm = sistemas.length === 1 ? sistemas[0] : "ATACADO E ENCOMENDA";
+  if (estoque) {
+    nome.textContent = "SEM VENDA";
+    desc.textContent = "Pneus comprados a mais, ainda sem venda — estoque previsto, catálogo, propostas e armazenagem. Também tem o CRM de Atacado e Encomenda.";
+  } else {
+    nome.textContent = rotuloCrm;
+    desc.textContent = "CRM e follow-up dos executivos: clientes, ligações e, no Atacado, o kanban da carteira.";
+  }
 }
 
 function mostrarEscolhaSistema() {
+  atualizarCartaoSemVenda();
   setMobileMenu(false);
   document.getElementById("appShell").style.display = "none";
   document.title = "TORUN PNEUS · Painel de Controle";
@@ -69,6 +97,7 @@ function initSistemas() {
   });
   document.getElementById("btnTrocarSistema").addEventListener("click", mostrarEscolhaSistema);
   initSemVendaTelas();
+  initCrmTelas();
 }
 
 /* ---------------- Sem Venda, etapa 2: Produtos e Estoque Previsto ---------------- */
@@ -189,6 +218,7 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
+  if (view.startsWith("sv-crm-")) return crmAoAbrirView(view);
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   // a lista de vendedores tem carga própria: se a tabela não existir, só a Reserva reclama

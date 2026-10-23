@@ -510,7 +510,7 @@ async function loadState() {
   // visible_etapas vem numa consulta à parte, sem fetchComRetry e sem aviso: se a coluna ainda não existir no banco
   // a consulta falha e fica sem restrição de etapas, em vez de derrubar o perfil de todo mundo (ver o select de
   // user_roles logo abaixo, que não pode ganhar coluna nova antes do SQL rodar).
-  const [results, configRes, etapasRes] = await Promise.all([
+  const [results, configRes, etapasRes, crmRes] = await Promise.all([
     Promise.all([
       fetchComRetry(() => sb.from("produtos").select("*").order("codigo")),
       fetchComRetry(() => selectTudoPaginado("produtos_precos", "id")),
@@ -529,7 +529,10 @@ async function loadState() {
       fetchComRetry(() => sb.from("notificacoes").select("*").order("created_at", { ascending: false }).limit(50))
     ]),
     fetchComRetry(() => sb.from("configuracoes_site").select("*").maybeSingle()),
-    sb.from("user_roles").select("visible_etapas").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true }))
+    sb.from("user_roles").select("visible_etapas").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true })),
+    // papel no CRM (sql/crm_nucleo.sql): consulta à parte, pelo mesmo motivo de visible_etapas -- sem o SQL a coluna não
+    // existe e o perfil do usuário não pode quebrar por causa disso (o CRM só fica sem acesso)
+    sb.from("user_roles").select("crm_papel, crm_sistema").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true }))
   ]);
   const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, rastreioEventosRes, representantesRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);
@@ -571,6 +574,7 @@ async function loadState() {
   currentUserPodeAutorizarGerencia = !!(roleRes.data && roleRes.data.pode_autorizar_gerencia);
   currentUserPodeExportarBackup = !!(roleRes.data && roleRes.data.pode_exportar_backup);
   currentUserPodeAcessarSemVenda = !!(roleRes.data && roleRes.data.pode_acessar_sem_venda);
+  crmDefinirPerfil(!crmRes.error ? crmRes.data : null);
   currentUserEditableTables = (roleRes.data && roleRes.data.editable_tables) || null;
   currentUserNome = (roleRes.data && roleRes.data.nome) || currentUser.email;
   currentUserTelefone = (roleRes.data && roleRes.data.telefone) || "";
@@ -991,7 +995,9 @@ function primeiraViewPermitida() {
 // Só esconder o botão do menu não bastava: a busca do topo, o sino e os links dentro das telas abriam
 // qualquer tela por cima.
 function viewPermitida(view) {
-  if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
+  // CRM (Atacado e Encomenda) tem papel próprio (Administração > Usuários); o resto do Sem Venda, a permissão do estoque
+  if (String(view).startsWith("sv-crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
+  if (String(view).startsWith("sv-")) return typeof temAcessoEstoqueSemVenda === "function" ? temAcessoEstoqueSemVenda() : true;
   return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || view === primeiraViewPermitida();
 }
 
@@ -7059,6 +7065,14 @@ async function confirmarMesclagemClientes() {
       : `Não é possível mesclar: ${nomesComReserva} têm reserva no Sem Venda e não podem ser removidos. Tire-os da seleção (um deles pode ser o principal).`);
     return;
   }
+  // idem pra carteira do CRM (Atacado e Encomenda): o cliente de uma carteira não pode ser removido
+  const carteirasCrm = await carteiraCrmDosClientes(outros);
+  const comCarteiraCrm = carteirasCrm ? outros.filter(n => carteirasCrm[n]) : [];
+  if (comCarteiraCrm.length) {
+    const nomesCrm = comCarteiraCrm.map(n => `"${n}"`).join(", ");
+    toast(`Não é possível mesclar: ${nomesCrm} ${comCarteiraCrm.length === 1 ? "está" : "estão"} na carteira do CRM (Atacado/Encomenda) e não pode${comCarteiraCrm.length === 1 ? "" : "m"} ser removido${comCarteiraCrm.length === 1 ? "" : "s"}. Escolha esse cadastro como principal ou tire da seleção.`);
+    return;
+  }
 
   const motivo = await motivoModal("Confirmar mesclagem?",
     `"${outros.join('", "')}" será(ão) removido(s), e suas vendas, pedidos, arquivos e análises de crédito passam a apontar para "${survivorNome}". Informe o motivo.`);
@@ -7638,6 +7652,11 @@ async function excluirClienteAtual() {
   const reservasSV = await reservasSemVendaDosClientes([nome]);
   if (reservasSV && reservasSV[nome]) {
     toast(`Não é possível excluir: esse cliente tem ${reservasSV[nome]} reserva(s) no Sem Venda (as canceladas também ficam no histórico).`);
+    return;
+  }
+  const carteirasCrm = await carteiraCrmDosClientes([nome]);
+  if (carteirasCrm && carteirasCrm[nome]) {
+    toast("Não é possível excluir: esse cliente está na carteira do CRM (Atacado/Encomenda), com histórico de ligações.");
     return;
   }
   // análise de crédito também impede excluir (o banco barra com erro cru de chave estrangeira): o histórico de
@@ -11854,6 +11873,7 @@ function abrirUsuarioEditModal(userId) {
   document.getElementById("usuarioEditPodeAutorizar").checked = !!u.pode_autorizar_gerencia;
   document.getElementById("usuarioEditPodeExportarBackup").checked = !!u.pode_exportar_backup;
   document.getElementById("usuarioEditPodeSemVenda").checked = !!u.pode_acessar_sem_venda;
+  crmPreencherCamposUsuario(u);
   const visibleViews = u.visible_views || null;
   document.getElementById("usuarioEditVisibleViewsLista").innerHTML = ADMIN_VIEW_DEFS.map(v => `
     <label class="dash-filter-item">
@@ -11881,6 +11901,10 @@ async function salvarUsuarioEdit() {
   const marcados = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.viewkey);
   const visibleViews = marcados.length === checkboxes.length ? null : marcados; // todos marcados = sem restrição
   const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, pode_exportar_backup: podeExportarBackup, pode_acessar_sem_venda: podeSemVenda, visible_views: visibleViews };
+  // papel no CRM: só entra no payload se a coluna já existe no banco (sem o SQL do CRM o salvamento continua igual)
+  const crmCampos = crmLerCamposUsuario(adminUsuarios.find(x => x.user_id === adminEditingUserId) || {});
+  if (crmCampos === null) { toast("Escolha o sistema (Atacado ou Encomenda) do executivo."); return; }
+  Object.assign(payload, crmCampos);
   const { error } = await sb.from("user_roles").update(payload).eq("user_id", adminEditingUserId);
   if (error) { toast("Erro ao salvar usuário: " + error.message); return; }
   const u = adminUsuarios.find(x => x.user_id === adminEditingUserId);
