@@ -2806,6 +2806,22 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="pagamentoOverlay">
+  <div class="modal">
+    <h3 id="pagamentoTitle">Confirmar pagamento</h3>
+    <p id="pagamentoText"></p>
+    <div class="field" style="margin-bottom:16px;">
+      <label for="pagamentoData">Data do pagamento</label>
+      <input type="date" id="pagamentoData" style="max-width:200px;">
+      <div class="filtro-nota" id="pagamentoErro" style="display:none; color:var(--danger);"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn outline" id="pagamentoCancel">Cancelar</button>
+      <button class="btn primary" id="pagamentoOk">Confirmar pagamento</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="clienteArquivosOverlay" data-table="clientes">
   <div class="modal modal-popup-grande cli-arq-modal" role="dialog" aria-labelledby="clienteArquivosTitulo">
     <div class="drawer-simple-head">
@@ -3332,6 +3348,6 @@
   </div>
 </div>
 
-<script src="app.js?v=266"></script>
+<script src="app.js?v=267"></script>
 </body>
 </html>

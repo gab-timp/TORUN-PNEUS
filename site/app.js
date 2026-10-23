@@ -866,6 +866,40 @@ function confirmModal(title, text, okLabel, cancelLabel) {
   });
 }
 
+// pergunta quando o cliente pagou: devolve a data (YYYY-MM-DD, de hoje pra trás) ou null se cancelar.
+// Começa em hoje. Data futura não vale: "paga" é o que já aconteceu, e uma data de pagamento em
+// mês futuro some do Fluxo de Caixa (que só mostra os últimos 6 meses).
+function pagamentoModal(title, text) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById("pagamentoOverlay");
+    document.getElementById("pagamentoTitle").textContent = title;
+    document.getElementById("pagamentoText").textContent = text;
+    const input = document.getElementById("pagamentoData");
+    const erro = document.getElementById("pagamentoErro");
+    input.max = todayISO();
+    input.value = todayISO();
+    erro.style.display = "none";
+    overlay.classList.add("show");
+    const okBtn = document.getElementById("pagamentoOk");
+    const cancelBtn = document.getElementById("pagamentoCancel");
+    const cleanup = (result) => {
+      overlay.classList.remove("show");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      resolve(result);
+    };
+    const onOk = () => {
+      const data = input.value;
+      if (!data) { erro.textContent = "Informe a data do pagamento."; erro.style.display = "block"; return; }
+      if (data > todayISO()) { erro.textContent = "A data do pagamento não pode ser no futuro."; erro.style.display = "block"; return; }
+      cleanup(data);
+    };
+    const onCancel = () => cleanup(null);
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+  });
+}
+
 function initMotivoSugestoes() {
   document.getElementById("motivoSugestoes").addEventListener("change", (e) => {
     if (e.target.value) document.getElementById("motivoInput").value = e.target.value;
@@ -8218,10 +8252,11 @@ function renderContasReceber() {
 async function marcarVendaComoPaga(vendaId) {
   const v = state.vendas.find(x => x.id === vendaId);
   if (!v) return false;
-  const dataPagamento = todayISO();
-  const ok = await confirmModal("Confirmar pagamento?",
-    `Marcar a venda NF ${v.numeroNFVenda || "—"} (${v.cliente}) como paga hoje, ${formatDateBR(dataPagamento)}? Pra usar outra data, edite a venda.`);
-  if (!ok) return false;
+  // pergunta a data do pagamento (começa em hoje): o mês do "Recebido" no Fluxo de Caixa é o dessa
+  // data, não o do clique
+  const dataPagamento = await pagamentoModal("Confirmar pagamento",
+    `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente} · ${formatMoney(v.valorVenda)}. Informe em que dia o cliente pagou.`);
+  if (!dataPagamento) return false;
   // .select() devolve o updated_at novo: sem ele, "Editar" nessa mesma venda antes de
   // recarregar a página levava o carimbo velho e dava falso aviso de conflito
   const { data: atualizada, error } = await sb.from("vendas").update({ status_pagamento: "pago", data_pagamento: dataPagamento }).eq("id", v.id).select();
@@ -8276,6 +8311,7 @@ function abrirBaixaParcelas(vendaId) {
       </tr>`;
   }).join("");
   document.getElementById("baixaDataPagamento").value = todayISO();
+  document.getElementById("baixaDataPagamento").max = todayISO(); // pagamento é o que já aconteceu
   document.querySelectorAll("#baixaParcelasTbody .baixa-check").forEach(c => c.addEventListener("change", atualizarResumoBaixa));
   atualizarResumoBaixa();
   document.getElementById("baixaParcelasOverlay").classList.add("show");
@@ -8315,6 +8351,7 @@ async function confirmarBaixaParcelas() {
   if (!marcadas.length) { toast("Marque ao menos uma parcela."); return; }
   const data = document.getElementById("baixaDataPagamento").value;
   if (!data) { toast("Informe a data do pagamento."); return; }
+  if (data > todayISO()) { toast("A data do pagamento não pode ser no futuro."); return; }
 
   const novas = v.parcelasDetalhe.map((p, i) => marcadas.includes(i) ? { ...p, status: "pago", dataPagamento: data } : p);
   // agregado da venda: mesma regra do formulário de venda (Editar) -- "pago" só quando TODAS as
