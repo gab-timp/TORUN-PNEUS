@@ -1,6 +1,19 @@
 /* ---------------- CRM Atacado e Encomenda (dentro do Sem Venda) ---------------- */
 /* Usa os mesmos tokens e componentes do app (cartão, tabela, kanban, selo de status), então acompanha o tema claro/escuro. */
 
+/* tela de escolha de sistema com mais de 2 cartões: 4 na mesma linha quando cabe, senão quebra */
+.sistema-cards.muitos{max-width:1296px;}
+.sistema-cards.muitos .sistema-card{width:300px;}
+
+/* dentro de Atacado e Encomenda: esconde o que é só do varejo (busca, sino, backup, ajuda), como no Sem Venda */
+body.sistema-crm .topbar-search,
+body.sistema-crm .bell-wrap{visibility:hidden;}
+body.sistema-crm #btnExport,
+body.sistema-crm #btnImport,
+body.sistema-crm #btnReset,
+body.sistema-crm .help-card,
+body.sistema-crm .sidebar-divider{display:none;}
+
 .status-pill.crm-pill-int{background:#E4EEFD;color:#1D4FA8;}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .status-pill.crm-pill-int{background:#1B2A44;color:#8DB4FF;}

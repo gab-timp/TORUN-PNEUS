@@ -979,7 +979,7 @@ async function registrarLog(tabela, registroId, acao, motivo, descricao) {
 
 function applyViewRestrictions() {
   document.querySelectorAll(".nav-item").forEach(b => {
-    if (b.dataset.view.startsWith("sv-")) return; // Sem Venda: o acesso é pela permissão própria, não por "telas visíveis"
+    if (b.dataset.view.startsWith("sv-") || b.dataset.view.startsWith("crm-")) return; // Sem Venda e CRM: o acesso é pela permissão própria, não por "telas visíveis"
     b.style.display = (!currentUserVisibleViews || currentUserVisibleViews.includes(b.dataset.view)) ? "" : "none";
   });
 }
@@ -995,9 +995,9 @@ function primeiraViewPermitida() {
 // Só esconder o botão do menu não bastava: a busca do topo, o sino e os links dentro das telas abriam
 // qualquer tela por cima.
 function viewPermitida(view) {
-  // CRM (Atacado e Encomenda) tem papel próprio (Administração > Usuários); o resto do Sem Venda, a permissão do estoque
-  if (String(view).startsWith("sv-crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
-  if (String(view).startsWith("sv-")) return typeof temAcessoEstoqueSemVenda === "function" ? temAcessoEstoqueSemVenda() : true;
+  // Atacado e Encomenda (telas "crm-") têm papel próprio (Administração > Usuários), fora da lista de telas visíveis
+  if (String(view).startsWith("crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
+  if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
   return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || view === primeiraViewPermitida();
 }
 
@@ -1052,6 +1052,7 @@ function setView(view) {
   if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); renderRelatorioStatusListas(); }
   if (view === "administracao") { renderAdministracao(); svAoAbrirAdministracao(); }
   if (view.startsWith("sv-")) svAoAbrirView(view);
+  if (view.startsWith("crm-")) crmAoAbrirView(view);
 }
 
 /* ---------------- render: ESTOQUE ---------------- */

@@ -67,23 +67,20 @@ function crmSistemaAtual() {
 
 function crmTemKanban() { return crmSistemaAtual() === "atacado"; }
 
-// itens do menu e tela de entrada (chamado pelo aplicarSistema do semvenda.js)
-function crmAplicarMenu() {
-  const grupo = document.getElementById("crmNavGrupo");
-  if (!grupo) return;
-  const vis = crmSistemasVisiveis();
-  grupo.style.display = temAcessoCrm() ? "" : "none";
-  const rotulo = vis.length === 1 ? CRM_SISTEMAS[vis[0]] : "Atacado e Encomenda";
-  document.getElementById("crmNavRotulo").firstChild.nodeValue = rotulo + " ";
-  const estoque = temAcessoEstoqueSemVenda();
-  ["sv-geral", "sv-comercial"].forEach(g => {
-    const el = document.querySelector(`#navSemVenda [data-group="${g}"]`);
-    if (el) el.style.display = estoque ? "" : "none";
+// chamado pelo aplicarSistema do semvenda.js ao entrar em Atacado ou Encomenda: o sistema aberto vale pra todas as telas
+function crmEntrarNoSistema(sistema) {
+  crmUi.sistema = sistema;
+  crmUi.modo = "lista";
+  crmUi.fichaId = null;
+  ["crmCliBusca", "crmCliSituacao", "crmCliExecutivo"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
   });
 }
 
+// quem tem carteira própria começa em Hoje; gestão e financeiro, na lista de clientes
 function crmViewInicial() {
-  return crmEhExecutivo() ? "sv-crm-hoje" : "sv-crm-clientes";
+  return crmEhExecutivo() ? "crm-hoje" : "crm-clientes";
 }
 
 /* ---------------- dados ---------------- */
@@ -243,23 +240,16 @@ function crmAtalhosHtml(ct) {
 /* ---------------- entrada nas telas ---------------- */
 
 async function crmAoAbrirView(view) {
-  await crmCarregar(view !== "sv-crm-cliente");
+  await crmCarregar(view !== "crm-cliente");
   crmRender();
 }
 
 function crmRender() {
   const ativa = document.querySelector(".view.active");
   const id = ativa ? ativa.id : "";
-  document.querySelectorAll("[data-crm-sistema]").forEach(sel => {
-    const vis = crmSistemasVisiveis();
-    sel.innerHTML = vis.map(s => `<option value="${s}">${CRM_SISTEMAS[s]}</option>`).join("");
-    sel.value = crmSistemaAtual();
-    const campo = sel.closest(".field");
-    if (campo) campo.style.display = vis.length > 1 ? "" : "none";
-  });
-  if (id === "view-sv-crm-hoje") crmRenderHoje();
-  else if (id === "view-sv-crm-clientes") crmRenderClientes();
-  else if (id === "view-sv-crm-cliente") crmRenderFicha();
+  if (id ==="view-crm-hoje") crmRenderHoje();
+  else if (id === "view-crm-clientes") crmRenderClientes();
+  else if (id === "view-crm-cliente") crmRenderFicha();
 }
 
 /* ---------------- Hoje ---------------- */
@@ -302,7 +292,7 @@ function crmRenderHoje() {
     <div class="kpi"><div class="lbl">Ligações feitas hoje</div><div class="val">${fmt(feitasHoje)}</div></div>
     <div class="kpi"><div class="lbl">Negócios fechados no mês</div><div class="val">${fmt(fechadosMes)}</div></div>`;
 
-  document.getElementById("view-sv-crm-hoje").classList.toggle("crm-ve-todos", comExecutivo);
+  document.getElementById("view-crm-hoje").classList.toggle("crm-ve-todos", comExecutivo);
   document.getElementById("crmHojeAtrasados").innerHTML = atrasados.map(crmLinhaHoje).join("");
   document.getElementById("crmHojeAtrasadosVazio").style.display = atrasados.length ? "none" : "block";
   document.getElementById("crmHojeParaHoje").innerHTML = paraHoje.map(crmLinhaHoje).join("");
@@ -371,7 +361,7 @@ function crmRenderClientes() {
   const comExecutivo = !crmEhExecutivo();
   const kanban = crmTemKanban();
   if (!kanban) crmUi.modo = "lista";
-  const view = document.getElementById("view-sv-crm-clientes");
+  const view = document.getElementById("view-crm-clientes");
   view.classList.toggle("crm-ve-todos", comExecutivo);
   document.getElementById("crmCliExecutivoCampo").style.display = comExecutivo ? "" : "none";
   document.getElementById("crmModoSeg").style.display = kanban ? "" : "none";
@@ -491,8 +481,8 @@ async function crmGravarEtapa(c, nova, origem) {
 
 function crmAbrirFicha(id) {
   crmUi.fichaId = id;
-  setView("sv-crm-cliente");
-  const item = document.querySelector('#navSemVenda [data-view="sv-crm-clientes"]');
+  setView("crm-cliente");
+  const item = document.querySelector('#navCrm [data-view="crm-clientes"]');
   if (item) item.classList.add("active");
 }
 
@@ -1001,19 +991,16 @@ function crmClickDelegado(e) {
   if (!t) return;
   if (t.dataset.crmficha) crmAbrirFicha(t.dataset.crmficha);
   else if (t.dataset.crmligar) crmAbrirLigacao(t.dataset.crmligar);
-  else if (t.dataset.crmvoltar) setView("sv-crm-clientes");
+  else if (t.dataset.crmvoltar) setView("crm-clientes");
   else if (t.dataset.crmcontatonovo) crmAbrirContato(t.dataset.crmcontatonovo, null);
   else if (t.dataset.crmcontatoedit) crmAbrirContato(crmUi.fichaId, t.dataset.crmcontatoedit);
   else if (t.dataset.crmcontatodel) crmExcluirContato(t.dataset.crmcontatodel);
 }
 
 function initCrmTelas() {
-  if (!document.getElementById("view-sv-crm-hoje")) return;
-  ["view-sv-crm-hoje", "view-sv-crm-clientes", "view-sv-crm-cliente"].forEach(id => {
+  if (!document.getElementById("view-crm-hoje")) return;
+  ["view-crm-hoje", "view-crm-clientes", "view-crm-cliente"].forEach(id => {
     document.getElementById(id).addEventListener("click", crmClickDelegado);
-  });
-  document.querySelectorAll("[data-crm-sistema]").forEach(sel => {
-    sel.addEventListener("change", () => { crmUi.sistema = sel.value; crmRender(); });
   });
   ["crmCliBusca", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo"].forEach(id => {
     document.getElementById(id).addEventListener("input", crmRenderClientes);

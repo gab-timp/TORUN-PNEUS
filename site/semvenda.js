@@ -4,14 +4,21 @@
 
 const SISTEMA_KEY = "torun_sistema_atual_v1";
 
-// estoque do Sem Venda (produtos, previsto, reserva...): admin ou a caixa "Pode acessar o Sem Venda"
-function temAcessoEstoqueSemVenda() {
+function temAcessoSemVenda() {
   return currentUserIsAdmin || currentUserPodeAcessarSemVenda;
 }
 
-// entrar no sistema Sem Venda: estoque OU papel no CRM (Atacado e Encomenda mora dentro dele, no crm.js)
-function temAcessoSemVenda() {
-  return temAcessoEstoqueSemVenda() || temAcessoCrm();
+// Atacado e Encomenda são sistemas próprios (CRM, crm.js), liberados pelo papel no cadastro do usuário.
+// Sem Venda segue como era: só admin ou quem tem a caixa "Pode acessar o Sem Venda".
+const SISTEMAS_CRM = ["atacado", "encomenda"];
+
+// sistemas que este usuário pode abrir (o varejo é de todos), na ordem dos cartões da tela de escolha
+function sistemasDisponiveis() {
+  const lista = ["varejo"];
+  if (temAcessoSemVenda()) lista.push("semvenda");
+  const crm = crmSistemasVisiveis();
+  ["encomenda", "atacado"].forEach(s => { if (crm.includes(s)) lista.push(s); });
+  return lista;
 }
 
 function sistemaLembrado() {
@@ -28,39 +35,27 @@ function esquecerSistema() {
 
 function aplicarSistema(sistema) {
   const semVenda = sistema === "semvenda";
+  const crm = SISTEMAS_CRM.includes(sistema);
   lembrarSistema(sistema);
   document.body.classList.toggle("sistema-semvenda", semVenda);
-  document.getElementById("navVarejo").style.display = semVenda ? "none" : "";
+  document.body.classList.toggle("sistema-crm", crm);
+  document.getElementById("navVarejo").style.display = semVenda || crm ? "none" : "";
   document.getElementById("navSemVenda").style.display = semVenda ? "" : "none";
-  document.getElementById("brandSub").textContent = semVenda ? "Sem Venda" : "Controle de Estoque";
-  document.getElementById("btnTrocarSistema").style.display = temAcessoSemVenda() ? "" : "none";
-  document.title = semVenda ? "TORUN PNEUS · Sem Venda" : "TORUN PNEUS · Painel de Controle";
-  if (semVenda) crmAplicarMenu();
-  // quem só tem o CRM (sem o estoque do Sem Venda) cai direto na tela do CRM
-  setView(semVenda ? (temAcessoEstoqueSemVenda() ? "sv-dashboard" : crmViewInicial()) : primeiraViewPermitida());
-}
-
-// O cartão "Sem Venda" também é a porta do CRM (Atacado e Encomenda mora dentro dele): o texto acompanha o acesso do usuário.
-function atualizarCartaoSemVenda() {
-  const nome = document.getElementById("sistemaSvNome");
-  const desc = document.getElementById("sistemaSvDesc");
-  if (!nome || !desc) return;
-  const estoque = temAcessoEstoqueSemVenda();
-  const crm = temAcessoCrm();
-  if (estoque && !crm) return; // texto original do cartão
-  const sistemas = crmSistemasVisiveis().map(s => CRM_SISTEMAS[s].toUpperCase());
-  const rotuloCrm = sistemas.length === 1 ? sistemas[0] : "ATACADO E ENCOMENDA";
-  if (estoque) {
-    nome.textContent = "SEM VENDA";
-    desc.textContent = "Pneus comprados a mais, ainda sem venda — estoque previsto, catálogo, propostas e armazenagem. Também tem o CRM de Atacado e Encomenda.";
-  } else {
-    nome.textContent = rotuloCrm;
-    desc.textContent = "CRM e follow-up dos executivos: clientes, ligações e, no Atacado, o kanban da carteira.";
-  }
+  document.getElementById("navCrm").style.display = crm ? "" : "none";
+  document.getElementById("brandSub").textContent = semVenda ? "Sem Venda" : crm ? CRM_SISTEMAS[sistema] : "Controle de Estoque";
+  document.getElementById("btnTrocarSistema").style.display = sistemasDisponiveis().length > 1 ? "" : "none";
+  document.title = semVenda ? "TORUN PNEUS · Sem Venda" : crm ? `TORUN PNEUS · ${CRM_SISTEMAS[sistema]}` : "TORUN PNEUS · Painel de Controle";
+  if (crm) crmEntrarNoSistema(sistema);
+  setView(semVenda ? "sv-dashboard" : crm ? crmViewInicial() : primeiraViewPermitida());
 }
 
 function mostrarEscolhaSistema() {
-  atualizarCartaoSemVenda();
+  // só aparecem os cartões dos sistemas que o usuário pode abrir
+  const disponiveis = sistemasDisponiveis();
+  document.querySelectorAll("[data-sistema]").forEach(btn => {
+    btn.style.display = disponiveis.includes(btn.dataset.sistema) ? "" : "none";
+  });
+  document.getElementById("sistemaCards").classList.toggle("muitos", disponiveis.length > 2);
   setMobileMenu(false);
   document.getElementById("appShell").style.display = "none";
   document.title = "TORUN PNEUS · Painel de Controle";
@@ -75,15 +70,16 @@ function escolherSistema(sistema) {
   aplicarSistema(sistema);
 }
 
-// Quem não tem acesso ao Sem Venda entra direto no varejo, como sempre foi.
+// Quem só tem o varejo (sem Sem Venda, Atacado ou Encomenda) entra direto nele, como sempre foi.
 function entrarNoSistema() {
   const shell = document.getElementById("appShell");
-  if (!temAcessoSemVenda()) {
+  const disponiveis = sistemasDisponiveis();
+  if (disponiveis.length <= 1) {
     shell.style.display = "flex";
     return;
   }
   const lembrado = sistemaLembrado();
-  if (lembrado === "varejo" || lembrado === "semvenda") {
+  if (lembrado && disponiveis.includes(lembrado)) {
     shell.style.display = "flex";
     aplicarSistema(lembrado);
     return;
@@ -218,7 +214,6 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
-  if (view.startsWith("sv-crm-")) return crmAoAbrirView(view);
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   // a lista de vendedores tem carga própria: se a tabela não existir, só a Reserva reclama
