@@ -7195,6 +7195,17 @@ function statusPagamentoPillHtml(v) {
     : `<span class="status-pill pill-esgotado">Em aberto</span>`;
 }
 
+// botão de pagamento da linha de Faturamento: venda parcelada abre a janela das parcelas (a mesma de
+// Contas a Receber; vira "Parcelas" quando todas já estão pagas, pra poder desfazer uma); venda
+// sem parcelas segue com "Marcar como pago" enquanto não estiver paga
+function botaoPagamentoVendaHtml(v) {
+  if (Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length) {
+    const aberta = v.parcelasDetalhe.some(p => p.status === "em_aberto");
+    return `<button class="btn small outline" data-baixaparcelas="${v.id}">${aberta ? "Dar baixa nas parcelas" : "Parcelas"}</button>`;
+  }
+  return v.statusPagamento === "pago" ? "" : `<button class="btn small outline" data-marcarpago="${v.id}">Marcar como pago</button>`;
+}
+
 function getClienteStats(nome) {
   const vendas = state.vendas.filter(v => v.cliente === nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   const totalFaturado = vendas.reduce((a, v) => a + v.valorVenda, 0);
@@ -8277,6 +8288,21 @@ async function marcarVendaComoPaga(vendaId) {
 // formulário inteiro. Pagamento de valor diferente do da parcela segue por Editar em Faturamento.
 let baixaVendaId = null;
 
+// o que gravar na venda quando as parcelas mudam (baixa ou desfazer): as próprias parcelas mais o
+// agregado da venda, com a mesma regra do formulário de venda (Editar) -- "pago" só quando TODAS
+// as parcelas estão pagas; vencimento = o da próxima parcela em aberto (ou o da última, se todas
+// pagas); data de pagamento = a mais recente, só quando todas pagas
+function agregadoDaVenda(parcelas) {
+  const todasPagas = parcelas.every(p => p.status === "pago");
+  const proximaAberta = parcelas.find(p => p.status === "em_aberto");
+  return {
+    parcelas_detalhe: parcelas,
+    status_pagamento: todasPagas ? "pago" : "em_aberto",
+    data_vencimento: (proximaAberta || parcelas[parcelas.length - 1]).vencimento || null,
+    data_pagamento: todasPagas ? ([...parcelas].sort((a, b) => (b.dataPagamento || "").localeCompare(a.dataPagamento || ""))[0].dataPagamento || null) : null
+  };
+}
+
 function vendaDaBaixa() {
   return state.vendas.find(x => x.id === baixaVendaId) || null;
 }
@@ -8306,7 +8332,7 @@ function abrirBaixaParcelas(vendaId) {
         <td class="mono">${p.vencimento ? formatDateBR(p.vencimento) : "—"}</td>
         <td class="num mono">${formatMoney(p.valor || 0)}</td>
         <td>${paga
-          ? `<span class="status-pill pill-neutro">Paga${p.dataPagamento ? " em " + formatDateBR(p.dataPagamento) : ""}</span>`
+          ? `<span class="status-pill pill-neutro">Paga${p.dataPagamento ? " em " + formatDateBR(p.dataPagamento) : ""}</span><button type="button" class="baixa-desfazer" data-desfazer="${i}">Desfazer</button>`
           : pillParcelaBaixa(p)}</td>
       </tr>`;
   }).join("");
@@ -8340,7 +8366,9 @@ function atualizarResumoBaixa() {
     ? `<div>${marcadas.length === 1 ? "1 parcela selecionada" : `${marcadas.length} parcelas selecionadas`}</div>
        <div class="total">${formatMoney(valor)}</div>
        <div class="filtro-nota">Em aberto depois: ${formatMoney(saldoEmAbertoDaVenda(v) - valor)}</div>`
-    : `<div>Nenhuma parcela selecionada</div><div class="filtro-nota">Marque as parcelas que o cliente pagou.</div>`;
+    : (v.parcelasDetalhe.some(p => p.status === "em_aberto")
+        ? `<div>Nenhuma parcela selecionada</div><div class="filtro-nota">Marque as parcelas que o cliente pagou.</div>`
+        : `<div>Todas as parcelas estão pagas</div><div class="filtro-nota">Pagou uma por engano? Use "Desfazer" na parcela.</div>`);
   document.getElementById("baixaParcelasConfirmar").disabled = marcadas.length === 0;
 }
 
@@ -8354,16 +8382,7 @@ async function confirmarBaixaParcelas() {
   if (data > todayISO()) { toast("A data do pagamento não pode ser no futuro."); return; }
 
   const novas = v.parcelasDetalhe.map((p, i) => marcadas.includes(i) ? { ...p, status: "pago", dataPagamento: data } : p);
-  // agregado da venda: mesma regra do formulário de venda (Editar) -- "pago" só quando TODAS as
-  // parcelas estão pagas; vencimento = o da próxima parcela em aberto (ou o da última, se todas pagas)
-  const todasPagas = novas.every(p => p.status === "pago");
-  const proximaAberta = novas.find(p => p.status === "em_aberto");
-  const payload = {
-    parcelas_detalhe: novas,
-    status_pagamento: todasPagas ? "pago" : "em_aberto",
-    data_vencimento: (proximaAberta || novas[novas.length - 1]).vencimento || null,
-    data_pagamento: todasPagas ? ([...novas].sort((a, b) => (b.dataPagamento || "").localeCompare(a.dataPagamento || ""))[0].dataPagamento || null) : null
-  };
+  const payload = agregadoDaVenda(novas);
 
   const btn = document.getElementById("baixaParcelasConfirmar");
   btn.disabled = true; // evita clique duplo enquanto grava
@@ -8387,7 +8406,42 @@ async function confirmarBaixaParcelas() {
   renderFaturamento();
 }
 
+// volta UMA parcela paga pra "em aberto" (baixa marcada por engano). Pede o motivo, como as outras
+// edições de venda, e deixa o motivo no Histórico.
+async function desfazerBaixaParcela(i) {
+  const v = vendaDaBaixa();
+  if (!v) return;
+  const p = v.parcelasDetalhe[i];
+  if (!p || p.status !== "pago") return;
+  const numero = p.numero || i + 1;
+  const total = v.parcelasDetalhe.length;
+  const motivo = await motivoModal("Desfazer o pagamento",
+    `Parcela ${numero} de ${total} (${formatMoney(p.valor || 0)}${p.dataPagamento ? ", paga em " + formatDateBR(p.dataPagamento) : ""}) volta para "em aberto". Por que está desfazendo?`);
+  if (!motivo) return;
+  const novas = v.parcelasDetalhe.map((x, j) => j === i ? { ...x, status: "em_aberto", dataPagamento: null } : x);
+  const { conflict, error, row } = await updateWithConflictCheck("vendas", v.id, v.updatedAt, agregadoDaVenda(novas));
+  if (error) { toast("Erro ao desfazer o pagamento: " + error.message); return; }
+  if (conflict) {
+    fecharBaixaParcelas();
+    scheduleRefresh();
+    toast(CONFLITO_MSG);
+    return;
+  }
+  Object.assign(v, vendaFromRow(row));
+  await registrarLog("vendas", v.id, "edicao", motivo,
+    `Venda NF ${v.numeroNFVenda || "—"} · ${v.cliente}: pagamento da parcela ${numero} de ${total} desfeito (era ${formatMoney(p.valor || 0)}${p.dataPagamento ? ", paga em " + formatDateBR(p.dataPagamento) : ""})`);
+  toast(`Pagamento da parcela ${numero} desfeito.`);
+  abrirBaixaParcelas(v.id); // redesenha a janela, com a parcela de volta em aberto
+  renderContasReceber();
+  renderVendas();
+  renderFaturamento();
+}
+
 function initBaixaParcelas() {
+  document.getElementById("baixaParcelasTbody").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-desfazer]");
+    if (btn) desfazerBaixaParcela(Number(btn.dataset.desfazer));
+  });
   const marcar = (filtro) => {
     const v = vendaDaBaixa();
     if (!v) return;
@@ -8681,7 +8735,7 @@ function renderVendas() {
       <td>${statusPagamentoPillHtml(v)}</td>
       <td class="col-acoes" style="white-space:nowrap;">
         <span class="write-ui">
-          ${v.statusPagamento === "pago" || (v.parcelasDetalhe && v.parcelasDetalhe.length) ? "" : `<button class="btn small outline" data-marcarpago="${v.id}">Marcar como pago</button>`}
+          ${botaoPagamentoVendaHtml(v)}
           <button class="btn small outline" data-editvenda="${v.id}">Editar</button>
           <button class="btn small danger" data-delvenda="${v.id}">Excluir</button>
         </span>
@@ -8701,6 +8755,9 @@ function renderVendas() {
       renderVendas();
       renderFaturamento();
     });
+  });
+  document.querySelectorAll("[data-baixaparcelas]").forEach(btn => {
+    btn.addEventListener("click", () => abrirBaixaParcelas(btn.dataset.baixaparcelas));
   });
 
   document.querySelectorAll("[data-vernf]").forEach(btn => {
