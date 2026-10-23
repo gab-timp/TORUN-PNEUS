@@ -3984,7 +3984,7 @@ async function criarRomaneioParaPedido(entregaId, btn) {
     return;
   }
   const novo = romaneioFromRow(data);
-  state.romaneios.push(novo);
+  guardarNoEstado("romaneios", "id", novo);
   await registrarLog("romaneios", novo.id, "edicao", "Ação automática",
     `Romaneio criado pro pedido NF ${entrega.numeroNF || entrega.numeroPedido || "—"}`);
   abrirRomaneioDetalhe(novo.id);
@@ -4884,7 +4884,7 @@ async function adicionarRastreioEvento() {
   }).select().single();
   if (error) { toast("Erro ao adicionar evento: " + error.message); return; }
 
-  state.rastreio_eventos.push(rastreioEventoFromRow(data));
+  guardarNoEstado("rastreio_eventos", "id", rastreioEventoFromRow(data));
   const alvo = state.entregas.find(x => x.id === editingPedidoId);
   await registrarLog("rastreio_eventos", data.id, "edicao", "Ação automática",
     `Evento de rastreio adicionado — NF ${alvo ? (alvo.numeroNF || "—") : "—"}: ${texto}${anexoNome ? ` (anexo: ${anexoNome})` : ""}`);
@@ -5153,7 +5153,7 @@ function initEntregas() {
     const novo = { id: uid("ped"), ...dados };
     const { data: inserido, error } = await sb.from("entregas").insert({ ...entregaToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao registrar pedido: " + error.message); return; }
-    state.entregas.push(entregaFromRow(inserido[0]));
+    guardarNoEstado("entregas", "id", entregaFromRow(inserido[0]));
     closePedidoModal();
     renderEntregas();
     toast("Pedido registrado.");
@@ -6638,7 +6638,7 @@ async function aprovarPreCadastro(id) {
   if (errInsert) { toast("Erro ao aprovar: " + errInsert.message); return; }
 
   const { error: errDelete } = await sb.from("clientes_pendentes").delete().eq("id", id);
-  state.clientes.push(clienteFromRow(inserido[0]));
+  guardarNoEstado("clientes", "nome", clienteFromRow(inserido[0]));
   if (errDelete) {
     // Não tira do estado local se a limpeza falhou -- senão esse card some da
     // tela agora, mas continua "pendente" de verdade no banco e reaparece
@@ -9299,7 +9299,7 @@ function initForms() {
     const novo = { id: uid("prev"), numeroProcesso, itens, dataChegada, status, obs, representantes, quantidadeContainers, dtc };
     const { data: inserido, error } = await sb.from("previsoes").insert({ ...previstoToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
-    state.previsoes.push(previstoFromRow(inserido[0]));
+    guardarNoEstado("previsoes", "id", previstoFromRow(inserido[0]));
     e.target.reset();
     document.getElementById("prevStatus").value = PREVISTO_STATUS[0];
     renderPrevRepLista([]);
@@ -9409,7 +9409,7 @@ function initForms() {
         created_by: currentUser ? currentUser.id : null
       }).select();
       if (error) { renderMovimentos(); toast("Erro ao registrar entrada: " + error.message); return; }
-      state.movimentos.push(movimentoFromRow(inseridos[0]));
+      guardarNoEstado("movimentos", "id", movimentoFromRow(inseridos[0]));
     }
     e.target.reset();
     document.getElementById("entData").value = todayISO();
@@ -9513,7 +9513,7 @@ function initForms() {
         created_by: currentUser ? currentUser.id : null
       }).select();
       if (error) { renderMovimentos(); toast("Erro ao registrar saída: " + error.message); return; }
-      state.movimentos.push(movimentoFromRow(inseridos[0]));
+      guardarNoEstado("movimentos", "id", movimentoFromRow(inseridos[0]));
     }
     e.target.reset();
     document.getElementById("saiData").value = todayISO();
@@ -9606,7 +9606,7 @@ function initForms() {
     const novo = { id: uid("frete"), referencia, cep, localidade, valorNF, data, obs, cotacoes, contratadaId: null };
     const { data: inserido, error } = await sb.from("fretes").insert({ ...freteToRow(novo), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao registrar cotação: " + error.message); return; }
-    state.fretes.push(freteFromRow(inserido[0]));
+    guardarNoEstado("fretes", "id", freteFromRow(inserido[0]));
     e.target.reset();
     document.getElementById("freteData").value = todayISO();
     resetFreteItens();
@@ -9665,7 +9665,7 @@ function initForms() {
     // preços das 3 grades (salvarPrecosProduto já atualiza state.produtos_precos)
     const resPreco = await salvarPrecosProduto(document.getElementById("prodPrecoEditor"), codigo);
 
-    state.produtos.push({
+    guardarNoEstado("produtos", "codigo", {
       codigo, medida, createdAt: new Date().toISOString(),
       categoria, modelo, icIv, pr, cintas, capCarga, psi,
       sulcoMm, largBandaMm, pesoKg, fotoPath, fotoPath2,
@@ -9973,7 +9973,7 @@ function initForms() {
     const novaVenda = { id: uid("ven"), ...dadosVenda };
     const { data: inserido, error } = await sb.from("vendas").insert({ ...vendaToRow(novaVenda), created_by: currentUser ? currentUser.id : null }).select();
     if (error) { toast("Erro ao registrar venda: " + error.message); return; }
-    state.vendas.push(vendaFromRow(inserido[0]));
+    guardarNoEstado("vendas", "id", vendaFromRow(inserido[0]));
     // mesmo reset de "cancelar edição" (inclui status, vencimento sugerido e a linha da
     // data de pagamento, que o reset() sozinho deixava vazio/visível por engano)
     cancelEditVenda();
@@ -10007,7 +10007,7 @@ function initForms() {
     };
     const { data: inserido, error } = await sb.from("clientes").insert(clienteToRow(novoCliente)).select();
     if (error) { toast("Erro ao adicionar cliente: " + error.message); return; }
-    state.clientes.push(clienteFromRow(inserido[0]));
+    guardarNoEstado("clientes", "nome", clienteFromRow(inserido[0]));
     e.target.reset();
     renderClientes();
     renderClienteSelect();
@@ -11341,6 +11341,19 @@ let realtimeFallbackTimer = null;
 function iniciarFallbackRefresh() {
   clearInterval(realtimeFallbackTimer);
   realtimeFallbackTimer = setInterval(refreshAll, REALTIME_FALLBACK_REFRESH_MS);
+}
+
+// Põe um registro RECÉM-CRIADO em state[tabela]. O Realtime pode ter trazido essa mesma linha antes:
+// o evento chega enquanto o cadastro ainda espera a resposta do banco ou o upload de foto/preço (no
+// cadastro de produto isso levava segundos). Por isso só acrescenta se ainda não está na lista; se já
+// está, junta com a versão completa. Antes era um push direto e a linha aparecia duplicada na tela
+// até o F5 (bug do produto cadastrado em duplicidade).
+function guardarNoEstado(tabela, chave, registro) {
+  const lista = state[tabela];
+  const i = lista.findIndex(x => x[chave] === registro[chave]);
+  if (i === -1) lista.push(registro);
+  else lista[i] = { ...lista[i], ...registro };
+  return registro;
 }
 
 // Aplica uma mudança do Realtime direto em state[table] (patch incremental,
