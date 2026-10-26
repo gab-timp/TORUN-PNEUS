@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=175">
-<link rel="stylesheet" href="semvenda.css?v=17">
+<link rel="stylesheet" href="semvenda.css?v=18">
 <link rel="stylesheet" href="crm.css?v=3">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -746,8 +746,8 @@
         <div class="table-wrap">
           <table class="sv-res-tabela">
             <colgroup>
-              <col style="width:17%"><col style="width:15%"><col style="width:8%"><col style="width:11%"><col style="width:10%">
-              <col style="width:4%"><col style="width:11%"><col style="width:9%"><col style="width:15%">
+              <col style="width:13%"><col style="width:13%"><col style="width:7%"><col style="width:10%"><col style="width:9%">
+              <col style="width:11%"><col style="width:4%"><col style="width:11%"><col style="width:9%"><col style="width:13%">
             </colgroup>
             <thead>
               <tr>
@@ -756,6 +756,7 @@
                 <th>Vendedor interno</th>
                 <th>Representante</th>
                 <th>Condição de pagamento</th>
+                <th>Transporte</th>
                 <th>Qtd.</th>
                 <th>Situação</th>
                 <th>Data</th>
@@ -3161,6 +3162,28 @@
         <div class="empty-state" id="svCondEmpty" style="display:none;">Nenhuma condição cadastrada ainda. Sem isso ninguém consegue reservar.</div>
       </div>
 
+      <div class="card" id="svTransportadorasCard">
+        <div class="card-head"><h2>Transportadoras</h2><span class="sv-tag-sistema">Sem Venda</span></div>
+        <div class="note">É a lista que aparece em "Transportadora" na Reserva e na janela de Confirmar venda. Tirar uma transportadora daqui não muda as reservas que já foram feitas com ela.</div>
+        <form id="svFormTransportadora" class="form-row sv-vend-form">
+          <div class="field grow">
+            <label>Nome da transportadora</label>
+            <input type="text" id="svTranspNome" maxlength="80" placeholder="Ex: TransLog" autocomplete="off">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="svBtnAddTransportadora">Adicionar</button>
+          </div>
+        </form>
+        <div class="note" id="svTranspCount"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Transportadora</th><th></th></tr></thead>
+            <tbody id="svTranspTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svTranspEmpty" style="display:none;">Nenhuma transportadora cadastrada ainda. Sem isso ninguém consegue reservar.</div>
+      </div>
+
     </section>
 
     <!-- página "Acesso de uma pessoa" (abre pelo "Editar acesso" da lista de usuários; só administrador) -->
@@ -3730,6 +3753,20 @@
           <div class="sv-erro-msg" id="svResErro_data" role="alert"></div>
         </div>
       </div>
+      <div class="sv-res-linha">
+        <div class="field" id="svResCampo_tipotransp">
+          <label for="svResTipoTransporte">Tipo de transporte</label>
+          <select id="svResTipoTransporte"></select>
+          <div class="note">Quem cuida do frete: a Torun ou o cliente.</div>
+          <div class="sv-erro-msg" id="svResErro_tipotransp" role="alert"></div>
+        </div>
+        <div class="field" id="svResCampo_transportadora">
+          <label for="svResTransportadora">Transportadora</label>
+          <select id="svResTransportadora"></select>
+          <div class="sv-aviso" id="svResTransportadoraAviso" style="display:none;">Peça a um administrador para cadastrar as transportadoras em Administração, Transportadoras. Sem isso não dá para reservar.</div>
+          <div class="sv-erro-msg" id="svResErro_transportadora" role="alert"></div>
+        </div>
+      </div>
       <div class="field">
         <label for="svResObs">Observação (opcional)</label>
         <input type="text" id="svResObs" placeholder="Ex: aguardando confirmação de pagamento">
@@ -3760,6 +3797,17 @@
       <select id="svVendaCondicao"></select>
       <div class="note" id="svVendaCondDica">Veio da reserva. Mude se combinaram outra condição na hora de vender.</div>
     </div>
+    <div class="sv-res-linha">
+      <div class="field">
+        <label for="svVendaTipoTransp">Tipo de transporte</label>
+        <select id="svVendaTipoTransp"></select>
+      </div>
+      <div class="field">
+        <label for="svVendaTransportadora">Transportadora</label>
+        <select id="svVendaTransportadora"></select>
+      </div>
+    </div>
+    <div class="note" id="svVendaTranspDica">O transporte veio da reserva. Mude se combinaram outra coisa na hora de vender.</div>
     <div class="note sv-venda-erro" id="svVendaErro" style="display:none;"></div>
     <div class="sv-venda-total">
       <span class="sv-venda-total-rotulo">Total da venda</span>
@@ -4352,7 +4400,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=21"></script>
+<script src="semvenda.js?v=22"></script>
 <script src="crm.js?v=4"></script>
 <script src="usuarios.js?v=4"></script>
 <script src="app.js?v=275"></script>

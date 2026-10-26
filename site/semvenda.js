@@ -136,6 +136,7 @@ function svReservaFromRow(r) {
     armazem: r.armazem === null || r.armazem === undefined ? null : r.armazem,
     previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
     condicaoPagamento: r.condicao_pagamento || "",
+    tipoTransporte: r.tipo_transporte || "", transportadora: r.transportadora || "",
     // preço e dia gravados no "Confirmar venda"; vazios nas vendas confirmadas antes dessa mudança
     precoUnitario: r.preco_unitario === null || r.preco_unitario === undefined ? null : Number(r.preco_unitario),
     vendidoEm: r.vendido_em || "",
@@ -148,7 +149,8 @@ function svReservaToRow(r) {
     id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente,
     vendedor_interno: r.vendedorInterno, representante: r.representante || null,
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
-    situacao: r.situacao, data: r.data, obs: r.obs || null, condicao_pagamento: r.condicaoPagamento || null
+    situacao: r.situacao, data: r.data, obs: r.obs || null, condicao_pagamento: r.condicaoPagamento || null,
+    tipo_transporte: r.tipoTransporte || null, transportadora: r.transportadora || null
   };
 }
 
@@ -218,7 +220,7 @@ async function svAoAbrirView(view) {
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   // as listas de vendedores e de condições de pagamento têm carga própria: se a tabela não existir, só a Reserva reclama
-  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarCondicoes()]);
+  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarCondicoes(), svCarregarTransportadoras()]);
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
@@ -1092,7 +1094,9 @@ const SV_RES_FILTROS = [
   { chave: "canceladas", rotulo: "Canceladas" },
   { chave: "todas", rotulo: "Todas" }
 ];
-const SV_CAMPOS_RES = ["produto", "cliente", "vendedor", "representante", "condicao", "quantidade", "data"];
+const SV_CAMPOS_RES = ["produto", "cliente", "vendedor", "representante", "condicao", "quantidade", "data", "tipotransp", "transportadora"];
+// quem cuida do frete: o valor vai pro banco (check em sv_reservas), o texto aparece na tela
+const SV_TIPOS_TRANSPORTE = { NOSSO: "Frete nosso", CLIENTE: "Frete do cliente" };
 let svPickerAberto = false;
 let svSalvandoReserva = false;
 
@@ -1320,6 +1324,20 @@ function svRenderReservaForm() {
   if (svCondicoes.some(c => c.nome === condAnterior)) selCond.value = condAnterior;
   selCond.disabled = svCondicoes.length === 0;
   document.getElementById("svResCondicaoAviso").style.display = svCondicoes.length === 0 ? "" : "none";
+
+  const selTipo = document.getElementById("svResTipoTransporte");
+  const tipoAnterior = selTipo.value;
+  selTipo.innerHTML = `<option value="">Selecione…</option>` +
+    Object.entries(SV_TIPOS_TRANSPORTE).map(([valor, rotulo]) => `<option value="${valor}">${escapeHtml(rotulo)}</option>`).join("");
+  if (SV_TIPOS_TRANSPORTE[tipoAnterior]) selTipo.value = tipoAnterior;
+
+  const selTransp = document.getElementById("svResTransportadora");
+  const transpAnterior = selTransp.value;
+  selTransp.innerHTML = `<option value="">${svTransportadoras.length ? "Selecione…" : "Nenhuma transportadora cadastrada"}</option>` +
+    svTransportadoras.map(t => `<option value="${escapeAttr(t.nome)}">${escapeHtml(t.nome)}</option>`).join("");
+  if (svTransportadoras.some(t => t.nome === transpAnterior)) selTransp.value = transpAnterior;
+  selTransp.disabled = svTransportadoras.length === 0;
+  document.getElementById("svResTransportadoraAviso").style.display = svTransportadoras.length === 0 ? "" : "none";
 }
 
 function svAbrirNovaReserva() {
@@ -1370,7 +1388,7 @@ function svRenderReservaTabela() {
   if (busca) {
     rows = rows.filter(r => {
       const p = svGetProduto(r.codigo);
-      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.condicaoPagamento, r.obs].join(" ").toLowerCase().includes(busca);
+      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.condicaoPagamento, r.transportadora, r.obs].join(" ").toLowerCase().includes(busca);
     });
   }
   rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -1411,6 +1429,7 @@ function svRenderReservaTabela() {
         <td>${escapeHtml(r.vendedorInterno)}</td>
         <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
         <td>${r.condicaoPagamento ? escapeHtml(r.condicaoPagamento) : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
+        <td>${r.tipoTransporte ? `<span class="sv-tt ${r.tipoTransporte === "NOSSO" ? "nosso" : "cli"}">${escapeHtml(SV_TIPOS_TRANSPORTE[r.tipoTransporte] || r.tipoTransporte)}</span>${r.transportadora ? `<div class="sv-transp">${escapeHtml(r.transportadora)}</div>` : ""}` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td class="mono">${fmt(r.quantidade)}</td>
         <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span>${sitExtra}</td>
         <td><span class="mono">${r.data ? formatDateBR(r.data) : "—"}</span>${dataExtra ? `<div class="muted sv-sub">${escapeHtml(dataExtra)}</div>` : ""}</td>
@@ -1467,6 +1486,22 @@ function svVendaModal(r) {
       ? "Veio da reserva. Mude se combinaram outra condição na hora de vender."
       : "Essa reserva é de antes do campo existir e veio sem condição. Escolha uma para confirmar a venda.";
 
+    // tipo de transporte (duas opções fixas) e transportadora (lista do admin, mais a que a reserva já tem)
+    const selTipo = document.getElementById("svVendaTipoTransp");
+    const selTransp = document.getElementById("svVendaTransportadora");
+    selTipo.innerHTML = `<option value="">Selecione…</option>` +
+      Object.entries(SV_TIPOS_TRANSPORTE).map(([valor, rotulo]) => `<option value="${valor}">${escapeHtml(rotulo)}</option>`).join("");
+    selTipo.value = r.tipoTransporte || "";
+    const nomesT = svTransportadoras.map(t => t.nome);
+    if (r.transportadora && !nomesT.includes(r.transportadora)) nomesT.unshift(r.transportadora);
+    selTransp.innerHTML = `<option value="">${nomesT.length ? "Selecione…" : "Nenhuma transportadora cadastrada"}</option>` +
+      nomesT.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
+    selTransp.value = r.transportadora || "";
+    selTransp.disabled = nomesT.length === 0;
+    document.getElementById("svVendaTranspDica").textContent = r.tipoTransporte && r.transportadora
+      ? "O transporte veio da reserva. Mude se combinaram outra coisa na hora de vender."
+      : "Essa reserva é de antes do campo existir e veio sem transporte. Escolha para confirmar a venda.";
+
     // vazio ou ilegível = NaN (o campo numérico devolve "" quando o texto digitado não é um número)
     const lerPreco = () => (input.value.trim() === "" ? NaN : Math.round(Number(input.value) * 100) / 100);
     const atualizarTotal = () => {
@@ -1483,6 +1518,8 @@ function svVendaModal(r) {
       input.removeEventListener("input", onInput);
       input.removeEventListener("keydown", onTecla);
       selCond.removeEventListener("change", onInput);
+      selTipo.removeEventListener("change", onInput);
+      selTransp.removeEventListener("change", onInput);
       resolve(resultado);
     };
     const onOk = () => {
@@ -1496,7 +1533,19 @@ function svVendaModal(r) {
         erro.style.display = "block";
         return;
       }
-      cleanup({ preco: p, condicao: selCond.value });
+      if (!selTipo.value) {
+        erro.textContent = "Escolha o tipo de transporte para confirmar a venda.";
+        erro.style.display = "block";
+        return;
+      }
+      if (!selTransp.value) {
+        erro.textContent = nomesT.length
+          ? "Escolha a transportadora para confirmar a venda."
+          : "Cadastre as transportadoras em Administração, Transportadoras, antes de confirmar a venda.";
+        erro.style.display = "block";
+        return;
+      }
+      cleanup({ preco: p, condicao: selCond.value, tipo: selTipo.value, transportadora: selTransp.value });
     };
     const onCancel = () => cleanup(null);
     const onTecla = (e) => { if (e.key === "Enter") { e.preventDefault(); onOk(); } };
@@ -1505,6 +1554,8 @@ function svVendaModal(r) {
     input.addEventListener("input", onInput);
     input.addEventListener("keydown", onTecla);
     selCond.addEventListener("change", onInput);
+    selTipo.addEventListener("change", onInput);
+    selTransp.addEventListener("change", onInput);
     atualizarTotal();
     overlay.classList.add("show");
     input.focus();
@@ -1520,7 +1571,10 @@ async function svMudarSituacaoReserva(id, nova) {
     // a venda grava o preço por unidade, a condição de pagamento e o dia: é daí que o Dashboard tira o "Valor vendido" e o mês
     const venda = await svVendaModal(r);
     if (venda === null) return;
-    campos = { situacao: nova, preco_unitario: venda.preco, condicao_pagamento: venda.condicao, vendido_em: todayISO() };
+    campos = {
+      situacao: nova, preco_unitario: venda.preco, condicao_pagamento: venda.condicao,
+      tipo_transporte: venda.tipo, transportadora: venda.transportadora, vendido_em: todayISO()
+    };
   } else if (!(await confirmModal("Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`))) {
     return;
   }
@@ -1602,6 +1656,8 @@ async function svSalvarReservaDados() {
   const vendedorInterno = document.getElementById("svResVendedor").value;
   const escolhaRepresentante = document.getElementById("svResRepresentante").value;
   const condicao = document.getElementById("svResCondicao").value;
+  const tipoTransporte = document.getElementById("svResTipoTransporte").value;
+  const transportadora = document.getElementById("svResTransportadora").value;
   const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
   const data = document.getElementById("svResData").value;
   const obs = document.getElementById("svResObs").value.trim();
@@ -1615,6 +1671,8 @@ async function svSalvarReservaDados() {
   if (!vendedorInterno) erros.push(["vendedor", svVendedores.length ? "Escolha o vendedor interno." : "Cadastre os vendedores em Administração antes de reservar."]);
   if (!escolhaRepresentante) erros.push(["representante", 'Escolha o representante ou marque "Sem representante".']);
   if (!condicao) erros.push(["condicao", svCondicoes.length ? "Escolha a condição de pagamento." : "Cadastre as condições em Administração antes de reservar."]);
+  if (!tipoTransporte) erros.push(["tipotransp", "Escolha o tipo de transporte."]);
+  if (!transportadora) erros.push(["transportadora", svTransportadoras.length ? "Escolha a transportadora." : "Cadastre as transportadoras em Administração antes de reservar."]);
   if (!(quantidade > 0)) erros.push(["quantidade", "Informe a quantidade."]);
   else if (opcao && quantidade > opcao.disp) erros.push(["quantidade", `Só há ${fmt(opcao.disp)} un. disponíveis neste produto.`]);
   if (!data) erros.push(["data", "Informe a data."]);
@@ -1654,7 +1712,7 @@ async function svSalvarReservaDados() {
     id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, vendedorInterno, representante,
     armazem: opcao.tipo === "E" ? opcao.armazem : null,
     previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
-    condicaoPagamento: condicao,
+    condicaoPagamento: condicao, tipoTransporte, transportadora,
     situacao: "ATIVA", data, obs
   };
   const { data: inserida, error } = await sb.from("sv_reservas").insert({ ...svReservaToRow(nova), created_by: currentUser ? currentUser.id : null }).select();
@@ -1908,6 +1966,7 @@ async function svAoAbrirAdministracao() {
   const tarefas = [];
   if (document.getElementById("svVendedoresCard")) tarefas.push(svCarregarVendedores().then(ok => { if (ok) svRenderVendedoresAdmin(); }));
   if (document.getElementById("svCondicoesCard")) tarefas.push(svCarregarCondicoes().then(ok => { if (ok) svRenderCondicoesAdmin(); }));
+  if (document.getElementById("svTransportadorasCard")) tarefas.push(svCarregarTransportadoras().then(ok => { if (ok) svRenderTransportadorasAdmin(); }));
   await Promise.all(tarefas);
 }
 
@@ -2027,6 +2086,75 @@ async function svExcluirCondicao(id) {
   svCondicoes = svCondicoes.filter(x => x.id !== id);
   svRenderCondicoesAdmin();
   toast("Condição removida.");
+}
+
+/* ---------- Transportadoras (lista que a Reserva usa; cadastro na Administração) ---------- */
+
+// mesma ideia dos vendedores e das condições: carga própria, para a falta da tabela não derrubar o resto do Sem Venda
+let svTransportadoras = [];
+let svTransportadorasEmAndamento = null;
+
+function svCarregarTransportadoras() {
+  if (svTransportadorasEmAndamento) return svTransportadorasEmAndamento;
+  svTransportadorasEmAndamento = (async () => {
+    const { data, error } = await sb.from("sv_transportadoras").select("*").order("nome");
+    if (error) {
+      toast("Erro ao carregar as transportadoras: " + error.message);
+      return false;
+    }
+    svTransportadoras = (data || []).map(t => ({ id: t.id, nome: t.nome })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return true;
+  })().finally(() => { svTransportadorasEmAndamento = null; });
+  return svTransportadorasEmAndamento;
+}
+
+function svRenderTransportadorasAdmin() {
+  const n = svTransportadoras.length;
+  document.getElementById("svTranspCount").textContent = n === 0 ? "" : `${n} ${n === 1 ? "transportadora cadastrada" : "transportadoras cadastradas"}`;
+  document.getElementById("svTranspEmpty").style.display = n === 0 ? "block" : "none";
+  const tbody = document.getElementById("svTranspTbody");
+  tbody.innerHTML = svTransportadoras.map(t => `
+    <tr>
+      <td>${escapeHtml(t.nome)}</td>
+      <td class="sv-acoes"><button type="button" class="sv-link" data-svtranspdel="${escapeAttr(t.id)}">Excluir</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("[data-svtranspdel]").forEach(btn => {
+    btn.addEventListener("click", () => svExcluirTransportadora(btn.dataset.svtranspdel));
+  });
+}
+
+async function svAdicionarTransportadora(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnAddTransportadora");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try {
+    const campo = document.getElementById("svTranspNome");
+    const nome = campo.value.replace(/\s+/g, " ").trim();
+    if (!nome) { toast("Informe o nome da transportadora."); return; }
+    if (svTransportadoras.some(t => t.nome.toLowerCase() === nome.toLowerCase())) { toast("Essa transportadora já está na lista."); return; }
+    const { data, error } = await sb.from("sv_transportadoras").insert({ id: uid("svtransp"), nome, created_by: currentUser ? currentUser.id : null }).select();
+    if (error) { toast("Erro ao adicionar a transportadora: " + error.message); return; }
+    if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
+    svTransportadoras.push({ id: data[0].id, nome: data[0].nome });
+    svTransportadoras.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    campo.value = "";
+    svRenderTransportadorasAdmin();
+    toast("Transportadora adicionada.");
+  } finally { botao.disabled = false; }
+}
+
+async function svExcluirTransportadora(id) {
+  const t = svTransportadoras.find(x => x.id === id);
+  if (!t) return;
+  const ok = await confirmModal("Excluir transportadora?", `Remove "${t.nome}" da lista de transportadoras. As reservas que já foram feitas com ela continuam como estão.`);
+  if (!ok) return;
+  const { data, error } = await sb.from("sv_transportadoras").delete().eq("id", id).select();
+  if (error) { toast("Erro ao excluir a transportadora: " + error.message); return; }
+  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removida)."); return; }
+  svTransportadoras = svTransportadoras.filter(x => x.id !== id);
+  svRenderTransportadorasAdmin();
+  toast("Transportadora removida.");
 }
 
 /* ---------- Relatório de Preço (proposta em PDF) ---------- */
@@ -2233,6 +2361,7 @@ function initSemVendaTelas() {
   });
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
   document.getElementById("svFormCondicao").addEventListener("submit", svAdicionarCondicao);
+  document.getElementById("svFormTransportadora").addEventListener("submit", svAdicionarTransportadora);
   svLigarReserva();
   document.getElementById("svResData").value = todayISO();
 
