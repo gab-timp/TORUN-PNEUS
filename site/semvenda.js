@@ -135,6 +135,7 @@ function svReservaFromRow(r) {
     representante: r.representante || null, // vazio = "Sem representante"
     armazem: r.armazem === null || r.armazem === undefined ? null : r.armazem,
     previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
+    condicaoPagamento: r.condicao_pagamento || "",
     // preço e dia gravados no "Confirmar venda"; vazios nas vendas confirmadas antes dessa mudança
     precoUnitario: r.preco_unitario === null || r.preco_unitario === undefined ? null : Number(r.preco_unitario),
     vendidoEm: r.vendido_em || "",
@@ -147,7 +148,7 @@ function svReservaToRow(r) {
     id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente,
     vendedor_interno: r.vendedorInterno, representante: r.representante || null,
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
-    situacao: r.situacao, data: r.data, obs: r.obs || null
+    situacao: r.situacao, data: r.data, obs: r.obs || null, condicao_pagamento: r.condicaoPagamento || null
   };
 }
 
@@ -216,8 +217,8 @@ function svCarregarDados(forcar) {
 async function svAoAbrirView(view) {
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
-  // a lista de vendedores tem carga própria: se a tabela não existir, só a Reserva reclama
-  if (view === "sv-reserva") await svCarregarVendedores();
+  // as listas de vendedores e de condições de pagamento têm carga própria: se a tabela não existir, só a Reserva reclama
+  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarCondicoes()]);
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
@@ -1082,6 +1083,25 @@ function svRenderCatalogo() {
 }
 
 /* ---------- Reserva ---------- */
+/* Lista em largura total; "Nova reserva" abre uma janela (pop-up). Mockup: https://claude.ai/artifact/6pB6Yymr9UWbgNG3SWYAcA */
+
+let svResFiltroAtual = "ativas_vendidas";
+const SV_RES_FILTROS = [
+  { chave: "ativas_vendidas", rotulo: "Ativas e vendidas" },
+  { chave: "ativas", rotulo: "Só ativas" },
+  { chave: "canceladas", rotulo: "Canceladas" },
+  { chave: "todas", rotulo: "Todas" }
+];
+const SV_CAMPOS_RES = ["produto", "cliente", "vendedor", "representante", "condicao", "quantidade", "data"];
+let svPickerAberto = false;
+let svSalvandoReserva = false;
+
+function svFiltrarPorSituacao(rows, chave) {
+  if (chave === "ativas_vendidas") return rows.filter(r => r.situacao !== "CANCELADA");
+  if (chave === "ativas") return rows.filter(r => r.situacao === "ATIVA");
+  if (chave === "canceladas") return rows.filter(r => r.situacao === "CANCELADA");
+  return rows;
+}
 
 function svSituacaoReserva(r) {
   if (r.situacao === "CANCELADA") return { chave: "CANCELADA", rotulo: "Cancelada", pill: "pill-neutro" };
@@ -1095,7 +1115,20 @@ function svOrigemReserva(r) {
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
   if (!prev) return r.previsaoId ? "processo removido" : svNomeArmazem(r.armazem);
   if (prev.status === "FINALIZADO") return `Processo ${prev.numeroProcesso} · ${svNomeArmazem(prev.armazem)}`;
-  return `Estoque Previsto — processo ${prev.numeroProcesso}${prev.dataChegada ? " · chega " + formatDateBR(prev.dataChegada) : ""}`;
+  return `A caminho · processo ${prev.numeroProcesso}`;
+}
+
+// "chega 08/11" ou "sem data prevista" (só enquanto a reserva espera o processo)
+function svChegadaReserva(r) {
+  const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
+  if (!prev || prev.status === "FINALIZADO") return "";
+  return prev.dataChegada ? `chega ${formatDateBR(prev.dataChegada).slice(0, 5)}` : "sem data prevista";
+}
+
+function svDiasTexto(iso) {
+  const n = svDiasDesde(iso);
+  if (n === null) return "";
+  return n === 0 ? "hoje" : n === 1 ? "ontem" : `há ${n} dias`;
 }
 
 function svMontarOpcoesReserva() {
@@ -1105,9 +1138,12 @@ function svMontarOpcoesReserva() {
     .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem))
     .forEach(l => {
       const p = svGetProduto(l.codigo);
+      const medida = p ? p.medida : "(produto removido)";
       opcoes.push({
-        tipo: "E", codigo: l.codigo, armazem: l.armazem, disp: l.disp,
-        rotulo: `${l.codigo} — ${p ? p.medida : "(produto removido)"} (${l.disp} disp. · ${svNomeArmazem(l.armazem)})`
+        tipo: "E", codigo: l.codigo, armazem: l.armazem, disp: l.disp, medida,
+        origem: l.armazem ? `Armazém ${svNomeArmazem(l.armazem)}` : svNomeArmazem(l.armazem),
+        chip: `${fmt(l.disp)} disp.`,
+        rotulo: `${l.codigo} — ${medida} (${l.disp} disp. · ${svNomeArmazem(l.armazem)})`
       });
     });
   aChegar.filter(a => a.livres > 0)
@@ -1116,7 +1152,9 @@ function svMontarOpcoesReserva() {
       const prev = svState.previsoes.find(x => x.id === a.previsaoId);
       const p = svGetProduto(a.codigo);
       opcoes.push({
-        tipo: "P", codigo: a.codigo, previsaoId: a.previsaoId, disp: a.livres,
+        tipo: "P", codigo: a.codigo, previsaoId: a.previsaoId, disp: a.livres, medida: p ? p.medida : a.codigo,
+        origem: `Processo ${prev.numeroProcesso} · ${prev.dataChegada ? "chega " + formatDateBR(prev.dataChegada).slice(0, 5) : "sem data prevista"}`,
+        chip: `${fmt(a.livres)} livres`,
         rotulo: `${p ? p.medida : a.codigo} — processo ${prev.numeroProcesso} · ${prev.dataChegada ? "previsão " + formatDateBR(prev.dataChegada) : "sem data prevista"} (${a.livres} livres)`
       });
     });
@@ -1132,12 +1170,114 @@ function svOpcaoSelecionada() {
   return v === "" ? null : (svOpcoesReserva[Number(v)] || null);
 }
 
+/* ----- erros dentro do campo ----- */
+
+function svErroCampo(chave, msg) {
+  document.getElementById(`svResCampo_${chave}`).classList.add("sv-campo-erro");
+  document.getElementById(`svResErro_${chave}`).textContent = msg;
+}
+
+function svLimparErroCampo(chave) {
+  document.getElementById(`svResCampo_${chave}`).classList.remove("sv-campo-erro");
+  document.getElementById(`svResErro_${chave}`).textContent = "";
+}
+
+function svLimparErrosReserva() {
+  SV_CAMPOS_RES.forEach(svLimparErroCampo);
+}
+
+function svFocarPrimeiroErro() {
+  const chave = SV_CAMPOS_RES.find(k => document.getElementById(`svResCampo_${k}`).classList.contains("sv-campo-erro"));
+  if (!chave) return;
+  const alvo = document.getElementById(`svResCampo_${chave}`).querySelector("button:not(:disabled), input:not([hidden]), select:not(:disabled)");
+  if (alvo) alvo.focus();
+}
+
+/* ----- escolha do produto (lista com busca, em grupos) ----- */
+
+function svRenderPickerBotao() {
+  const o = svOpcaoSelecionada();
+  const btn = document.getElementById("svResProdutoBtn");
+  btn.disabled = svOpcoesReserva.length === 0;
+  btn.classList.toggle("sv-picker-preenchido", !!o);
+  btn.innerHTML = o
+    ? `<span class="sv-picker-lado"><span class="sv-picker-t"><b class="mono">${escapeHtml(o.codigo)}</b> ${escapeHtml(o.medida)}</span><span class="sv-picker-s">${escapeHtml(o.origem)}</span></span>
+       <span class="sv-picker-chip">Disponível pra reservar: ${fmt(o.disp)} un.</span><span class="sv-picker-trocar">Trocar</span>`
+    : `<span class="sv-picker-ph">${svOpcoesReserva.length === 0 ? "Nada disponível" : "Escolha o produto…"}</span><span class="sv-picker-chev" aria-hidden="true">▾</span>`;
+}
+
+function svRenderPickerOpcoes() {
+  const termo = (document.getElementById("svResProdutoBusca").value || "").trim().toLowerCase();
+  const sel = svOpcaoSelecionada();
+  const chaveSel = sel ? svChaveOpcao(sel) : null;
+  const itens = svOpcoesReserva.map((o, i) => ({ o, i }))
+    .filter(x => !termo || `${x.o.codigo} ${x.o.medida} ${x.o.origem}`.toLowerCase().includes(termo));
+  const grupo = (titulo, tipo) => {
+    const lista = itens.filter(x => x.o.tipo === tipo);
+    if (!lista.length) return "";
+    return `<div class="sv-picker-grupo">${escapeHtml(titulo)}</div>` + lista.map(x => {
+      const marcada = svChaveOpcao(x.o) === chaveSel;
+      return `<button type="button" role="option" class="sv-picker-opcao${marcada ? " sel" : ""}" data-svopcao="${x.i}" aria-selected="${marcada}">
+        <span class="sv-picker-lado"><span class="sv-picker-t"><b class="mono">${escapeHtml(x.o.codigo)}</b> ${escapeHtml(x.o.medida)}</span><span class="sv-picker-s">${escapeHtml(x.o.origem)}</span></span>
+        <span class="sv-picker-chip${tipo === "P" ? " azul" : ""}">${escapeHtml(x.o.chip)}</span>
+      </button>`;
+    }).join("");
+  };
+  document.getElementById("svResProdutoOpcoes").innerHTML = grupo("Em estoque", "E") + grupo("A caminho (Estoque Previsto)", "P") ||
+    `<div class="sv-picker-vazio">${svOpcoesReserva.length ? "Nenhum produto com essa busca." : "Nada disponível."}</div>`;
+}
+
+function svAbrirPicker() {
+  if (svOpcoesReserva.length === 0) return;
+  svPickerAberto = true;
+  document.getElementById("svResProdutoPainel").hidden = false;
+  document.getElementById("svResProdutoBtn").setAttribute("aria-expanded", "true");
+  const busca = document.getElementById("svResProdutoBusca");
+  busca.value = "";
+  svRenderPickerOpcoes();
+  busca.focus();
+}
+
+function svFecharPicker(devolverFoco) {
+  svPickerAberto = false;
+  document.getElementById("svResProdutoPainel").hidden = true;
+  const btn = document.getElementById("svResProdutoBtn");
+  btn.setAttribute("aria-expanded", "false");
+  if (devolverFoco) btn.focus();
+}
+
+function svEscolherOpcao(i) {
+  document.getElementById("svResProduto").value = String(i);
+  svFecharPicker();
+  svLimparErroCampo("produto");
+  svAtualizarNotaDisponivel();
+  document.getElementById("svResCliente").focus();
+}
+
 function svAtualizarNotaDisponivel() {
   const o = svOpcaoSelecionada();
-  document.getElementById("svResDisp").textContent = o
-    ? `Disponível pra reservar: ${fmt(o.disp)} un.`
-    : (svOpcoesReserva.length === 0 ? "Nada disponível: marque um processo como FINALIZADO (com armazém) ou cadastre um processo a caminho no Estoque Previsto." : "");
+  const aviso = document.getElementById("svResDisp");
+  const nada = svOpcoesReserva.length === 0;
+  aviso.textContent = nada ? "Nada disponível: marque um processo como FINALIZADO (com armazém) ou cadastre um processo a caminho no Estoque Previsto." : "";
+  aviso.style.display = nada ? "" : "none";
   document.getElementById("svResQuantidade").max = o ? String(o.disp) : "";
+  document.getElementById("svResQuantMax").textContent = o ? `máx. ${fmt(o.disp)}` : "";
+  svRenderPickerBotao();
+  svAtualizarResumoReserva();
+}
+
+// rodapé da janela: resumo do que vai ser reservado e rótulo do botão ("Reservar 30 un.")
+function svAtualizarResumoReserva() {
+  const o = svOpcaoSelecionada();
+  const q = parseInt(document.getElementById("svResQuantidade").value, 10);
+  const cliente = document.getElementById("svResCliente").value.trim();
+  const resumo = document.getElementById("svResResumo");
+  if (!o) resumo.textContent = "Escolha o produto para continuar.";
+  else if (q > 0) resumo.innerHTML = `${fmt(q)} un. de <span class="mono">${escapeHtml(o.codigo)}</span>${cliente ? " para " + escapeHtml(cliente) : ""}`;
+  else resumo.textContent = "";
+  const botao = document.getElementById("svBtnSubmitReserva");
+  botao.textContent = o && q > 0 ? `Reservar ${fmt(q)} un.` : "Reservar";
+  botao.disabled = !o || svSalvandoReserva;
 }
 
 function svRenderReservaForm() {
@@ -1145,24 +1285,19 @@ function svRenderReservaForm() {
   const anterior = svOpcaoSelecionada();
   const chaveAnterior = anterior ? svChaveOpcao(anterior) : null;
   svOpcoesReserva = svMontarOpcoesReserva();
-  const grupo = (titulo, tipo) => {
-    const itens = svOpcoesReserva.map((o, i) => ({ o, i })).filter(x => x.o.tipo === tipo);
-    return itens.length
-      ? `<optgroup label="${escapeAttr(titulo)}">` + itens.map(x => `<option value="${x.i}">${escapeHtml(x.o.rotulo)}</option>`).join("") + `</optgroup>`
-      : "";
-  };
-  sel.innerHTML = `<option value="">Selecione…</option>` + grupo("Em estoque", "E") + grupo("A caminho (Estoque Previsto)", "P");
+  sel.innerHTML = `<option value="">Selecione…</option>` + svOpcoesReserva.map((o, i) => `<option value="${i}">${escapeHtml(o.rotulo)}</option>`).join("");
   if (chaveAnterior) {
     const i = svOpcoesReserva.findIndex(o => svChaveOpcao(o) === chaveAnterior);
     if (i >= 0) sel.value = String(i);
   }
   svAtualizarNotaDisponivel();
+  if (svPickerAberto) svRenderPickerOpcoes();
 
   document.getElementById("svListaClientes").innerHTML =
     (state.clientes || []).map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
 
-  // Vendedor interno (lista cadastrada em Administração) e Representante (ativos, ou "Sem representante").
-  // Os dois começam em "Selecione…": nenhum vem preenchido sozinho.
+  // Vendedor interno e Condição de pagamento (listas cadastradas em Administração) e Representante (ativos, ou
+  // "Sem representante"). Todos começam em "Selecione…": nenhum vem preenchido sozinho.
   const selVendedor = document.getElementById("svResVendedor");
   const vendedorAnterior = selVendedor.value;
   selVendedor.innerHTML = `<option value="">${svVendedores.length ? "Selecione…" : "Nenhum vendedor cadastrado"}</option>` +
@@ -1177,6 +1312,37 @@ function svRenderReservaForm() {
   selRep.innerHTML = `<option value="">Selecione…</option><option value="${SV_SEM_REPRESENTANTE}">Sem representante</option>` +
     representantes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
   if ([...selRep.options].some(o => o.value === repAnterior)) selRep.value = repAnterior;
+
+  const selCond = document.getElementById("svResCondicao");
+  const condAnterior = selCond.value;
+  selCond.innerHTML = `<option value="">${svCondicoes.length ? "Selecione…" : "Nenhuma condição cadastrada"}</option>` +
+    svCondicoes.map(c => `<option value="${escapeAttr(c.nome)}">${escapeHtml(c.nome)}</option>`).join("");
+  if (svCondicoes.some(c => c.nome === condAnterior)) selCond.value = condAnterior;
+  selCond.disabled = svCondicoes.length === 0;
+  document.getElementById("svResCondicaoAviso").style.display = svCondicoes.length === 0 ? "" : "none";
+}
+
+function svAbrirNovaReserva() {
+  document.getElementById("svFormReserva").reset();
+  document.getElementById("svResData").value = todayISO();
+  svLimparErrosReserva();
+  svFecharPicker();
+  svRenderReservaForm();
+  document.getElementById("svResOverlay").classList.add("show");
+  const primeiro = document.getElementById("svResProdutoBtn");
+  (primeiro.disabled ? document.getElementById("svResCliente") : primeiro).focus();
+}
+
+function svFecharNovaReserva() {
+  svFecharPicker();
+  document.getElementById("svResOverlay").classList.remove("show");
+}
+
+// limpa o erro do campo mexido e mantém o resumo do rodapé em dia
+function svAoMudarFormReserva(e) {
+  const campo = e.target.closest("[id^='svResCampo_']");
+  if (campo) svLimparErroCampo(campo.id.replace("svResCampo_", ""));
+  if (e.target.id === "svResQuantidade" || e.target.id === "svResCliente") svAtualizarResumoReserva();
 }
 
 function svRenderReservaKpis() {
@@ -1190,17 +1356,21 @@ function svRenderReservaKpis() {
   `;
 }
 
+function svRenderReservaChips() {
+  document.getElementById("svResChips").innerHTML = SV_RES_FILTROS.map(f => {
+    const ligado = f.chave === svResFiltroAtual;
+    return `<button type="button" class="sv-chip${ligado ? " on" : ""}" data-svfiltro="${f.chave}" aria-pressed="${ligado}">${escapeHtml(f.rotulo)} <b>${fmt(svFiltrarPorSituacao(svState.reservas, f.chave).length)}</b></button>`;
+  }).join("");
+}
+
 function svRenderReservaTabela() {
-  const filtro = document.getElementById("svResFiltro").value;
+  svRenderReservaChips();
   const busca = (document.getElementById("svResSearch").value || "").trim().toLowerCase();
-  let rows = svState.reservas.slice();
-  if (filtro === "ativas_vendidas") rows = rows.filter(r => r.situacao !== "CANCELADA");
-  else if (filtro === "ativas") rows = rows.filter(r => r.situacao === "ATIVA");
-  else if (filtro === "canceladas") rows = rows.filter(r => r.situacao === "CANCELADA");
+  let rows = svFiltrarPorSituacao(svState.reservas.slice(), svResFiltroAtual);
   if (busca) {
     rows = rows.filter(r => {
       const p = svGetProduto(r.codigo);
-      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : ""].join(" ").toLowerCase().includes(busca);
+      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.condicaoPagamento, r.obs].join(" ").toLowerCase().includes(busca);
     });
   }
   rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -1208,25 +1378,42 @@ function svRenderReservaTabela() {
   document.getElementById("svResCount").textContent = `${rows.length} de ${svState.reservas.length} reserva(s)`;
   const vazio = document.getElementById("svResEmpty");
   vazio.style.display = rows.length === 0 ? "block" : "none";
-  vazio.textContent = svState.reservas.length === 0 ? "Nenhuma reserva ainda." : "Nenhuma reserva com esses filtros.";
+  vazio.innerHTML = svState.reservas.length === 0
+    ? `<div class="sv-vazio"><div class="sv-vazio-t">Nenhuma reserva ainda.</div>
+        <div class="sv-vazio-d">Reserve um pneu em estoque ou a caminho para um cliente. A reserva trava o item para ninguém mais oferecer.</div>
+        <button type="button" class="btn primary sv-write" id="svBtnNovaReservaVazio">Nova reserva</button></div>`
+    : `<div class="sv-vazio"><div class="sv-vazio-t">Nenhuma reserva com esses filtros.</div>
+        <button type="button" class="sv-link" id="svResLimpar">Limpar busca e filtros</button></div>`;
 
   const tbody = document.getElementById("svResTbody");
   tbody.innerHTML = rows.map(r => {
     const p = svGetProduto(r.codigo);
     const sit = svSituacaoReserva(r);
+    const vendido = r.situacao === "VENDIDA";
+    const total = vendido && r.precoUnitario !== null ? Math.round(r.precoUnitario * r.quantidade * 100) / 100 : null;
+    const sitExtra = sit.chave === "AGUARDANDO"
+      ? `<div class="muted sv-sub">${escapeHtml(svChegadaReserva(r))}</div>`
+      : vendido
+        ? (total !== null
+            ? `<div class="sv-valor mono">${escapeHtml(formatMoney(total))}</div><div class="muted sv-sub">${fmt(r.quantidade)} × ${escapeHtml(formatMoney(r.precoUnitario))}</div>`
+            : `<div class="muted sv-sub">sem preço</div>`)
+        : "";
+    const dataExtra = r.situacao === "ATIVA" ? svDiasTexto(r.data)
+      : (vendido && r.vendidoEm ? `vendido em ${formatDateBR(r.vendidoEm).slice(0, 5)}` : "");
     const acoes = r.situacao === "ATIVA"
-      ? `<button type="button" class="sv-link sv-link-ok sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
-         <button type="button" class="sv-link sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
+      ? `<button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
+         <button type="button" class="sv-link sv-cancelar sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
       : `<span class="muted">—</span>`;
     return `
       <tr>
         <td><span class="mono">${escapeHtml(r.codigo)}</span><div class="muted sv-sub">${escapeHtml(p ? p.medida : "(produto removido)")}</div><div class="muted sv-sub">${escapeHtml(svOrigemReserva(r))}</div></td>
-        <td>${escapeHtml(r.cliente)}</td>
+        <td>${escapeHtml(r.cliente)}${r.obs ? `<div class="sv-obs">${escapeHtml(r.obs)}</div>` : ""}</td>
         <td>${escapeHtml(r.vendedorInterno)}</td>
         <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
+        <td>${r.condicaoPagamento ? escapeHtml(r.condicaoPagamento) : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td class="mono">${fmt(r.quantidade)}</td>
-        <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span></td>
-        <td class="mono">${r.data ? formatDateBR(r.data) : "—"}</td>
+        <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span>${sitExtra}</td>
+        <td><span class="mono">${r.data ? formatDateBR(r.data) : "—"}</span>${dataExtra ? `<div class="muted sv-sub">${escapeHtml(dataExtra)}</div>` : ""}</td>
         <td class="sv-acoes">${acoes}</td>
       </tr>
     `;
@@ -1246,12 +1433,14 @@ function svRenderReserva() {
   svRenderReservaTabela();
 }
 
-// Janela do "Confirmar venda": pede o preço por unidade (já preenchido com o preço de proposta do produto) e
-// mostra o total ao vivo. Devolve o preço (número >= 0, com 2 casas) ou null se a pessoa cancelou.
+// Janela do "Confirmar venda": pede o preço por unidade (já preenchido com o preço de proposta do produto) e a
+// condição de pagamento (já preenchida com a da reserva) e mostra o total ao vivo. Devolve { preco, condicao }
+// (preço número >= 0 com 2 casas) ou null se a pessoa cancelou.
 function svVendaModal(r) {
   return new Promise(resolve => {
     const overlay = document.getElementById("svVendaOverlay");
     const input = document.getElementById("svVendaPreco");
+    const selCond = document.getElementById("svVendaCondicao");
     const erro = document.getElementById("svVendaErro");
     const totalEl = document.getElementById("svVendaTotal");
     const contaEl = document.getElementById("svVendaConta");
@@ -1266,6 +1455,17 @@ function svVendaModal(r) {
       : "Esse produto não tem preço de proposta no cadastro: digite o preço da venda.";
     input.value = temPreco ? produto.preco : "";
     erro.style.display = "none";
+
+    // a lista do admin, mais a condição que a reserva já tem (mesmo que depois tenha saído da lista)
+    const nomes = svCondicoes.map(c => c.nome);
+    if (r.condicaoPagamento && !nomes.includes(r.condicaoPagamento)) nomes.unshift(r.condicaoPagamento);
+    selCond.innerHTML = `<option value="">${nomes.length ? "Selecione…" : "Nenhuma condição cadastrada"}</option>` +
+      nomes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
+    selCond.value = r.condicaoPagamento || "";
+    selCond.disabled = nomes.length === 0;
+    document.getElementById("svVendaCondDica").textContent = r.condicaoPagamento
+      ? "Veio da reserva. Mude se combinaram outra condição na hora de vender."
+      : "Essa reserva é de antes do campo existir e veio sem condição. Escolha uma para confirmar a venda.";
 
     // vazio ou ilegível = NaN (o campo numérico devolve "" quando o texto digitado não é um número)
     const lerPreco = () => (input.value.trim() === "" ? NaN : Math.round(Number(input.value) * 100) / 100);
@@ -1282,13 +1482,21 @@ function svVendaModal(r) {
       cancelBtn.removeEventListener("click", onCancel);
       input.removeEventListener("input", onInput);
       input.removeEventListener("keydown", onTecla);
+      selCond.removeEventListener("change", onInput);
       resolve(resultado);
     };
     const onOk = () => {
       const p = lerPreco();
       if (Number.isNaN(p)) { erro.textContent = "Informe o preço por unidade."; erro.style.display = "block"; return; }
       if (p < 0) { erro.textContent = "O preço não pode ser negativo."; erro.style.display = "block"; return; }
-      cleanup(p);
+      if (!selCond.value) {
+        erro.textContent = nomes.length
+          ? "Escolha a condição de pagamento para confirmar a venda."
+          : "Cadastre as condições em Administração, Condições de pagamento, antes de confirmar a venda.";
+        erro.style.display = "block";
+        return;
+      }
+      cleanup({ preco: p, condicao: selCond.value });
     };
     const onCancel = () => cleanup(null);
     const onTecla = (e) => { if (e.key === "Enter") { e.preventDefault(); onOk(); } };
@@ -1296,6 +1504,7 @@ function svVendaModal(r) {
     cancelBtn.addEventListener("click", onCancel);
     input.addEventListener("input", onInput);
     input.addEventListener("keydown", onTecla);
+    selCond.addEventListener("change", onInput);
     atualizarTotal();
     overlay.classList.add("show");
     input.focus();
@@ -1308,10 +1517,10 @@ async function svMudarSituacaoReserva(id, nova) {
   if (!r) return;
   let campos = { situacao: nova };
   if (nova === "VENDIDA") {
-    // a venda grava o preço por unidade e o dia: é daí que o Dashboard tira o "Valor vendido" e o mês
-    const preco = await svVendaModal(r);
-    if (preco === null) return;
-    campos = { situacao: nova, preco_unitario: preco, vendido_em: todayISO() };
+    // a venda grava o preço por unidade, a condição de pagamento e o dia: é daí que o Dashboard tira o "Valor vendido" e o mês
+    const venda = await svVendaModal(r);
+    if (venda === null) return;
+    campos = { situacao: nova, preco_unitario: venda.preco, condicao_pagamento: venda.condicao, vendido_em: todayISO() };
   } else if (!(await confirmModal("Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`))) {
     return;
   }
@@ -1329,31 +1538,92 @@ async function svMudarSituacaoReserva(id, nova) {
   toast(nova === "VENDIDA" ? "Venda confirmada." : "Reserva cancelada.");
 }
 
+function svLigarReserva() {
+  const $ = (id) => document.getElementById(id);
+  $("svFormReserva").addEventListener("submit", svSalvarReserva);
+  $("svResProduto").addEventListener("change", svAtualizarNotaDisponivel);
+  $("svResSearch").addEventListener("input", svRenderReservaTabela);
+  $("svResChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-svfiltro]");
+    if (!b) return;
+    svResFiltroAtual = b.dataset.svfiltro;
+    svRenderReservaTabela();
+  });
+  $("svResEmpty").addEventListener("click", (e) => {
+    if (e.target.closest("#svBtnNovaReservaVazio")) svAbrirNovaReserva();
+    else if (e.target.closest("#svResLimpar")) {
+      $("svResSearch").value = "";
+      svResFiltroAtual = "ativas_vendidas";
+      svRenderReservaTabela();
+    }
+  });
+  $("svBtnNovaReserva").addEventListener("click", svAbrirNovaReserva);
+  $("svResFechar").addEventListener("click", svFecharNovaReserva);
+  $("svResCancelar").addEventListener("click", svFecharNovaReserva);
+  $("svResOverlay").addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    if (svPickerAberto) svFecharPicker(true); else svFecharNovaReserva();
+  });
+  $("svResProdutoBtn").addEventListener("click", () => { if (svPickerAberto) svFecharPicker(true); else svAbrirPicker(); });
+  $("svResProdutoBusca").addEventListener("input", svRenderPickerOpcoes);
+  $("svResProdutoBusca").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault(); // Enter na busca escolhe o primeiro resultado, não envia o formulário
+    const primeira = $("svResProdutoOpcoes").querySelector("[data-svopcao]");
+    if (primeira) svEscolherOpcao(Number(primeira.dataset.svopcao));
+  });
+  $("svResProdutoOpcoes").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-svopcao]");
+    if (b) svEscolherOpcao(Number(b.dataset.svopcao));
+  });
+  document.addEventListener("click", (e) => {
+    if (svPickerAberto && !e.target.closest("#svPicker")) svFecharPicker();
+  });
+  $("svFormReserva").addEventListener("input", svAoMudarFormReserva);
+  $("svFormReserva").addEventListener("change", svAoMudarFormReserva);
+}
+
 async function svSalvarReserva(e) {
   e.preventDefault();
-  const botao = document.getElementById("svBtnSubmitReserva");
-  if (botao.disabled) return;
-  botao.disabled = true;
-  try { await svSalvarReservaDados(); } finally { botao.disabled = false; }
+  if (svSalvandoReserva) return;
+  svSalvandoReserva = true;
+  svAtualizarResumoReserva();
+  try { await svSalvarReservaDados(); } finally {
+    svSalvandoReserva = false;
+    svAtualizarResumoReserva();
+  }
 }
 
 async function svSalvarReservaDados() {
+  svLimparErrosReserva();
   const opcao = svOpcaoSelecionada();
   const clienteDigitado = document.getElementById("svResCliente").value.trim();
   const vendedorInterno = document.getElementById("svResVendedor").value;
   const escolhaRepresentante = document.getElementById("svResRepresentante").value;
+  const condicao = document.getElementById("svResCondicao").value;
   const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
   const data = document.getElementById("svResData").value;
   const obs = document.getElementById("svResObs").value.trim();
-
-  if (!opcao) { toast("Escolha o produto."); return; }
   const cliente = (state.clientes || []).find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
-  if (!cliente) { toast("Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."); return; }
-  if (!vendedorInterno) { toast("Escolha o vendedor interno."); return; }
-  if (!escolhaRepresentante) { toast('Escolha o representante ou marque "Sem representante".'); return; }
+
+  // confere tudo de uma vez e marca cada campo com problema (em vez de avisar um por vez)
+  const erros = [];
+  if (!opcao) erros.push(["produto", "Escolha o produto."]);
+  if (!clienteDigitado) erros.push(["cliente", "Escolha um cliente da lista. Se ele ainda não existe, cadastre em Clientes."]);
+  else if (!cliente) erros.push(["cliente", "Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."]);
+  if (!vendedorInterno) erros.push(["vendedor", svVendedores.length ? "Escolha o vendedor interno." : "Cadastre os vendedores em Administração antes de reservar."]);
+  if (!escolhaRepresentante) erros.push(["representante", 'Escolha o representante ou marque "Sem representante".']);
+  if (!condicao) erros.push(["condicao", svCondicoes.length ? "Escolha a condição de pagamento." : "Cadastre as condições em Administração antes de reservar."]);
+  if (!(quantidade > 0)) erros.push(["quantidade", "Informe a quantidade."]);
+  else if (opcao && quantidade > opcao.disp) erros.push(["quantidade", `Só há ${fmt(opcao.disp)} un. disponíveis neste produto.`]);
+  if (!data) erros.push(["data", "Informe a data."]);
+  if (erros.length) {
+    erros.forEach(([campo, msg]) => svErroCampo(campo, msg));
+    svFocarPrimeiroErro();
+    return;
+  }
   const representante = escolhaRepresentante === SV_SEM_REPRESENTANTE ? null : escolhaRepresentante;
-  if (!(quantidade > 0)) { toast("Informe a quantidade."); return; }
-  if (!data) { toast("Informe a data."); return; }
 
   // confere o saldo com dados atualizados: outra pessoa pode ter reservado o mesmo lote agora há pouco
   if (!(await svCarregarDados(true))) return;
@@ -1366,7 +1636,8 @@ async function svSalvarReservaDados() {
     const prev = svState.previsoes.find(x => x.id === opcao.previsaoId);
     if (!prev || prev.status === "FINALIZADO") {
       svRenderReserva();
-      toast("Esse processo já chegou. As opções foram atualizadas — escolha o produto em estoque.");
+      svErroCampo("produto", "Esse processo já chegou. As opções foram atualizadas — escolha o produto em estoque.");
+      svFocarPrimeiroErro();
       return;
     }
     const a = aChegar.find(x => x.previsaoId === opcao.previsaoId && x.codigo === opcao.codigo);
@@ -1374,7 +1645,8 @@ async function svSalvarReservaDados() {
   }
   if (quantidade > disponivel) {
     svRenderReserva();
-    toast(`Só há ${disponivel} un. disponíveis nessa opção.`);
+    svErroCampo("quantidade", `Só há ${fmt(disponivel)} un. disponíveis nessa opção.`);
+    svFocarPrimeiroErro();
     return;
   }
 
@@ -1382,14 +1654,14 @@ async function svSalvarReservaDados() {
     id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, vendedorInterno, representante,
     armazem: opcao.tipo === "E" ? opcao.armazem : null,
     previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
+    condicaoPagamento: condicao,
     situacao: "ATIVA", data, obs
   };
   const { data: inserida, error } = await sb.from("sv_reservas").insert({ ...svReservaToRow(nova), created_by: currentUser ? currentUser.id : null }).select();
   if (error) { toast("Erro ao reservar: " + error.message); return; }
   if (!inserida || inserida.length === 0) { toast("Não foi possível reservar (sem permissão)."); return; }
   svState.reservas.unshift(svReservaFromRow(inserida[0]));
-  document.getElementById("svFormReserva").reset();
-  document.getElementById("svResData").value = todayISO();
+  svFecharNovaReserva();
   svRenderReserva();
   toast("Reserva criada.");
 }
@@ -1633,8 +1905,10 @@ function svCarregarVendedores() {
 
 // chamado pelo setView() do app.js quando a tela Administração abre (só admin chega lá)
 async function svAoAbrirAdministracao() {
-  if (!document.getElementById("svVendedoresCard")) return;
-  if (await svCarregarVendedores()) svRenderVendedoresAdmin();
+  const tarefas = [];
+  if (document.getElementById("svVendedoresCard")) tarefas.push(svCarregarVendedores().then(ok => { if (ok) svRenderVendedoresAdmin(); }));
+  if (document.getElementById("svCondicoesCard")) tarefas.push(svCarregarCondicoes().then(ok => { if (ok) svRenderCondicoesAdmin(); }));
+  await Promise.all(tarefas);
 }
 
 function svRenderVendedoresAdmin() {
@@ -1684,6 +1958,75 @@ async function svExcluirVendedor(id) {
   svVendedores = svVendedores.filter(x => x.id !== id);
   svRenderVendedoresAdmin();
   toast("Vendedor removido.");
+}
+
+/* ---------- Condições de pagamento (lista que a Reserva usa; cadastro na Administração) ---------- */
+
+// mesma ideia dos vendedores: carga própria, para a falta da tabela não derrubar o resto do Sem Venda
+let svCondicoes = [];
+let svCondicoesEmAndamento = null;
+
+function svCarregarCondicoes() {
+  if (svCondicoesEmAndamento) return svCondicoesEmAndamento;
+  svCondicoesEmAndamento = (async () => {
+    const { data, error } = await sb.from("sv_condicoes_pagamento").select("*").order("nome");
+    if (error) {
+      toast("Erro ao carregar as condições de pagamento: " + error.message);
+      return false;
+    }
+    svCondicoes = (data || []).map(c => ({ id: c.id, nome: c.nome })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
+    return true;
+  })().finally(() => { svCondicoesEmAndamento = null; });
+  return svCondicoesEmAndamento;
+}
+
+function svRenderCondicoesAdmin() {
+  const n = svCondicoes.length;
+  document.getElementById("svCondCount").textContent = n === 0 ? "" : `${n} ${n === 1 ? "condição cadastrada" : "condições cadastradas"}`;
+  document.getElementById("svCondEmpty").style.display = n === 0 ? "block" : "none";
+  const tbody = document.getElementById("svCondTbody");
+  tbody.innerHTML = svCondicoes.map(c => `
+    <tr>
+      <td>${escapeHtml(c.nome)}</td>
+      <td class="sv-acoes"><button type="button" class="sv-link" data-svconddel="${escapeAttr(c.id)}">Excluir</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("[data-svconddel]").forEach(btn => {
+    btn.addEventListener("click", () => svExcluirCondicao(btn.dataset.svconddel));
+  });
+}
+
+async function svAdicionarCondicao(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnAddCondicao");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try {
+    const campo = document.getElementById("svCondNome");
+    const nome = campo.value.replace(/\s+/g, " ").trim();
+    if (!nome) { toast("Informe o nome da condição."); return; }
+    if (svCondicoes.some(c => c.nome.toLowerCase() === nome.toLowerCase())) { toast("Essa condição já está na lista."); return; }
+    const { data, error } = await sb.from("sv_condicoes_pagamento").insert({ id: uid("svcond"), nome, created_by: currentUser ? currentUser.id : null }).select();
+    if (error) { toast("Erro ao adicionar a condição: " + error.message); return; }
+    if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
+    svCondicoes.push({ id: data[0].id, nome: data[0].nome });
+    svCondicoes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
+    campo.value = "";
+    svRenderCondicoesAdmin();
+    toast("Condição adicionada.");
+  } finally { botao.disabled = false; }
+}
+
+async function svExcluirCondicao(id) {
+  const c = svCondicoes.find(x => x.id === id);
+  if (!c) return;
+  const ok = await confirmModal("Excluir condição?", `Remove "${c.nome}" da lista de condições de pagamento. As reservas que já foram feitas com ela continuam como estão.`);
+  if (!ok) return;
+  const { data, error } = await sb.from("sv_condicoes_pagamento").delete().eq("id", id).select();
+  if (error) { toast("Erro ao excluir a condição: " + error.message); return; }
+  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removida)."); return; }
+  svCondicoes = svCondicoes.filter(x => x.id !== id);
+  svRenderCondicoesAdmin();
+  toast("Condição removida.");
 }
 
 /* ---------- Relatório de Preço (proposta em PDF) ---------- */
@@ -1889,11 +2232,8 @@ function initSemVendaTelas() {
     svRenderDashboardVendas();
   });
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
-  document.getElementById("svFormReserva").addEventListener("submit", svSalvarReserva);
-  document.getElementById("svResProduto").addEventListener("change", svAtualizarNotaDisponivel);
-  ["svResSearch", "svResFiltro"].forEach(id => {
-    document.getElementById(id).addEventListener("input", svRenderReservaTabela);
-  });
+  document.getElementById("svFormCondicao").addEventListener("submit", svAdicionarCondicao);
+  svLigarReserva();
   document.getElementById("svResData").value = todayISO();
 
   document.getElementById("svFormProposta").addEventListener("submit", svGerarProposta);

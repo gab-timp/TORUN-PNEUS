@@ -95,12 +95,6 @@ body.is-viewer .sv-write{display:none !important;}
 .sv-cat-reservado{font-size:10px;font-weight:700;color:var(--sv-acento);}
 
 /* ---------------- Reserva ---------------- */
-.sv-reserva-layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start;}
-.sv-reserva-form form{display:flex;flex-direction:column;gap:10px;}
-/* .field é feito pra linhas (flex:1 1 150px); numa coluna isso viraria altura mínima de 150px */
-.sv-reserva-form form > .field{flex:0 0 auto;}
-.sv-reserva-direita{display:flex;flex-direction:column;gap:14px;min-width:0;}
-.sv-reserva-direita .kpis{margin-bottom:0;}
 .sv-sub{font-size:10.5px;}
 /* grupo "Gestão" do menu do Sem Venda (só admin): .nav-group define o próprio display e venceria .admin-only,
    deixando o rótulo "Gestão" vazio na tela de quem não é admin */
@@ -113,11 +107,6 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-venda-total-valor{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;}
 .sv-venda-erro{color:var(--danger);font-weight:600;}
 #svVendaConta{margin:6px 0 0;}
-/* a lista de Reservas tem duas colunas de pessoa (vendedor e representante): cabeçalho quebra e os dois
-   links de ação ficam um embaixo do outro, senão a tabela passa da largura do cartão em tela de 1440px */
-#view-sv-reserva .table-wrap th{white-space:normal;}
-#svResTbody .sv-acoes{white-space:normal;}
-#svResTbody .sv-acoes .sv-link{display:block;margin:0 0 4px;text-align:left;}
 .sv-tag-sistema{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--paper);border-radius:5px;padding:3px 7px;}
 .sv-vend-form{align-items:flex-end;margin-top:10px;}
 .sv-vend-form .form-actions{margin:0;}
@@ -130,17 +119,84 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-link-ok{color:var(--status-good);}
 .sv-link-ok:hover{color:var(--status-good-deep);}
 .status-pill.pill-azul{background:var(--blue-pale);color:var(--blue-deep);}
-/* a lista de Reservas tem 8 colunas: com menos espaço lateral nas células e a pílula de situação quebrando em
-   duas linhas ("AGUARDANDO / CHEGADA") ela cabe ao lado do formulário em 1440px; abaixo disso o formulário
-   passa pra cima da lista, em vez de a lista rolar na horizontal e cortar os links de ação */
-#view-sv-reserva thead th, #view-sv-reserva tbody td{padding-left:8px;padding-right:8px;}
-#view-sv-reserva .status-pill{white-space:normal;line-height:1.25;}
-@media (max-width: 1400px){
-  .sv-reserva-layout{grid-template-columns:minmax(0,1fr);}
-  .sv-reserva-form{max-width:560px;}
+/* lista de Reservas em largura total (a Nova reserva é uma janela): colunas de largura fixa em %, texto quebra */
+.sv-res-topo{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+.sv-res-topo h2{margin:0;}
+.sv-res-topo .note{margin:0;}
+.sv-res-controles{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.sv-res-busca{width:260px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px;background:var(--paper);color:var(--ink);outline:none;font-family:inherit;}
+.sv-res-busca:focus{border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
+.sv-chips{display:flex;gap:6px;flex-wrap:wrap;}
+.sv-chip{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:12px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;padding:6px 12px;cursor:pointer;}
+.sv-chip b{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--ink-soft);}
+.sv-chip:hover{border-color:var(--orange);}
+.sv-chip.on{background:var(--ink);border-color:var(--ink);color:var(--surface);}
+.sv-chip.on b{color:var(--surface);opacity:.8;}
+.sv-chip:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
+.sv-res-tabela{table-layout:fixed;}
+.sv-res-tabela th{white-space:normal;vertical-align:bottom;}
+.sv-res-tabela th, .sv-res-tabela td{padding-left:8px;padding-right:8px;overflow-wrap:anywhere;}
+.sv-res-tabela td{vertical-align:top;}
+.sv-res-tabela .status-pill{white-space:normal;line-height:1.25;}
+.sv-obs{font-size:11px;font-style:italic;color:var(--ink-soft);margin-top:3px;}
+.sv-valor{font-size:11.5px;font-weight:700;margin-top:4px;}
+.sv-res-tabela .sv-acoes{white-space:normal;}
+.sv-vender{color:var(--status-good);border-color:var(--status-good);white-space:nowrap;}
+.sv-vender:hover{color:var(--status-good-deep);border-color:var(--status-good-deep);}
+.sv-cancelar{display:block;margin:7px 0 0;text-align:left;}
+.sv-vazio{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:14px 0;}
+.sv-vazio-t{font-size:14px;font-weight:700;color:var(--ink);}
+.sv-vazio-d{font-size:12.5px;max-width:380px;line-height:1.5;}
+
+/* janela "Nova reserva" */
+.sv-res-modal{max-width:720px;width:100%;}
+.sv-res-modal-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;}
+.sv-res-modal-topo h3{margin-bottom:2px;}
+.sv-fechar{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:13px;flex:0 0 auto;}
+#svFormReserva{display:flex;flex-direction:column;gap:14px;}
+#svFormReserva > .field{flex:0 0 auto;margin:0;}
+.sv-res-linha{display:flex;gap:14px;}
+.sv-res-linha > .field{flex:1 1 0;min-width:0;}
+.sv-res-linha3 > .sv-f-cond{flex:1.5 1 0;}
+.sv-qtd-wrap{position:relative;}
+.sv-qtd-wrap input{width:100%;padding-right:74px;}
+.sv-qtd-max{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--ink-soft);pointer-events:none;}
+.sv-aviso{font-size:12px;line-height:1.5;color:var(--warning);background:var(--tint-orange);border:1px solid var(--warning-border);border-radius:10px;padding:9px 12px;margin-top:8px;}
+.sv-erro-msg{font-size:11.5px;font-weight:600;color:var(--danger);margin-top:5px;line-height:1.4;}
+.sv-erro-msg:empty{display:none;}
+.sv-campo-erro > input, .sv-campo-erro > select, .sv-campo-erro .sv-qtd-wrap input, .sv-campo-erro .sv-picker-botao{border-color:var(--danger);box-shadow:0 0 0 3px var(--danger-pale);}
+.sv-res-rodape{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px;margin-top:2px;}
+.sv-res-rodape .form-actions{margin:0;}
+.sv-res-rodape .btn:disabled{opacity:.55;cursor:not-allowed;}
+
+/* escolha do produto: botão que mostra o escolhido + painel com busca e grupos */
+.sv-picker{position:relative;}
+.sv-picker-botao{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 11px;min-height:40px;cursor:pointer;}
+.sv-picker-botao:hover:not(:disabled){border-color:var(--orange);}
+.sv-picker-botao:disabled{background:var(--paper-2);color:var(--ink-soft);cursor:not-allowed;}
+.sv-picker-botao:focus-visible{outline:2px solid var(--orange);outline-offset:1px;}
+.sv-picker-botao[aria-expanded="true"]{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-pale);}
+.sv-picker-preenchido{border-color:var(--ink);background:var(--tint-orange);}
+.sv-picker-ph{color:var(--ink-soft);}
+.sv-picker-chev{color:var(--ink-soft);}
+.sv-picker-lado{display:flex;flex-direction:column;min-width:0;}
+.sv-picker-t{font-size:13px;overflow-wrap:anywhere;}
+.sv-picker-s{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+.sv-picker-chip{flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--status-good);background:var(--status-good-pale);border-radius:999px;padding:3px 10px;white-space:nowrap;}
+.sv-picker-chip.azul{color:var(--blue-deep);background:var(--blue-pale);}
+.sv-picker-trocar{flex:0 0 auto;font-size:12px;font-weight:700;text-decoration:underline;}
+.sv-picker-painel{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--ink);border-radius:12px;box-shadow:0 18px 36px -12px rgba(0,0,0,.4);overflow:hidden;}
+.sv-picker-painel input[type="search"]{display:block;box-sizing:border-box;width:100%;border:0;border-bottom:1px solid var(--line);padding:10px 14px;font-size:13px;background:var(--surface);color:var(--ink);outline:none;font-family:inherit;}
+.sv-picker-opcoes{max-height:300px;overflow-y:auto;}
+.sv-picker-grupo{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);background:var(--paper);padding:7px 14px;border-bottom:1px solid var(--line);}
+.sv-picker-opcao{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;font:inherit;color:var(--ink);background:var(--surface);border:0;border-bottom:1px solid var(--line);padding:10px 14px;cursor:pointer;}
+.sv-picker-opcao:hover, .sv-picker-opcao:focus-visible{background:var(--tint-orange);outline:none;}
+.sv-picker-opcao.sel{background:var(--tint-orange);box-shadow:inset 3px 0 0 var(--orange);}
+.sv-picker-vazio{padding:16px 14px;font-size:12.5px;color:var(--ink-soft);}
+@media (max-width: 700px){
+  .sv-res-linha{flex-direction:column;}
+  .sv-res-busca{width:100%;}
 }
-/* viewer não vê o formulário (.sv-write some): sem isso a tabela ficaria espremida na coluna de 320px */
-body.is-viewer .sv-reserva-layout{grid-template-columns:minmax(0,1fr);}
 
 /* ---------------- Foto do produto (cadastro) ---------------- */
 .sv-foto-row{display:flex;align-items:center;gap:14px;margin-bottom:6px;}

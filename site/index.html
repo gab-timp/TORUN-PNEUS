@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=175">
-<link rel="stylesheet" href="semvenda.css?v=16">
+<link rel="stylesheet" href="semvenda.css?v=17">
 <link rel="stylesheet" href="crm.css?v=3">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -727,91 +727,47 @@
           <h1>Reserva</h1>
           <div class="sub">Reserve um pneu pra um cliente antes de vender de verdade — funciona até pra item que ainda não chegou.</div>
         </div>
+        <div class="page-head-actions">
+          <button type="button" class="btn primary sv-write" id="svBtnNovaReserva">+ Nova reserva</button>
+        </div>
       </div>
 
-      <div class="sv-reserva-layout">
-        <div class="card sv-write sv-reserva-form">
-          <div class="card-head"><h2>Nova reserva</h2></div>
-          <form id="svFormReserva">
-            <div class="field">
-              <label>Produto</label>
-              <select id="svResProduto" required></select>
-            </div>
-            <div class="note" id="svResDisp"></div>
-            <div class="field">
-              <label>Cliente</label>
-              <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente já cadastrado no Torun…" autocomplete="off" required>
-              <datalist id="svListaClientes"></datalist>
-            </div>
-            <div class="field">
-              <label>Vendedor interno</label>
-              <select id="svResVendedor"></select>
-              <div class="note" id="svResVendedorAviso" style="display:none;">Peça a um administrador para cadastrar os vendedores em Administração, Vendedores internos. Sem isso não dá para reservar.</div>
-            </div>
-            <div class="field">
-              <label>Representante</label>
-              <select id="svResRepresentante"></select>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label>Quantidade</label>
-                <input type="number" id="svResQuantidade" min="1" step="1" placeholder="0" required>
-              </div>
-              <div class="field">
-                <label>Data</label>
-                <input type="date" id="svResData" required>
-              </div>
-            </div>
-            <div class="field">
-              <label>Observação (opcional)</label>
-              <input type="text" id="svResObs" placeholder="Ex: aguardando confirmação de pagamento">
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn primary" id="svBtnSubmitReserva">Reservar</button>
-            </div>
-          </form>
-        </div>
+      <div class="kpis" id="svResKpis"></div>
 
-        <div class="sv-reserva-direita">
-          <div class="kpis" id="svResKpis"></div>
-          <div class="card">
-            <div class="card-head"><h2>Reservas</h2><div class="note" id="svResCount"></div></div>
-            <div class="form-row">
-              <div class="field grow">
-                <label>Buscar</label>
-                <input type="text" id="svResSearch" placeholder="Cliente, produto, vendedor ou representante…">
-              </div>
-              <div class="field">
-                <label>Mostrar</label>
-                <select id="svResFiltro">
-                  <option value="ativas_vendidas">Ativas e vendidas</option>
-                  <option value="ativas">Só ativas</option>
-                  <option value="canceladas">Canceladas</option>
-                  <option value="todas">Todas</option>
-                </select>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Cliente</th>
-                    <th>Vendedor interno</th>
-                    <th>Representante</th>
-                    <th>Qtd.</th>
-                    <th>Situação</th>
-                    <th>Data</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="svResTbody"></tbody>
-              </table>
-            </div>
-            <div class="empty-state" id="svResEmpty" style="display:none;"></div>
+      <div class="card">
+        <div class="sv-res-topo">
+          <h2>Reservas</h2>
+          <div class="note" id="svResCount"></div>
+          <div class="sv-res-controles">
+            <input type="text" id="svResSearch" class="sv-res-busca" placeholder="Cliente, produto, vendedor…" aria-label="Buscar reserva" autocomplete="off">
+            <div class="sv-chips" id="svResChips" role="group" aria-label="Mostrar"></div>
           </div>
         </div>
+        <div class="table-wrap">
+          <table class="sv-res-tabela">
+            <colgroup>
+              <col style="width:17%"><col style="width:15%"><col style="width:8%"><col style="width:11%"><col style="width:10%">
+              <col style="width:4%"><col style="width:11%"><col style="width:9%"><col style="width:15%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Cliente</th>
+                <th>Vendedor interno</th>
+                <th>Representante</th>
+                <th>Condição de pagamento</th>
+                <th>Qtd.</th>
+                <th>Situação</th>
+                <th>Data</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="svResTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svResEmpty" style="display:none;"></div>
       </div>
+    </section>
     </section>
     <section id="view-sv-relatoriopreco" class="view">
       <div class="page-head"><div><h1>Relatório de Preço</h1><div class="sub">Monta uma proposta em PDF pra mandar pro cliente.</div></div></div>
@@ -3183,6 +3139,28 @@
         <div class="empty-state" id="svVendEmpty" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
       </div>
 
+      <div class="card" id="svCondicoesCard">
+        <div class="card-head"><h2>Condições de pagamento</h2><span class="sv-tag-sistema">Sem Venda</span></div>
+        <div class="note">É a lista que aparece em "Condição de pagamento" na Reserva e na janela de Confirmar venda. Tirar uma condição daqui não muda as reservas que já foram feitas com ela.</div>
+        <form id="svFormCondicao" class="form-row sv-vend-form">
+          <div class="field grow">
+            <label>Nome da condição</label>
+            <input type="text" id="svCondNome" maxlength="60" placeholder="Ex: 30/60/90 dias" autocomplete="off">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="svBtnAddCondicao">Adicionar</button>
+          </div>
+        </form>
+        <div class="note" id="svCondCount"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Condição</th><th></th></tr></thead>
+            <tbody id="svCondTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svCondEmpty" style="display:none;">Nenhuma condição cadastrada ainda. Sem isso ninguém consegue reservar.</div>
+      </div>
+
     </section>
 
     <!-- página "Acesso de uma pessoa" (abre pelo "Editar acesso" da lista de usuários; só administrador) -->
@@ -3689,6 +3667,85 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="svResOverlay">
+  <div class="modal sv-res-modal" role="dialog" aria-modal="true" aria-labelledby="svResModalTitulo">
+    <div class="sv-res-modal-topo">
+      <div>
+        <h3 id="svResModalTitulo">Nova reserva</h3>
+        <div class="muted sv-sub">A reserva trava o item para ninguém mais oferecer.</div>
+      </div>
+      <button type="button" class="sv-fechar" id="svResFechar" aria-label="Fechar">✕</button>
+    </div>
+    <form id="svFormReserva" novalidate autocomplete="off">
+      <select id="svResProduto" hidden aria-hidden="true" tabindex="-1"></select>
+      <div class="field" id="svResCampo_produto">
+        <label id="svResProdutoRotulo">Produto</label>
+        <div class="sv-picker" id="svPicker">
+          <button type="button" class="sv-picker-botao" id="svResProdutoBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="svResProdutoRotulo"></button>
+          <div class="sv-picker-painel" id="svResProdutoPainel" hidden>
+            <input type="search" id="svResProdutoBusca" placeholder="Buscar por código ou medida…" aria-label="Buscar produto" autocomplete="off">
+            <div class="sv-picker-opcoes" id="svResProdutoOpcoes" role="listbox" aria-labelledby="svResProdutoRotulo"></div>
+          </div>
+        </div>
+        <div class="sv-aviso" id="svResDisp" style="display:none;"></div>
+        <div class="sv-erro-msg" id="svResErro_produto" role="alert"></div>
+      </div>
+      <div class="field" id="svResCampo_cliente">
+        <label for="svResCliente">Cliente</label>
+        <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente já cadastrado no Torun…" autocomplete="off">
+        <datalist id="svListaClientes"></datalist>
+        <div class="sv-erro-msg" id="svResErro_cliente" role="alert"></div>
+      </div>
+      <div class="sv-res-linha">
+        <div class="field" id="svResCampo_vendedor">
+          <label for="svResVendedor">Vendedor interno</label>
+          <select id="svResVendedor"></select>
+          <div class="sv-aviso" id="svResVendedorAviso" style="display:none;">Peça a um administrador para cadastrar os vendedores em Administração, Vendedores internos. Sem isso não dá para reservar.</div>
+          <div class="sv-erro-msg" id="svResErro_vendedor" role="alert"></div>
+        </div>
+        <div class="field" id="svResCampo_representante">
+          <label for="svResRepresentante">Representante</label>
+          <select id="svResRepresentante"></select>
+          <div class="sv-erro-msg" id="svResErro_representante" role="alert"></div>
+        </div>
+      </div>
+      <div class="sv-res-linha sv-res-linha3">
+        <div class="field sv-f-cond" id="svResCampo_condicao">
+          <label for="svResCondicao">Condição de pagamento</label>
+          <select id="svResCondicao"></select>
+          <div class="sv-aviso" id="svResCondicaoAviso" style="display:none;">Peça a um administrador para cadastrar as condições em Administração, Condições de pagamento. Sem isso não dá para reservar.</div>
+          <div class="sv-erro-msg" id="svResErro_condicao" role="alert"></div>
+        </div>
+        <div class="field" id="svResCampo_quantidade">
+          <label for="svResQuantidade">Quantidade</label>
+          <div class="sv-qtd-wrap">
+            <input type="number" id="svResQuantidade" min="1" step="1" placeholder="0">
+            <span class="sv-qtd-max" id="svResQuantMax"></span>
+          </div>
+          <div class="sv-erro-msg" id="svResErro_quantidade" role="alert"></div>
+        </div>
+        <div class="field" id="svResCampo_data">
+          <label for="svResData">Data</label>
+          <input type="date" id="svResData">
+          <div class="sv-erro-msg" id="svResErro_data" role="alert"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="svResObs">Observação (opcional)</label>
+        <input type="text" id="svResObs" placeholder="Ex: aguardando confirmação de pagamento">
+        <div class="note">Aparece na lista, embaixo do nome do cliente.</div>
+      </div>
+      <div class="sv-res-rodape">
+        <div class="muted sv-sub" id="svResResumo"></div>
+        <div class="form-actions">
+          <button type="button" class="btn outline" id="svResCancelar">Cancelar</button>
+          <button type="submit" class="btn primary" id="svBtnSubmitReserva">Reservar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="svVendaOverlay">
   <div class="modal" role="dialog" aria-labelledby="svVendaTitulo">
     <h3 id="svVendaTitulo">Confirmar venda?</h3>
@@ -3697,8 +3754,13 @@
       <label for="svVendaPreco">Preço por unidade (R$)</label>
       <input type="number" id="svVendaPreco" min="0" step="0.01" placeholder="0,00">
       <div class="note" id="svVendaDica">Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor.</div>
-      <div class="note sv-venda-erro" id="svVendaErro" style="display:none;"></div>
     </div>
+    <div class="field">
+      <label for="svVendaCondicao">Condição de pagamento</label>
+      <select id="svVendaCondicao"></select>
+      <div class="note" id="svVendaCondDica">Veio da reserva. Mude se combinaram outra condição na hora de vender.</div>
+    </div>
+    <div class="note sv-venda-erro" id="svVendaErro" style="display:none;"></div>
     <div class="sv-venda-total">
       <span class="sv-venda-total-rotulo">Total da venda</span>
       <span class="sv-venda-total-valor" id="svVendaTotal">—</span>
@@ -4290,7 +4352,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=20"></script>
+<script src="semvenda.js?v=21"></script>
 <script src="crm.js?v=4"></script>
 <script src="usuarios.js?v=4"></script>
 <script src="app.js?v=275"></script>
