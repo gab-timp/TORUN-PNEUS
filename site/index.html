@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="styles.css?v=175">
 <link rel="stylesheet" href="semvenda.css?v=16">
 <link rel="stylesheet" href="crm.css?v=3">
-<link rel="stylesheet" href="usuarios.css?v=1">
+<link rel="stylesheet" href="usuarios.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3499,17 +3499,41 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="usrSenhaOverlay">
+  <div class="modal" role="dialog" aria-labelledby="usrSenhaTitulo">
+    <h3 id="usrSenhaTitulo">Redefinir senha</h3>
+    <div class="mono muted usr-sub" id="usrSenhaEmail"></div>
+    <p id="usrSenhaTexto"></p>
+    <div class="field">
+      <label for="usrSenhaNova">Nova senha provisória</label>
+      <div class="usr-senha-linha">
+        <input type="text" id="usrSenhaNova" class="mono" maxlength="72" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn small outline" id="usrSenhaGerar">Gerar outra</button>
+      </div>
+      <div class="note">Mínimo de 8 caracteres. Se preferir, digite a sua.</div>
+    </div>
+    <div class="note crm-erro" id="usrSenhaErro" style="display:none;"></div>
+    <div class="usr-modal-rodape">
+      <span class="muted usr-sub">A senha aparece uma única vez, na próxima janela.</span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="usrSenhaCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="usrSenhaSalvar">Redefinir senha</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="usrCredOverlay">
   <div class="modal" role="dialog" aria-labelledby="usrCredTitulo">
     <h3 id="usrCredTitulo">Usuário criado</h3>
-    <p><b id="usrCredNome"></b> já pode entrar. Anote os dados agora: depois não dá para ver a senha de novo.</p>
+    <p id="usrCredTexto"></p>
     <div class="usr-cred">
       <div><span class="usr-rot">E-mail</span><div class="mono" id="usrCredEmail"></div></div>
-      <div><span class="usr-rot">Senha provisória</span><div class="mono usr-cred-senha" id="usrCredSenha"></div></div>
+      <div><span class="usr-rot" id="usrCredRotuloSenha">Senha provisória</span><div class="mono usr-cred-senha" id="usrCredSenha"></div></div>
     </div>
     <div class="form-actions">
-      <button type="button" class="btn outline" id="usrCredCopiar">Copiar dados de acesso</button>
-      <button type="button" class="btn primary" id="usrCredFechar">Pronto</button>
+      <button type="button" class="btn outline" id="usrCredFechar">Fechar</button>
+      <button type="button" class="btn primary" id="usrCredCopiar">Copiar dados de acesso</button>
     </div>
   </div>
 </div>
@@ -4231,7 +4255,7 @@
 
 <script src="semvenda.js?v=20"></script>
 <script src="crm.js?v=4"></script>
-<script src="usuarios.js?v=1"></script>
+<script src="usuarios.js?v=2"></script>
 <script src="app.js?v=274"></script>
 </body>
 </html>

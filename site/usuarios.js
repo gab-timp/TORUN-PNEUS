@@ -33,7 +33,7 @@ const USR_PERFIS = [
 ];
 
 const usrState = { lista: [], pendentes: [], aviso: "", carregou: false, carregando: false };
-const usrUi = { acessoId: null, form: null, original: null, avancadoAberto: false, novoModo: "criar", novoPendente: null, novoPerfil: "exec-atacado", novoSalvando: false, salvando: false };
+const usrUi = { acessoId: null, form: null, original: null, avancadoAberto: false, novoModo: "criar", novoPendente: null, novoPerfil: "exec-atacado", novoSalvando: false, salvando: false, senhaSalvando: false };
 
 /* ---------------- leitura de um acesso ---------------- */
 
@@ -327,14 +327,24 @@ async function usrSalvarNovo() {
     usrFecharNovo();
     await usrCarregar();
     if (liberar) { toast("Acesso liberado."); return; }
-    document.getElementById("usrCredEmail").textContent = email;
-    document.getElementById("usrCredSenha").textContent = senha;
-    document.getElementById("usrCredNome").textContent = nome;
-    document.getElementById("usrCredOverlay").classList.add("show");
+    usrMostrarCredenciais({ nome, email, senha, redefinida: false });
   } finally {
     usrUi.novoSalvando = false;
     botao.disabled = false;
   }
+}
+
+// janela com e-mail e senha para anotar/copiar: serve para usuário novo e para senha redefinida
+function usrMostrarCredenciais({ nome, email, senha, redefinida }) {
+  document.getElementById("usrCredTitulo").textContent = redefinida ? "Senha redefinida" : "Usuário criado";
+  document.getElementById("usrCredTexto").innerHTML = redefinida
+    ? 'A senha de <b id="usrCredNome"></b> foi trocada. Anote os dados agora: depois não dá para ver a senha de novo.'
+    : '<b id="usrCredNome"></b> já pode entrar. Anote os dados agora: depois não dá para ver a senha de novo.';
+  document.getElementById("usrCredNome").textContent = nome;
+  document.getElementById("usrCredRotuloSenha").textContent = redefinida ? "Nova senha provisória" : "Senha provisória";
+  document.getElementById("usrCredEmail").textContent = email;
+  document.getElementById("usrCredSenha").textContent = senha;
+  document.getElementById("usrCredOverlay").classList.add("show");
 }
 
 async function usrCopiarCredenciais() {
@@ -347,6 +357,57 @@ async function usrCopiarCredenciais() {
 
 function usrRowAcesso() {
   return usrState.lista.find(u => u.user_id === usrUi.acessoId) || null;
+}
+
+/* ---------------- Redefinir senha ---------------- */
+/* Vale na hora e não depende de "Salvar acesso". A troca é feita pela função admin-usuarios (ação "redefinir"). */
+
+function usrErroSenha(msg) {
+  const el = document.getElementById("usrSenhaErro");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function usrAbrirSenha() {
+  const row = usrRowAcesso();
+  if (!row) return;
+  const eu = currentUser && row.user_id === currentUser.id;
+  const primeiro = (row.nome || "").trim().split(" ")[0] || "A pessoa";
+  document.getElementById("usrSenhaTitulo").textContent = `Redefinir a senha de ${row.nome || row.email}`;
+  document.getElementById("usrSenhaEmail").textContent = row.email || "";
+  document.getElementById("usrSenhaTexto").textContent = eu
+    ? "A senha atual deixa de funcionar no próximo login. Você continua logado agora; anote a nova senha."
+    : `A senha atual deixa de funcionar. ${primeiro} entra com a senha provisória abaixo, e você passa a ela pessoalmente ou por mensagem.`;
+  document.getElementById("usrSenhaNova").value = usrGerarSenha();
+  document.getElementById("usrSenhaErro").style.display = "none";
+  document.getElementById("usrSenhaOverlay").classList.add("show");
+  document.getElementById("usrSenhaNova").focus();
+}
+
+function usrFecharSenha() {
+  document.getElementById("usrSenhaOverlay").classList.remove("show");
+}
+
+async function usrSalvarSenha() {
+  if (usrUi.senhaSalvando) return;
+  const row = usrRowAcesso();
+  if (!row) return;
+  const senha = document.getElementById("usrSenhaNova").value;
+  if (senha.length < 8) { usrErroSenha("A senha provisória precisa ter pelo menos 8 caracteres."); return; }
+  usrUi.senhaSalvando = true;
+  const botao = document.getElementById("usrSenhaSalvar");
+  botao.disabled = true;
+  try {
+    const r = await usrChamarFuncao({ acao: "redefinir", user_id: row.user_id, senha });
+    if (r.erro) { usrErroSenha(r.erro); return; }
+    usrFecharSenha();
+    // trilha de auditoria: quem redefiniu e de quem (a senha nunca vai para o log)
+    Promise.resolve(registrarLog("user_roles", row.user_id, "edicao", "Senha redefinida", `Senha de ${row.nome || row.email} redefinida pelo administrador`)).catch(() => {});
+    usrMostrarCredenciais({ nome: row.nome || row.email, email: row.email, senha, redefinida: true });
+  } finally {
+    usrUi.senhaSalvando = false;
+    botao.disabled = false;
+  }
 }
 
 function usrAbrirAcesso(userId) {
@@ -433,7 +494,14 @@ function usrRenderAcesso() {
     <div class="usr-grade">
       <div class="usr-coluna">
         <div class="card"><div class="card-head"><h2>Dados</h2></div>
-          <div class="field usr-campo-nome"><label for="usrAcNome">Nome</label><input type="text" id="usrAcNome" maxlength="80" value="${escapeAttr(f.nome)}" autocomplete="off"></div>
+          <div class="usr-dados">
+            <div class="field usr-campo-nome"><label for="usrAcNome">Nome</label><input type="text" id="usrAcNome" maxlength="80" value="${escapeAttr(f.nome)}" autocomplete="off"></div>
+            <div><span class="usr-rot">Senha</span>
+              <div class="usr-senha-bloco">
+                <button type="button" class="btn small outline" data-usrsenha="1">Redefinir senha</button>
+                <span class="muted usr-sub">Ninguém consegue ver a senha atual. Se ${escapeHtml((row.nome || "").trim().split(" ")[0] || "a pessoa")} esqueceu, gere uma provisória nova. Vale na hora, sem precisar de “Salvar acesso”.</span>
+              </div></div>
+          </div>
         </div>
 
         <div class="card">
@@ -565,8 +633,9 @@ async function usrDescartar() {
 /* ---------------- eventos ---------------- */
 
 function usrCliqueAcesso(e) {
-  const t = e.target.closest("[data-usrvoltar],[data-usrdescartar],[data-usrsalvar],[data-usrrole],[data-usrtelas],[data-usrcrm],[data-usrcrmsis],[data-usravancado]");
+  const t = e.target.closest("[data-usrvoltar],[data-usrdescartar],[data-usrsalvar],[data-usrrole],[data-usrtelas],[data-usrcrm],[data-usrcrmsis],[data-usravancado],[data-usrsenha]");
   if (!t || !usrUi.form) { if (t && t.dataset.usrvoltar) setView("administracao"); return; }
+  if (t.dataset.usrsenha) { usrAbrirSenha(); return; }
   if (t.dataset.usrvoltar) { usrDescartar(); return; }
   if (t.dataset.usrdescartar) { usrDescartar(); return; }
   if (t.dataset.usrsalvar) { usrSalvarAcesso(); return; }
@@ -618,6 +687,10 @@ function initUsuariosAdmin() {
   document.getElementById("usrNovoCancelar").addEventListener("click", usrFecharNovo);
   document.getElementById("usrNovoFechar").addEventListener("click", usrFecharNovo);
   document.getElementById("usrNovoSalvar").addEventListener("click", usrSalvarNovo);
+  document.getElementById("usrSenhaGerar").addEventListener("click", () => { document.getElementById("usrSenhaNova").value = usrGerarSenha(); });
+  document.getElementById("usrSenhaCancelar").addEventListener("click", usrFecharSenha);
+  document.getElementById("usrSenhaSalvar").addEventListener("click", usrSalvarSenha);
+  document.getElementById("usrSenhaNova").addEventListener("keydown", (e) => { if (e.key === "Enter") usrSalvarSenha(); });
   document.getElementById("usrCredCopiar").addEventListener("click", usrCopiarCredenciais);
   document.getElementById("usrCredFechar").addEventListener("click", () => document.getElementById("usrCredOverlay").classList.remove("show"));
 }

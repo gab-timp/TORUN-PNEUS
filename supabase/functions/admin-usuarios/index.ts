@@ -1,5 +1,5 @@
 // Função do Supabase (Edge Function) "admin-usuarios": cria o login de um usuário novo, libera o acesso de um login
-// que já existe e lista os logins que ainda não têm acesso. SÓ ADMINISTRADOR consegue chamar.
+// que já existe, redefine a senha e lista os logins que ainda não têm acesso. SÓ ADMINISTRADOR consegue chamar.
 //
 // Por que existe: criar login exige a chave de serviço do Supabase (service role), que nunca pode ir para o navegador.
 // Aqui ela fica no servidor. O site chama por sb.functions.invoke("admin-usuarios", { body: { acao, ... } }) e esta
@@ -11,6 +11,8 @@
 //   "criar"     -> cria o login (já confirmado, com a senha provisória) e grava as permissões. Se gravar as permissões
 //                  falhar, apaga o login que acabou de criar (não sobra login "solto").
 //   "liberar"   -> grava as permissões de um login que já existe (ex.: criado à mão no painel do Supabase).
+//   "redefinir" -> troca a senha de um login que já existe por uma provisória (a pessoa que esqueceu a senha).
+//                  Não derruba sessões que já estão abertas: isso o Supabase só faz por SQL (auth.sessions).
 //
 // O arquivo também roda no Node (só a lógica, sem o Supabase) para os testes: a parte do Deno fica no fim, protegida
 // por typeof Deno. Sem imports no topo de propósito.
@@ -77,7 +79,7 @@ async function exigirAdministrador(token: string, d: Dependencias): Promise<Resp
   if (!quem) return erro(401, "Seu login expirou. Entre de novo e tente outra vez.");
   const { data, error } = await d.admin.from("user_roles").select("is_admin").eq("user_id", quem.id).maybeSingle();
   if (error) return erro(500, "Não foi possível conferir suas permissões.");
-  if (!data || data.is_admin !== true) return erro(403, "Só administrador pode criar ou liberar usuários.");
+  if (!data || data.is_admin !== true) return erro(403, "Só administrador pode criar, liberar ou redefinir a senha de usuários.");
   return null;
 }
 
@@ -101,6 +103,23 @@ export async function tratar(body: any, token: string, d: Dependencias): Promise
       .filter(u => u.email && !comPerfil.has(u.id))
       .map(u => ({ user_id: u.id, email: u.email, criado_em: u.created_at }));
     return { status: 200, corpo: { ok: true, pendentes } };
+  }
+
+  if (body.acao === "redefinir") {
+    const id = body.user_id;
+    if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) return erro(400, "Login inválido.");
+    const senha = typeof body.senha === "string" ? body.senha : "";
+    if (senha.length < 8 || senha.length > 72) return erro(400, "A senha provisória precisa ter de 8 a 72 caracteres.");
+    const achado = await d.admin.auth.admin.getUserById(id);
+    if (achado.error || !achado.data || !achado.data.user) return erro(404, "Esse login não existe mais.");
+    const trocou = await d.admin.auth.admin.updateUserById(id, { password: senha });
+    if (trocou.error) {
+      const msg = String(trocou.error.message || "");
+      if (/different from the old/i.test(msg)) return erro(400, "A nova senha precisa ser diferente da atual. Gere outra.");
+      if (/weak|least|short|characters/i.test(msg)) return erro(400, "O Supabase não aceitou essa senha (curta ou fraca demais). Gere outra.");
+      return erro(400, "Não foi possível trocar a senha: " + msg);
+    }
+    return { status: 200, corpo: { ok: true, user_id: id, email: achado.data.user.email } };
   }
 
   if (body.acao === "criar" || body.acao === "liberar") {
