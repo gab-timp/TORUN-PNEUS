@@ -399,7 +399,13 @@ async function usrSalvarSenha() {
   botao.disabled = true;
   try {
     const r = await usrChamarFuncao({ acao: "redefinir", user_id: row.user_id, senha });
-    if (r.erro) { usrErroSenha(r.erro); return; }
+    if (r.erro) {
+      // a função antiga (publicada antes desta ação existir) responde "Ação desconhecida."
+      usrErroSenha(r.erro === "Ação desconhecida."
+        ? "A função admin-usuarios no Supabase ainda é a versão antiga. Cole o index.ts de novo e publique (passo a passo em supabase/functions/admin-usuarios/LEIAME.md)."
+        : r.erro);
+      return;
+    }
     usrFecharSenha();
     // trilha de auditoria: quem redefiniu e de quem (a senha nunca vai para o log)
     Promise.resolve(registrarLog("user_roles", row.user_id, "edicao", "Senha redefinida", `Senha de ${row.nome || row.email} redefinida pelo administrador`)).catch(() => {});
