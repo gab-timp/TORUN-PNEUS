@@ -995,6 +995,8 @@ function primeiraViewPermitida() {
 // Só esconder o botão do menu não bastava: a busca do topo, o sino e os links dentro das telas abriam
 // qualquer tela por cima.
 function viewPermitida(view) {
+  // "Acesso de uma pessoa" (Administração > Usuários): só administrador, mesmo sem a tela estar na lista de telas visíveis
+  if (view === "usuario-acesso") return !!currentUserIsAdmin;
   // Atacado e Encomenda (telas "crm-") têm papel próprio (Administração > Usuários), fora da lista de telas visíveis
   if (String(view).startsWith("crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
   if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
@@ -1051,6 +1053,7 @@ function setView(view) {
   if (view === "historico") renderHistorico();
   if (view === "relatorios") { renderRelatorioCodigoListas(); renderRelatorioMarcaListas(); renderRelatorioStatusListas(); }
   if (view === "administracao") { renderAdministracao(); svAoAbrirAdministracao(); }
+  if (view === "usuario-acesso") usrRenderAcesso();
   if (view.startsWith("sv-")) svAoAbrirView(view);
   if (view.startsWith("crm-")) crmAoAbrirView(view);
 }
@@ -11832,87 +11835,14 @@ const ADMIN_VIEW_DEFS = [
   { key: "relatorios", label: "Relatórios" },
   { key: "historico", label: "Histórico" }
 ];
-const ADMIN_ROLE_LABEL = { editor: "Editor", viewer: "Somente leitura", representante: "Representante" };
 
-let adminUsuarios = [];
-let adminEditingUserId = null;
-
-async function renderAdministracao() {
+// A lista de usuários, "Novo usuário" e "Acesso de uma pessoa" moram no usuarios.js (usrAoAbrirAdministracao).
+function renderAdministracao() {
   if (configuracoesSite) {
     document.getElementById("configEstoqueBaixoLimite").value = configuracoesSite.estoque_baixo_limite;
     document.getElementById("configPropostaValidadeDias").value = configuracoesSite.proposta_validade_dias;
   }
-  const { data, error } = await sb.from("user_roles").select("*").order("email");
-  if (error) { toast("Erro ao carregar usuários: " + error.message); return; }
-  adminUsuarios = data || [];
-  renderAdminUsuariosTable();
-}
-
-function renderAdminUsuariosTable() {
-  document.getElementById("adminUsuariosTbody").innerHTML = adminUsuarios.map(u => `
-    <tr>
-      <td>${escapeHtml(u.nome || "—")}</td>
-      <td class="mono">${escapeHtml(u.email || "—")}</td>
-      <td>${escapeHtml(ADMIN_ROLE_LABEL[u.role] || u.role || "—")}</td>
-      <td>${u.is_admin ? "Sim" : "—"}</td>
-      <td><button type="button" class="btn small outline" data-editaruser="${escapeAttr(u.user_id)}">Editar</button></td>
-    </tr>
-  `).join("");
-  document.querySelectorAll("[data-editaruser]").forEach(btn => {
-    btn.addEventListener("click", () => abrirUsuarioEditModal(btn.dataset.editaruser));
-  });
-}
-
-function abrirUsuarioEditModal(userId) {
-  const u = adminUsuarios.find(x => x.user_id === userId);
-  if (!u) return;
-  adminEditingUserId = userId;
-  document.getElementById("usuarioEditNome").value = u.nome || "";
-  document.getElementById("usuarioEditEmail").textContent = u.email || "—";
-  document.getElementById("usuarioEditRole").value = u.role || "editor";
-  document.getElementById("usuarioEditIsAdmin").checked = !!u.is_admin;
-  document.getElementById("usuarioEditPodeAutorizar").checked = !!u.pode_autorizar_gerencia;
-  document.getElementById("usuarioEditPodeExportarBackup").checked = !!u.pode_exportar_backup;
-  document.getElementById("usuarioEditPodeSemVenda").checked = !!u.pode_acessar_sem_venda;
-  crmPreencherCamposUsuario(u);
-  const visibleViews = u.visible_views || null;
-  document.getElementById("usuarioEditVisibleViewsLista").innerHTML = ADMIN_VIEW_DEFS.map(v => `
-    <label class="dash-filter-item">
-      <input type="checkbox" data-viewkey="${escapeAttr(v.key)}" ${(!visibleViews || visibleViews.includes(v.key)) ? "checked" : ""}>
-      ${escapeHtml(v.label)}
-    </label>
-  `).join("");
-  document.getElementById("usuarioEditModalOverlay").classList.add("show");
-}
-
-function closeUsuarioEditModal() {
-  document.getElementById("usuarioEditModalOverlay").classList.remove("show");
-  adminEditingUserId = null;
-}
-
-async function salvarUsuarioEdit() {
-  if (!adminEditingUserId) return;
-  const nome = document.getElementById("usuarioEditNome").value.trim();
-  const role = document.getElementById("usuarioEditRole").value;
-  const isAdmin = document.getElementById("usuarioEditIsAdmin").checked;
-  const podeAutorizar = document.getElementById("usuarioEditPodeAutorizar").checked;
-  const podeExportarBackup = document.getElementById("usuarioEditPodeExportarBackup").checked;
-  const podeSemVenda = document.getElementById("usuarioEditPodeSemVenda").checked;
-  const checkboxes = Array.from(document.querySelectorAll("#usuarioEditVisibleViewsLista input"));
-  const marcados = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.viewkey);
-  const visibleViews = marcados.length === checkboxes.length ? null : marcados; // todos marcados = sem restrição
-  const payload = { nome: nome || null, role, is_admin: isAdmin, pode_autorizar_gerencia: podeAutorizar, pode_exportar_backup: podeExportarBackup, pode_acessar_sem_venda: podeSemVenda, visible_views: visibleViews };
-  // papel no CRM: só entra no payload se a coluna já existe no banco (sem o SQL do CRM o salvamento continua igual)
-  const crmCampos = crmLerCamposUsuario(adminUsuarios.find(x => x.user_id === adminEditingUserId) || {});
-  if (crmCampos === null) { toast("Escolha o sistema (Atacado ou Encomenda) do executivo."); return; }
-  Object.assign(payload, crmCampos);
-  const { error } = await sb.from("user_roles").update(payload).eq("user_id", adminEditingUserId);
-  if (error) { toast("Erro ao salvar usuário: " + error.message); return; }
-  const u = adminUsuarios.find(x => x.user_id === adminEditingUserId);
-  if (u) Object.assign(u, payload);
-  renderAdminUsuariosTable();
-  closeUsuarioEditModal();
-  toast("Usuário atualizado.");
+  usrAoAbrirAdministracao();
 }
 
 async function salvarConfiguracoesSite() {
@@ -11929,11 +11859,7 @@ async function salvarConfiguracoesSite() {
 
 function initAdministracao() {
   document.getElementById("btnSalvarConfigSite").addEventListener("click", salvarConfiguracoesSite);
-  document.getElementById("usuarioEditCancelar").addEventListener("click", closeUsuarioEditModal);
-  document.getElementById("usuarioEditModalOverlay").addEventListener("click", (e) => {
-    if (e.target.id === "usuarioEditModalOverlay") closeUsuarioEditModal();
-  });
-  document.getElementById("usuarioEditSalvar").addEventListener("click", salvarUsuarioEdit);
+  initUsuariosAdmin();
 }
 
 /* ---------------- menu mobile (gaveta lateral) ---------------- */

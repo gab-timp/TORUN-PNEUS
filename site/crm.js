@@ -959,31 +959,6 @@ async function carteiraCrmDosClientes(nomes) {
   return porCliente;
 }
 
-// Administração > Usuários: papel no CRM. Sem a coluna no banco (SQL do CRM não rodou) o bloco some e o salvamento
-// fica como era.
-function crmPreencherCamposUsuario(u) {
-  const existe = "crm_papel" in u;
-  document.getElementById("usuarioEditCrmBloco").style.display = existe ? "" : "none";
-  document.getElementById("usuarioEditCrmAviso").style.display = existe ? "none" : "";
-  document.getElementById("usuarioEditCrmPapel").value = u.crm_papel || "";
-  document.getElementById("usuarioEditCrmSistema").value = u.crm_sistema || "atacado";
-  crmAtualizarCampoSistemaUsuario();
-}
-
-function crmAtualizarCampoSistemaUsuario() {
-  document.getElementById("usuarioEditCrmSistemaCampo").style.display =
-    document.getElementById("usuarioEditCrmPapel").value === "executivo" ? "" : "none";
-}
-
-// campos do CRM pro update do usuário: {} se a coluna não existe, null se faltou o sistema do executivo
-function crmLerCamposUsuario(u) {
-  if (!("crm_papel" in u)) return {};
-  const papel = document.getElementById("usuarioEditCrmPapel").value || null;
-  const sistema = document.getElementById("usuarioEditCrmSistema").value || null;
-  if (papel === "executivo" && !sistema) return null;
-  return { crm_papel: papel, crm_sistema: papel === "executivo" ? sistema : null };
-}
-
 /* ---------------- ligações dos eventos da tela ---------------- */
 
 function crmClickDelegado(e) {
@@ -1012,7 +987,6 @@ function initCrmTelas() {
     crmRenderClientes();
   });
   document.getElementById("crmBtnAdicionar").addEventListener("click", crmAbrirAdicionar);
-  document.getElementById("usuarioEditCrmPapel").addEventListener("change", crmAtualizarCampoSistemaUsuario);
   document.getElementById("crmFicha").addEventListener("change", (e) => {
     if (e.target.id !== "crmFichaEtapa") return;
     const c = crmCarteiraPorId(crmUi.fichaId);

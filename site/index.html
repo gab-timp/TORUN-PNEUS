@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="styles.css?v=175">
 <link rel="stylesheet" href="semvenda.css?v=16">
 <link rel="stylesheet" href="crm.css?v=3">
+<link rel="stylesheet" href="usuarios.css?v=1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3112,7 +3113,33 @@
       <div class="page-head">
         <div>
           <h1>Administração</h1>
-          <div class="sub">Configurações do site e gerenciamento dos usuários — visível só pra administradores.</div>
+          <div class="sub">Usuários e acessos, configurações do site — visível só pra administradores.</div>
+        </div>
+      </div>
+
+      <div class="card usr-view" id="usrCard">
+        <div class="card-head"><h2>Usuários e acessos</h2><button type="button" class="btn primary" id="usrBtnNovo">+ Novo usuário</button></div>
+        <div class="note">Veja de relance quem entra em cada sistema e com qual papel. Clique em “Editar acesso” para mudar o acesso de uma pessoa.</div>
+        <div id="usrPendentes"></div>
+        <div class="form-row usr-filtros">
+          <div class="field grow"><label for="usrBusca">Buscar</label><input type="text" id="usrBusca" placeholder="Nome ou e-mail…" autocomplete="off"></div>
+          <div class="field"><label for="usrFiltroSistema">Quem acessa</label>
+            <select id="usrFiltroSistema"><option value="">Todos os sistemas</option><option value="semvenda">Sem Venda</option><option value="encomenda">Encomenda</option><option value="atacado">Atacado</option></select></div>
+          <div class="field"><label for="usrFiltroPapel">Papel</label>
+            <select id="usrFiltroPapel"><option value="">Todos os papéis</option><option value="executivo">Executivo</option><option value="financeiro">Financeiro</option><option value="gestao">Gestão / Direção</option><option value="admin">Administrador</option></select></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pessoa</th><th>Torun (Varejo)</th><th>Sem Venda</th><th>Encomenda</th><th>Atacado</th><th></th></tr></thead>
+            <tbody id="usrTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="usrVazio" style="display:none;"></div>
+        <div class="usr-legenda">
+          <span><span class="usr-selo exe">Executivo</span> só a própria carteira</span>
+          <span><span class="usr-selo fin">Financeiro</span> lê todas as carteiras</span>
+          <span><span class="usr-selo ges">Gestão</span> lê tudo e redistribui a carteira</span>
+          <span id="usrContagem"></span>
         </div>
       </div>
 
@@ -3155,24 +3182,11 @@
         <div class="empty-state" id="svVendEmpty" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
       </div>
 
-      <div class="card">
-        <div class="card-head"><h2>Usuários</h2></div>
-        <div class="note">Edite o papel, permissões e telas visíveis de quem já tem login. Criar um login novo continua sendo feito pelo Supabase.</div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>E-mail</th>
-                <th>Papel</th>
-                <th>Admin</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="adminUsuariosTbody"></tbody>
-          </table>
-        </div>
-      </div>
+    </section>
+
+    <!-- página "Acesso de uma pessoa" (abre pelo "Editar acesso" da lista de usuários; só administrador) -->
+    <section id="view-usuario-acesso" class="view usr-view">
+      <div id="usrAcesso"></div>
     </section>
 
   </main>
@@ -3444,63 +3458,58 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="usuarioEditModalOverlay">
-  <div class="modal">
-    <h3>Editar usuário</h3>
-    <div class="field">
-      <label>E-mail</label>
-      <div class="mono" id="usuarioEditEmail" style="padding:8px 0;"></div>
-    </div>
-    <div class="field">
-      <label>Nome</label>
-      <input type="text" id="usuarioEditNome">
-    </div>
-    <div class="field">
-      <label>Papel</label>
-      <select id="usuarioEditRole">
-        <option value="editor">Editor</option>
-        <option value="viewer">Somente leitura</option>
-        <option value="representante">Representante</option>
-      </select>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="usuarioEditIsAdmin"> Administrador</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="usuarioEditPodeAutorizar"> Pode tirar pedidos de "Autorização de Gerência"</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="usuarioEditPodeExportarBackup"> Pode exportar backup</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="usuarioEditPodeSemVenda"> Pode acessar o Sem Venda (administradores sempre podem)</label>
-    </div>
-    <div id="usuarioEditCrmBloco">
-      <div class="field">
-        <label for="usuarioEditCrmPapel">Papel no CRM (Atacado e Encomenda)</label>
-        <select id="usuarioEditCrmPapel">
-          <option value="">Sem acesso ao CRM</option>
-          <option value="executivo">Executivo — vê só a própria carteira</option>
-          <option value="financeiro">Financeiro — lê todas as carteiras</option>
-          <option value="gestao">Gestão / Direção — lê tudo e redistribui carteira</option>
-        </select>
+<div class="modal-overlay" id="usrNovoOverlay">
+  <div class="modal usr-modal" role="dialog" aria-labelledby="usrNovoTitulo">
+    <div class="usr-modal-topo">
+      <div>
+        <h3 id="usrNovoTitulo">Novo usuário</h3>
+        <div class="muted usr-sub" id="usrNovoSub"></div>
       </div>
-      <div class="field" id="usuarioEditCrmSistemaCampo">
-        <label for="usuarioEditCrmSistema">Sistema do executivo</label>
-        <select id="usuarioEditCrmSistema">
-          <option value="atacado">Atacado</option>
-          <option value="encomenda">Encomenda</option>
-        </select>
+      <button type="button" class="usr-fechar" id="usrNovoFechar" aria-label="Fechar">✕</button>
+    </div>
+    <div class="usr-novo-layout">
+      <div class="usr-novo-form">
+        <div class="usr-passo">1. Quem é</div>
+        <div class="form-row">
+          <div class="field grow"><label for="usrNovoNome">Nome completo</label><input type="text" id="usrNovoNome" maxlength="80" autocomplete="off"></div>
+          <div class="field grow"><label for="usrNovoEmail">E-mail de acesso</label><input type="email" id="usrNovoEmail" autocomplete="off"></div>
+        </div>
+        <div class="field" id="usrNovoSenhaCampo">
+          <label for="usrNovoSenha">Senha provisória</label>
+          <div class="usr-senha-linha">
+            <input type="text" id="usrNovoSenha" class="mono" autocomplete="off" spellcheck="false">
+            <button type="button" class="btn small outline" id="usrNovoGerar">Gerar outra</button>
+          </div>
+          <div class="note">Anote e passe a senha para a pessoa: o sistema ainda não tem tela para ela trocar a própria senha.</div>
+        </div>
+        <div class="usr-passo">2. O que ela faz? Escolha um perfil</div>
+        <div class="usr-perfis" id="usrNovoPerfis"></div>
+        <div class="note">Precisa de algo diferente? Crie com o perfil mais próximo e ajuste depois em “Editar acesso”.</div>
+      </div>
+      <div class="usr-novo-resumo" id="usrNovoResumo"></div>
+    </div>
+    <div class="note crm-erro" id="usrNovoErro" style="display:none;"></div>
+    <div class="usr-modal-rodape">
+      <span class="muted usr-sub" id="usrNovoRodape"></span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="usrNovoCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="usrNovoSalvar">Criar usuário</button>
       </div>
     </div>
-    <div class="note" id="usuarioEditCrmAviso" style="display:none;">O papel no CRM só aparece depois de rodar o SQL do CRM (sql/crm_nucleo.sql).</div>
-    <div class="field">
-      <label>Telas visíveis (todas marcadas = sem restrição)</label>
-      <div id="usuarioEditVisibleViewsLista" style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:8px;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="usrCredOverlay">
+  <div class="modal" role="dialog" aria-labelledby="usrCredTitulo">
+    <h3 id="usrCredTitulo">Usuário criado</h3>
+    <p><b id="usrCredNome"></b> já pode entrar. Anote os dados agora: depois não dá para ver a senha de novo.</p>
+    <div class="usr-cred">
+      <div><span class="usr-rot">E-mail</span><div class="mono" id="usrCredEmail"></div></div>
+      <div><span class="usr-rot">Senha provisória</span><div class="mono usr-cred-senha" id="usrCredSenha"></div></div>
     </div>
     <div class="form-actions">
-      <button class="btn outline" id="usuarioEditCancelar">Cancelar</button>
-      <button class="btn primary" id="usuarioEditSalvar">Salvar</button>
+      <button type="button" class="btn outline" id="usrCredCopiar">Copiar dados de acesso</button>
+      <button type="button" class="btn primary" id="usrCredFechar">Pronto</button>
     </div>
   </div>
 </div>
@@ -4221,7 +4230,8 @@
 </div>
 
 <script src="semvenda.js?v=20"></script>
-<script src="crm.js?v=2"></script>
-<script src="app.js?v=273"></script>
+<script src="crm.js?v=4"></script>
+<script src="usuarios.js?v=1"></script>
+<script src="app.js?v=274"></script>
 </body>
 </html>
