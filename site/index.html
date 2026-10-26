@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="styles.css?v=175">
 <link rel="stylesheet" href="semvenda.css?v=16">
 <link rel="stylesheet" href="crm.css?v=3">
-<link rel="stylesheet" href="usuarios.css?v=2">
+<link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -175,6 +175,7 @@
       <g id="i-upload" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14V4m0 0L6 8m4-4 4 4M4 16h12"/></g>
       <g id="i-camera" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h2.4L7 4.5h6L14.6 7H17a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="3"/></g>
       <g id="i-user" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.7" r="3.2"/><path d="M3.3 16.5c.7-3.5 2.9-5.3 6.7-5.3s6 1.8 6.7 5.3"/></g>
+      <g id="i-lock" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></g>
       <g id="i-palette" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 0 0 15c1 0 1.6-.7 1.6-1.5 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.5A3.3 3.3 0 0 0 17 9.3C17 5.5 13.9 2.5 10 2.5Z"/><circle cx="6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="5.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="6.5" r=".9" fill="currentColor" stroke="none"/></g>
       <g id="i-pencil" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12.3 3.3 16.7 7.7 7 17.4 2.5 18l.6-4.5Z"/><path d="M10.9 4.7 15.3 9.1"/></g>
       <g id="i-clipboard-check" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -3402,6 +3403,42 @@
         </div>
       </div>
 
+      <div class="drawer-section" id="minhaSenhaSecao">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-lock"/></svg></span><h4>Senha</h4></div>
+        <div class="senha-ok" id="minhaSenhaOk" role="status" style="display:none;">
+          <svg class="ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5 8.5 14.5 15.5 6"/></svg>
+          <div><b>Senha alterada.</b> Use a nova senha no próximo login.</div>
+        </div>
+        <div id="minhaSenhaFechada">
+          <div class="senha-desc">Troque a senha por uma só sua. Vale na hora, sem precisar de “Salvar alterações”.</div>
+          <button type="button" class="btn small outline" id="minhaSenhaAbrir">Trocar senha</button>
+        </div>
+        <div id="minhaSenhaAberta" style="display:none;">
+          <div class="drawer-field" id="minhaSenhaAtualCampo">
+            <label for="minhaSenhaAtual">Senha atual</label>
+            <input type="password" id="minhaSenhaAtual" autocomplete="current-password" maxlength="72">
+            <div class="senha-msg" id="minhaSenhaAtualMsg" role="alert" style="display:none;"></div>
+          </div>
+          <div class="drawer-field" id="minhaSenhaNovaCampo">
+            <label for="minhaSenhaNova">Nova senha</label>
+            <input type="password" id="minhaSenhaNova" autocomplete="new-password" maxlength="72">
+            <div class="hint">Mínimo de 8 caracteres.</div>
+            <div class="senha-msg" id="minhaSenhaNovaMsg" role="alert" style="display:none;"></div>
+          </div>
+          <div class="drawer-field" id="minhaSenhaRepetirCampo">
+            <label for="minhaSenhaRepetir">Repetir a nova senha</label>
+            <input type="password" id="minhaSenhaRepetir" autocomplete="new-password" maxlength="72">
+            <div class="senha-msg" id="minhaSenhaRepetirMsg" role="alert" style="display:none;"></div>
+          </div>
+          <label class="senha-mostrar"><input type="checkbox" id="minhaSenhaMostrar">Mostrar as senhas</label>
+          <div class="senha-acoes">
+            <button type="button" class="btn small outline" id="minhaSenhaCancelar">Cancelar</button>
+            <button type="button" class="btn small primary" id="minhaSenhaSalvar">Salvar nova senha</button>
+          </div>
+          <div class="senha-desc">Você continua logado neste aparelho.</div>
+        </div>
+      </div>
+
       <div class="drawer-section">
         <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-palette"/></svg></span><h4>Aparência</h4></div>
         <div class="drawer-field">
@@ -4255,7 +4292,7 @@
 
 <script src="semvenda.js?v=20"></script>
 <script src="crm.js?v=4"></script>
-<script src="usuarios.js?v=3"></script>
-<script src="app.js?v=274"></script>
+<script src="usuarios.js?v=4"></script>
+<script src="app.js?v=275"></script>
 </body>
 </html>

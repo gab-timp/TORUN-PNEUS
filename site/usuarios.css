@@ -128,3 +128,15 @@
   .usr-novo-layout{grid-template-columns:minmax(0,1fr);}
   .usr-novo-resumo{border-left:0;border-top:1px solid var(--line);}
 }
+
+/* ---------------- Minhas configurações: trocar a própria senha ---------------- */
+/* Seção "Senha" da gaveta de perfil. Mockup: https://claude.ai/artifact/7NzQ2965jvsAbCziz9FjEv (telas 6 a 8) */
+.senha-desc{font-size:11px;color:var(--ink-soft);line-height:1.5;margin-bottom:12px;}
+.senha-acoes + .senha-desc{margin:12px 0 0;}
+.senha-acoes{display:flex;justify-content:flex-end;gap:10px;}
+.senha-mostrar{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;margin:2px 0 14px;cursor:pointer;}
+.senha-mostrar input{margin:0;accent-color:var(--orange);}
+.senha-msg{font-size:11.5px;line-height:1.5;margin-top:6px;color:var(--danger);font-weight:600;}
+.senha-campo-erro input{border-color:var(--danger);background:var(--surface);box-shadow:0 0 0 3px var(--danger-pale);}
+.senha-ok{display:flex;align-items:flex-start;gap:10px;background:var(--status-good-pale);color:var(--status-good-deep);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.5;}
+.senha-ok .ic{width:16px;height:16px;flex:0 0 auto;margin-top:2px;}

@@ -700,3 +700,108 @@ function initUsuariosAdmin() {
   document.getElementById("usrCredCopiar").addEventListener("click", usrCopiarCredenciais);
   document.getElementById("usrCredFechar").addEventListener("click", () => document.getElementById("usrCredOverlay").classList.remove("show"));
 }
+
+/* ---------------- Minhas configurações: trocar a própria senha ---------------- */
+/* Seção "Senha" da gaveta de perfil, para qualquer pessoa logada. Não usa a função do Supabase nem SQL: confere a senha
+   atual entrando de novo com ela (signInWithPassword) e troca com o próprio login (updateUser). Vale na hora e não
+   depende do botão "Salvar alterações" da gaveta. Mockup: https://claude.ai/artifact/7NzQ2965jvsAbCziz9FjEv (telas 6 a 8) */
+
+const senhaUi = { salvando: false };
+const SENHA_CAMPOS = ["Atual", "Nova", "Repetir"];
+const senhaEl = (id) => document.getElementById(id);
+
+function senhaLimparErros() {
+  SENHA_CAMPOS.forEach(k => {
+    senhaEl(`minhaSenha${k}Campo`).classList.remove("senha-campo-erro");
+    const m = senhaEl(`minhaSenha${k}Msg`);
+    m.style.display = "none";
+    m.textContent = "";
+  });
+}
+
+function senhaErro(campo, texto) {
+  senhaEl(`minhaSenha${campo}Campo`).classList.add("senha-campo-erro");
+  const m = senhaEl(`minhaSenha${campo}Msg`);
+  m.textContent = texto;
+  m.style.display = "block";
+  senhaEl(`minhaSenha${campo}`).focus();
+}
+
+function senhaMostrar(visivel) {
+  SENHA_CAMPOS.forEach(k => { senhaEl(`minhaSenha${k}`).type = visivel ? "text" : "password"; });
+}
+
+// volta a seção ao estado recolhido (a gaveta chama ao abrir, para nunca reaparecer com senha digitada)
+function senhaResetar() {
+  SENHA_CAMPOS.forEach(k => { senhaEl(`minhaSenha${k}`).value = ""; });
+  senhaEl("minhaSenhaMostrar").checked = false;
+  senhaMostrar(false);
+  senhaLimparErros();
+  senhaEl("minhaSenhaOk").style.display = "none";
+  senhaEl("minhaSenhaAberta").style.display = "none";
+  senhaEl("minhaSenhaFechada").style.display = "";
+  senhaEl("minhaSenhaAbrir").textContent = "Trocar senha";
+  senhaEl("minhaSenhaFechada").querySelector(".senha-desc").style.display = "";
+}
+
+function senhaAbrir() {
+  senhaEl("minhaSenhaOk").style.display = "none";
+  senhaEl("minhaSenhaFechada").style.display = "none";
+  senhaEl("minhaSenhaAberta").style.display = "";
+  senhaEl("minhaSenhaAtual").focus();
+}
+
+async function senhaSalvar() {
+  if (senhaUi.salvando) return;
+  senhaLimparErros();
+  const atual = senhaEl("minhaSenhaAtual").value;
+  const nova = senhaEl("minhaSenhaNova").value;
+  const repetir = senhaEl("minhaSenhaRepetir").value;
+  if (!atual) { senhaErro("Atual", "Digite a senha atual."); return; }
+  if (nova.length < 8) { senhaErro("Nova", "A nova senha precisa ter pelo menos 8 caracteres."); return; }
+  if (nova === atual) { senhaErro("Nova", "A nova senha precisa ser diferente da atual."); return; }
+  if (repetir !== nova) { senhaErro("Repetir", "As duas senhas novas não são iguais."); return; }
+  if (!currentUser || !currentUser.email) { toast("Entre de novo no sistema e tente outra vez."); return; }
+
+  senhaUi.salvando = true;
+  const botao = senhaEl("minhaSenhaSalvar");
+  botao.disabled = true;
+  try {
+    // 1) confere a senha atual: entrar de novo com ela (mesma pessoa, então a sessão segue igual)
+    const conferencia = await sb.auth.signInWithPassword({ email: currentUser.email, password: atual });
+    if (conferencia.error) {
+      const msg = String(conferencia.error.message || "");
+      senhaErro("Atual", /invalid|credential/i.test(msg)
+        ? "A senha atual não confere. Se você esqueceu, peça ao administrador para redefinir."
+        : "Não foi possível conferir a senha atual: " + msg);
+      return;
+    }
+    // 2) troca
+    const { error } = await sb.auth.updateUser({ password: nova });
+    if (error) {
+      const msg = String(error.message || "");
+      if (/different from the old|same_password/i.test(msg + (error.code || ""))) senhaErro("Nova", "A nova senha precisa ser diferente da atual.");
+      else if (/weak|at least|short|characters/i.test(msg)) senhaErro("Nova", "O sistema não aceitou essa senha (curta ou fraca demais). Escolha outra.");
+      else senhaErro("Nova", "Não foi possível trocar a senha: " + msg);
+      return;
+    }
+    senhaResetar();
+    senhaEl("minhaSenhaOk").style.display = "";
+    senhaEl("minhaSenhaAbrir").textContent = "Trocar senha de novo";
+    senhaEl("minhaSenhaFechada").querySelector(".senha-desc").style.display = "none";
+    // trilha de auditoria: quem trocou a própria senha (a senha nunca vai para o log)
+    Promise.resolve(registrarLog("user_roles", currentUser.id, "edicao", "Senha alterada", `${currentUser.email} trocou a própria senha`)).catch(() => {});
+  } finally {
+    senhaUi.salvando = false;
+    botao.disabled = false;
+  }
+}
+
+function initMinhaSenha() {
+  if (!senhaEl("minhaSenhaSecao")) return;
+  senhaEl("minhaSenhaAbrir").addEventListener("click", senhaAbrir);
+  senhaEl("minhaSenhaCancelar").addEventListener("click", senhaResetar);
+  senhaEl("minhaSenhaSalvar").addEventListener("click", senhaSalvar);
+  senhaEl("minhaSenhaMostrar").addEventListener("change", (e) => senhaMostrar(e.target.checked));
+  SENHA_CAMPOS.forEach(k => senhaEl(`minhaSenha${k}`).addEventListener("keydown", (e) => { if (e.key === "Enter") senhaSalvar(); }));
+}

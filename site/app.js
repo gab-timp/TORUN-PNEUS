@@ -11728,6 +11728,7 @@ function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNotifPrevisto").checked = currentUserNotifPrevistoChegando;
   document.getElementById("minhasConfigNotifPrecadastro").checked = currentUserNotifPrecadastroNovo;
   renderMinhasConfigAvatarPreview();
+  senhaResetar();
   document.getElementById("minhasConfigOverlay").classList.add("show");
 }
 
@@ -11784,6 +11785,7 @@ async function uploadAvatar(file) {
 }
 
 function initMinhasConfiguracoes() {
+  initMinhaSenha();
   document.getElementById("sidebarUser").addEventListener("click", abrirMinhasConfiguracoesModal);
   document.getElementById("minhasConfigCancelar").addEventListener("click", closeMinhasConfiguracoesModal);
   document.getElementById("minhasConfigCancelarFoot").addEventListener("click", closeMinhasConfiguracoesModal);
