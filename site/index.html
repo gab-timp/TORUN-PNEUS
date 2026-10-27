@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=175">
-<link rel="stylesheet" href="semvenda.css?v=19">
+<link rel="stylesheet" href="semvenda.css?v=20">
 <link rel="stylesheet" href="crm.css?v=3">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -741,13 +741,15 @@
           <div class="sv-res-controles">
             <input type="text" id="svResSearch" class="sv-res-busca" placeholder="Cliente, produto, vendedor…" aria-label="Buscar reserva" autocomplete="off">
             <div class="sv-chips" id="svResChips" role="group" aria-label="Mostrar"></div>
+            <span class="sv-chips-sep" aria-hidden="true"></span>
+            <div class="sv-chips" id="svResChipsUnidade" role="group" aria-label="Unidade de negócio"></div>
           </div>
         </div>
         <div class="table-wrap">
           <table class="sv-res-tabela">
             <colgroup>
-              <col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:11%"><col style="width:13%">
-              <col style="width:10%"><col style="width:4%"><col style="width:12%"><col style="width:9%"><col style="width:13%">
+              <col style="width:8.5%"><col style="width:8.5%"><col style="width:7%"><col style="width:10%"><col style="width:11%"><col style="width:9%">
+              <col style="width:9%"><col style="width:4%"><col style="width:12%"><col style="width:8.5%"><col style="width:12.5%">
             </colgroup>
             <thead>
               <tr>
@@ -757,6 +759,7 @@
                 <th>Representante</th>
                 <th>Forma de pagamento</th>
                 <th>Transporte</th>
+                <th>Unidade</th>
                 <th>Qtd.</th>
                 <th>Situação</th>
                 <th>Data</th>
@@ -3691,11 +3694,18 @@
         <div class="sv-aviso" id="svResDisp" style="display:none;"></div>
         <div class="sv-erro-msg" id="svResErro_produto" role="alert"></div>
       </div>
-      <div class="field" id="svResCampo_cliente">
-        <label for="svResCliente">Cliente</label>
-        <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente já cadastrado no Torun…" autocomplete="off">
-        <datalist id="svListaClientes"></datalist>
-        <div class="sv-erro-msg" id="svResErro_cliente" role="alert"></div>
+      <div class="sv-res-linha">
+        <div class="field sv-f-cliente" id="svResCampo_cliente">
+          <label for="svResCliente">Cliente</label>
+          <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente já cadastrado no Torun…" autocomplete="off">
+          <datalist id="svListaClientes"></datalist>
+          <div class="sv-erro-msg" id="svResErro_cliente" role="alert"></div>
+        </div>
+        <div class="field" id="svResCampo_unidade">
+          <label for="svResUnidade">Unidade de negócio</label>
+          <select id="svResUnidade"></select>
+          <div class="sv-erro-msg" id="svResErro_unidade" role="alert"></div>
+        </div>
       </div>
       <div class="sv-res-linha">
         <div class="field" id="svResCampo_vendedor">
@@ -4395,7 +4405,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=23"></script>
+<script src="semvenda.js?v=24"></script>
 <script src="crm.js?v=4"></script>
 <script src="usuarios.js?v=4"></script>
 <script src="app.js?v=275"></script>

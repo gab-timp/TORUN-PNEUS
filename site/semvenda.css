@@ -135,8 +135,11 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-chip:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
 .sv-res-tabela{table-layout:fixed;}
 .sv-res-tabela th{white-space:normal;vertical-align:bottom;}
-.sv-res-tabela th, .sv-res-tabela td{padding-left:6px;padding-right:6px;overflow-wrap:anywhere;}
-.sv-res-tabela th{font-size:9.5px;letter-spacing:.03em;}
+.sv-res-tabela th, .sv-res-tabela td{padding-left:4px;padding-right:4px;overflow-wrap:anywhere;}
+/* 11 colunas: letra e espaços menores para nenhuma palavra quebrar no meio nem a tabela rolar em 1280 px */
+.sv-res-tabela th{font-size:9px;letter-spacing:.02em;}
+.sv-res-tabela td{font-size:11.5px;}
+.sv-res-tabela .mono{font-size:11px;}
 .sv-res-tabela td{vertical-align:top;}
 .sv-res-tabela .status-pill{white-space:normal;line-height:1.25;}
 .sv-obs{font-size:11px;font-style:italic;color:var(--ink-soft);margin-top:3px;}
@@ -144,6 +147,16 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-tt.nosso{background:var(--blue-pale);color:var(--blue-deep);}
 .sv-tt.cli{background:var(--paper-2);color:var(--ink);}
 .sv-transp{font-size:11px;margin-top:3px;}
+
+/* unidade de negócio: selo na lista, filtro e campo da janela */
+.sv-un{display:inline-block;font-size:10px;font-weight:800;border-radius:6px;padding:3px 6px;line-height:1.3;}
+.sv-un.atacado{background:var(--ink);color:var(--surface);}
+.sv-un.encomenda{background:var(--orange-pale);color:var(--orange-deep);}
+.sv-chip-un{border-color:var(--orange);}
+.sv-chip-un.on{background:var(--orange-deep);border-color:var(--orange-deep);color:#fff;}
+.sv-chip-un.on b{color:var(--orange-pale);opacity:1;}
+.sv-chips-sep{width:1px;height:22px;background:var(--line-strong);opacity:.35;margin:0 2px;}
+.sv-res-linha > .sv-f-cliente{flex:2 1 0;}
 
 /* Confirmar venda: valor recebido (Trademaster) e divisão do pagamento, como no Varejo */
 #svVendaOverlay .modal{max-width:580px;width:100%;}
@@ -163,7 +176,7 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-valor{font-size:11.5px;font-weight:700;margin-top:4px;}
 .sv-res-tabela .sv-acoes{white-space:normal;}
 .sv-res-tabela td.sv-acoes{padding-left:4px;padding-right:2px;}
-.sv-res-tabela .sv-vender{padding:5px 7px;font-size:11.5px;}
+.sv-res-tabela .sv-vender{padding:5px 6px;font-size:11px;}
 .sv-vender{color:var(--status-good);border-color:var(--status-good);white-space:nowrap;}
 .sv-vender:hover{color:var(--status-good-deep);border-color:var(--status-good-deep);}
 .sv-cancelar{display:block;margin:7px 0 0;text-align:left;}

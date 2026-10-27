@@ -137,6 +137,7 @@ function svReservaFromRow(r) {
     previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
     condicaoPagamento: r.condicao_pagamento || "", // condição em texto da lista antiga: só leitura, mostrada como "condição antiga"
     formaPagamento: r.forma_pagamento || "",
+    unidadeNegocio: r.unidade_negocio || "",
     divisaoPagamento: Array.isArray(r.divisao_pagamento) ? r.divisao_pagamento : null,
     valorRecebido: r.valor_recebido === null || r.valor_recebido === undefined ? null : Number(r.valor_recebido),
     tipoTransporte: r.tipo_transporte || "", transportadora: r.transportadora || "",
@@ -152,7 +153,7 @@ function svReservaToRow(r) {
     id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente,
     vendedor_interno: r.vendedorInterno, representante: r.representante || null,
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
-    situacao: r.situacao, data: r.data, obs: r.obs || null, forma_pagamento: r.formaPagamento || null,
+    situacao: r.situacao, data: r.data, obs: r.obs || null, forma_pagamento: r.formaPagamento || null, unidade_negocio: r.unidadeNegocio || null,
     tipo_transporte: r.tipoTransporte || null, transportadora: r.transportadora || null
   };
 }
@@ -1097,7 +1098,10 @@ const SV_RES_FILTROS = [
   { chave: "canceladas", rotulo: "Canceladas" },
   { chave: "todas", rotulo: "Todas" }
 ];
-const SV_CAMPOS_RES = ["produto", "cliente", "vendedor", "representante", "forma", "quantidade", "data", "tipotransp", "transportadora"];
+const SV_CAMPOS_RES = ["produto", "cliente", "unidade", "vendedor", "representante", "forma", "quantidade", "data", "tipotransp", "transportadora"];
+// de qual unidade é a venda (check em sv_reservas.unidade_negocio); só informação, não limita quem vê a reserva
+const SV_UNIDADES = { ATACADO: "Atacado", ENCOMENDA: "Encomenda" };
+let svResUnidadeAtual = ""; // filtro da lista: "" = todas
 // as mesmas formas de pagamento do Varejo (check em sv_reservas.forma_pagamento)
 const SV_FORMAS_PAGAMENTO = ["PIX", "CARTÃO", "BOLETO PRÓPRIO", "BOLETO TRADEMASTER"];
 // quem cuida do frete: o valor vai pro banco (check em sv_reservas), o texto aparece na tela
@@ -1323,7 +1327,14 @@ function svRenderReservaForm() {
   if ([...selRep.options].some(o => o.value === repAnterior)) selRep.value = repAnterior;
 
   const selForma = document.getElementById("svResForma");
-  selForma.innerHTML = svOpcoesForma(selForma.value); // mantém a escolha quando a lista é refeita
+  const formaAnterior = selForma.value;
+  selForma.innerHTML = svOpcoesForma("");
+  selForma.value = formaAnterior; // mantém a escolha quando a lista é refeita (por valor, não por "selected": o reset da janela não pode trazê-la de volta)
+  const selUnidade = document.getElementById("svResUnidade");
+  const unidadeAnterior = selUnidade.value;
+  selUnidade.innerHTML = `<option value="">Selecione…</option>` +
+    Object.entries(SV_UNIDADES).map(([valor, rotulo]) => `<option value="${valor}">${escapeHtml(rotulo)}</option>`).join("");
+  selUnidade.value = unidadeAnterior;
 
   const selTipo = document.getElementById("svResTipoTransporte");
   const tipoAnterior = selTipo.value;
@@ -1379,16 +1390,21 @@ function svRenderReservaChips() {
     const ligado = f.chave === svResFiltroAtual;
     return `<button type="button" class="sv-chip${ligado ? " on" : ""}" data-svfiltro="${f.chave}" aria-pressed="${ligado}">${escapeHtml(f.rotulo)} <b>${fmt(svFiltrarPorSituacao(svState.reservas, f.chave).length)}</b></button>`;
   }).join("");
+  document.getElementById("svResChipsUnidade").innerHTML = Object.entries(SV_UNIDADES).map(([valor, rotulo]) => {
+    const ligado = valor === svResUnidadeAtual;
+    return `<button type="button" class="sv-chip sv-chip-un${ligado ? " on" : ""}" data-svunidade="${valor}" aria-pressed="${ligado}">${escapeHtml(rotulo)} <b>${fmt(svState.reservas.filter(r => r.unidadeNegocio === valor).length)}</b></button>`;
+  }).join("");
 }
 
 function svRenderReservaTabela() {
   svRenderReservaChips();
   const busca = (document.getElementById("svResSearch").value || "").trim().toLowerCase();
   let rows = svFiltrarPorSituacao(svState.reservas.slice(), svResFiltroAtual);
+  if (svResUnidadeAtual) rows = rows.filter(r => r.unidadeNegocio === svResUnidadeAtual);
   if (busca) {
     rows = rows.filter(r => {
       const p = svGetProduto(r.codigo);
-      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.formaPagamento, r.condicaoPagamento, r.transportadora, r.obs].join(" ").toLowerCase().includes(busca);
+      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.formaPagamento, r.condicaoPagamento, r.transportadora, SV_UNIDADES[r.unidadeNegocio] || "", r.obs].join(" ").toLowerCase().includes(busca);
     });
   }
   rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -1430,6 +1446,7 @@ function svRenderReservaTabela() {
         <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
         <td>${svFormaCelula(r)}</td>
         <td>${r.tipoTransporte ? `<span class="sv-tt ${r.tipoTransporte === "NOSSO" ? "nosso" : "cli"}">${escapeHtml(SV_TIPOS_TRANSPORTE[r.tipoTransporte] || r.tipoTransporte)}</span>${r.transportadora ? `<div class="sv-transp">${escapeHtml(r.transportadora)}</div>` : ""}` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
+        <td>${r.unidadeNegocio ? `<span class="sv-un ${r.unidadeNegocio === "ATACADO" ? "atacado" : "encomenda"}">${escapeHtml(SV_UNIDADES[r.unidadeNegocio] || r.unidadeNegocio)}</span>` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td class="mono">${fmt(r.quantidade)}</td>
         <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span>${sitExtra}</td>
         <td><span class="mono">${r.data ? formatDateBR(r.data) : "—"}</span>${dataExtra ? `<div class="muted sv-sub">${escapeHtml(dataExtra)}</div>` : ""}</td>
@@ -1712,11 +1729,18 @@ function svLigarReserva() {
     svResFiltroAtual = b.dataset.svfiltro;
     svRenderReservaTabela();
   });
+  $("svResChipsUnidade").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-svunidade]");
+    if (!b) return;
+    svResUnidadeAtual = svResUnidadeAtual === b.dataset.svunidade ? "" : b.dataset.svunidade; // clicar de novo desliga
+    svRenderReservaTabela();
+  });
   $("svResEmpty").addEventListener("click", (e) => {
     if (e.target.closest("#svBtnNovaReservaVazio")) svAbrirNovaReserva();
     else if (e.target.closest("#svResLimpar")) {
       $("svResSearch").value = "";
       svResFiltroAtual = "ativas_vendidas";
+      svResUnidadeAtual = "";
       svRenderReservaTabela();
     }
   });
@@ -1765,6 +1789,7 @@ async function svSalvarReservaDados() {
   const vendedorInterno = document.getElementById("svResVendedor").value;
   const escolhaRepresentante = document.getElementById("svResRepresentante").value;
   const forma = document.getElementById("svResForma").value;
+  const unidade = document.getElementById("svResUnidade").value;
   const tipoTransporte = document.getElementById("svResTipoTransporte").value;
   const transportadora = document.getElementById("svResTransportadora").value;
   const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
@@ -1779,6 +1804,7 @@ async function svSalvarReservaDados() {
   else if (!cliente) erros.push(["cliente", "Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."]);
   if (!vendedorInterno) erros.push(["vendedor", svVendedores.length ? "Escolha o vendedor interno." : "Cadastre os vendedores em Administração antes de reservar."]);
   if (!escolhaRepresentante) erros.push(["representante", 'Escolha o representante ou marque "Sem representante".']);
+  if (!unidade) erros.push(["unidade", "Escolha a unidade de negócio."]);
   if (!forma) erros.push(["forma", "Escolha a forma de pagamento."]);
   if (!tipoTransporte) erros.push(["tipotransp", "Escolha o tipo de transporte."]);
   if (!transportadora) erros.push(["transportadora", svTransportadoras.length ? "Escolha a transportadora." : "Cadastre as transportadoras em Administração antes de reservar."]);
@@ -1821,7 +1847,7 @@ async function svSalvarReservaDados() {
     id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, vendedorInterno, representante,
     armazem: opcao.tipo === "E" ? opcao.armazem : null,
     previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
-    formaPagamento: forma, tipoTransporte, transportadora,
+    formaPagamento: forma, unidadeNegocio: unidade, tipoTransporte, transportadora,
     situacao: "ATIVA", data, obs
   };
   const { data: inserida, error } = await sb.from("sv_reservas").insert({ ...svReservaToRow(nova), created_by: currentUser ? currentUser.id : null }).select();
