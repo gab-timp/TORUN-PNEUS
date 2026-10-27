@@ -155,6 +155,10 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-chip-un{border-color:var(--orange);}
 .sv-chip-un.on{background:var(--orange-deep);border-color:var(--orange-deep);color:#fff;}
 .sv-chip-un.on b{color:var(--orange-pale);opacity:1;}
+.sv-un.ambos{background:var(--tint-orange);color:var(--orange-deep);border:1px solid var(--orange);}
+.sv-cli-chips{margin-top:8px;}
+#svResNovoCliente{margin-top:5px;font-size:12px;}
+#view-sv-clientes .split-row-top .sv-un{flex:0 0 auto;}
 .sv-chips-sep{width:1px;height:22px;background:var(--line-strong);opacity:.35;margin:0 2px;}
 .sv-res-linha > .sv-f-cliente{flex:2 1 0;}
 

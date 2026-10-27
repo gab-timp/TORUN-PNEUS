@@ -221,8 +221,10 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
-  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
+  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco", "sv-clientes"].includes(view)) return;
   if (!(await svCarregarDados())) return;
+  // o cadastro de clientes tem carga própria (tabela sv_clientes): só as telas que o usam dependem dele
+  if (["sv-clientes", "sv-reserva", "sv-relatoriopreco"].includes(view) && !(await svCarregarClientes(view === "sv-clientes"))) return;
   // as listas de vendedores e de condições de pagamento têm carga própria: se a tabela não existir, só a Reserva reclama
   if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarTransportadoras()]);
   if (view === "sv-produtos") svRenderProdutos();
@@ -231,6 +233,7 @@ async function svAoAbrirView(view) {
   else if (view === "sv-dashboard") svRenderDashboard();
   else if (view === "sv-armazenagem") svRenderArmazenagem();
   else if (view === "sv-relatoriopreco") svAbrirProposta();
+  else if (view === "sv-clientes") svRenderClientes();
   else svRenderReserva();
 }
 
@@ -1307,7 +1310,7 @@ function svRenderReservaForm() {
   if (svPickerAberto) svRenderPickerOpcoes();
 
   document.getElementById("svListaClientes").innerHTML =
-    (state.clientes || []).map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
+    svClientes.map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
 
   // Vendedor interno (lista cadastrada em Administração), Representante (ativos, ou "Sem representante") e
   // Forma de pagamento (fixa, a do Varejo). Todos começam em "Selecione…": nenhum vem preenchido sozinho.
@@ -1371,6 +1374,7 @@ function svFecharNovaReserva() {
 function svAoMudarFormReserva(e) {
   const campo = e.target.closest("[id^='svResCampo_']");
   if (campo) svLimparErroCampo(campo.id.replace("svResCampo_", ""));
+  if (e.target.id === "svResCliente") svPreencherUnidadeDoCliente();
   if (e.target.id === "svResQuantidade" || e.target.id === "svResCliente") svAtualizarResumoReserva();
 }
 
@@ -1745,6 +1749,7 @@ function svLigarReserva() {
     }
   });
   $("svBtnNovaReserva").addEventListener("click", svAbrirNovaReserva);
+  $("svResNovoCliente").addEventListener("click", () => svAbrirClienteModal(null, true));
   $("svResFechar").addEventListener("click", svFecharNovaReserva);
   $("svResCancelar").addEventListener("click", svFecharNovaReserva);
   $("svResOverlay").addEventListener("keydown", (e) => {
@@ -1795,13 +1800,13 @@ async function svSalvarReservaDados() {
   const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
   const data = document.getElementById("svResData").value;
   const obs = document.getElementById("svResObs").value.trim();
-  const cliente = (state.clientes || []).find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
+  const cliente = svClientes.find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
 
   // confere tudo de uma vez e marca cada campo com problema (em vez de avisar um por vez)
   const erros = [];
   if (!opcao) erros.push(["produto", "Escolha o produto."]);
   if (!clienteDigitado) erros.push(["cliente", "Escolha um cliente da lista. Se ele ainda não existe, cadastre em Clientes."]);
-  else if (!cliente) erros.push(["cliente", "Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."]);
+  else if (!cliente) erros.push(["cliente", "Cliente não encontrado no cadastro do Sem Venda. Use \"Cadastrar cliente\" antes de reservar."]);
   if (!vendedorInterno) erros.push(["vendedor", svVendedores.length ? "Escolha o vendedor interno." : "Cadastre os vendedores em Administração antes de reservar."]);
   if (!escolhaRepresentante) erros.push(["representante", 'Escolha o representante ou marque "Sem representante".']);
   if (!unidade) erros.push(["unidade", "Escolha a unidade de negócio."]);
@@ -2222,6 +2227,294 @@ async function svExcluirTransportadora(id) {
   toast("Transportadora removida.");
 }
 
+/* ---------- Clientes do Sem Venda (cadastro próprio, separado do Torun) ---------- */
+
+// "Ambos" só existe no cadastro do cliente; a reserva continua sendo de uma unidade só
+const SV_UNIDADES_CLIENTE = { ...SV_UNIDADES, AMBOS: "Ambos" };
+let svClientes = [];
+let svClientesEmAndamento = null;
+let svClientesCarregados = false;
+let svCliSelecionadoId = null;
+let svCliEditandoId = null;
+let svCliDaReserva = false; // a janela foi aberta pelo atalho da Reserva: ao salvar, o cliente já volta preenchido lá
+let svCliUnidadeAtual = "";
+let svCliSalvando = false;
+
+function svClienteFromRow(r) {
+  return {
+    id: r.id, nome: r.nome, tipoPessoa: r.tipo_pessoa || "PJ", documento: r.documento || "", contato: r.contato || "",
+    telefone: r.telefone || "", email: r.email || "", cidade: r.cidade || "", estado: r.estado || "",
+    unidadeNegocio: r.unidade_negocio || "AMBOS", obs: r.obs || "", createdAt: r.created_at || ""
+  };
+}
+
+function svClienteToRow(c) {
+  return {
+    id: c.id, nome: c.nome, tipo_pessoa: c.tipoPessoa, documento: c.documento || null, contato: c.contato || null,
+    telefone: c.telefone || null, email: c.email || null, cidade: c.cidade || null, estado: c.estado,
+    unidade_negocio: c.unidadeNegocio, obs: c.obs || null
+  };
+}
+
+// carrega uma vez; quem precisa de dado fresco (a tela de Clientes) passa forcar
+function svCarregarClientes(forcar) {
+  if (svClientesEmAndamento) return svClientesEmAndamento;
+  if (svClientesCarregados && !forcar) return Promise.resolve(true);
+  svClientesEmAndamento = (async () => {
+    const { data, error } = await sb.from("sv_clientes").select("*").order("nome");
+    if (error) {
+      toast("Erro ao carregar os clientes do Sem Venda: " + error.message);
+      return false;
+    }
+    svClientes = (data || []).map(svClienteFromRow).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    svClientesCarregados = true;
+    return true;
+  })().finally(() => { svClientesEmAndamento = null; });
+  return svClientesEmAndamento;
+}
+
+function svReservasDoCliente(nome) {
+  return svState.reservas.filter(r => r.cliente === nome);
+}
+
+function svRenderClientes() {
+  const ativasPorNome = {};
+  const ultimaPorNome = {};
+  svState.reservas.forEach(r => {
+    if (r.situacao === "ATIVA") ativasPorNome[r.cliente] = (ativasPorNome[r.cliente] || 0) + 1;
+    if (r.data && (!ultimaPorNome[r.cliente] || r.data > ultimaPorNome[r.cliente])) ultimaPorNome[r.cliente] = r.data;
+  });
+
+  const inicioMes = todayISO().slice(0, 7) + "-01";
+  const parados = svClientes.filter(c => { const d = svDiasDesde(ultimaPorNome[c.nome]); return d === null || d >= 90; }).length;
+  document.getElementById("svCliKpis").innerHTML = [
+    { lbl: "Total de clientes", val: fmt(svClientes.length), accent: true },
+    { lbl: "Com reserva ativa", val: fmt(svClientes.filter(c => ativasPorNome[c.nome]).length) },
+    { lbl: "Novos no mês", val: fmt(svClientes.filter(c => (c.createdAt || "") >= inicioMes).length) },
+    { lbl: "Sem reserva há 90+ dias", val: fmt(parados) }
+  ].map(k => `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val" style="font-size:19px;">${k.val}</div></div>`).join("");
+
+  const chaves = [["", "Todos", svClientes.length], ...Object.entries(SV_UNIDADES_CLIENTE).map(([k, l]) => [k, l, svClientes.filter(c => c.unidadeNegocio === k).length])];
+  document.getElementById("svCliChips").innerHTML = chaves.map(([k, l, n]) =>
+    `<button type="button" class="sv-chip${k === svCliUnidadeAtual ? " on" : ""}" data-svcliun="${k}" aria-pressed="${k === svCliUnidadeAtual}">${escapeHtml(l)} <b>${fmt(n)}</b></button>`).join("");
+
+  const busca = (document.getElementById("svCliSearch").value || "").trim().toLowerCase();
+  let rows = svClientes.slice();
+  if (svCliUnidadeAtual) rows = rows.filter(c => c.unidadeNegocio === svCliUnidadeAtual);
+  if (busca) rows = rows.filter(c => [c.nome, c.documento, c.cidade, c.estado, c.contato].join(" ").toLowerCase().includes(busca));
+  document.getElementById("svCliCount").textContent = `${rows.length} de ${svClientes.length} cliente(s)`;
+
+  if (svCliSelecionadoId && !svClientes.some(c => c.id === svCliSelecionadoId)) svCliSelecionadoId = null;
+  document.getElementById("svCliRows").innerHTML = rows.length === 0
+    ? `<div class="sv-vazio"><div class="sv-vazio-t">${svClientes.length === 0 ? "Nenhum cliente cadastrado ainda." : "Nenhum cliente com esses filtros."}</div></div>`
+    : rows.map(c => {
+        const n = ativasPorNome[c.nome] || 0;
+        return `
+      <div class="split-row ${c.id === svCliSelecionadoId ? "active" : ""}" data-svcli="${escapeAttr(c.id)}">
+        <div class="split-row-body">
+          <div class="split-row-top"><span class="split-row-nome">${escapeHtml(c.nome)}</span>${svSeloUnidadeCliente(c.unidadeNegocio)}</div>
+          <div class="split-row-meta"><span>${escapeHtml(c.cidade || "—")} · ${escapeHtml(c.estado || "—")}</span><span>${n ? `${n} reserva${n === 1 ? "" : "s"} ativa${n === 1 ? "" : "s"}` : "sem reserva ativa"}</span></div>
+        </div>
+      </div>`;
+      }).join("");
+
+  svRenderClienteDetalhe();
+}
+
+function svSeloUnidadeCliente(u) {
+  const cls = u === "ATACADO" ? "atacado" : u === "ENCOMENDA" ? "encomenda" : "ambos";
+  return `<span class="sv-un ${cls}">${escapeHtml(SV_UNIDADES_CLIENTE[u] || u)}</span>`;
+}
+
+function svRenderClienteDetalhe() {
+  const c = svClientes.find(x => x.id === svCliSelecionadoId);
+  document.getElementById("svCliVazio").style.display = c ? "none" : "";
+  const box = document.getElementById("svCliDetalhe");
+  box.style.display = c ? "" : "none";
+  if (!c) return;
+  const reservas = svReservasDoCliente(c.nome).sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  const ativas = reservas.filter(r => r.situacao === "ATIVA");
+  const ultima = reservas.length ? reservas[0].data : null;
+  const campos = [
+    ["CNPJ/CPF", c.documento], ["Contato", c.contato], ["Telefone", c.telefone], ["E-mail", c.email],
+    ["Cidade/UF", [c.cidade, c.estado].filter(Boolean).join(" / ")]
+  ].map(([l, v]) => `<div><div class="lbl">${l}</div><div class="val">${escapeHtml(v || "—")}</div></div>`).join("")
+    + `<div><div class="lbl">Unidade de negócio</div><div class="val">${svSeloUnidadeCliente(c.unidadeNegocio)}</div></div>`;
+  const podeExcluir = currentUserIsAdmin && reservas.length === 0;
+  box.innerHTML = `
+    <div class="cliente-modal-head">
+      <div class="cliente-modal-titulo"><h3>${escapeHtml(c.nome)}</h3><span class="cli-tp-selo">${escapeHtml(c.tipoPessoa)}</span></div>
+      <div class="cliente-modal-head-actions">
+        <button type="button" class="btn small outline sv-write" id="svCliBtnEditar">✎ Editar dados</button>
+        ${currentUserIsAdmin ? `<button type="button" class="btn small danger sv-write" id="svCliBtnExcluir" ${podeExcluir ? "" : `disabled title="Só dá para excluir cliente sem reservas"`}>🗑 Excluir</button>` : ""}
+      </div>
+    </div>
+    <div class="cliente-modal-info">${campos}</div>
+    ${c.obs ? `<div class="note" style="margin:10px 0;"><b>Observações:</b> ${escapeHtml(c.obs)}</div>` : ""}
+    <div class="kpis" style="margin-top:12px;">
+      <div class="kpi"><div class="lbl">Reservas ativas</div><div class="val" style="font-size:19px;">${fmt(ativas.length)}</div></div>
+      <div class="kpi"><div class="lbl">Pneus reservados</div><div class="val" style="font-size:19px;">${fmt(ativas.reduce((s, r) => s + r.quantidade, 0))} un.</div></div>
+      <div class="kpi"><div class="lbl">Última reserva</div><div class="val" style="font-size:19px;">${ultima ? formatDateBR(ultima) : "—"}</div></div>
+    </div>
+    <h2 style="margin:14px 0 6px;">Reservas deste cliente</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Data</th><th>Produto</th><th>Unidade</th><th>Qtd.</th><th>Situação</th></tr></thead>
+      <tbody>${reservas.length ? reservas.map(r => {
+        const p = svGetProduto(r.codigo);
+        const sit = svSituacaoReserva(r);
+        return `<tr><td class="mono">${r.data ? formatDateBR(r.data) : "—"}</td><td><span class="mono">${escapeHtml(r.codigo)}</span> ${escapeHtml(p ? p.medida : "")}</td><td>${r.unidadeNegocio ? escapeHtml(SV_UNIDADES[r.unidadeNegocio] || r.unidadeNegocio) : "—"}</td><td class="mono">${fmt(r.quantidade)}</td><td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span></td></tr>`;
+      }).join("") : `<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">Nenhuma reserva ainda.</td></tr>`}</tbody>
+    </table></div>`;
+  document.getElementById("svCliBtnEditar").addEventListener("click", () => svAbrirClienteModal(c.id, false));
+  const ex = document.getElementById("svCliBtnExcluir");
+  if (ex && !ex.disabled) ex.addEventListener("click", () => svExcluirCliente(c.id));
+}
+
+function svAbrirClienteModal(id, daReserva) {
+  const c = id ? svClientes.find(x => x.id === id) : null;
+  svCliEditandoId = c ? c.id : null;
+  svCliDaReserva = !!daReserva;
+  document.getElementById("svFormCliente").reset();
+  document.getElementById("svCliErro").textContent = "";
+  document.getElementById("svCliModalTitulo").textContent = c ? "Editar cliente" : "Novo cliente";
+  document.getElementById("svBtnSubmitCliente").textContent = c ? "Salvar" : "Adicionar cliente";
+  // selects montados por valor (não por "selected"), para o reset da janela não trazer a escolha anterior
+  document.getElementById("svCliEstado").innerHTML = `<option value="">Selecione…</option>` + UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
+  document.getElementById("svCliUnidade").innerHTML = `<option value="">Selecione…</option>` +
+    Object.entries(SV_UNIDADES_CLIENTE).map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join("");
+  if (c) {
+    document.getElementById("svCliNome").value = c.nome;
+    document.getElementById("svCliTipoPessoa").value = c.tipoPessoa;
+    document.getElementById("svCliDocumento").value = c.documento;
+    document.getElementById("svCliContato").value = c.contato;
+    document.getElementById("svCliTelefone").value = c.telefone;
+    document.getElementById("svCliEmail").value = c.email;
+    document.getElementById("svCliCidade").value = c.cidade;
+    document.getElementById("svCliEstado").value = c.estado;
+    document.getElementById("svCliUnidade").value = c.unidadeNegocio;
+    document.getElementById("svCliObs").value = c.obs;
+  } else if (daReserva) {
+    const digitado = document.getElementById("svResCliente").value.trim();
+    document.getElementById("svCliNome").value = digitado;
+    const un = document.getElementById("svResUnidade").value;
+    if (un) document.getElementById("svCliUnidade").value = un;
+  }
+  document.getElementById("svCliOverlay").classList.add("show");
+  document.getElementById("svCliNome").focus();
+}
+
+function svFecharClienteModal() {
+  document.getElementById("svCliOverlay").classList.remove("show");
+}
+
+async function svSalvarCliente(e) {
+  e.preventDefault();
+  if (svCliSalvando) return;
+  svCliSalvando = true;
+  const botao = document.getElementById("svBtnSubmitCliente");
+  botao.disabled = true;
+  try { await svSalvarClienteDados(); } finally { svCliSalvando = false; botao.disabled = false; }
+}
+
+async function svSalvarClienteDados() {
+  const v = (id) => document.getElementById(id).value.replace(/\s+/g, " ").trim();
+  const dados = {
+    nome: v("svCliNome"), tipoPessoa: document.getElementById("svCliTipoPessoa").value, documento: v("svCliDocumento"),
+    contato: v("svCliContato"), telefone: v("svCliTelefone"), email: v("svCliEmail"), cidade: v("svCliCidade"),
+    estado: document.getElementById("svCliEstado").value, unidadeNegocio: document.getElementById("svCliUnidade").value, obs: v("svCliObs")
+  };
+  const erro = document.getElementById("svCliErro");
+  const falha = !dados.nome ? "Informe o nome do cliente."
+    : !dados.estado ? "Escolha o estado (UF)."
+    : !dados.unidadeNegocio ? "Escolha a unidade de negócio."
+    : svClientes.some(c => c.id !== svCliEditandoId && c.nome.toLowerCase() === dados.nome.toLowerCase()) ? "Já existe um cliente com esse nome."
+    : "";
+  erro.textContent = falha;
+  if (falha) return;
+
+  const antigo = svCliEditandoId ? svClientes.find(c => c.id === svCliEditandoId) : null;
+  let salvo;
+  if (antigo) {
+    const { data, error } = await sb.from("sv_clientes").update(svClienteToRow({ ...dados, id: antigo.id })).eq("id", antigo.id).select();
+    if (error) { erro.textContent = "Erro ao salvar: " + error.message; return; }
+    if (!data || data.length === 0) { erro.textContent = "Não foi possível salvar (sem permissão)."; return; }
+    salvo = svClienteFromRow(data[0]);
+    svClientes[svClientes.indexOf(antigo)] = salvo;
+    // renomear atualiza as reservas no banco (on update cascade): recarrega para a lista não ficar com o nome velho
+    if (antigo.nome !== salvo.nome) await svCarregarDados(true);
+  } else {
+    const { data, error } = await sb.from("sv_clientes").insert({ ...svClienteToRow({ ...dados, id: uid("svcli") }), created_by: currentUser ? currentUser.id : null }).select();
+    if (error) { erro.textContent = "Erro ao adicionar: " + error.message; return; }
+    if (!data || data.length === 0) { erro.textContent = "Não foi possível adicionar (sem permissão)."; return; }
+    salvo = svClienteFromRow(data[0]);
+    svClientes.push(salvo);
+  }
+  svClientes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  svFecharClienteModal();
+  if (svCliDaReserva) {
+    // volta para a Reserva com o cliente já escolhido
+    svRenderReservaForm();
+    document.getElementById("svResCliente").value = salvo.nome;
+    svPreencherUnidadeDoCliente();
+    svAtualizarResumoReserva();
+    svLimparErroCampo("cliente");
+  } else {
+    svCliSelecionadoId = salvo.id;
+    svRenderClientes();
+  }
+  toast(antigo ? "Cliente atualizado." : "Cliente adicionado.");
+}
+
+async function svExcluirCliente(id) {
+  const c = svClientes.find(x => x.id === id);
+  if (!c) return;
+  if (svReservasDoCliente(c.nome).length) { toast("Esse cliente tem reservas e não pode ser excluído."); return; }
+  if (!(await confirmModal("Excluir cliente?", `Remove "${c.nome}" do cadastro do Sem Venda.`))) return;
+  const { data, error } = await sb.from("sv_clientes").delete().eq("id", id).select();
+  if (error) { toast("Erro ao excluir o cliente: " + error.message); return; }
+  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removido)."); return; }
+  svClientes = svClientes.filter(x => x.id !== id);
+  svCliSelecionadoId = null;
+  svRenderClientes();
+  toast("Cliente removido.");
+}
+
+// na Reserva: cliente de uma unidade só já preenche a Unidade de negócio ("Ambos" deixa a escolha com a pessoa)
+function svPreencherUnidadeDoCliente() {
+  const nome = document.getElementById("svResCliente").value.trim().toLowerCase();
+  const c = svClientes.find(x => x.nome.toLowerCase() === nome);
+  if (c && SV_UNIDADES[c.unidadeNegocio]) {
+    document.getElementById("svResUnidade").value = c.unidadeNegocio;
+    svLimparErroCampo("unidade");
+  }
+}
+
+function svLigarClientes() {
+  const $ = (id) => document.getElementById(id);
+  $("svBtnNovoCliente").addEventListener("click", () => svAbrirClienteModal(null, false));
+  $("svFormCliente").addEventListener("submit", svSalvarCliente);
+  $("svCliFechar").addEventListener("click", svFecharClienteModal);
+  $("svCliCancelar").addEventListener("click", svFecharClienteModal);
+  $("svCliOverlay").addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    svFecharClienteModal();
+  });
+  $("svCliSearch").addEventListener("input", svRenderClientes);
+  $("svCliChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-svcliun]");
+    if (!b) return;
+    svCliUnidadeAtual = b.dataset.svcliun;
+    svRenderClientes();
+  });
+  $("svCliRows").addEventListener("click", (e) => {
+    const linha = e.target.closest("[data-svcli]");
+    if (!linha) return;
+    svCliSelecionadoId = linha.dataset.svcli;
+    svRenderClientes();
+  });
+}
+
 /* ---------- Relatório de Preço (proposta em PDF) ---------- */
 
 // preço digitado só pra esta proposta, por código (null = "Sob consulta"); zera sempre que a tela abre,
@@ -2276,7 +2569,7 @@ function svAbrirProposta() {
   selCategoria.innerHTML = svOpcoesCategoria("Todas");
   if ([...selCategoria.options].some(o => o.value === categoriaAtual)) selCategoria.value = categoriaAtual;
 
-  document.getElementById("svPropClientes").innerHTML = (state.clientes || [])
+  document.getElementById("svPropClientes").innerHTML = svClientes
     .map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
   const validade = document.getElementById("svPropValidade");
   if (!validade.value) validade.value = dataMaisDias(todayISO(), 7);
@@ -2427,6 +2720,7 @@ function initSemVendaTelas() {
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
   document.getElementById("svFormTransportadora").addEventListener("submit", svAdicionarTransportadora);
   svLigarReserva();
+  svLigarClientes();
   document.getElementById("svResData").value = todayISO();
 
   document.getElementById("svFormProposta").addEventListener("submit", svGerarProposta);
