@@ -7467,7 +7467,7 @@ async function reservasSemVendaDosClientes(nomes) {
 
 /* ---------------- arquivos do cliente (botão "Arquivos" em Clientes) ---------------- */
 // Uma linha por arquivo em cliente_arquivos + o arquivo no bucket privado clientes-arquivos (ver
-// sql/cliente_arquivos.sql). Editor anexa; só administrador remove; representante nem vê. A lista só é
+// sql/cliente_arquivos.sql). Editor anexa e remove; representante nem vê. A lista só é
 // buscada quando a pasta abre; o número do botão vem de uma contagem leve ao abrir o cliente.
 
 const CLIENTE_ARQUIVOS_BUCKET = "clientes-arquivos";
@@ -7516,7 +7516,7 @@ function renderArquivosCliente() {
         <button type="button" class="cli-arq-nome" data-abrirarq="${escapeAttr(a.id)}" title="${escapeAttr(a.nome)}">${escapeHtml(a.nome)}</button>
         <div class="cli-arq-meta">${tamanhoArquivoBR(a.tamanho)} · ${quando}${a.criado_por ? ` · ${escapeHtml(a.criado_por)}` : ""}</div>
       </div>
-      <button type="button" class="btn small danger admin-only" data-removerarq="${escapeAttr(a.id)}" title="Remover arquivo" aria-label="Remover ${escapeAttr(a.nome)}">✕</button>
+      <button type="button" class="btn small danger write-ui" data-removerarq="${escapeAttr(a.id)}" title="Remover arquivo" aria-label="Remover ${escapeAttr(a.nome)}">✕</button>
     </div>`;
   }).join("");
   lista.innerHTML = (enviando + itens) ||
@@ -7623,7 +7623,7 @@ async function removerArquivoCliente(id) {
   // uma linha apontando pra arquivo que não existe
   const { data: apagadas, error } = await sb.from("cliente_arquivos").delete().eq("id", id).select();
   if (error) { toast("Erro ao remover o arquivo: " + error.message); return; }
-  if (!apagadas || !apagadas.length) { toast("Sem permissão para remover: só o administrador remove arquivos."); return; }
+  if (!apagadas || !apagadas.length) { toast("Sem permissão para remover arquivos."); return; }
   const { error: erroBucket } = await sb.storage.from(CLIENTE_ARQUIVOS_BUCKET).remove([arq.path]);
   if (erroBucket) console.warn("Arquivo saiu da lista, mas ficou no armazenamento:", erroBucket.message);
 
