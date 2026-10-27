@@ -7520,7 +7520,7 @@ function renderArquivosCliente() {
     </div>`;
   }).join("");
   lista.innerHTML = (enviando + itens) ||
-    `<div class="cli-arq-vazio">Nenhum arquivo anexado ainda.<br>Use <b>Anexar arquivos</b> para guardar contrato, análise de crédito, documentos e comprovantes deste cliente.</div>`;
+    `<div class="cli-arq-vazio">Nenhum arquivo anexado ainda.<br>Use <b>Anexar arquivos</b> ou arraste os arquivos para esta janela para guardar contrato, análise de crédito, documentos e comprovantes deste cliente.</div>`;
   lista.querySelectorAll("[data-abrirarq]").forEach(el => el.addEventListener("click", () => abrirArquivoCliente(el.dataset.abrirarq)));
   lista.querySelectorAll("[data-removerarq]").forEach(el => el.addEventListener("click", () => removerArquivoCliente(el.dataset.removerarq)));
 
@@ -11550,6 +11550,24 @@ async function init() {
     e.target.value = ""; // permite escolher o mesmo arquivo de novo depois
     anexarArquivosCliente(arquivos);
   });
+  // arrastar e soltar na janela Arquivos (mesma regra do botão; quem só visualiza não anexa)
+  const modalArq = document.querySelector("#clienteArquivosOverlay .cli-arq-modal");
+  const temArquivos = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+  const podeAnexar = () => !document.body.classList.contains("is-viewer") && !!clienteArquivosNome;
+  let arrastando = 0;
+  const fimArrasto = () => { arrastando = 0; modalArq.classList.remove("arrastando"); };
+  modalArq.addEventListener("dragenter", (e) => { if (!temArquivos(e) || !podeAnexar()) return; e.preventDefault(); arrastando++; modalArq.classList.add("arrastando"); });
+  modalArq.addEventListener("dragover", (e) => { if (!temArquivos(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = podeAnexar() ? "copy" : "none"; });
+  modalArq.addEventListener("dragleave", () => { if (arrastando > 0 && --arrastando === 0) fimArrasto(); });
+  modalArq.addEventListener("drop", (e) => {
+    if (!temArquivos(e)) return;
+    e.preventDefault();
+    fimArrasto();
+    if (podeAnexar()) anexarArquivosCliente(Array.from(e.dataTransfer.files || []));
+  });
+  // solto fora da janela com ela aberta: o navegador não pode abrir o arquivo no lugar do sistema
+  window.addEventListener("dragover", (e) => { if (temArquivos(e) && document.getElementById("clienteArquivosOverlay").classList.contains("show")) e.preventDefault(); });
+  window.addEventListener("drop", (e) => { if (temArquivos(e) && document.getElementById("clienteArquivosOverlay").classList.contains("show")) { e.preventDefault(); fimArrasto(); } });
   document.getElementById("btnCancelarEdicaoCliente").addEventListener("click", cancelarEdicaoCliente);
   document.getElementById("formEditarCliente").addEventListener("submit", (e) => {
     e.preventDefault();
