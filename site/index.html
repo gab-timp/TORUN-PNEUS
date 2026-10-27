@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=175">
-<link rel="stylesheet" href="semvenda.css?v=18">
+<link rel="stylesheet" href="semvenda.css?v=19">
 <link rel="stylesheet" href="crm.css?v=3">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -746,8 +746,8 @@
         <div class="table-wrap">
           <table class="sv-res-tabela">
             <colgroup>
-              <col style="width:13%"><col style="width:13%"><col style="width:7%"><col style="width:10%"><col style="width:9%">
-              <col style="width:11%"><col style="width:4%"><col style="width:11%"><col style="width:9%"><col style="width:13%">
+              <col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:11%"><col style="width:13%">
+              <col style="width:10%"><col style="width:4%"><col style="width:12%"><col style="width:9%"><col style="width:13%">
             </colgroup>
             <thead>
               <tr>
@@ -755,7 +755,7 @@
                 <th>Cliente</th>
                 <th>Vendedor interno</th>
                 <th>Representante</th>
-                <th>Condição de pagamento</th>
+                <th>Forma de pagamento</th>
                 <th>Transporte</th>
                 <th>Qtd.</th>
                 <th>Situação</th>
@@ -3140,28 +3140,6 @@
         <div class="empty-state" id="svVendEmpty" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
       </div>
 
-      <div class="card" id="svCondicoesCard">
-        <div class="card-head"><h2>Condições de pagamento</h2><span class="sv-tag-sistema">Sem Venda</span></div>
-        <div class="note">É a lista que aparece em "Condição de pagamento" na Reserva e na janela de Confirmar venda. Tirar uma condição daqui não muda as reservas que já foram feitas com ela.</div>
-        <form id="svFormCondicao" class="form-row sv-vend-form">
-          <div class="field grow">
-            <label>Nome da condição</label>
-            <input type="text" id="svCondNome" maxlength="60" placeholder="Ex: 30/60/90 dias" autocomplete="off">
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn primary" id="svBtnAddCondicao">Adicionar</button>
-          </div>
-        </form>
-        <div class="note" id="svCondCount"></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Condição</th><th></th></tr></thead>
-            <tbody id="svCondTbody"></tbody>
-          </table>
-        </div>
-        <div class="empty-state" id="svCondEmpty" style="display:none;">Nenhuma condição cadastrada ainda. Sem isso ninguém consegue reservar.</div>
-      </div>
-
       <div class="card" id="svTransportadorasCard">
         <div class="card-head"><h2>Transportadoras</h2><span class="sv-tag-sistema">Sem Venda</span></div>
         <div class="note">É a lista que aparece em "Transportadora" na Reserva e na janela de Confirmar venda. Tirar uma transportadora daqui não muda as reservas que já foram feitas com ela.</div>
@@ -3733,11 +3711,10 @@
         </div>
       </div>
       <div class="sv-res-linha sv-res-linha3">
-        <div class="field sv-f-cond" id="svResCampo_condicao">
-          <label for="svResCondicao">Condição de pagamento</label>
-          <select id="svResCondicao"></select>
-          <div class="sv-aviso" id="svResCondicaoAviso" style="display:none;">Peça a um administrador para cadastrar as condições em Administração, Condições de pagamento. Sem isso não dá para reservar.</div>
-          <div class="sv-erro-msg" id="svResErro_condicao" role="alert"></div>
+        <div class="field sv-f-cond" id="svResCampo_forma">
+          <label for="svResForma">Forma de pagamento</label>
+          <select id="svResForma"></select>
+          <div class="sv-erro-msg" id="svResErro_forma" role="alert"></div>
         </div>
         <div class="field" id="svResCampo_quantidade">
           <label for="svResQuantidade">Quantidade</label>
@@ -3793,9 +3770,27 @@
       <div class="note" id="svVendaDica">Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor.</div>
     </div>
     <div class="field">
-      <label for="svVendaCondicao">Condição de pagamento</label>
-      <select id="svVendaCondicao"></select>
-      <div class="note" id="svVendaCondDica">Veio da reserva. Mude se combinaram outra condição na hora de vender.</div>
+      <label for="svVendaForma">Forma de pagamento</label>
+      <select id="svVendaForma"></select>
+      <div class="note" id="svVendaFormaDica">Veio da reserva. Mude se combinaram outra forma na hora de vender.</div>
+    </div>
+    <div class="sv-res-linha" id="svVendaTrademasterRow" style="display:none;">
+      <div class="field">
+        <label for="svVendaValorRecebido">Valor recebido (R$)</label>
+        <input type="number" id="svVendaValorRecebido" min="0" step="0.01" placeholder="Ex: 950,00">
+      </div>
+      <div class="field">
+        <label for="svVendaDiferenca">Diferença (venda − recebido)</label>
+        <input type="text" id="svVendaDiferenca" value="R$ 0,00 (0%)" disabled>
+      </div>
+    </div>
+    <div class="field sv-div-campo">
+      <label class="sv-div-check"><input type="checkbox" id="svVendaDividir"> Essa venda foi paga em mais de uma forma?</label>
+      <div id="svVendaDivisaoBox" class="sv-div-box" style="display:none;">
+        <div id="svVendaDivisaoLista"></div>
+        <button type="button" class="btn small outline" id="svVendaAddDivisao">+ Adicionar forma</button>
+        <div id="svVendaDivisaoResumo" class="sv-div-resumo"></div>
+      </div>
     </div>
     <div class="sv-res-linha">
       <div class="field">
@@ -4400,7 +4395,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=22"></script>
+<script src="semvenda.js?v=23"></script>
 <script src="crm.js?v=4"></script>
 <script src="usuarios.js?v=4"></script>
 <script src="app.js?v=275"></script>

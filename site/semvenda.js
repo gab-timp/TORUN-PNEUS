@@ -135,7 +135,10 @@ function svReservaFromRow(r) {
     representante: r.representante || null, // vazio = "Sem representante"
     armazem: r.armazem === null || r.armazem === undefined ? null : r.armazem,
     previsaoId: r.previsao_id || null, situacao: r.situacao, data: r.data || "", obs: r.obs || "",
-    condicaoPagamento: r.condicao_pagamento || "",
+    condicaoPagamento: r.condicao_pagamento || "", // condição em texto da lista antiga: só leitura, mostrada como "condição antiga"
+    formaPagamento: r.forma_pagamento || "",
+    divisaoPagamento: Array.isArray(r.divisao_pagamento) ? r.divisao_pagamento : null,
+    valorRecebido: r.valor_recebido === null || r.valor_recebido === undefined ? null : Number(r.valor_recebido),
     tipoTransporte: r.tipo_transporte || "", transportadora: r.transportadora || "",
     // preço e dia gravados no "Confirmar venda"; vazios nas vendas confirmadas antes dessa mudança
     precoUnitario: r.preco_unitario === null || r.preco_unitario === undefined ? null : Number(r.preco_unitario),
@@ -149,7 +152,7 @@ function svReservaToRow(r) {
     id: r.id, codigo: r.codigo, quantidade: r.quantidade, cliente: r.cliente,
     vendedor_interno: r.vendedorInterno, representante: r.representante || null,
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
-    situacao: r.situacao, data: r.data, obs: r.obs || null, condicao_pagamento: r.condicaoPagamento || null,
+    situacao: r.situacao, data: r.data, obs: r.obs || null, forma_pagamento: r.formaPagamento || null,
     tipo_transporte: r.tipoTransporte || null, transportadora: r.transportadora || null
   };
 }
@@ -220,7 +223,7 @@ async function svAoAbrirView(view) {
   if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   // as listas de vendedores e de condições de pagamento têm carga própria: se a tabela não existir, só a Reserva reclama
-  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarCondicoes(), svCarregarTransportadoras()]);
+  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarTransportadoras()]);
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
@@ -1094,7 +1097,9 @@ const SV_RES_FILTROS = [
   { chave: "canceladas", rotulo: "Canceladas" },
   { chave: "todas", rotulo: "Todas" }
 ];
-const SV_CAMPOS_RES = ["produto", "cliente", "vendedor", "representante", "condicao", "quantidade", "data", "tipotransp", "transportadora"];
+const SV_CAMPOS_RES = ["produto", "cliente", "vendedor", "representante", "forma", "quantidade", "data", "tipotransp", "transportadora"];
+// as mesmas formas de pagamento do Varejo (check em sv_reservas.forma_pagamento)
+const SV_FORMAS_PAGAMENTO = ["PIX", "CARTÃO", "BOLETO PRÓPRIO", "BOLETO TRADEMASTER"];
 // quem cuida do frete: o valor vai pro banco (check em sv_reservas), o texto aparece na tela
 const SV_TIPOS_TRANSPORTE = { NOSSO: "Frete nosso", CLIENTE: "Frete do cliente" };
 let svPickerAberto = false;
@@ -1300,8 +1305,8 @@ function svRenderReservaForm() {
   document.getElementById("svListaClientes").innerHTML =
     (state.clientes || []).map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
 
-  // Vendedor interno e Condição de pagamento (listas cadastradas em Administração) e Representante (ativos, ou
-  // "Sem representante"). Todos começam em "Selecione…": nenhum vem preenchido sozinho.
+  // Vendedor interno (lista cadastrada em Administração), Representante (ativos, ou "Sem representante") e
+  // Forma de pagamento (fixa, a do Varejo). Todos começam em "Selecione…": nenhum vem preenchido sozinho.
   const selVendedor = document.getElementById("svResVendedor");
   const vendedorAnterior = selVendedor.value;
   selVendedor.innerHTML = `<option value="">${svVendedores.length ? "Selecione…" : "Nenhum vendedor cadastrado"}</option>` +
@@ -1317,13 +1322,8 @@ function svRenderReservaForm() {
     representantes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
   if ([...selRep.options].some(o => o.value === repAnterior)) selRep.value = repAnterior;
 
-  const selCond = document.getElementById("svResCondicao");
-  const condAnterior = selCond.value;
-  selCond.innerHTML = `<option value="">${svCondicoes.length ? "Selecione…" : "Nenhuma condição cadastrada"}</option>` +
-    svCondicoes.map(c => `<option value="${escapeAttr(c.nome)}">${escapeHtml(c.nome)}</option>`).join("");
-  if (svCondicoes.some(c => c.nome === condAnterior)) selCond.value = condAnterior;
-  selCond.disabled = svCondicoes.length === 0;
-  document.getElementById("svResCondicaoAviso").style.display = svCondicoes.length === 0 ? "" : "none";
+  const selForma = document.getElementById("svResForma");
+  selForma.innerHTML = svOpcoesForma(selForma.value); // mantém a escolha quando a lista é refeita
 
   const selTipo = document.getElementById("svResTipoTransporte");
   const tipoAnterior = selTipo.value;
@@ -1388,7 +1388,7 @@ function svRenderReservaTabela() {
   if (busca) {
     rows = rows.filter(r => {
       const p = svGetProduto(r.codigo);
-      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.condicaoPagamento, r.transportadora, r.obs].join(" ").toLowerCase().includes(busca);
+      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.formaPagamento, r.condicaoPagamento, r.transportadora, r.obs].join(" ").toLowerCase().includes(busca);
     });
   }
   rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -1428,7 +1428,7 @@ function svRenderReservaTabela() {
         <td>${escapeHtml(r.cliente)}${r.obs ? `<div class="sv-obs">${escapeHtml(r.obs)}</div>` : ""}</td>
         <td>${escapeHtml(r.vendedorInterno)}</td>
         <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
-        <td>${r.condicaoPagamento ? escapeHtml(r.condicaoPagamento) : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
+        <td>${svFormaCelula(r)}</td>
         <td>${r.tipoTransporte ? `<span class="sv-tt ${r.tipoTransporte === "NOSSO" ? "nosso" : "cli"}">${escapeHtml(SV_TIPOS_TRANSPORTE[r.tipoTransporte] || r.tipoTransporte)}</span>${r.transportadora ? `<div class="sv-transp">${escapeHtml(r.transportadora)}</div>` : ""}` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td class="mono">${fmt(r.quantidade)}</td>
         <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span>${sitExtra}</td>
@@ -1452,43 +1452,86 @@ function svRenderReserva() {
   svRenderReservaTabela();
 }
 
-// Janela do "Confirmar venda": pede o preço por unidade (já preenchido com o preço de proposta do produto) e a
-// condição de pagamento (já preenchida com a da reserva) e mostra o total ao vivo. Devolve { preco, condicao }
-// (preço número >= 0 com 2 casas) ou null se a pessoa cancelou.
+// Linha da tabela de Reservas: forma de pagamento (e o que ela traz: divisão, valor recebido, condição antiga)
+function svFormaCelula(r) {
+  const div = Array.isArray(r.divisaoPagamento) && r.divisaoPagamento.length ? r.divisaoPagamento : null;
+  if (div) {
+    const formas = [...new Set(div.map(p => p.forma_pagamento))];
+    return `${escapeHtml(formas.join(" + "))}<div class="muted sv-sub">pago em ${div.length} ${div.length === 1 ? "forma" : "formas"}</div>`;
+  }
+  if (r.formaPagamento) {
+    const extra = r.valorRecebido !== null ? `<div class="muted sv-sub">recebido ${escapeHtml(formatMoney(r.valorRecebido))}</div>` : "";
+    return `${escapeHtml(r.formaPagamento)}${extra}`;
+  }
+  // reserva feita com a lista antiga de condições: o texto continua visível
+  if (r.condicaoPagamento) return `<span class="muted">${escapeHtml(r.condicaoPagamento)}</span><div class="muted sv-sub">condição antiga</div>`;
+  return '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>';
+}
+
+function svOpcoesForma(selecionada) {
+  return `<option value="">Selecione…</option>` +
+    SV_FORMAS_PAGAMENTO.map(f => `<option value="${escapeAttr(f)}"${f === selecionada ? " selected" : ""}>${escapeHtml(f)}</option>`).join("");
+}
+
+// uma linha da divisão do pagamento (forma + valor), como no Varejo
+function svCriarLinhaDivisao() {
+  const row = document.createElement("div");
+  row.className = "sv-div-linha";
+  row.innerHTML = `
+    <select class="sv-div-forma" aria-label="Forma de pagamento desta parte">${svOpcoesForma("")}</select>
+    <input type="number" class="sv-div-valor" min="0" step="0.01" placeholder="Valor (R$)" aria-label="Valor desta parte">
+    <button type="button" class="btn small danger sv-div-remover" title="Remover" aria-label="Remover esta forma">✕</button>`;
+  return row;
+}
+
+// Janela do "Confirmar venda": pede o preço por unidade (já preenchido com o preço de proposta do produto), a forma
+// de pagamento (já preenchida com a da reserva), o valor recebido (só Boleto Trademaster), a divisão do pagamento
+// (opcional, como no Varejo) e o transporte, e mostra o total ao vivo. Devolve
+// { preco, forma, valorRecebido, divisao, tipo, transportadora } ou null se a pessoa cancelou.
 function svVendaModal(r) {
   return new Promise(resolve => {
-    const overlay = document.getElementById("svVendaOverlay");
-    const input = document.getElementById("svVendaPreco");
-    const selCond = document.getElementById("svVendaCondicao");
-    const erro = document.getElementById("svVendaErro");
-    const totalEl = document.getElementById("svVendaTotal");
-    const contaEl = document.getElementById("svVendaConta");
-    const okBtn = document.getElementById("svVendaOk");
-    const cancelBtn = document.getElementById("svVendaCancelar");
+    const $ = (id) => document.getElementById(id);
+    const overlay = $("svVendaOverlay");
+    const input = $("svVendaPreco");
+    const selForma = $("svVendaForma");
+    const tmRow = $("svVendaTrademasterRow");
+    const recebido = $("svVendaValorRecebido");
+    const difEl = $("svVendaDiferenca");
+    const chkDividir = $("svVendaDividir");
+    const boxDiv = $("svVendaDivisaoBox");
+    const listaDiv = $("svVendaDivisaoLista");
+    const resumoDiv = $("svVendaDivisaoResumo");
+    const btnAddDiv = $("svVendaAddDivisao");
+    const selTipo = $("svVendaTipoTransp");
+    const selTransp = $("svVendaTransportadora");
+    const erro = $("svVendaErro");
+    const totalEl = $("svVendaTotal");
+    const contaEl = $("svVendaConta");
+    const okBtn = $("svVendaOk");
+    const cancelBtn = $("svVendaCancelar");
     const produto = svGetProduto(r.codigo);
     const temPreco = !!produto && produto.preco !== null;
-    document.getElementById("svVendaTexto").textContent =
-      `Marcar as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente} como vendidas?`;
-    document.getElementById("svVendaDica").textContent = temPreco
+    $("svVendaTexto").textContent = `Marcar as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente} como vendidas?`;
+    $("svVendaDica").textContent = temPreco
       ? "Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor."
       : "Esse produto não tem preço de proposta no cadastro: digite o preço da venda.";
     input.value = temPreco ? produto.preco : "";
     erro.style.display = "none";
 
-    // a lista do admin, mais a condição que a reserva já tem (mesmo que depois tenha saído da lista)
-    const nomes = svCondicoes.map(c => c.nome);
-    if (r.condicaoPagamento && !nomes.includes(r.condicaoPagamento)) nomes.unshift(r.condicaoPagamento);
-    selCond.innerHTML = `<option value="">${nomes.length ? "Selecione…" : "Nenhuma condição cadastrada"}</option>` +
-      nomes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
-    selCond.value = r.condicaoPagamento || "";
-    selCond.disabled = nomes.length === 0;
-    document.getElementById("svVendaCondDica").textContent = r.condicaoPagamento
-      ? "Veio da reserva. Mude se combinaram outra condição na hora de vender."
-      : "Essa reserva é de antes do campo existir e veio sem condição. Escolha uma para confirmar a venda.";
+    // forma de pagamento: a da reserva; reserva feita com a lista antiga de condições precisa escolher
+    selForma.innerHTML = svOpcoesForma(r.formaPagamento || "");
+    $("svVendaFormaDica").textContent = r.formaPagamento
+      ? "Veio da reserva. Mude se combinaram outra forma na hora de vender."
+      : (r.condicaoPagamento
+          ? `Essa reserva tem a condição antiga “${r.condicaoPagamento}”. Escolha a forma de pagamento para confirmar a venda.`
+          : "Essa reserva é de antes do campo existir e veio sem forma de pagamento. Escolha uma para confirmar a venda.");
+    recebido.value = "";
+    chkDividir.checked = false;
+    boxDiv.style.display = "none";
+    listaDiv.innerHTML = "";
+    resumoDiv.innerHTML = "";
 
     // tipo de transporte (duas opções fixas) e transportadora (lista do admin, mais a que a reserva já tem)
-    const selTipo = document.getElementById("svVendaTipoTransp");
-    const selTransp = document.getElementById("svVendaTransportadora");
     selTipo.innerHTML = `<option value="">Selecione…</option>` +
       Object.entries(SV_TIPOS_TRANSPORTE).map(([valor, rotulo]) => `<option value="${valor}">${escapeHtml(rotulo)}</option>`).join("");
     selTipo.value = r.tipoTransporte || "";
@@ -1498,54 +1541,113 @@ function svVendaModal(r) {
       nomesT.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
     selTransp.value = r.transportadora || "";
     selTransp.disabled = nomesT.length === 0;
-    document.getElementById("svVendaTranspDica").textContent = r.tipoTransporte && r.transportadora
+    $("svVendaTranspDica").textContent = r.tipoTransporte && r.transportadora
       ? "O transporte veio da reserva. Mude se combinaram outra coisa na hora de vender."
       : "Essa reserva é de antes do campo existir e veio sem transporte. Escolha para confirmar a venda.";
 
     // vazio ou ilegível = NaN (o campo numérico devolve "" quando o texto digitado não é um número)
     const lerPreco = () => (input.value.trim() === "" ? NaN : Math.round(Number(input.value) * 100) / 100);
+    const totalVenda = () => { const p = lerPreco(); return p >= 0 ? Math.round(p * r.quantidade * 100) / 100 : 0; };
     const atualizarTotal = () => {
       const p = lerPreco();
       const valido = p >= 0;
-      totalEl.textContent = valido ? formatMoney(Math.round(p * r.quantidade * 100) / 100) : "—";
+      totalEl.textContent = valido ? formatMoney(totalVenda()) : "—";
       contaEl.textContent = valido ? `${fmt(r.quantidade)} un. × ${formatMoney(p)}` : "";
     };
-    const onInput = () => { erro.style.display = "none"; atualizarTotal(); };
+    // Boleto Trademaster: valor recebido e diferença para o total (o deságio da financeira)
+    const atualizarTrademaster = () => {
+      const ehTm = selForma.value === "BOLETO TRADEMASTER";
+      tmRow.style.display = ehTm ? "" : "none";
+      const total = totalVenda();
+      const dif = total - (parseFloat(recebido.value) || 0);
+      const pct = total > 0 ? (dif / total) * 100 : 0;
+      difEl.value = `${formatMoney(dif)} (${pct.toFixed(2).replace(".", ",")}%)`;
+    };
+    const linhasDivisao = () => Array.from(listaDiv.querySelectorAll(".sv-div-linha"));
+    const somaDivisao = () => linhasDivisao().reduce((acc, l) => acc + (parseFloat(l.querySelector(".sv-div-valor").value) || 0), 0);
+    const atualizarDivisao = () => {
+      if (!chkDividir.checked) { resumoDiv.innerHTML = ""; return; }
+      const linhas = linhasDivisao();
+      const soma = somaDivisao();
+      const total = totalVenda();
+      const dif = total - soma;
+      const bate = linhas.length > 0 && soma > 0 && Math.abs(dif) < 0.01;
+      resumoDiv.innerHTML = `
+        <div class="sv-div-soma"><span>Somado nas formas acima</span><span class="mono">${escapeHtml(formatMoney(soma))}</span></div>
+        <div class="sv-div-status ${bate ? "ok" : "erro"}">${linhas.length === 0 ? "Adicione ao menos uma forma."
+          : bate ? "✓ Confere com o valor da venda"
+          : dif > 0 ? `Falta ${escapeHtml(formatMoney(dif))} pra completar o valor da venda.`
+          : `Passou ${escapeHtml(formatMoney(-dif))} do valor da venda.`}</div>`;
+    };
+    const atualizarTudo = () => { atualizarTotal(); atualizarTrademaster(); atualizarDivisao(); };
+    const onInput = () => { erro.style.display = "none"; atualizarTudo(); };
+    const onDividir = () => {
+      boxDiv.style.display = chkDividir.checked ? "" : "none";
+      if (chkDividir.checked && listaDiv.children.length === 0) {
+        listaDiv.appendChild(svCriarLinhaDivisao());
+        listaDiv.appendChild(svCriarLinhaDivisao());
+      }
+      onInput();
+    };
+    const onAddDivisao = () => { listaDiv.appendChild(svCriarLinhaDivisao()); onInput(); };
+    const onListaClick = (e) => {
+      const rem = e.target.closest(".sv-div-remover");
+      if (!rem) return;
+      rem.closest(".sv-div-linha").remove();
+      onInput();
+    };
     const cleanup = (resultado) => {
       overlay.classList.remove("show");
       okBtn.removeEventListener("click", onOk);
       cancelBtn.removeEventListener("click", onCancel);
       input.removeEventListener("input", onInput);
       input.removeEventListener("keydown", onTecla);
-      selCond.removeEventListener("change", onInput);
+      selForma.removeEventListener("change", onInput);
+      recebido.removeEventListener("input", onInput);
+      chkDividir.removeEventListener("change", onDividir);
+      btnAddDiv.removeEventListener("click", onAddDivisao);
+      listaDiv.removeEventListener("input", onInput);
+      listaDiv.removeEventListener("change", onInput);
+      listaDiv.removeEventListener("click", onListaClick);
       selTipo.removeEventListener("change", onInput);
       selTransp.removeEventListener("change", onInput);
       resolve(resultado);
     };
+    const falha = (msg) => { erro.textContent = msg; erro.style.display = "block"; };
     const onOk = () => {
       const p = lerPreco();
-      if (Number.isNaN(p)) { erro.textContent = "Informe o preço por unidade."; erro.style.display = "block"; return; }
-      if (p < 0) { erro.textContent = "O preço não pode ser negativo."; erro.style.display = "block"; return; }
-      if (!selCond.value) {
-        erro.textContent = nomes.length
-          ? "Escolha a condição de pagamento para confirmar a venda."
-          : "Cadastre as condições em Administração, Condições de pagamento, antes de confirmar a venda.";
-        erro.style.display = "block";
-        return;
+      if (Number.isNaN(p)) return falha("Informe o preço por unidade.");
+      if (p < 0) return falha("O preço não pode ser negativo.");
+      if (!selForma.value) return falha("Escolha a forma de pagamento para confirmar a venda.");
+      const ehTm = selForma.value === "BOLETO TRADEMASTER";
+      if (ehTm && recebido.value.trim() === "") return falha("Informe o valor recebido para Boleto Trademaster.");
+      if (ehTm && !(parseFloat(recebido.value) >= 0)) return falha("O valor recebido não pode ser negativo.");
+      let divisao = null;
+      if (chkDividir.checked) {
+        const linhas = linhasDivisao();
+        if (linhas.length === 0) return falha("Adicione ao menos uma forma de pagamento na divisão, ou desmarque a opção.");
+        divisao = [];
+        for (const l of linhas) {
+          const forma = l.querySelector(".sv-div-forma").value;
+          const valorRaw = l.querySelector(".sv-div-valor").value;
+          if (!forma || valorRaw === "") return falha("Preencha forma e valor em todas as linhas da divisão.");
+          divisao.push({ forma_pagamento: forma, valor: Math.round(parseFloat(valorRaw) * 100) / 100 });
+        }
+        const soma = divisao.reduce((a, d) => a + d.valor, 0);
+        if (divisao.some(d => !(d.valor >= 0)) || Math.abs(soma - totalVenda()) > 0.01) {
+          return falha(`A soma da divisão (${formatMoney(soma)}) precisa bater com o total da venda (${formatMoney(totalVenda())}).`);
+        }
       }
-      if (!selTipo.value) {
-        erro.textContent = "Escolha o tipo de transporte para confirmar a venda.";
-        erro.style.display = "block";
-        return;
-      }
+      if (!selTipo.value) return falha("Escolha o tipo de transporte para confirmar a venda.");
       if (!selTransp.value) {
-        erro.textContent = nomesT.length
+        return falha(nomesT.length
           ? "Escolha a transportadora para confirmar a venda."
-          : "Cadastre as transportadoras em Administração, Transportadoras, antes de confirmar a venda.";
-        erro.style.display = "block";
-        return;
+          : "Cadastre as transportadoras em Administração, Transportadoras, antes de confirmar a venda.");
       }
-      cleanup({ preco: p, condicao: selCond.value, tipo: selTipo.value, transportadora: selTransp.value });
+      cleanup({
+        preco: p, forma: selForma.value, valorRecebido: ehTm ? Math.round(parseFloat(recebido.value) * 100) / 100 : null,
+        divisao, tipo: selTipo.value, transportadora: selTransp.value
+      });
     };
     const onCancel = () => cleanup(null);
     const onTecla = (e) => { if (e.key === "Enter") { e.preventDefault(); onOk(); } };
@@ -1553,10 +1655,16 @@ function svVendaModal(r) {
     cancelBtn.addEventListener("click", onCancel);
     input.addEventListener("input", onInput);
     input.addEventListener("keydown", onTecla);
-    selCond.addEventListener("change", onInput);
+    selForma.addEventListener("change", onInput);
+    recebido.addEventListener("input", onInput);
+    chkDividir.addEventListener("change", onDividir);
+    btnAddDiv.addEventListener("click", onAddDivisao);
+    listaDiv.addEventListener("input", onInput);
+    listaDiv.addEventListener("change", onInput);
+    listaDiv.addEventListener("click", onListaClick);
     selTipo.addEventListener("change", onInput);
     selTransp.addEventListener("change", onInput);
-    atualizarTotal();
+    atualizarTudo();
     overlay.classList.add("show");
     input.focus();
     input.select();
@@ -1572,7 +1680,8 @@ async function svMudarSituacaoReserva(id, nova) {
     const venda = await svVendaModal(r);
     if (venda === null) return;
     campos = {
-      situacao: nova, preco_unitario: venda.preco, condicao_pagamento: venda.condicao,
+      situacao: nova, preco_unitario: venda.preco, forma_pagamento: venda.forma,
+      valor_recebido: venda.valorRecebido, divisao_pagamento: venda.divisao,
       tipo_transporte: venda.tipo, transportadora: venda.transportadora, vendido_em: todayISO()
     };
   } else if (!(await confirmModal("Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`))) {
@@ -1655,7 +1764,7 @@ async function svSalvarReservaDados() {
   const clienteDigitado = document.getElementById("svResCliente").value.trim();
   const vendedorInterno = document.getElementById("svResVendedor").value;
   const escolhaRepresentante = document.getElementById("svResRepresentante").value;
-  const condicao = document.getElementById("svResCondicao").value;
+  const forma = document.getElementById("svResForma").value;
   const tipoTransporte = document.getElementById("svResTipoTransporte").value;
   const transportadora = document.getElementById("svResTransportadora").value;
   const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
@@ -1670,7 +1779,7 @@ async function svSalvarReservaDados() {
   else if (!cliente) erros.push(["cliente", "Cliente não encontrado no cadastro do Torun. Cadastre em Clientes antes de reservar."]);
   if (!vendedorInterno) erros.push(["vendedor", svVendedores.length ? "Escolha o vendedor interno." : "Cadastre os vendedores em Administração antes de reservar."]);
   if (!escolhaRepresentante) erros.push(["representante", 'Escolha o representante ou marque "Sem representante".']);
-  if (!condicao) erros.push(["condicao", svCondicoes.length ? "Escolha a condição de pagamento." : "Cadastre as condições em Administração antes de reservar."]);
+  if (!forma) erros.push(["forma", "Escolha a forma de pagamento."]);
   if (!tipoTransporte) erros.push(["tipotransp", "Escolha o tipo de transporte."]);
   if (!transportadora) erros.push(["transportadora", svTransportadoras.length ? "Escolha a transportadora." : "Cadastre as transportadoras em Administração antes de reservar."]);
   if (!(quantidade > 0)) erros.push(["quantidade", "Informe a quantidade."]);
@@ -1712,7 +1821,7 @@ async function svSalvarReservaDados() {
     id: uid("svres"), codigo: opcao.codigo, quantidade, cliente: cliente.nome, vendedorInterno, representante,
     armazem: opcao.tipo === "E" ? opcao.armazem : null,
     previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
-    condicaoPagamento: condicao, tipoTransporte, transportadora,
+    formaPagamento: forma, tipoTransporte, transportadora,
     situacao: "ATIVA", data, obs
   };
   const { data: inserida, error } = await sb.from("sv_reservas").insert({ ...svReservaToRow(nova), created_by: currentUser ? currentUser.id : null }).select();
@@ -1965,7 +2074,6 @@ function svCarregarVendedores() {
 async function svAoAbrirAdministracao() {
   const tarefas = [];
   if (document.getElementById("svVendedoresCard")) tarefas.push(svCarregarVendedores().then(ok => { if (ok) svRenderVendedoresAdmin(); }));
-  if (document.getElementById("svCondicoesCard")) tarefas.push(svCarregarCondicoes().then(ok => { if (ok) svRenderCondicoesAdmin(); }));
   if (document.getElementById("svTransportadorasCard")) tarefas.push(svCarregarTransportadoras().then(ok => { if (ok) svRenderTransportadorasAdmin(); }));
   await Promise.all(tarefas);
 }
@@ -2017,75 +2125,6 @@ async function svExcluirVendedor(id) {
   svVendedores = svVendedores.filter(x => x.id !== id);
   svRenderVendedoresAdmin();
   toast("Vendedor removido.");
-}
-
-/* ---------- Condições de pagamento (lista que a Reserva usa; cadastro na Administração) ---------- */
-
-// mesma ideia dos vendedores: carga própria, para a falta da tabela não derrubar o resto do Sem Venda
-let svCondicoes = [];
-let svCondicoesEmAndamento = null;
-
-function svCarregarCondicoes() {
-  if (svCondicoesEmAndamento) return svCondicoesEmAndamento;
-  svCondicoesEmAndamento = (async () => {
-    const { data, error } = await sb.from("sv_condicoes_pagamento").select("*").order("nome");
-    if (error) {
-      toast("Erro ao carregar as condições de pagamento: " + error.message);
-      return false;
-    }
-    svCondicoes = (data || []).map(c => ({ id: c.id, nome: c.nome })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
-    return true;
-  })().finally(() => { svCondicoesEmAndamento = null; });
-  return svCondicoesEmAndamento;
-}
-
-function svRenderCondicoesAdmin() {
-  const n = svCondicoes.length;
-  document.getElementById("svCondCount").textContent = n === 0 ? "" : `${n} ${n === 1 ? "condição cadastrada" : "condições cadastradas"}`;
-  document.getElementById("svCondEmpty").style.display = n === 0 ? "block" : "none";
-  const tbody = document.getElementById("svCondTbody");
-  tbody.innerHTML = svCondicoes.map(c => `
-    <tr>
-      <td>${escapeHtml(c.nome)}</td>
-      <td class="sv-acoes"><button type="button" class="sv-link" data-svconddel="${escapeAttr(c.id)}">Excluir</button></td>
-    </tr>`).join("");
-  tbody.querySelectorAll("[data-svconddel]").forEach(btn => {
-    btn.addEventListener("click", () => svExcluirCondicao(btn.dataset.svconddel));
-  });
-}
-
-async function svAdicionarCondicao(e) {
-  e.preventDefault();
-  const botao = document.getElementById("svBtnAddCondicao");
-  if (botao.disabled) return;
-  botao.disabled = true;
-  try {
-    const campo = document.getElementById("svCondNome");
-    const nome = campo.value.replace(/\s+/g, " ").trim();
-    if (!nome) { toast("Informe o nome da condição."); return; }
-    if (svCondicoes.some(c => c.nome.toLowerCase() === nome.toLowerCase())) { toast("Essa condição já está na lista."); return; }
-    const { data, error } = await sb.from("sv_condicoes_pagamento").insert({ id: uid("svcond"), nome, created_by: currentUser ? currentUser.id : null }).select();
-    if (error) { toast("Erro ao adicionar a condição: " + error.message); return; }
-    if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
-    svCondicoes.push({ id: data[0].id, nome: data[0].nome });
-    svCondicoes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));
-    campo.value = "";
-    svRenderCondicoesAdmin();
-    toast("Condição adicionada.");
-  } finally { botao.disabled = false; }
-}
-
-async function svExcluirCondicao(id) {
-  const c = svCondicoes.find(x => x.id === id);
-  if (!c) return;
-  const ok = await confirmModal("Excluir condição?", `Remove "${c.nome}" da lista de condições de pagamento. As reservas que já foram feitas com ela continuam como estão.`);
-  if (!ok) return;
-  const { data, error } = await sb.from("sv_condicoes_pagamento").delete().eq("id", id).select();
-  if (error) { toast("Erro ao excluir a condição: " + error.message); return; }
-  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removida)."); return; }
-  svCondicoes = svCondicoes.filter(x => x.id !== id);
-  svRenderCondicoesAdmin();
-  toast("Condição removida.");
 }
 
 /* ---------- Transportadoras (lista que a Reserva usa; cadastro na Administração) ---------- */
@@ -2360,7 +2399,6 @@ function initSemVendaTelas() {
     svRenderDashboardVendas();
   });
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
-  document.getElementById("svFormCondicao").addEventListener("submit", svAdicionarCondicao);
   document.getElementById("svFormTransportadora").addEventListener("submit", svAdicionarTransportadora);
   svLigarReserva();
   document.getElementById("svResData").value = todayISO();

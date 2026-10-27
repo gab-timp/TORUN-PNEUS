@@ -135,7 +135,8 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-chip:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
 .sv-res-tabela{table-layout:fixed;}
 .sv-res-tabela th{white-space:normal;vertical-align:bottom;}
-.sv-res-tabela th, .sv-res-tabela td{padding-left:8px;padding-right:8px;overflow-wrap:anywhere;}
+.sv-res-tabela th, .sv-res-tabela td{padding-left:6px;padding-right:6px;overflow-wrap:anywhere;}
+.sv-res-tabela th{font-size:9.5px;letter-spacing:.03em;}
 .sv-res-tabela td{vertical-align:top;}
 .sv-res-tabela .status-pill{white-space:normal;line-height:1.25;}
 .sv-obs{font-size:11px;font-style:italic;color:var(--ink-soft);margin-top:3px;}
@@ -143,6 +144,22 @@ body.is-admin .nav-group.admin-only{display:block;}
 .sv-tt.nosso{background:var(--blue-pale);color:var(--blue-deep);}
 .sv-tt.cli{background:var(--paper-2);color:var(--ink);}
 .sv-transp{font-size:11px;margin-top:3px;}
+
+/* Confirmar venda: valor recebido (Trademaster) e divisão do pagamento, como no Varejo */
+#svVendaOverlay .modal{max-width:580px;width:100%;}
+#svVendaOverlay .sv-res-linha{margin-top:12px;}
+.sv-div-campo{margin-top:12px;}
+.sv-div-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;}
+.sv-div-check input{width:auto;margin:0;accent-color:var(--orange);}
+.sv-div-box{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;margin-top:10px;}
+.sv-div-linha{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.sv-div-linha .sv-div-forma{flex:1 1 0;min-width:0;}
+.sv-div-linha .sv-div-valor{flex:0 0 130px;}
+.sv-div-resumo{margin-top:10px;font-size:12.5px;}
+.sv-div-soma{display:flex;justify-content:space-between;align-items:baseline;}
+.sv-div-status{font-size:12px;font-weight:700;margin-top:4px;}
+.sv-div-status.ok{color:var(--status-good);}
+.sv-div-status.erro{color:var(--danger);}
 .sv-valor{font-size:11.5px;font-weight:700;margin-top:4px;}
 .sv-res-tabela .sv-acoes{white-space:normal;}
 .sv-res-tabela td.sv-acoes{padding-left:4px;padding-right:2px;}
