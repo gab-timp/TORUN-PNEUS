@@ -22,6 +22,8 @@ const CRM_WIZ_PASSOS = [
 
 // prospect: cadastro curto (sql/crm_prospects.sql); só vira cliente efetivo pela ficha
 const CRM_WIZ_PASSOS_PROSPECT = [["carteira", "Cliente"], ["contatos", "Contato"], ["interesse", "Interesse"]];
+// editar um prospect já cadastrado: dados básicos + o mesmo passo Interesse (contatos têm edição própria na ficha)
+const CRM_WIZ_PASSOS_EDITAR_PROSPECT = [["dados", "Dados"], ["interesse", "Interesse"]];
 // converter prospect em cliente efetivo e editar o perfil usam os mesmos passos (sem escolher cliente nem contatos)
 const crmWizPassosPerfil = () => CRM_WIZ_PASSOS.filter(p => p[0] !== "carteira" && p[0] !== "contatos");
 
@@ -141,7 +143,8 @@ async function crmGravarPerfil(cliente, d, filiais, pneus) {
 
 let crmWizAbertura = 0;
 const crmWiz = {
-  modo: null,         // 'novo' | 'editar' | 'converter' (prospect -> cliente efetivo)
+  modo: null,         // 'novo' | 'editar' | 'converter' (prospect -> cliente efetivo) | 'editar-prospect'
+  pd: { documento: "", telefone: "", cidade: "", estado: "" }, // dados básicos do prospect (modo 'editar-prospect')
   tipo: "cliente",    // só no modo 'novo': 'cliente' (8 passos) | 'prospect' (3 passos)
   p: { origem: "", tipos: [], obs: "" }, // respostas do passo Interesse do prospect
   passo: 0,           // índice em crmWiz.passos
@@ -232,6 +235,24 @@ function crmAbrirPerfil(cliente, chave) {
   crmWiz.passo = i >= 0 ? i : 0;
   document.getElementById("crmAddHeader").textContent = "Editar perfil do cliente";
   document.getElementById("crmWizSub").textContent = cliente;
+  crmWizErro("");
+  document.getElementById("crmAddOverlay").classList.add("show");
+  crmWizRender();
+}
+
+// editar o prospect: documento, telefone, cidade/UF e o que ele disse no cadastro curto (o nome não muda: é a chave da carteira)
+function crmEditarProspect(nome) {
+  if (!crmPodeGerirCarteira() || !crmEhProspect(nome)) return;
+  const i = crmInfoCliente(nome);
+  crmWizAbertura++;
+  Object.assign(crmWiz, {
+    modo: "editar-prospect", tipo: "prospect", cliente: nome, passos: CRM_WIZ_PASSOS_EDITAR_PROSPECT.slice(), passo: 0,
+    p: { origem: i.origemLead || "", tipos: (i.interesseTipos || []).slice(), obs: i.observacao || "" },
+    pd: { documento: i.documento || "", telefone: i.telefone || "", cidade: i.cidade || "", estado: i.estado || "" },
+    contatos: [], ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false, infoNova: null
+  });
+  document.getElementById("crmAddHeader").textContent = "Editar prospect";
+  document.getElementById("crmWizSub").textContent = nome;
   crmWizErro("");
   document.getElementById("crmAddOverlay").classList.add("show");
   crmWizRender();
@@ -419,6 +440,18 @@ function crmWizPassoHtml(chave) {
         ${crmWizCampo("Limite de crédito (R$)", "limite", 'inputmode="decimal" placeholder="0,00"')}
       </div>
       ${crmWizTexto("Observações", "obsFinanceiro")}`;
+  }
+  if (chave === "dados") {
+    const x = crmWiz.pd;
+    return `
+      <h4 class="crm-wiz-titulo">Dados do prospect</h4>
+      <div class="crm-wiz-grade">
+        <div class="field"><label>CNPJ ou CPF</label><input type="text" data-wpd="documento" value="${escapeAttr(x.documento)}" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label>Telefone</label><input type="text" data-wpd="telefone" value="${escapeAttr(x.telefone)}" placeholder="(00) 00000-0000" autocomplete="off"></div>
+        <div class="field"><label>Cidade</label><input type="text" data-wpd="cidade" value="${escapeAttr(x.cidade)}" autocomplete="off"></div>
+        <div class="field"><label>UF</label><select data-wpd="estado">${crmOpts(CRM_UFS, x.estado, "—")}</select></div>
+      </div>
+      <p class="muted sv-sub">O nome do prospect não muda aqui. Os contatos são editados na própria ficha.</p>`;
   }
   if (chave === "interesse") {
     const p = crmWiz.p;
@@ -617,6 +650,10 @@ function crmWizValidar(chave) {
     }
     if (!crmEhExecutivo() && !crmWiz.execs.some(e => e.id === crmWiz.execId)) return "Escolha o executivo responsável.";
   }
+  if (chave === "dados") {
+    const d = crmDigitos(crmWiz.pd.documento);
+    if (d && d.length !== 11 && d.length !== 14) return "O CNPJ tem 14 números e o CPF tem 11. Confira o documento ou deixe em branco.";
+  }
   if (chave === "contatos" && crmWiz.tipo === "prospect") {
     if (!crmWiz.contatos.some(c => crmTxt(c.nome) && crmTxt(c.telefone))) return "Informe o nome e o telefone de pelo menos um contato.";
   } else if (chave === "contatos" && !crmWiz.contatos.some(c => crmTxt(c.nome))) return "Informe pelo menos o nome de um contato.";
@@ -668,11 +705,31 @@ async function crmWizSalvar() {
       return;
     }
     if (crmWiz.modo === "converter") { await crmWizSalvarConversao(); return; }
+    if (crmWiz.modo === "editar-prospect") { await crmWizSalvarProspect(); return; }
     await crmWizSalvarNovo();
   } finally {
     crmWiz.salvando = false;
     botao.disabled = false;
   }
+}
+
+async function crmWizSalvarProspect() {
+  const cliente = crmWiz.cliente, x = crmWiz.pd, p = crmWiz.p;
+  const doc = crmDigitos(x.documento);
+  const up = await sb.from("crm_clientes").update({
+    documento: crmTxt(x.documento), tipo_pessoa: doc.length === 11 ? "PF" : doc.length === 14 ? "PJ" : null,
+    telefone: crmTxt(x.telefone), cidade: crmTxt(x.cidade), estado: x.estado || null,
+    origem_lead: crmTxt(p.origem), interesse_tipos: p.tipos.length ? p.tipos : null, observacao: crmTxt(p.obs)
+  }).eq("nome", cliente).eq("tipo", "prospect").select();
+  if (up.error) {
+    crmWizErro(up.error.code === "23505" ? "Já existe um cliente com esse CNPJ ou CPF no CRM." : "Erro ao salvar o prospect: " + up.error.message);
+    return;
+  }
+  if (!up.data || !up.data[0]) { crmWizErro("Não foi possível salvar (sem permissão, ou ele já virou cliente efetivo)."); return; }
+  crmState.clientes.set(cliente, crmClienteFromRow(up.data[0]));
+  crmFecharAdicionar();
+  crmRender();
+  toast("Prospect atualizado.");
 }
 
 async function crmWizSalvarConversao() {
@@ -793,6 +850,7 @@ function crmWizInit() {
       return;
     }
     if (t.dataset.wp) crmWiz.p[t.dataset.wp] = t.value;
+    else if (t.dataset.wpd) crmWiz.pd[t.dataset.wpd] = t.value;
     else if (t.dataset.w) crmWiz.d[t.dataset.w] = t.value;
     else if (t.dataset.wl) {
       const lista = crmWiz[t.dataset.wl];
@@ -808,6 +866,7 @@ function crmWizInit() {
     else if (t.id === "crmWizExec") { crmWiz.execId = t.value; crmWizErro(""); }
     else if (t.id === "crmWizOutro") crmWiz.outro = t.checked;
     else if (t.dataset.wp) crmWiz.p[t.dataset.wp] = t.value;
+    else if (t.dataset.wpd) crmWiz.pd[t.dataset.wpd] = t.value;
     else if (t.dataset.w) {
       crmWiz.d[t.dataset.w] = t.value;
       if (t.dataset.wrender) crmWizRender();
@@ -879,6 +938,8 @@ function crmWizInit() {
   document.getElementById("crmFicha").addEventListener("click", (e) => {
     const aba = e.target.closest("[data-crmaba]");
     if (aba) { crmUi.fichaAba = aba.dataset.crmaba; crmRenderFicha(); return; }
+    const edp = e.target.closest("[data-crmeditarprospect]");
+    if (edp) { crmEditarProspect(edp.dataset.crmeditarprospect); return; }
     const conv = e.target.closest("[data-crmconverter]");
     if (conv) { crmConverterProspect(conv.dataset.crmconverter); return; }
     const ed = e.target.closest("[data-crmeditar]");
@@ -909,7 +970,7 @@ function crmProspectCardHtml(c) {
   const i = crmInfoCliente(c.cliente);
   return `<div class="card">
     <div class="card-head"><h2>Prospect</h2><div class="note">Vira cliente efetivo em “Tornar cliente efetivo”</div></div>
-    ${crmDl([["Origem do contato", escapeHtml(i.origemLead)], ["O que compra", escapeHtml((i.interesseTipos || []).join(", "))], ["Observação", escapeHtml(i.observacao)], ["CNPJ", escapeHtml(i.documento), true]])}
+    ${crmDl([["Telefone do cadastro", escapeHtml(i.telefone), true], ["Origem do contato", escapeHtml(i.origemLead)], ["O que compra", escapeHtml((i.interesseTipos || []).join(", "))], ["Observação", escapeHtml(i.observacao)], ["CNPJ", escapeHtml(i.documento), true]])}
   </div>`;
 }
 
