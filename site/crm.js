@@ -17,6 +17,7 @@ const CRM_EXIGE_RETORNO = ["Pediu retorno", "Interesse", "Estimativa enviada"];
 // etapa que a tela sugere ao escolher o resultado; Não atendeu e Pediu retorno mantêm a etapa atual
 const CRM_ETAPA_SUGERIDA = { "Interesse": "Em negociação", "Estimativa enviada": "Estimativa enviada", "Fechou negócio": "Fechado", "Sem interesse": "Declinou" };
 const CRM_ETAPAS = [
+  { nome: "Primeiro contato", accent: "#6366F1", deep: "#4338CA", pale: "#E7E7FE" },
   { nome: "Estimativa enviada", accent: "#FF6A13", deep: "#C64F0C", pale: "#FFE7D6" },
   { nome: "Em negociação", accent: "#2563EB", deep: "#1D4FA8", pale: "#E4EEFD" },
   { nome: "Fechamento", accent: "#D97706", deep: "#92650A", pale: "#FBF3D5" },
