@@ -275,11 +275,12 @@ function crmContatoRapido(c) {
 
 const crmDigitos = s => String(s || "").replace(/\D/g, "");
 
+// abre a conversa no WhatsApp Desktop (a equipe usa o programa, que também faz a ligação de voz); o link wa.me abriria só o Web
 function crmLinkWhats(numero) {
   let d = crmDigitos(numero);
   if (!d) return null;
   if (d.length <= 11) d = "55" + d;
-  return "https://wa.me/" + d;
+  return "whatsapp://send?phone=" + d;
 }
 
 // atalhos de contato: botão quadrado só com ícone (nome no tooltip e no leitor de tela)
@@ -293,7 +294,7 @@ function crmAtalhosHtml(ct) {
   const partes = [];
   if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
   const wa = crmLinkWhats(ct.whatsapp || ct.telefone);
-  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp", ct, true));
+  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Desktop)", ct));
   // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador) e copia o endereço
   // do contato (o decisor, que vem primeiro), para colar onde precisar
   if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, ct.email));
