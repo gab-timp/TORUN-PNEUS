@@ -2561,7 +2561,7 @@ function svSubProposta() {
 
 function svRodapeProposta() {
   const condicao = document.getElementById("svPropCondicao").value.trim();
-  return (condicao ? "" : "Forma de pagamento sob consulta. ") + "Frete não incluso, combinado à parte. Quantidades disponíveis em " + formatDateBR(todayISO()) + ".";
+  return (condicao ? "" : "Forma de pagamento sob consulta. ") + "Frete não incluso, combinado à parte. Quantidades sujeitas a confirmação de estoque.";
 }
 
 function svAtualizarCabecalhoProposta() {
