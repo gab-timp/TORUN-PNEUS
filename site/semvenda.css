@@ -304,7 +304,8 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .sv-prop-form form{display:flex;flex-direction:column;gap:12px;}
 .sv-prop-form form > .field{flex:0 0 auto;}
 .sv-prop-previa{min-width:0;}
-/* a prévia imita a folha do PDF: cabeçalho sempre claro, pra o logo (feito pra fundo claro) aparecer nos dois temas */
+/* a prévia imita a folha do PDF: cabeçalho sempre claro. Sem logo nem nome da Torun de propósito, pra proposta
+   poder ir pro cliente sem a marca (mesma regra do relatório de preço do representante) */
 .sv-prop-topo{
   display:flex;align-items:center;gap:16px;
   background:#fff;color:#0b0b0b;border-radius:10px;border-bottom:3px solid var(--orange);
@@ -356,6 +357,6 @@ td.sv-num{font-family:'Space Mono',monospace;}
   size:A4;
   margin:16mm;
   @top-left{content:"";} @top-center{content:"";} @top-right{content:"";}
-  @bottom-left{content:"TORUN PNEUS · Proposta"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
+  @bottom-left{content:"Proposta"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
   @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
 }
