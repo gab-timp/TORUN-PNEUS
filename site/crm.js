@@ -281,12 +281,18 @@ function crmLinkWhats(numero) {
   return "https://wa.me/" + d;
 }
 
+// atalhos de contato: botão quadrado só com ícone (nome no tooltip e no leitor de tela)
+function crmAtalhoIcone(href, icone, rotulo, ct, externo) {
+  const nome = ct && ct.nome ? ` ${escapeAttr(ct.nome)}` : "";
+  const alvo = externo ? ' target="_blank" rel="noopener"' : "";
+  return `<a class="crm-ico" href="${escapeAttr(href)}"${alvo} title="${rotulo}" aria-label="${rotulo}${nome ? " —" + nome : ""}"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-${icone}"/></svg></a>`;
+}
 function crmAtalhosHtml(ct) {
   const partes = [];
-  if (crmDigitos(ct.telefone)) partes.push(`<a class="btn small outline" href="tel:${escapeAttr(crmDigitos(ct.telefone))}">Ligar</a>`);
+  if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
   const wa = crmLinkWhats(ct.whatsapp || ct.telefone);
-  if (wa) partes.push(`<a class="btn small outline" href="${escapeAttr(wa)}" target="_blank" rel="noopener">WhatsApp</a>`);
-  if (ct.email) partes.push(`<a class="btn small outline" href="mailto:${escapeAttr(ct.email)}">E-mail</a>`);
+  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp", ct, true));
+  if (ct.email) partes.push(crmAtalhoIcone("mailto:" + ct.email, "email", "E-mail", ct));
   return partes.join(" ");
 }
 
@@ -471,7 +477,7 @@ function crmCartaoKanban(x) {
   const rodape = `${r.total} ${r.total === 1 ? "ligação" : "ligações"}` +
     (c.etapa && diasEtapa !== null ? ` · há ${diasEtapa} ${diasEtapa === 1 ? "dia" : "dias"} nesta etapa` : "");
   const acoes = [];
-  if (crmDigitos(ct.telefone)) acoes.push(`<a class="btn small outline" href="tel:${escapeAttr(crmDigitos(ct.telefone))}">Ligar</a>`);
+  if (crmDigitos(ct.telefone)) acoes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
   if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
   return `
     <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""}" data-id="${escapeAttr(c.id)}">

@@ -34,6 +34,10 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-nome{font-weight:700;font-size:13px;text-align:left;color:var(--ink);}
 .crm-nome:hover{color:var(--orange-deep);text-decoration:underline;}
 .crm-acoes{white-space:nowrap;}
+.crm-ico{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;}
+.crm-ico .ic{width:15px;height:15px;}
+.crm-ico:hover{border-color:var(--orange);color:var(--orange-deep);}
+.crm-ico:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
 .crm-acoes .btn{margin-right:4px;}
 .crm-rodape{margin-top:10px;}
 
