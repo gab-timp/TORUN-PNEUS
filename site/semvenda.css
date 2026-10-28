@@ -312,7 +312,6 @@ td.sv-num{font-family:'Space Mono',monospace;}
   padding:12px 16px;margin-bottom:14px;
 }
 .sv-prop-logo{height:40px;display:block;}
-.sv-prop-titulo{font-size:17px;font-weight:800;}
 .sv-prop-sub{font-size:11px;color:#5a5a55;min-height:1em;}
 .sv-prop-aviso{
   background:var(--paper);border:1px solid var(--line);border-radius:10px;

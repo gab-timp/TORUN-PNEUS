@@ -2626,7 +2626,6 @@ function svBuildPropostaHtml(linhas) {
     <div class="print-proposta">
       <div class="pp-topo">
         <div>
-          <h1>Proposta — Estoque Sem Venda</h1>
           ${sub ? `<div class="pp-sub">${escapeHtml(sub)}</div>` : ""}
         </div>
       </div>
