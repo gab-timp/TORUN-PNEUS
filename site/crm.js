@@ -284,20 +284,22 @@ function crmLinkWhats(numero) {
 }
 
 // atalhos de contato: botão quadrado só com ícone (nome no tooltip e no leitor de tela)
+// copiar = { texto, rotulo, soCopia }: o clique também copia o texto; soCopia: no computador não segue o link (tel: não abre nada ali)
 function crmAtalhoIcone(href, icone, rotulo, ct, externo, copiar) {
   const nome = ct && ct.nome ? ` ${escapeAttr(ct.nome)}` : "";
   const alvo = externo ? ' target="_blank" rel="noopener"' : "";
-  const cop = copiar ? ` data-crmcopiar="${escapeAttr(copiar)}"` : "";
+  const cop = copiar ? ` data-crmcopiar="${escapeAttr(copiar.texto)}" data-crmcopiarrot="${escapeAttr(copiar.rotulo)}"${copiar.soCopia ? ' data-crmsocopia="1"' : ""}` : "";
   return `<a class="crm-ico" href="${escapeAttr(href)}"${alvo}${cop} title="${rotulo}" aria-label="${rotulo}${nome ? " —" + nome : ""}"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-${icone}"/></svg></a>`;
 }
 function crmAtalhosHtml(ct) {
   const partes = [];
-  if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
+  // no computador o telefone só copia o número (para discar onde preferir); no celular o toque segue para a ligação
+  if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar (copia o número)", ct, false, { texto: ct.telefone, rotulo: "Telefone", soCopia: true }));
   const wa = crmLinkWhats(ct.whatsapp || ct.telefone);
-  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Desktop)", ct));
+  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Desktop e copia o número)", ct, false, { texto: ct.whatsapp || ct.telefone, rotulo: "WhatsApp" }));
   // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador) e copia o endereço
   // do contato (o decisor, que vem primeiro), para colar onde precisar
-  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, ct.email));
+  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, { texto: ct.email, rotulo: "E-mail" }));
   return partes.join(" ");
 }
 
@@ -482,7 +484,7 @@ function crmCartaoKanban(x) {
   const rodape = `${r.total} ${r.total === 1 ? "ligação" : "ligações"}` +
     (c.etapa && diasEtapa !== null ? ` · há ${diasEtapa} ${diasEtapa === 1 ? "dia" : "dias"} nesta etapa` : "");
   const acoes = [];
-  if (crmDigitos(ct.telefone)) acoes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
+  if (crmDigitos(ct.telefone)) acoes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar (copia o número)", ct, false, { texto: ct.telefone, rotulo: "Telefone", soCopia: true }));
   if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
   return `
     <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""}" data-id="${escapeAttr(c.id)}">
@@ -888,7 +890,11 @@ async function crmCopiarTexto(texto, rotulo) {
 function crmClickDelegado(e) {
   const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
   if (!t) return;
-  if (t.dataset.crmcopiar) crmCopiarTexto(t.dataset.crmcopiar, "E-mail");
+  if (t.dataset.crmcopiar) {
+    // só copia no computador (mouse); no celular o toque segue para o link de ligação
+    if (t.dataset.crmsocopia && window.matchMedia("(hover: hover) and (pointer: fine)").matches) e.preventDefault();
+    crmCopiarTexto(t.dataset.crmcopiar, t.dataset.crmcopiarrot || "Texto");
+  }
   else if (t.dataset.crmficha) crmAbrirFicha(t.dataset.crmficha);
   else if (t.dataset.crmligar) crmAbrirLigacao(t.dataset.crmligar);
   else if (t.dataset.crmvoltar) setView("crm-clientes");
