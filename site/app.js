@@ -532,7 +532,7 @@ async function loadState() {
     sb.from("user_roles").select("visible_etapas").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true })),
     // papel no CRM (sql/crm_nucleo.sql): consulta à parte, pelo mesmo motivo de visible_etapas -- sem o SQL a coluna não
     // existe e o perfil do usuário não pode quebrar por causa disso (o CRM só fica sem acesso)
-    sb.from("user_roles").select("crm_papel, crm_sistema").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true }))
+    sb.from("user_roles").select("*").eq("user_id", currentUser.id).maybeSingle().then(r => r, () => ({ data: null, error: true }))
   ]);
   const [produtosRes, precosRes, movRes, fretesRes, clientesRes, vendasRes, previsoesRes, entregasRes, romaneiosRes, rastreioEventosRes, representantesRes, roleRes, prefRes, preCadRes, notifRes] = results;
   if (configRes.error) console.error("Erro ao carregar configurações do site (usando padrões):", configRes.error);

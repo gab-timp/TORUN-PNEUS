@@ -61,6 +61,13 @@ export function limparPerfil(p: any): { valores?: Record<string, unknown>; erro?
     // só o executivo tem sistema próprio; financeiro e gestão veem os dois
     v.crm_sistema = p.crm_papel === "executivo" ? p.crm_sistema : null;
   }
+  // lista de sistemas do executivo (Atacado, Encomenda ou os dois); o site só manda quando a coluna existe no banco
+  if (p.crm_sistemas !== undefined) {
+    if (p.crm_sistemas !== null && (!Array.isArray(p.crm_sistemas) || p.crm_sistemas.length > 2 || !p.crm_sistemas.every((x: unknown) => SISTEMAS_CRM.includes(x as string)))) {
+      return { erro: "Sistemas do CRM inválidos." };
+    }
+    v.crm_sistemas = p.crm_papel === "executivo" ? p.crm_sistemas : null;
+  }
   if (p.visible_views !== undefined) {
     if (p.visible_views !== null) {
       if (!Array.isArray(p.visible_views) || p.visible_views.length > 60 ||

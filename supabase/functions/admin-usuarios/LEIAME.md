@@ -41,5 +41,5 @@ antes de apagar o login).
 
 `perfil` aceita só: `role` (editor, viewer, representante), `is_admin`, `pode_autorizar_gerencia`, `pode_exportar_backup`,
 `pode_acessar_sem_venda`, `pode_acessar_portal_representante`, `crm_papel` (executivo, financeiro, gestao ou null),
-`crm_sistema` (atacado ou encomenda, só para executivo) e `visible_views` (lista de telas ou null = todas). Qualquer outro
+`crm_sistema` (atacado ou encomenda, só para executivo), `crm_sistemas` (lista com um ou os dois, só para executivo; opcional) e `visible_views` (lista de telas ou null = todas). Qualquer outro
 campo é ignorado; a senha nunca volta na resposta nem vai para o log.

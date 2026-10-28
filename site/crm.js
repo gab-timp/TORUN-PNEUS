@@ -27,7 +27,7 @@ const CRM_RECARGA_MIN_MS = 3000;
 const CRM_ATALHOS_FU = [["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7], ["Em 2 semanas", 14]];
 
 let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastro do usuário)
-let crmSistema = null;  // 'atacado' | 'encomenda' (só do executivo)
+let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
 const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
@@ -40,7 +40,9 @@ let crmSortables = [];
 
 function crmDefinirPerfil(r) {
   crmPapel = (r && r.crm_papel) || null;
-  crmSistema = (r && r.crm_sistema) || null;
+  // a lista nova (user_roles.crm_sistemas); sem ela vale o sistema único de antes
+  const lista = r && Array.isArray(r.crm_sistemas) ? r.crm_sistemas : (r && r.crm_sistema ? [r.crm_sistema] : []);
+  crmSistemas = Object.keys(CRM_SISTEMAS).filter(k => lista.includes(k));
 }
 
 // administrador sem papel marcado conta como gestão (mesma regra de current_user_crm_papel() no banco)
@@ -55,7 +57,7 @@ function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPap
 
 function crmSistemasVisiveis() {
   const p = crmPapelEfetivo();
-  if (p === "executivo") return crmSistema ? [crmSistema] : [];
+  if (p === "executivo") return crmSistemas.slice();
   return p ? ["atacado", "encomenda"] : [];
 }
 

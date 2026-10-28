@@ -13,15 +13,17 @@ const USR_SISTEMA = { atacado: "Atacado", encomenda: "Encomenda" };
 
 const USR_BASE = {
   role: "editor", is_admin: false, pode_autorizar_gerencia: false, pode_exportar_backup: false, pode_acessar_sem_venda: false,
-  pode_acessar_portal_representante: false, crm_papel: null, crm_sistema: null, visible_views: null
+  pode_acessar_portal_representante: false, crm_papel: null, crm_sistema: null, crm_sistemas: [], visible_views: null
 };
 
 // Perfis prontos da janela "Novo usuário". Executivo entra no Torun só com o Dashboard (visible_views = ["dashboard"]).
 const USR_PERFIS = [
   { id: "exec-atacado", nome: "Executivo de Atacado", desc: "Vê só a própria carteira do Atacado e registra as ligações dela.",
-    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "atacado", visible_views: ["dashboard"] } },
+    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "atacado", crm_sistemas: ["atacado"], visible_views: ["dashboard"] } },
   { id: "exec-encomenda", nome: "Executivo de Encomenda", desc: "Vê só a própria carteira da Encomenda e registra as ligações dela.",
-    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "encomenda", visible_views: ["dashboard"] } },
+    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "encomenda", crm_sistemas: ["encomenda"], visible_views: ["dashboard"] } },
+  { id: "exec-ambos", nome: "Executivo de Atacado e Encomenda", desc: "Vê só as próprias carteiras do Atacado e da Encomenda e troca entre os dois sistemas.",
+    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "atacado", crm_sistemas: ["atacado", "encomenda"], visible_views: ["dashboard"] } },
   { id: "financeiro", nome: "Financeiro", desc: "Telas do Financeiro no Torun e leitura das carteiras do Atacado e da Encomenda.",
     valores: { ...USR_BASE, crm_papel: "financeiro", visible_views: USR_TELAS_FINANCEIRO.slice() } },
   { id: "gestao", nome: "Gestão / Direção", desc: "Lê tudo no Atacado e na Encomenda e redistribui as carteiras.",
@@ -46,7 +48,10 @@ function usrValoresDe(row) {
   const v = { ...USR_BASE };
   Object.keys(USR_BASE).forEach(k => { if (row[k] !== undefined && row[k] !== null) v[k] = row[k]; });
   v.crm_papel = row.crm_papel || null;
-  v.crm_sistema = v.crm_papel === "executivo" ? (row.crm_sistema || null) : null;
+  // executivo pode ter um sistema ou os dois: a lista nova, ou o sistema único de antes
+  const lista = Array.isArray(row.crm_sistemas) ? row.crm_sistemas : (row.crm_sistema ? [row.crm_sistema] : []);
+  v.crm_sistemas = v.crm_papel === "executivo" ? Object.keys(USR_SISTEMA).filter(k => lista.includes(k)) : [];
+  v.crm_sistema = v.crm_sistemas[0] || null;
   v.visible_views = Array.isArray(row.visible_views) ? row.visible_views.slice() : null;
   return v;
 }
@@ -64,14 +69,14 @@ function usrAcessosDe(v) {
   return {
     varejo: { papel: v.role, telas: usrTextoTelas(v.visible_views) },
     semvenda: !!v.is_admin || !!v.pode_acessar_sem_venda,
-    atacado: papel && (nosDois || v.crm_sistema === "atacado") ? papel : null,
-    encomenda: papel && (nosDois || v.crm_sistema === "encomenda") ? papel : null
+    atacado: papel && (nosDois || v.crm_sistemas.includes("atacado")) ? papel : null,
+    encomenda: papel && (nosDois || v.crm_sistemas.includes("encomenda")) ? papel : null
   };
 }
 
-function usrTextoCrm(papel, sistema) {
+function usrTextoCrm(papel, sistemas) {
   if (!papel) return "sem acesso";
-  return papel === "executivo" ? `Executivo (${USR_SISTEMA[sistema] || "?"})` : (papel === "gestao" ? "Gestão / Direção" : "Financeiro");
+  return papel === "executivo" ? `Executivo (${(sistemas || []).map(k => USR_SISTEMA[k]).join(" e ") || "?"})` : (papel === "gestao" ? "Gestão / Direção" : "Financeiro");
 }
 
 function usrSelo(classe, texto) {
@@ -291,7 +296,7 @@ function usrErroNovo(msg) {
 function usrPerfilParaEnvio(valores) {
   const colunas = usrColunas();
   const sempre = ["role", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup", "pode_acessar_sem_venda", "visible_views"];
-  const opcionais = ["pode_acessar_portal_representante", "crm_papel", "crm_sistema"];
+  const opcionais = ["pode_acessar_portal_representante", "crm_papel", "crm_sistema", "crm_sistemas"];
   const envio = {};
   sempre.forEach(k => { envio[k] = valores[k]; });
   opcionais.forEach(k => { if (colunas.has(k)) envio[k] = valores[k]; });
@@ -324,6 +329,12 @@ async function usrSalvarNovo() {
       : { acao: "criar", nome, email, senha, perfil: usrPerfilParaEnvio(perfil.valores) };
     const r = await usrChamarFuncao(corpo);
     if (r.erro) { usrErroNovo(r.erro); return; }
+    // a função publicada antes de existir a lista de sistemas ignora crm_sistemas: completa direto na tabela
+    const vals = usrValoresDe(perfil.valores);
+    if (vals.crm_papel === "executivo" && vals.crm_sistemas.length > 1 && usrColunas().has("crm_sistemas") && r.user_id) {
+      const up = await sb.from("user_roles").update({ crm_sistemas: vals.crm_sistemas }).eq("user_id", r.user_id);
+      if (up.error) toast("Usuário criado, mas os dois sistemas não foram gravados: " + up.error.message + ". Abra Editar acesso e marque de novo.");
+    }
     usrFecharNovo();
     await usrCarregar();
     if (liberar) { toast("Acesso liberado."); return; }
@@ -437,7 +448,7 @@ function usrDiferencas() {
   if (f.role !== o.role) itens.push(["Papel no Torun", USR_PAPEL_VAREJO[o.role], USR_PAPEL_VAREJO[f.role]]);
   if (!igual(f.visible_views, o.visible_views)) itens.push(["Telas do Torun", usrTextoTelas(o.visible_views), usrTextoTelas(f.visible_views)]);
   if (f.pode_acessar_sem_venda !== o.pode_acessar_sem_venda) itens.push(["Sem Venda", o.pode_acessar_sem_venda ? "liberado" : "sem acesso", f.pode_acessar_sem_venda ? "liberado" : "sem acesso"]);
-  if (f.crm_papel !== o.crm_papel || f.crm_sistema !== o.crm_sistema) itens.push(["Papel no CRM", usrTextoCrm(o.crm_papel, o.crm_sistema), usrTextoCrm(f.crm_papel, f.crm_sistema)]);
+  if (f.crm_papel !== o.crm_papel || !igual(f.crm_sistemas, o.crm_sistemas)) itens.push(["Papel no CRM", usrTextoCrm(o.crm_papel, o.crm_sistemas), usrTextoCrm(f.crm_papel, f.crm_sistemas)]);
   if (f.is_admin !== o.is_admin) itens.push(["Administrador", sim(o.is_admin), sim(f.is_admin)]);
   if (f.pode_autorizar_gerencia !== o.pode_autorizar_gerencia) itens.push(["Autorizar Gerência", sim(o.pode_autorizar_gerencia), sim(f.pode_autorizar_gerencia)]);
   if (f.pode_exportar_backup !== o.pode_exportar_backup) itens.push(["Exportar backup", sim(o.pode_exportar_backup), sim(f.pode_exportar_backup)]);
@@ -538,10 +549,11 @@ function usrRenderAcesso() {
               ${papelCrm("financeiro", "Financeiro", "Lê todas as carteiras.")}
               ${papelCrm("gestao", "Gestão / Direção", "Lê tudo e redistribui.")}
             </div>
-            ${f.crm_papel === "executivo" ? `<div class="usr-linha-seg"><span class="usr-rot">Executivo de qual sistema?</span>
-              <div class="usr-seg" role="group" aria-label="Sistema do executivo">
-                ${Object.entries(USR_SISTEMA).map(([id, rot]) => `<button type="button" data-usrcrmsis="${id}" class="${f.crm_sistema === id ? "on" : ""}">${rot}</button>`).join("")}
-              </div></div>` : ""}
+            ${f.crm_papel === "executivo" ? `<div class="usr-linha-seg"><span class="usr-rot">Executivo de quais sistemas? <span class="muted">(marque um ou os dois)</span></span>
+              <div class="usr-perfis" role="group" aria-label="Sistemas do executivo">
+                ${Object.entries(USR_SISTEMA).map(([id, rot]) => `<button type="button" class="usr-perfil ${f.crm_sistemas.includes(id) ? "on" : ""}" role="checkbox" aria-checked="${f.crm_sistemas.includes(id)}" data-usrcrmsis="${id}"><b>${f.crm_sistemas.includes(id) ? "✓ " : ""}${rot}</b><span>${id === "atacado" ? "Kanban, Hoje e carteira própria do Atacado." : "Hoje e carteira própria da Encomenda."}</span></button>`).join("")}
+              </div>
+              <div class="muted usr-sub usr-sub-cima">${f.crm_sistemas.length === 2 ? "Vê só as próprias carteiras do Atacado e da Encomenda e troca entre os dois sistemas." : f.crm_sistemas.length === 1 ? "Vê só a própria carteira " + (f.crm_sistemas[0] === "atacado" ? "do Atacado." : "da Encomenda.") : "Marque pelo menos um sistema."}</div></div>` : ""}
             ${!f.crm_papel && row.is_admin ? '<div class="muted usr-sub usr-sub-cima">Administrador sem papel marcado conta como Gestão no CRM.</div>' : ""}`
           : `<div class="note">O CRM ainda não foi liberado no banco (rode sql/crm_nucleo.sql no Supabase).</div>`}
         </div>
@@ -582,7 +594,8 @@ function usrAlternarTela(chave, ligada) {
 function usrEscolherCrm(id) {
   const f = usrUi.form;
   f.crm_papel = id === "none" ? null : id;
-  f.crm_sistema = id === "executivo" ? (f.crm_sistema || usrUi.original.crm_sistema || "atacado") : null;
+  f.crm_sistemas = id === "executivo" ? (f.crm_sistemas.length ? f.crm_sistemas : (usrUi.original.crm_sistemas.length ? usrUi.original.crm_sistemas.slice() : ["atacado"])) : [];
+  f.crm_sistema = f.crm_sistemas[0] || null;
 }
 
 async function usrSalvarAcesso() {
@@ -593,7 +606,8 @@ async function usrSalvarAcesso() {
   if (!dif.length) return;
   const f = usrUi.form, o = usrUi.original;
   if (!f.nome.trim()) { toast("Informe o nome."); return; }
-  if (f.crm_papel === "executivo" && !f.crm_sistema) { toast("Escolha o sistema do executivo (Atacado ou Encomenda)."); return; }
+  if (f.crm_papel === "executivo" && !f.crm_sistemas.length) { toast("Marque pelo menos um sistema para o executivo (Atacado ou Encomenda)."); return; }
+  if (f.crm_papel === "executivo" && f.crm_sistemas.length > 1 && !usrColunas().has("crm_sistemas")) { toast("O banco ainda não guarda dois sistemas por executivo (rode sql/crm_executivo_dois_sistemas.sql no Supabase)."); return; }
   if (f.is_admin && !o.is_admin) {
     const ok = await confirmModal("Dar acesso de administrador?", `${f.nome.trim() || row.email} vai poder ver e mudar tudo, inclusive os acessos de todos os usuários.`);
     if (!ok) return;
@@ -607,7 +621,11 @@ async function usrSalvarAcesso() {
   if (f.nome.trim() !== o.nome.trim()) payload.nome = f.nome.trim();
   ["role", "visible_views", "pode_acessar_sem_venda", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup"].forEach(k => { if (mudou(k)) payload[k] = f[k]; });
   if (colunas.has("pode_acessar_portal_representante") && mudou("pode_acessar_portal_representante")) payload.pode_acessar_portal_representante = f.pode_acessar_portal_representante;
-  if (colunas.has("crm_papel") && (mudou("crm_papel") || mudou("crm_sistema"))) { payload.crm_papel = f.crm_papel; payload.crm_sistema = f.crm_papel === "executivo" ? f.crm_sistema : null; }
+  if (colunas.has("crm_papel") && (mudou("crm_papel") || mudou("crm_sistemas"))) {
+    payload.crm_papel = f.crm_papel;
+    payload.crm_sistema = f.crm_papel === "executivo" ? f.crm_sistemas[0] : null; // o primeiro: a regra antiga do banco exige um sistema
+    if (colunas.has("crm_sistemas")) payload.crm_sistemas = f.crm_papel === "executivo" ? f.crm_sistemas : null;
+  }
 
   usrUi.salvando = true;
   const botao = document.getElementById("usrAcSalvar");
@@ -648,7 +666,12 @@ function usrCliqueAcesso(e) {
   if (t.dataset.usrrole) usrUi.form.role = t.dataset.usrrole;
   else if (t.dataset.usrtelas) usrAplicarTelas(t.dataset.usrtelas);
   else if (t.dataset.usrcrm) usrEscolherCrm(t.dataset.usrcrm);
-  else if (t.dataset.usrcrmsis) usrUi.form.crm_sistema = t.dataset.usrcrmsis;
+  else if (t.dataset.usrcrmsis) {
+    const f = usrUi.form, id = t.dataset.usrcrmsis;
+    const marcados = f.crm_sistemas.includes(id) ? f.crm_sistemas.filter(k => k !== id) : [...f.crm_sistemas, id];
+    f.crm_sistemas = Object.keys(USR_SISTEMA).filter(k => marcados.includes(k));
+    f.crm_sistema = f.crm_sistemas[0] || null;
+  }
   else if (t.dataset.usravancado) usrUi.avancadoAberto = !usrUi.avancadoAberto;
   usrRenderAcesso();
 }
