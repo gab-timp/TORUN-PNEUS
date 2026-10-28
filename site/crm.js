@@ -197,8 +197,9 @@ async function crmCarregarClientes() {
   }
   crmState.clientesIndisponivel = false;
   crmState.clientes = new Map((r.data || []).map(x => [x.nome, crmClienteFromRow(x)]));
-  // a escolha prospect/cliente só aparece depois que o SQL criou a coluna "tipo"
-  crmState.prospectsDisponivel = (r.data || []).length > 0 && "tipo" in r.data[0];
+  // a escolha prospect/cliente só aparece depois que o SQL criou a coluna "tipo" (consulta à parte: vale mesmo com a tabela vazia)
+  const col = await sb.from("crm_clientes").select("tipo").limit(1);
+  crmState.prospectsDisponivel = !col.error;
 }
 
 function crmEhProspect(nome) { const c = crmState.clientes.get(nome); return !!c && c.tipo === "prospect"; }
