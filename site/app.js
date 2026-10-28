@@ -7069,14 +7069,6 @@ async function confirmarMesclagemClientes() {
       : `Não é possível mesclar: ${nomesComReserva} têm reserva no Sem Venda e não podem ser removidos. Tire-os da seleção (um deles pode ser o principal).`);
     return;
   }
-  // idem pra carteira do CRM (Atacado e Encomenda): o cliente de uma carteira não pode ser removido
-  const carteirasCrm = await carteiraCrmDosClientes(outros);
-  const comCarteiraCrm = carteirasCrm ? outros.filter(n => carteirasCrm[n]) : [];
-  if (comCarteiraCrm.length) {
-    const nomesCrm = comCarteiraCrm.map(n => `"${n}"`).join(", ");
-    toast(`Não é possível mesclar: ${nomesCrm} ${comCarteiraCrm.length === 1 ? "está" : "estão"} na carteira do CRM (Atacado/Encomenda) e não pode${comCarteiraCrm.length === 1 ? "" : "m"} ser removido${comCarteiraCrm.length === 1 ? "" : "s"}. Escolha esse cadastro como principal ou tire da seleção.`);
-    return;
-  }
 
   const motivo = await motivoModal("Confirmar mesclagem?",
     `"${outros.join('", "')}" será(ão) removido(s), e suas vendas, pedidos, arquivos e análises de crédito passam a apontar para "${survivorNome}". Informe o motivo.`);
@@ -7656,11 +7648,6 @@ async function excluirClienteAtual() {
   const reservasSV = await reservasSemVendaDosClientes([nome]);
   if (reservasSV && reservasSV[nome]) {
     toast(`Não é possível excluir: esse cliente tem ${reservasSV[nome]} reserva(s) no Sem Venda (as canceladas também ficam no histórico).`);
-    return;
-  }
-  const carteirasCrm = await carteiraCrmDosClientes([nome]);
-  if (carteirasCrm && carteirasCrm[nome]) {
-    toast("Não é possível excluir: esse cliente está na carteira do CRM (Atacado/Encomenda), com histórico de ligações.");
     return;
   }
   // análise de crédito também impede excluir (o banco barra com erro cru de chave estrangeira): o histórico de

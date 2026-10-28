@@ -30,7 +30,7 @@ let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastr
 let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
-const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false };
+const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
 const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade", escopo: "todas" };
 let crmUltimaCarga = 0;
@@ -118,6 +118,15 @@ function crmLigacaoFromRow(r) {
     executivoId: r.executivo_user_id, executivoNome: r.executivo_nome || "", createdAt: r.created_at
   };
 }
+// cadastro próprio do CRM (sql/crm_clientes.sql); os campos têm o mesmo nome dos clientes do Torun
+function crmClienteFromRow(r) {
+  return {
+    id: r.id, nome: r.nome, tipoPessoa: r.tipo_pessoa || "", documento: r.documento || "", razaoSocial: r.razao_social || "",
+    contato: r.contato || "", telefone: r.telefone || "", email: r.email || "", cep: r.cep || "", endereco: r.endereco || "",
+    cidade: r.cidade || "", estado: r.estado || "", limiteCredito: r.limite_credito != null ? Number(r.limite_credito) : null,
+    origem: r.origem
+  };
+}
 function crmHistFromRow(r) {
   return { id: r.id, sistema: r.sistema, cliente: r.cliente, de: r.de || null, para: r.para || null, origem: r.origem, porNome: r.por_nome || "", quando: r.quando };
 }
@@ -160,6 +169,7 @@ function crmCarregar(forcar) {
     crmState.ligacoes = (lig.data || []).map(crmLigacaoFromRow);
     crmState.historico = (hist.data || []).map(crmHistFromRow);
     crmReindexar();
+    await crmCarregarClientes();
     await crmCarregarPerfis();
     return true;
   })().finally(() => { crmCargaEmAndamento = null; });
@@ -172,7 +182,25 @@ function crmCarteiraPorId(id) { return crmState.carteira.find(c => c.id === id) 
 function crmLigacoesDe(c) { return crmIdx.lig.get(crmChave(c.sistema, c.cliente)) || []; }
 function crmContatosDe(c) { return crmIdx.cont.get(crmChave(c.sistema, c.cliente)) || []; }
 function crmHistoricoDe(c) { return crmIdx.hist.get(crmChave(c.sistema, c.cliente)) || []; }
-function crmInfoCliente(nome) { return (state.clientes || []).find(x => x.nome === nome) || {}; }
+
+// Cadastro do cliente no CRM. Enquanto o SQL do cadastro próprio não rodou, a carteira ainda aponta para os clientes do Torun.
+async function crmCarregarClientes() {
+  const r = await selectTudoPaginado("crm_clientes", "nome");
+  if (r.error) {
+    crmState.clientesIndisponivel = true;
+    crmState.clientes = new Map();
+    console.warn("Cadastro de clientes do CRM indisponível:", r.error.message);
+    return;
+  }
+  crmState.clientesIndisponivel = false;
+  crmState.clientes = new Map((r.data || []).map(x => [x.nome, crmClienteFromRow(x)]));
+}
+
+function crmInfoCliente(nome) {
+  const c = crmState.clientes.get(nome);
+  if (c) return c;
+  return crmState.clientesIndisponivel ? (state.clientes || []).find(x => x.nome === nome) || {} : {};
+}
 
 function crmCidadeUF(nome) {
   const cli = crmInfoCliente(nome);
@@ -819,19 +847,6 @@ async function crmExcluirContato(id) {
 }
 
 /* adicionar cliente à carteira e editar o perfil: assistente em crm-perfil.js */
-
-/* ---------------- ganchos do app.js ---------------- */
-
-// Excluir/mesclar cliente do Torun: quantas carteiras do CRM apontam pra ele. Devolve { nome: quantidade } só dos que
-// estão em alguma carteira, ou null se não deu pra checar (SQL do CRM ainda não rodou, erro de rede): aí o fluxo segue
-// como antes e o banco continua barrando.
-async function carteiraCrmDosClientes(nomes) {
-  const { data, error } = await sb.rpc("clientes_na_carteira_crm", { p_nomes: nomes });
-  if (error) { console.warn("Não deu pra checar a carteira do CRM:", error.message); return null; }
-  const porCliente = {};
-  (data || []).forEach(r => { porCliente[r.cliente] = Number(r.carteiras); });
-  return porCliente;
-}
 
 /* ---------------- ligações dos eventos da tela ---------------- */
 

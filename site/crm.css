@@ -194,3 +194,13 @@ body.sistema-crm .sidebar-divider{display:none;}
 /* gestão com carteira própria: clientes dela destacados */
 .crm-view tr.crm-minha td:first-child{box-shadow:inset 4px 0 0 var(--orange);}
 .kanban-card.crm-minha-cartao{border-left:4px solid var(--orange);}
+.crm-wiz-modos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+.crm-wiz-modo{display:flex;flex-direction:column;gap:2px;text-align:left;font:inherit;color:inherit;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;}
+.crm-wiz-modo b{font-size:13px;}
+.crm-wiz-modo span{font-size:11.5px;color:var(--ink-soft);}
+.crm-wiz-modo:hover{border-color:var(--ink);}
+.crm-wiz-modo.novo{border-style:dashed;border-color:var(--orange);}
+.crm-wiz-modo[aria-pressed="true"]{border-color:var(--ink);border-style:solid;box-shadow:0 0 0 1px var(--ink);background:var(--paper-2);}
+.crm-wiz-modo:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
+.crm-aviso .btn{margin-top:6px;background:#fff;color:#0F0F0F;border-color:#0F0F0F;}
+@media (max-width:700px){.crm-wiz-modos{grid-template-columns:minmax(0,1fr);}}
