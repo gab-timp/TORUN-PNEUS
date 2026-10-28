@@ -10,6 +10,7 @@ const CRM_INADIMPLENCIAS = ["Nenhuma", "Em atraso", "Protestado"];
 const CRM_UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"];
 const CRM_FUNCOES = ["Proprietário", "Comprador / fechador", "Financeiro", "Fiscal", "Estoque", "Outros"];
 const CRM_TIPOS_PNEU = ["Carga", "Passeio", "Agrícola", "OTR", "Moto", "Remold"];
+const CRM_ORIGENS_LEAD = ["Indicação", "Feira", "Ligação ativa", "Instagram", "Site", "Outro"];
 const CRM_DIAS_ALERTA_TTD = 60;
 
 // passos do assistente: chave -> rótulo. "carteira" só existe ao adicionar; "contatos" só ao adicionar (na ficha os
@@ -18,6 +19,11 @@ const CRM_WIZ_PASSOS = [
   ["carteira", "Cliente"], ["cadastro", "Dados cadastrais"], ["perfil", "Perfil"], ["fiscal", "Fiscal"],
   ["comercial", "Comercial"], ["contatos", "Contatos"], ["financeiro", "Financeiro"], ["inteligencia", "Inteligência"]
 ];
+
+// prospect: cadastro curto (sql/crm_prospects.sql); só vira cliente efetivo pela ficha
+const CRM_WIZ_PASSOS_PROSPECT = [["carteira", "Cliente"], ["contatos", "Contato"], ["interesse", "Interesse"]];
+// converter prospect em cliente efetivo e editar o perfil usam os mesmos passos (sem escolher cliente nem contatos)
+const crmWizPassosPerfil = () => CRM_WIZ_PASSOS.filter(p => p[0] !== "carteira" && p[0] !== "contatos");
 
 /* ---------------- leitura e gravação ---------------- */
 
@@ -135,7 +141,9 @@ async function crmGravarPerfil(cliente, d, filiais, pneus) {
 
 let crmWizAbertura = 0;
 const crmWiz = {
-  modo: null,         // 'novo' | 'editar'
+  modo: null,         // 'novo' | 'editar' | 'converter' (prospect -> cliente efetivo)
+  tipo: "cliente",    // só no modo 'novo': 'cliente' (8 passos) | 'prospect' (3 passos)
+  p: { origem: "", tipos: [], obs: "" }, // respostas do passo Interesse do prospect
   passo: 0,           // índice em crmWiz.passos
   passos: [],         // [chave, rótulo]
   cliente: null,
@@ -185,7 +193,7 @@ async function crmAbrirAdicionar() {
   if (!crmPodeGerirCarteira()) return;
   const s = crmSistemaAtual();
   Object.assign(crmWiz, {
-    modo: "novo", passo: 0, cliente: null, d: crmWizPerfilVazio(), filiais: [], pneus: [], contatos: crmWizContatosVazios(),
+    modo: "novo", tipo: "cliente", p: { origem: "", tipos: [], obs: "" }, passo: 0, cliente: null, d: crmWizPerfilVazio(), filiais: [], pneus: [], contatos: crmWizContatosVazios(),
     ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false,
     fonte: null, selNome: null,
     novo: { nome: "", documento: "", telefone: "", cidade: "", estado: "" }, infoNova: null, escolhaSig: "",
@@ -217,12 +225,32 @@ async function crmAbrirAdicionar() {
 function crmAbrirPerfil(cliente, chave) {
   if (!crmPodeGerirCarteira()) return;
   crmWizAbertura++;
-  const passos = CRM_WIZ_PASSOS.filter(p => p[0] !== "carteira" && p[0] !== "contatos");
+  const passos = crmWizPassosPerfil();
   Object.assign(crmWiz, { modo: "editar", cliente, contatos: [], ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false, infoNova: null, passos });
   crmWizCarregarCliente(cliente);
   const i = passos.findIndex(p => p[0] === chave);
   crmWiz.passo = i >= 0 ? i : 0;
   document.getElementById("crmAddHeader").textContent = "Editar perfil do cliente";
+  document.getElementById("crmWizSub").textContent = cliente;
+  crmWizErro("");
+  document.getElementById("crmAddOverlay").classList.add("show");
+  crmWizRender();
+}
+
+// "Tornar cliente efetivo": confirma e abre o assistente nos dados cadastrais, com o que o prospect já tinha
+async function crmConverterProspect(cliente) {
+  if (!crmPodeGerirCarteira() || !crmEhProspect(cliente)) return;
+  const ok = await confirmModal("Tornar cliente efetivo",
+    "O assistente abre nos dados cadastrais, com o contato e o interesse já preenchidos, e o CNPJ passa a ser obrigatório. As ligações e os contatos continuam no histórico, o cliente passa a aparecer no Faturamento e não volta a ser prospect depois de confirmado.",
+    "Abrir assistente");
+  if (!ok) return;
+  crmWizAbertura++;
+  Object.assign(crmWiz, { modo: "converter", cliente, contatos: [], ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false, infoNova: null, passos: crmWizPassosPerfil(), passo: 0 });
+  crmWizCarregarCliente(cliente);
+  // o que o prospect disse que compra vira a lista do passo Comercial, para só completar as quantidades
+  const info = crmInfoCliente(cliente);
+  if (!crmWiz.pneus.length) crmWiz.pneus = (info.interesseTipos || []).map(t => ({ tipo: t, marcas: "", compra: "", potencial: "" }));
+  document.getElementById("crmAddHeader").textContent = "Tornar cliente efetivo";
   document.getElementById("crmWizSub").textContent = cliente;
   crmWizErro("");
   document.getElementById("crmAddOverlay").classList.add("show");
@@ -258,7 +286,13 @@ function crmWizRender() {
   ).join("");
   document.getElementById("crmWizCorpo").innerHTML = crmWizPassoHtml(crmWizChave());
   document.getElementById("crmWizVoltar").disabled = crmWiz.passo === 0;
-  document.getElementById("crmWizProximo").textContent = crmWiz.passo === total - 1 ? (crmWiz.modo === "novo" ? "Adicionar à carteira" : "Salvar") : "Próximo";
+  document.getElementById("crmWizProximo").textContent = crmWiz.passo === total - 1
+    ? (crmWiz.modo === "converter" ? "Tornar cliente efetivo" : crmWiz.modo === "novo" ? (crmWiz.tipo === "prospect" ? "Salvar prospect" : "Adicionar à carteira") : "Salvar") : "Próximo";
+  if (crmWiz.modo === "novo") {
+    document.getElementById("crmWizSub").textContent = crmWiz.tipo === "prospect"
+      ? "Prospect ainda não comprou. Cadastro curto; os dados fiscais ficam para quando virar cliente."
+      : "Carteira " + CRM_SISTEMAS[crmSistemaAtual()] + ". Preencha o que souber agora; o resto dá para completar depois na ficha.";
+  }
   document.getElementById("crmWizDica").textContent = `Etapa ${crmWiz.passo + 1} de ${total}`;
   crmWizAtualizarGap();
   if (crmWizChave() === "carteira") crmWizRenderBusca();
@@ -275,19 +309,29 @@ function crmWizPassoHtml(chave) {
     const s = crmSistemaAtual();
     const legado = crmState.clientesIndisponivel;
     const n = crmWiz.novo;
+    const prospect = crmWiz.tipo === "prospect";
+    const seletor = crmWiz.modo === "novo" && crmState.prospectsDisponivel ? `
+      <div class="crm-wiz-tipo">
+        <div class="crm-seg" role="group" aria-label="Tipo de cadastro">
+          <button type="button" data-wtipo="cliente" class="${prospect ? "" : "on"}">Cliente efetivo</button>
+          <button type="button" data-wtipo="prospect" class="${prospect ? "on" : ""}">Prospect</button>
+        </div>
+        <span class="note">${prospect ? "Ainda não comprou. Cadastro curto, sem dados fiscais." : "Já compra ou vai comprar. Cadastro completo."}</span>
+      </div>` : "";
     return `
-      <h4 class="crm-wiz-titulo">Qual cliente entra na carteira?</h4>
+      ${seletor}
+      <h4 class="crm-wiz-titulo">${prospect ? "Quem é o prospect?" : "Qual cliente entra na carteira?"}</h4>
       <div class="crm-wiz-grade">
         <div class="field"><label for="crmWizNDoc">CNPJ ou CPF</label><input type="text" id="crmWizNDoc" data-wn="documento" value="${escapeAttr(n.documento)}" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="off"></div>
         <div class="field"><label for="crmWizNNome">Razão social ou nome</label><input type="text" id="crmWizNNome" data-wn="nome" value="${escapeAttr(n.nome)}" autocomplete="off"></div>
       </div>
-      <p class="muted sv-sub">${legado ? "O cadastro próprio do CRM ainda não foi criado no banco; por enquanto só dá para escolher cliente do Torun. " : "O sistema procura no CRM e no Torun enquanto você digita. O CNPJ vale mais que o nome. "}Clique na linha do cliente para escolher.</p>
+      <p class="muted sv-sub">${prospect ? "O sistema avisa se a empresa já existe no CRM ou no Torun. O CNPJ é opcional para prospect, mas ajuda a achar repetidos. Depois clique em “Cadastrar … como prospect novo”." : ""}${prospect ? "" : (legado ? "O cadastro próprio do CRM ainda não foi criado no banco; por enquanto só dá para escolher cliente do Torun. " : "O sistema procura no CRM e no Torun enquanto você digita. O CNPJ vale mais que o nome. ") + "Clique na linha do cliente para escolher."}</p>
       <div class="crm-add-resultados" id="crmWizResultados" role="listbox" aria-label="Clientes encontrados" aria-live="polite"></div>
       <div id="crmWizNovoCampos"></div>
       ${crmEhExecutivo() ? "" : `<div class="field"><label>Executivo responsável</label><select id="crmWizExec">${crmWiz.execs.length
         ? `<option value="">Selecione…</option>` + crmWiz.execs.map(e => `<option value="${escapeAttr(e.id)}" ${e.id === crmWiz.execId ? "selected" : ""}>${escapeHtml(e.nome)}${e.id === crmMeuId() ? " (eu)" : ""}</option>`).join("")
         : `<option value="">Nenhum executivo cadastrado neste sistema</option>`}</select></div>`}
-      <label class="crm-add-outro"><input type="checkbox" id="crmWizOutro" ${crmWiz.outro ? "checked" : ""}> Este cliente também compra no outro sistema (${CRM_SISTEMAS[s === "atacado" ? "encomenda" : "atacado"]})</label>`;
+      ${prospect ? "" : `<label class="crm-add-outro"><input type="checkbox" id="crmWizOutro" ${crmWiz.outro ? "checked" : ""}> Este cliente também compra no outro sistema (${CRM_SISTEMAS[s === "atacado" ? "encomenda" : "atacado"]})</label>`}`;
   }
   if (chave === "cadastro") {
     return `
@@ -354,7 +398,7 @@ function crmWizPassoHtml(chave) {
   if (chave === "contatos") {
     return `
       <h4 class="crm-wiz-titulo">Contatos</h4>
-      <p class="muted sv-sub">Telefone e e-mail de cada função. Marque quem decide a compra. Informe pelo menos o nome de um contato.</p>
+      <p class="muted sv-sub">Telefone e e-mail de cada função. Marque quem decide a compra. ${crmWiz.tipo === "prospect" ? "Informe pelo menos o nome e o telefone de um contato." : "Informe pelo menos o nome de um contato."}</p>
       <div class="crm-wiz-lista">
         <div class="crm-wiz-cab crm-wiz-ct"><span>Função</span><span>Nome</span><span>Telefone</span><span>E-mail</span><span>Decisor</span></div>
         ${crmWiz.contatos.map((x, i) => `<div class="crm-wiz-linha crm-wiz-ct">
@@ -375,6 +419,18 @@ function crmWizPassoHtml(chave) {
         ${crmWizCampo("Limite de crédito (R$)", "limite", 'inputmode="decimal" placeholder="0,00"')}
       </div>
       ${crmWizTexto("Observações", "obsFinanceiro")}`;
+  }
+  if (chave === "interesse") {
+    const p = crmWiz.p;
+    return `
+      <h4 class="crm-wiz-titulo">Interesse</h4>
+      <p class="muted sv-sub">O que o prospect compra e de onde veio o contato. Dá para completar depois na ficha.</p>
+      <div class="field"><label>O que compra</label>
+        <div class="crm-chips">${CRM_TIPOS_PNEU.map(t => `<button type="button" class="crm-chip ${p.tipos.includes(t) ? "on" : ""}" aria-pressed="${p.tipos.includes(t)}" data-wptipo="${escapeAttr(t)}">${escapeHtml(t)}</button>`).join("")}</div></div>
+      <div class="crm-wiz-grade" style="margin-top:14px">
+        <div class="field"><label>Origem do contato</label><select data-wp="origem">${crmOpts(CRM_ORIGENS_LEAD, p.origem)}</select></div>
+      </div>
+      <div class="field"><label>Observação</label><textarea data-wp="obs" rows="3" placeholder="Ex.: frota própria de 18 caminhões">${escapeHtml(p.obs)}</textarea></div>`;
   }
   return `
     <h4 class="crm-wiz-titulo">Inteligência comercial</h4>
@@ -454,9 +510,17 @@ function crmWizRenderBusca() {
   if (!lista) return;
   const legado = crmState.clientesIndisponivel;
   const outroSis = CRM_SISTEMAS[crmSistemaAtual() === "atacado" ? "encomenda" : "atacado"];
-  const itens = crmWizItens().slice(0, 40);
+  const prospect = crmWiz.tipo === "prospect";
+  const digitou = !!(crmTxt(crmWiz.novo.nome) || crmDigitos(crmWiz.novo.documento));
+  // prospect é sempre cadastro novo: o que já existe aparece só como aviso, sem poder escolher
+  const itens = (prospect && !digitou) ? [] : crmWizItens().slice(0, 40);
   const nome = crmTxt(crmWiz.novo.nome);
   let html = itens.map(({ fonte, c }) => {
+    if (prospect) {
+      const selo = fonte === "crm" ? (c.tipo === "prospect" ? "Já é prospect no CRM" : "Já é cliente no CRM") : "Cadastro do Torun";
+      const subP = [[c.cidade, c.estado].filter(Boolean).join("/"), c.documento].filter(Boolean).map(escapeHtml).join(" · ");
+      return `<div class="crm-add-res crm-add-ocupado crm-add-linha"><span><b>${escapeHtml(c.nome)}</b><div class="muted sv-sub">${subP}</div></span><span class="crm-selo crm-selo-bad">${selo}</span></div>`;
+    }
     const sub = [[c.cidade, c.estado].filter(Boolean).join("/"), c.documento].filter(Boolean).map(escapeHtml).join(" · ");
     const dono = crmWiz.ocupados.get(c.nome);
     if (dono) return `<div class="crm-add-res crm-add-ocupado crm-add-linha"><span><b>${escapeHtml(c.nome)}</b><div class="muted sv-sub">${sub}</div></span><span class="crm-selo crm-selo-bad">Na carteira de ${escapeHtml(dono)}</span></div>`;
@@ -468,8 +532,9 @@ function crmWizRenderBusca() {
   // não achou: oferece cadastrar o nome digitado (só se não existe no CRM nem no Torun, nem pelo CNPJ)
   if (!legado && nome && !crmAcharNoCrm(nome, crmWiz.novo.documento) && !crmAcharNoTorun(nome, crmWiz.novo.documento)) {
     const on = crmWiz.fonte === "novo";
-    html += `<button type="button" class="crm-add-res crm-add-linha crm-add-novo ${on ? "on" : ""}" role="option" aria-selected="${on}" data-wiznovo="1"><span><b>Cadastrar “${escapeHtml(nome)}” como cliente novo</b><div class="muted sv-sub">Não existe no CRM nem no Torun${crmDigitos(crmWiz.novo.documento).length >= 11 ? " (nem pelo CNPJ)" : ""}.</div></span><span class="crm-selo crm-selo-novo">Cliente novo</span></button>`;
+    html += `<button type="button" class="crm-add-res crm-add-linha crm-add-novo ${on ? "on" : ""}" role="option" aria-selected="${on}" data-wiznovo="1"><span><b>Cadastrar “${escapeHtml(nome)}” como ${prospect ? "prospect novo" : "cliente novo"}</b><div class="muted sv-sub">Não existe no CRM nem no Torun${crmDigitos(crmWiz.novo.documento).length >= 11 ? " (nem pelo CNPJ)" : ""}.</div></span><span class="crm-selo ${prospect ? "crm-selo-pro" : "crm-selo-novo"}">${prospect ? "Prospect novo" : "Cliente novo"}</span></button>`;
   }
+  if (!html && prospect) html = `<div class="muted sv-sub">Digite o nome da empresa. O sistema avisa se ela já existe no CRM ou no Torun.</div>`;
   if (!html) html = `<div class="muted sv-sub">${legado ? "Nenhum cliente do Torun com esse nome ou CNPJ." : "Nenhum cliente com esse CNPJ. Informe também a razão social para cadastrar como cliente novo."}</div>`;
   lista.innerHTML = html;
   crmWizRenderNovoCampos();
@@ -520,7 +585,7 @@ function crmWizAplicarEscolha() {
   }
 }
 
-function crmClienteToRow(info, origem) {
+function crmClienteToRow(info, origem, extra) {
   const doc = crmDigitos(info.documento);
   const tipo = info.tipoPessoa === "PF" || info.tipoPessoa === "PJ" ? info.tipoPessoa : doc.length === 11 ? "PF" : doc.length === 14 ? "PJ" : null;
   return {
@@ -528,13 +593,14 @@ function crmClienteToRow(info, origem) {
     nome: info.nome, tipo_pessoa: tipo, documento: crmTxt(info.documento), razao_social: crmTxt(info.razaoSocial),
     contato: crmTxt(info.contato), telefone: crmTxt(info.telefone), email: crmTxt(info.email), cep: crmTxt(info.cep),
     endereco: crmTxt(info.endereco), cidade: crmTxt(info.cidade), estado: crmTxt(info.estado),
-    limite_credito: info.limiteCredito != null ? info.limiteCredito : null, origem
+    limite_credito: info.limiteCredito != null ? info.limiteCredito : null, origem, ...(extra || {})
   };
 }
 
 function crmWizValidar(chave) {
   if (chave === "carteira") {
     const f = crmWiz.fonte, sel = crmWiz.selNome;
+    if (crmWiz.tipo === "prospect" && f !== "novo") return crmTxt(crmWiz.novo.nome) ? "Cadastre o prospect como novo: use a linha “Cadastrar … como prospect novo”." : "Informe o nome do prospect.";
     if (!f) return "Escolha um cliente da lista ou cadastre um novo.";
     if (f === "crm") {
       if (!sel || !crmState.clientes.has(sel)) return "Escolha um cliente que já está no CRM.";
@@ -551,7 +617,10 @@ function crmWizValidar(chave) {
     }
     if (!crmEhExecutivo() && !crmWiz.execs.some(e => e.id === crmWiz.execId)) return "Escolha o executivo responsável.";
   }
-  if (chave === "contatos" && !crmWiz.contatos.some(c => crmTxt(c.nome))) return "Informe pelo menos o nome de um contato.";
+  if (chave === "contatos" && crmWiz.tipo === "prospect") {
+    if (!crmWiz.contatos.some(c => crmTxt(c.nome) && crmTxt(c.telefone))) return "Informe o nome e o telefone de pelo menos um contato.";
+  } else if (chave === "contatos" && !crmWiz.contatos.some(c => crmTxt(c.nome))) return "Informe pelo menos o nome de um contato.";
+  if (chave === "cadastro" && crmWiz.modo === "converter" && crmDigitos(crmWiz.d.cnpj).length < 11) return "Informe o CNPJ (ou CPF) para tornar o prospect cliente efetivo.";
   if (chave === "financeiro" && crmTxt(crmWiz.d.limite) && crmNumDeBR(crmWiz.d.limite) === null) return "O limite de crédito precisa ser um valor, como 250.000,00.";
   return "";
 }
@@ -598,11 +667,32 @@ async function crmWizSalvar() {
       toast("Perfil salvo.");
       return;
     }
+    if (crmWiz.modo === "converter") { await crmWizSalvarConversao(); return; }
     await crmWizSalvarNovo();
   } finally {
     crmWiz.salvando = false;
     botao.disabled = false;
   }
+}
+
+async function crmWizSalvarConversao() {
+  const cliente = crmWiz.cliente, d = crmWiz.d;
+  const doc = crmDigitos(d.cnpj);
+  const up = await sb.from("crm_clientes").update({
+    tipo: "cliente", documento: crmTxt(d.cnpj), razao_social: crmTxt(d.razaoSocial),
+    tipo_pessoa: doc.length === 11 ? "PF" : doc.length === 14 ? "PJ" : null
+  }).eq("nome", cliente).eq("tipo", "prospect").select();
+  if (up.error) {
+    crmWizErro(up.error.code === "23505" ? "Já existe um cliente com esse CNPJ no CRM." : "Erro ao tornar cliente efetivo: " + up.error.message);
+    return;
+  }
+  if (!up.data || !up.data[0]) { crmWizErro("Não foi possível converter (sem permissão, ou ele já é cliente efetivo)."); return; }
+  crmState.clientes.set(cliente, crmClienteFromRow(up.data[0]));
+  const erroPerfil = await crmGravarPerfil(cliente, d, crmWiz.filiais, crmWiz.pneus);
+  if (erroPerfil) toast("Virou cliente efetivo, mas o perfil não foi salvo: " + erroPerfil + ". Abra a ficha e use Editar.");
+  crmFecharAdicionar();
+  crmRender();
+  toast("Pronto: " + cliente + " agora é cliente efetivo.");
 }
 
 async function crmWizSalvarNovo() {
@@ -612,7 +702,10 @@ async function crmWizSalvarNovo() {
   // cliente que ainda não está no cadastro do CRM (importado do Torun ou novo): entra agora, só no fim do assistente,
   // para quem desistiu no meio não deixar cadastro solto
   if (crmWiz.fonte !== "crm" && !crmState.clientesIndisponivel) {
-    const ins = await sb.from("crm_clientes").insert(crmClienteToRow(crmWiz.infoNova, crmWiz.fonte === "torun" ? "torun" : "novo")).select();
+    const extra = crmWiz.tipo === "prospect"
+      ? { tipo: "prospect", origem_lead: crmTxt(crmWiz.p.origem), interesse_tipos: crmWiz.p.tipos.length ? crmWiz.p.tipos : null, observacao: crmTxt(crmWiz.p.obs) }
+      : null;
+    const ins = await sb.from("crm_clientes").insert(crmClienteToRow(crmWiz.infoNova, crmWiz.fonte === "torun" ? "torun" : "novo", extra)).select();
     if (ins.error) {
       crmWizErro(ins.error.code === "23505"
         ? "Já existe um cliente com esse nome ou CNPJ no CRM. Use a aba “Já está no CRM”."
@@ -640,7 +733,7 @@ async function crmWizSalvarNovo() {
 
   const cart = await sb.from("crm_carteira").insert({
     sistema: s, cliente, executivo_user_id: execId, executivo_nome: execNome,
-    tambem_outro_sistema: crmWiz.outro, primeiro_followup: todayISO()
+    tambem_outro_sistema: crmWiz.tipo === "prospect" ? false : crmWiz.outro, primeiro_followup: todayISO()
   }).select();
   if (cart.error) {
     crmWizErro(cart.error.code === "23505"
@@ -658,13 +751,16 @@ async function crmWizSalvarNovo() {
   if (cont.error) toast("O cliente entrou na carteira, mas os contatos não foram salvos: " + cont.error.message);
   else (cont.data || []).forEach(r => crmState.contatos.push(crmContatoFromRow(r)));
 
-  const erroPerfil = await crmGravarPerfil(cliente, crmWiz.d, crmWiz.filiais, crmWiz.pneus);
-  if (erroPerfil) toast("O cliente entrou na carteira, mas o perfil não foi salvo: " + erroPerfil + ". Abra a ficha e use Editar.");
+  // prospect não tem perfil: ele só é gravado quando virar cliente efetivo
+  if (crmWiz.tipo !== "prospect") {
+    const erroPerfil = await crmGravarPerfil(cliente, crmWiz.d, crmWiz.filiais, crmWiz.pneus);
+    if (erroPerfil) toast("O cliente entrou na carteira, mas o perfil não foi salvo: " + erroPerfil + ". Abra a ficha e use Editar.");
+  }
 
   crmReindexar();
   crmFecharAdicionar();
   crmRender();
-  toast("Cliente adicionado à carteira.");
+  toast(crmWiz.tipo === "prospect" ? "Prospect adicionado à carteira." : "Cliente adicionado à carteira.");
 }
 
 /* eventos do assistente */
@@ -696,7 +792,8 @@ function crmWizInit() {
       }
       return;
     }
-    if (t.dataset.w) crmWiz.d[t.dataset.w] = t.value;
+    if (t.dataset.wp) crmWiz.p[t.dataset.wp] = t.value;
+    else if (t.dataset.w) crmWiz.d[t.dataset.w] = t.value;
     else if (t.dataset.wl) {
       const lista = crmWiz[t.dataset.wl];
       if (lista && lista[Number(t.dataset.i)]) lista[Number(t.dataset.i)][t.dataset.f] = t.value;
@@ -710,6 +807,7 @@ function crmWizInit() {
     if (t.dataset.wn) { crmWiz.novo[t.dataset.wn] = t.value; crmWizErro(""); }
     else if (t.id === "crmWizExec") { crmWiz.execId = t.value; crmWizErro(""); }
     else if (t.id === "crmWizOutro") crmWiz.outro = t.checked;
+    else if (t.dataset.wp) crmWiz.p[t.dataset.wp] = t.value;
     else if (t.dataset.w) {
       crmWiz.d[t.dataset.w] = t.value;
       if (t.dataset.wrender) crmWizRender();
@@ -719,7 +817,23 @@ function crmWizInit() {
     const b = e.target.closest("button");
     if (!b) return;
     if (b.dataset.wizcli || b.dataset.wiznovo || b.dataset.wseg || b.dataset.wuf || b.dataset.wadd || b.dataset.wdel) crmWiz.sujo = true;
-    if (b.dataset.wiznovo) {
+    if (b.dataset.wtipo) {
+      if (crmWiz.tipo !== b.dataset.wtipo) {
+        crmWiz.tipo = b.dataset.wtipo;
+        crmWiz.passos = (crmWiz.tipo === "prospect" ? CRM_WIZ_PASSOS_PROSPECT : CRM_WIZ_PASSOS).slice();
+        // prospect é sempre cadastro novo: a escolha de um cliente existente não vale mais
+        if (crmWiz.tipo === "prospect" && crmWiz.fonte !== "novo") { crmWiz.fonte = null; crmWiz.selNome = null; }
+        crmWiz.sujo = true;
+        crmWizErro("");
+        crmWizRender();
+      }
+    } else if (b.dataset.wptipo) {
+      const k = crmWiz.p.tipos.indexOf(b.dataset.wptipo);
+      if (k >= 0) crmWiz.p.tipos.splice(k, 1); else crmWiz.p.tipos.push(b.dataset.wptipo);
+      crmWiz.sujo = true;
+      b.classList.toggle("on", k < 0);
+      b.setAttribute("aria-pressed", String(k < 0));
+    } else if (b.dataset.wiznovo) {
       crmWiz.fonte = "novo"; crmWiz.selNome = null;
       crmWizErro("");
       crmWizRenderBusca();
@@ -765,6 +879,8 @@ function crmWizInit() {
   document.getElementById("crmFicha").addEventListener("click", (e) => {
     const aba = e.target.closest("[data-crmaba]");
     if (aba) { crmUi.fichaAba = aba.dataset.crmaba; crmRenderFicha(); return; }
+    const conv = e.target.closest("[data-crmconverter]");
+    if (conv) { crmConverterProspect(conv.dataset.crmconverter); return; }
     const ed = e.target.closest("[data-crmeditar]");
     if (ed) {
       const c = crmCarteiraPorId(crmUi.fichaId);
@@ -778,8 +894,23 @@ function crmWizInit() {
 const CRM_ABAS = [["atividade", "Atividade"], ["perfil", "Perfil"], ["fiscal", "Fiscal e financeiro"], ["raiox", "Raio-X comercial"]];
 
 function crmFichaAbasHtml() {
-  return `<div class="crm-abas" role="tablist">${CRM_ABAS.map(([k, rot]) =>
-    `<button type="button" role="tab" class="${crmUi.fichaAba === k ? "on" : ""}" aria-selected="${crmUi.fichaAba === k}" data-crmaba="${k}">${rot}</button>`).join("")}</div>`;
+  const c = crmCarteiraPorId(crmUi.fichaId);
+  const prospect = !!c && crmEhProspect(c.cliente);
+  return `<div class="crm-abas" role="tablist">${CRM_ABAS.map(([k, rot]) => {
+    // prospect só tem a aba Atividade; as outras abrem quando virar cliente efetivo
+    if (prospect && k !== "atividade") return `<button type="button" role="tab" class="fora" disabled title="Disponível depois de tornar cliente efetivo">${rot}</button>`;
+    return `<button type="button" role="tab" class="${crmUi.fichaAba === k ? "on" : ""}" aria-selected="${crmUi.fichaAba === k}" data-crmaba="${k}">${rot}</button>`;
+  }).join("")}</div>`;
+}
+
+// ficha do prospect: o que foi dito no cadastro curto
+function crmProspectCardHtml(c) {
+  if (!crmEhProspect(c.cliente)) return "";
+  const i = crmInfoCliente(c.cliente);
+  return `<div class="card">
+    <div class="card-head"><h2>Prospect</h2><div class="note">Vira cliente efetivo em “Tornar cliente efetivo”</div></div>
+    ${crmDl([["Origem do contato", escapeHtml(i.origemLead)], ["O que compra", escapeHtml((i.interesseTipos || []).join(", "))], ["Observação", escapeHtml(i.observacao)], ["CNPJ", escapeHtml(i.documento), true]])}
+  </div>`;
 }
 
 const crmDl = (linhas) => `<dl class="crm-dl">${linhas.map(([rot, val, mono]) => {

@@ -202,3 +202,12 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-selo-tor{background:#DDE7FD;color:#1D4ED8;}
 .crm-selo-bad{background:#FDE6E6;color:#B91C1C;}
 .crm-selo-novo{background:#FFE2CF;color:#B34509;}
+.crm-selo-pro{background:#E7E7FE;color:#4338CA;}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .crm-selo-pro{background:#25264A;color:#A9AAFF;}
+}
+:root[data-theme="dark"] .crm-selo-pro{background:#25264A;color:#A9AAFF;}
+.crm-wiz-tipo{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+.crm-wiz-tipo .note{margin:0;}
+.crm-abas button.fora{opacity:.45;cursor:not-allowed;}
+.crm-abas button.fora:hover{color:var(--ink-soft);}
