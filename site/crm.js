@@ -29,9 +29,9 @@ const CRM_ATALHOS_FU = [["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7], ["
 let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastro do usuário)
 let crmSistema = null;  // 'atacado' | 'encomenda' (só do executivo)
 
-const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [] };
+const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
-const crmUi = { sistema: "atacado", modo: "lista", fichaId: null };
+const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade" };
 let crmUltimaCarga = 0;
 let crmCargaEmAndamento = null;
 let crmSortables = [];
@@ -149,6 +149,7 @@ function crmCarregar(forcar) {
     crmState.ligacoes = (lig.data || []).map(crmLigacaoFromRow);
     crmState.historico = (hist.data || []).map(crmHistFromRow);
     crmReindexar();
+    await crmCarregarPerfis();
     return true;
   })().finally(() => { crmCargaEmAndamento = null; });
   return crmCargaEmAndamento;
@@ -480,6 +481,7 @@ async function crmGravarEtapa(c, nova, origem) {
 /* ---------------- ficha do cliente ---------------- */
 
 function crmAbrirFicha(id) {
+  if (crmUi.fichaId !== id) crmUi.fichaAba = "atividade";
   crmUi.fichaId = id;
   setView("crm-cliente");
   const item = document.querySelector('#navCrm [data-view="crm-clientes"]');
@@ -536,13 +538,14 @@ function crmRenderFicha() {
       ${kpiEtapa}
     </div>
 
-    <div class="crm-ficha-grade">
+    ${crmFichaAbasHtml()}
+    ${crmUi.fichaAba !== "atividade" ? crmFichaPerfilHtml(c, crmUi.fichaAba) : `<div class="crm-ficha-grade">
       <div class="card">
         <div class="card-head"><h2>Contatos</h2>${crmPodeGerirCarteira() ? `<button type="button" class="btn small outline" data-crmcontatonovo="${escapeAttr(c.id)}">+ Contato</button>` : ""}</div>
         ${contatos.length ? contatos.map(p => `
           <div class="crm-contato">
-            <div><b>${escapeHtml(p.nome)}</b>${p.principal ? ' <span class="status-pill pill-normal">Principal</span>' : ""}</div>
-            <div class="muted sv-sub">${escapeHtml(p.cargo)}</div>
+            <div><b>${escapeHtml(p.nome)}</b>${p.principal ? ' <span class="status-pill pill-normal">Decisor</span>' : ""}</div>
+            <div class="muted sv-sub">${escapeHtml(p.cargo || "Sem função informada")}</div>
             ${p.telefone ? `<div class="mono sv-sub">${escapeHtml(p.telefone)}</div>` : ""}
             ${p.whatsapp && p.whatsapp !== p.telefone ? `<div class="mono sv-sub">WhatsApp ${escapeHtml(p.whatsapp)}</div>` : ""}
             ${p.email ? `<div class="muted sv-sub">${escapeHtml(p.email)}</div>` : ""}
@@ -577,7 +580,7 @@ function crmRenderFicha() {
             </tr>`).join("")}</tbody></table></div>
         </div>` : ""}
       </div>
-    </div>`;
+    </div>`}`;
 }
 
 /* ---------------- registrar ligação ---------------- */
@@ -799,152 +802,7 @@ async function crmExcluirContato(id) {
   toast("Contato removido.");
 }
 
-/* ---------------- adicionar cliente à carteira ---------------- */
-
-let crmAddSelecionado = null;   // nome do cliente escolhido no cadastro do Torun
-let crmAddOcupados = new Map(); // cliente -> executivo, de quem já tem o cliente neste sistema
-let crmAddExecutivos = [];      // [{ id, nome }] (gestão escolhe o responsável)
-let crmAddContatoSeq = 0;
-let crmAddSalvando = false;
-
-async function crmAbrirAdicionar() {
-  if (!crmPodeGerirCarteira()) return;
-  const s = crmSistemaAtual();
-  crmAddSelecionado = null;
-  document.getElementById("crmAddBusca").value = "";
-  document.getElementById("crmAddErro").style.display = "none";
-  document.getElementById("crmAddSistemaNome").textContent = CRM_SISTEMAS[s];
-  document.getElementById("crmAddOutroTexto").textContent = CRM_SISTEMAS[s === "atacado" ? "encomenda" : "atacado"];
-  document.getElementById("crmAddOutro").checked = false;
-  document.getElementById("crmAddContatos").innerHTML = "";
-  crmAddContatoSeq = 0;
-  crmAddNovoContato(true);
-  document.getElementById("crmAddOverlay").classList.add("show");
-
-  const [ocupados, execs] = await Promise.all([
-    sb.rpc("crm_carteira_ocupada", { p_sistema: s }),
-    crmEhExecutivo() ? Promise.resolve({ data: [] }) : sb.rpc("crm_executivos", { p_sistema: s })
-  ]);
-  if (ocupados.error) toast("Não deu pra conferir quem já tem cada cliente: " + ocupados.error.message);
-  crmAddOcupados = new Map((ocupados.data || []).map(r => [r.cliente, r.executivo_nome || "outro executivo"]));
-  crmAddExecutivos = (execs.data || []).map(r => ({ id: r.user_id, nome: r.nome }));
-  const campoExec = document.getElementById("crmAddExecCampo");
-  campoExec.style.display = crmEhExecutivo() ? "none" : "";
-  document.getElementById("crmAddExec").innerHTML = crmAddExecutivos.length
-    ? `<option value="">Selecione…</option>` + crmAddExecutivos.map(e => `<option value="${escapeAttr(e.id)}">${escapeHtml(e.nome)}</option>`).join("")
-    : `<option value="">Nenhum executivo cadastrado neste sistema</option>`;
-  crmAddRenderBusca();
-  crmAddRenderSelecionado();
-}
-
-function crmFecharAdicionar() {
-  document.getElementById("crmAddOverlay").classList.remove("show");
-}
-
-function crmAddRenderBusca() {
-  const busca = (document.getElementById("crmAddBusca").value || "").trim().toLowerCase();
-  const achados = (state.clientes || []).filter(cl => !busca || cl.nome.toLowerCase().includes(busca)).slice(0, 40);
-  const lista = document.getElementById("crmAddResultados");
-  lista.innerHTML = achados.length ? achados.map(cl => {
-    const dono = crmAddOcupados.get(cl.nome);
-    const cidade = [cl.cidade, cl.estado].filter(Boolean).join("/");
-    if (dono) {
-      return `<div class="crm-add-res crm-add-ocupado"><b>${escapeHtml(cl.nome)}</b><div class="muted sv-sub">${escapeHtml(cidade)}</div><div class="crm-add-aviso">Já está na carteira de ${escapeHtml(dono)}</div></div>`;
-    }
-    const on = crmAddSelecionado === cl.nome;
-    return `<button type="button" class="crm-add-res ${on ? "on" : ""}" data-crmaddcli="${escapeAttr(cl.nome)}" aria-pressed="${on}"><b>${escapeHtml(cl.nome)}</b><div class="muted sv-sub">${escapeHtml(cidade)}</div></button>`;
-  }).join("") : `<div class="muted sv-sub">Nenhum cliente com esse nome no cadastro do Torun.</div>`;
-}
-
-function crmAddRenderSelecionado() {
-  const cl = crmAddSelecionado ? crmInfoCliente(crmAddSelecionado) : null;
-  const box = document.getElementById("crmAddSelecionado");
-  box.innerHTML = cl && cl.nome
-    ? `<b>${escapeHtml(cl.nome)}</b><div class="muted sv-sub">${escapeHtml([cl.cidade, cl.estado].filter(Boolean).join("/"))} · do cadastro do Torun</div>`
-    : `<span class="muted">Escolha um cliente na lista ao lado.</span>`;
-}
-
-function crmAddNovoContato(primeiro) {
-  const n = ++crmAddContatoSeq;
-  const el = document.createElement("div");
-  el.className = "crm-add-contato";
-  el.dataset.n = String(n);
-  el.innerHTML = `
-    <div class="form-row">
-      <div class="field grow"><label>Nome${primeiro ? " *" : ""}</label><input type="text" data-f="nome" autocomplete="off"></div>
-      <div class="field"><label>Cargo</label><input type="text" data-f="cargo" autocomplete="off"></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>Telefone</label><input type="text" data-f="telefone" autocomplete="off"></div>
-      <div class="field"><label>WhatsApp</label><input type="text" data-f="whatsapp" autocomplete="off"></div>
-      <div class="field grow"><label>E-mail</label><input type="email" data-f="email" autocomplete="off"></div>
-    </div>
-    <label class="crm-add-principal"><input type="radio" name="crmAddPrincipal" ${primeiro ? "checked" : ""}> Contato principal</label>`;
-  document.getElementById("crmAddContatos").appendChild(el);
-}
-
-function crmErroAdicionar(msg) {
-  const el = document.getElementById("crmAddErro");
-  el.textContent = msg;
-  el.style.display = "block";
-}
-
-async function crmSalvarAdicionar() {
-  if (crmAddSalvando) return;
-  const s = crmSistemaAtual();
-  if (!crmAddSelecionado) { crmErroAdicionar("Escolha um cliente do cadastro do Torun."); return; }
-  const linhas = Array.from(document.querySelectorAll("#crmAddContatos .crm-add-contato"));
-  const contatos = linhas.map(l => ({
-    nome: l.querySelector('[data-f="nome"]').value.replace(/\s+/g, " ").trim(),
-    cargo: l.querySelector('[data-f="cargo"]').value.trim(),
-    telefone: l.querySelector('[data-f="telefone"]').value.trim(),
-    whatsapp: l.querySelector('[data-f="whatsapp"]').value.trim(),
-    email: l.querySelector('[data-f="email"]').value.trim(),
-    principal: l.querySelector('input[type="radio"]').checked
-  })).filter(c => c.nome || c.cargo || c.telefone || c.whatsapp || c.email);
-  if (!contatos.length || !contatos[0].nome) { crmErroAdicionar("Informe pelo menos o nome do primeiro contato."); return; }
-  if (contatos.some(c => !c.nome)) { crmErroAdicionar("Todo contato preenchido precisa de nome."); return; }
-  if (!contatos.some(c => c.principal)) contatos[0].principal = true;
-
-  let execId = currentUser.id, execNome = currentUserNome;
-  if (!crmEhExecutivo()) {
-    execId = document.getElementById("crmAddExec").value;
-    const e = crmAddExecutivos.find(x => x.id === execId);
-    if (!e) { crmErroAdicionar("Escolha o executivo responsável."); return; }
-    execNome = e.nome;
-  }
-
-  crmAddSalvando = true;
-  const botao = document.getElementById("crmAddSalvar");
-  botao.disabled = true;
-  try {
-    const cart = await sb.from("crm_carteira").insert({
-      sistema: s, cliente: crmAddSelecionado, executivo_user_id: execId, executivo_nome: execNome,
-      tambem_outro_sistema: document.getElementById("crmAddOutro").checked, primeiro_followup: todayISO()
-    }).select();
-    if (cart.error) {
-      crmErroAdicionar(cart.error.code === "23505"
-        ? "Esse cliente já está na carteira de outro executivo deste sistema."
-        : "Erro ao adicionar à carteira: " + cart.error.message);
-      return;
-    }
-    if (!cart.data || !cart.data[0]) { crmErroAdicionar("Não foi possível adicionar (sem permissão)."); return; }
-    crmState.carteira.push(crmCarteiraFromRow(cart.data[0]));
-    const cont = await sb.from("crm_contatos").insert(contatos.map(c => ({
-      sistema: s, cliente: crmAddSelecionado, nome: c.nome, cargo: c.cargo || null, telefone: c.telefone || null,
-      whatsapp: c.whatsapp || null, email: c.email || null, principal: c.principal
-    }))).select();
-    if (cont.error) toast("O cliente entrou na carteira, mas os contatos não foram salvos: " + cont.error.message);
-    else (cont.data || []).forEach(r => crmState.contatos.push(crmContatoFromRow(r)));
-    crmReindexar();
-    crmFecharAdicionar();
-    crmRender();
-    toast("Cliente adicionado à carteira.");
-  } finally {
-    crmAddSalvando = false;
-    botao.disabled = false;
-  }
-}
+/* adicionar cliente à carteira e editar o perfil: assistente em crm-perfil.js */
 
 /* ---------------- ganchos do app.js ---------------- */
 
@@ -1016,18 +874,6 @@ function initCrmTelas() {
   document.getElementById("crmContCancelar").addEventListener("click", crmFecharContato);
   document.getElementById("crmContSalvar").addEventListener("click", crmSalvarContato);
 
-  // adicionar à carteira
-  document.getElementById("crmAddBusca").addEventListener("input", crmAddRenderBusca);
-  document.getElementById("crmAddResultados").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-crmaddcli]");
-    if (!b) return;
-    crmAddSelecionado = b.dataset.crmaddcli;
-    document.getElementById("crmAddErro").style.display = "none";
-    crmAddRenderBusca();
-    crmAddRenderSelecionado();
-  });
-  document.getElementById("crmAddMaisContato").addEventListener("click", () => crmAddNovoContato(false));
-  document.getElementById("crmAddCancelar").addEventListener("click", crmFecharAdicionar);
-  document.getElementById("crmAddFechar").addEventListener("click", crmFecharAdicionar);
-  document.getElementById("crmAddSalvar").addEventListener("click", crmSalvarAdicionar);
+  // adicionar à carteira e editar o perfil (assistente)
+  crmWizInit();
 }

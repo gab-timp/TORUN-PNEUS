@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=21">
-<link rel="stylesheet" href="crm.css?v=3">
+<link rel="stylesheet" href="crm.css?v=4">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -3665,36 +3665,23 @@
 </div>
 
 <div class="modal-overlay" id="crmAddOverlay">
-  <div class="modal crm-modal-largo" role="dialog" aria-labelledby="crmAddHeader">
+  <div class="modal crm-modal-largo crm-wiz" role="dialog" aria-labelledby="crmAddHeader">
     <div class="crm-modal-topo">
       <div>
-        <h3 id="crmAddHeader">Adicionar cliente à carteira</h3>
-        <div class="muted sv-sub">Escolha um cliente que já existe no cadastro do Torun e informe quem é o contato.</div>
+        <h3 id="crmAddHeader">Cadastro de cliente</h3>
+        <div class="muted sv-sub" id="crmWizSub"></div>
       </div>
       <button type="button" class="crm-fechar" id="crmAddFechar" aria-label="Fechar">✕</button>
     </div>
-    <div class="crm-add-layout">
-      <div class="crm-add-esq">
-        <div class="crm-add-passo">1. Buscar no cadastro do Torun</div>
-        <div class="field"><label for="crmAddBusca">Nome do cliente</label><input type="text" id="crmAddBusca" autocomplete="off"></div>
-        <div class="crm-add-resultados" id="crmAddResultados"></div>
-        <div class="muted sv-sub">Não achou? O cliente precisa estar cadastrado no Torun (Varejo, tela Clientes) antes de entrar na carteira.</div>
-      </div>
-      <div class="crm-add-dir">
-        <div class="crm-add-passo">2. Na carteira de <span id="crmAddSistemaNome"></span></div>
-        <div class="crm-add-selecionado" id="crmAddSelecionado"></div>
-        <div class="field" id="crmAddExecCampo"><label for="crmAddExec">Executivo responsável</label><select id="crmAddExec"></select></div>
-        <label class="crm-add-outro"><input type="checkbox" id="crmAddOutro"> Este cliente também compra no outro sistema (<span id="crmAddOutroTexto"></span>)</label>
-        <div class="crm-add-contatos-topo"><b>Contatos</b><button type="button" class="btn small outline" id="crmAddMaisContato">+ Adicionar contato</button></div>
-        <div id="crmAddContatos"></div>
-      </div>
-    </div>
+    <ol class="crm-wiz-trilha" id="crmWizTrilha"></ol>
+    <div class="crm-wiz-corpo" id="crmWizCorpo"></div>
     <div class="note crm-erro" id="crmAddErro" style="display:none;"></div>
     <div class="crm-modal-rodape">
-      <span class="muted sv-sub">O cliente entra sem ligações; a primeira ligação aparece em Hoje.</span>
+      <span class="muted sv-sub" id="crmWizDica"></span>
       <div class="form-actions">
         <button type="button" class="btn outline" id="crmAddCancelar">Cancelar</button>
-        <button type="button" class="btn primary" id="crmAddSalvar">Adicionar à carteira</button>
+        <button type="button" class="btn outline" id="crmWizVoltar">Voltar</button>
+        <button type="button" class="btn primary" id="crmWizProximo">Próximo</button>
       </div>
     </div>
   </div>
@@ -4479,7 +4466,8 @@
 </div>
 
 <script src="semvenda.js?v=25"></script>
-<script src="crm.js?v=4"></script>
+<script src="crm.js?v=5"></script>
+<script src="crm-perfil.js?v=1"></script>
 <script src="usuarios.js?v=4"></script>
 <script src="app.js?v=277"></script>
 </body>
