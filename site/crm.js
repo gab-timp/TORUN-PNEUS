@@ -299,7 +299,9 @@ function crmAtalhosHtml(ct) {
   if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Desktop e copia o número)", ct, false, { texto: ct.whatsapp || ct.telefone, rotulo: "WhatsApp" }));
   // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador) e copia o endereço
   // do contato (o decisor, que vem primeiro), para colar onde precisar
-  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, { texto: ct.email, rotulo: "E-mail" }));
+  // authuser: abre na conta do Gmail igual ao e-mail de login de quem está usando (o Google escolheria a conta padrão do navegador)
+  const conta = currentUser && currentUser.email ? "authuser=" + encodeURIComponent(currentUser.email) + "&" : "";
+  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?" + conta + "view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, { texto: ct.email, rotulo: "E-mail" }));
   return partes.join(" ");
 }
 
