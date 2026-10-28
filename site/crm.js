@@ -27,11 +27,12 @@ const CRM_RECARGA_MIN_MS = 3000;
 const CRM_ATALHOS_FU = [["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7], ["Em 2 semanas", 14]];
 
 let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastro do usuário)
+let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
 const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
-const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade" };
+const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade", escopo: "todas" };
 let crmUltimaCarga = 0;
 let crmCargaEmAndamento = null;
 let crmSortables = [];
@@ -40,6 +41,7 @@ let crmSortables = [];
 
 function crmDefinirPerfil(r) {
   crmPapel = (r && r.crm_papel) || null;
+  crmTemCarteira = !!(r && r.crm_tem_carteira);
   // a lista nova (user_roles.crm_sistemas); sem ela vale o sistema único de antes
   const lista = r && Array.isArray(r.crm_sistemas) ? r.crm_sistemas : (r && r.crm_sistema ? [r.crm_sistema] : []);
   crmSistemas = Object.keys(CRM_SISTEMAS).filter(k => lista.includes(k));
@@ -52,7 +54,14 @@ function crmPapelEfetivo() {
 function temAcessoCrm() { return !!crmPapelEfetivo(); }
 function crmEhExecutivo() { return crmPapelEfetivo() === "executivo"; }
 function crmPodeEscrever() { return currentUserRole !== "viewer"; }
-function crmPodeRegistrarLigacao() { return crmEhExecutivo() && crmPodeEscrever(); }
+// gestão que ligou a carteira própria: lê tudo e tem clientes dela, onde registra ligação
+function crmGestaoComCarteira() { return crmPapelEfetivo() === "gestao" && crmTemCarteira; }
+function crmTemCarteiraPropria() { return crmEhExecutivo() || crmGestaoComCarteira(); }
+const crmMeuId = () => (currentUser ? currentUser.id : null);
+function crmEhMinha(c) { return crmGestaoComCarteira() && c.executivoId === crmMeuId(); }
+function crmPodeRegistrarLigacao() { return crmTemCarteiraPropria() && crmPodeEscrever(); }
+// executivo só enxerga a própria carteira; a gestão só registra nos clientes em que é a responsável
+function crmPodeLigarPara(c) { return crmPodeEscrever() && (crmEhExecutivo() || crmEhMinha(c)); }
 function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPapelEfetivo()) && crmPodeEscrever(); }
 
 function crmSistemasVisiveis() {
@@ -82,7 +91,7 @@ function crmEntrarNoSistema(sistema) {
 
 // quem tem carteira própria começa em Hoje; gestão e financeiro, na lista de clientes
 function crmViewInicial() {
-  return crmEhExecutivo() ? "crm-hoje" : "crm-clientes";
+  return crmTemCarteiraPropria() ? "crm-hoje" : "crm-clientes";
 }
 
 /* ---------------- dados ---------------- */
@@ -261,7 +270,7 @@ function crmLinhaHoje(x) {
   const { c, r } = x;
   const ct = crmContatoRapido(c);
   const acoes = [crmAtalhosHtml(ct)];
-  if (crmPodeRegistrarLigacao()) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
+  if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
   return `
     <tr>
       <td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>
@@ -276,19 +285,20 @@ function crmLinhaHoje(x) {
 
 function crmRenderHoje() {
   const s = crmSistemaAtual();
-  const comExecutivo = !crmEhExecutivo();
+  const soMeus = crmGestaoComCarteira();
+  const comExecutivo = !crmEhExecutivo() && !soMeus;
   const hoje = todayISO();
   const mes = hoje.slice(0, 7);
-  const itens = crmState.carteira.filter(c => c.sistema === s).map(c => ({ c, r: crmResumo(c) }));
+  const itens = crmState.carteira.filter(c => c.sistema === s && (!soMeus || c.executivoId === crmMeuId())).map(c => ({ c, r: crmResumo(c) }));
   const atrasados = itens.filter(x => x.r.fu && x.r.fu < hoje).sort((a, b) => a.r.fu.localeCompare(b.r.fu) || a.c.cliente.localeCompare(b.c.cliente));
   const paraHoje = itens.filter(x => x.r.fu === hoje).sort((a, b) => a.c.cliente.localeCompare(b.c.cliente));
-  const ligacoes = crmState.ligacoes.filter(l => l.sistema === s);
+  const ligacoes = crmState.ligacoes.filter(l => l.sistema === s && (!soMeus || l.executivoId === crmMeuId()));
   const feitasHoje = ligacoes.filter(l => crmDiaLocal(l.createdAt) === hoje).length;
   const fechadosMes = ligacoes.filter(l => l.resultado === "Fechou negócio" && crmDiaLocal(l.createdAt).slice(0, 7) === mes).length;
 
   const d = new Date();
   document.getElementById("crmHojeSub").textContent = `Quem ligar e quem retomar, dos mais atrasados aos de hoje. ${d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}.` +
-    (comExecutivo ? " Você vê as carteiras de todos os executivos." : "");
+    (comExecutivo ? " Você vê as carteiras de todos os executivos." : soMeus ? " Só os clientes da sua carteira; as dos outros estão em Clientes." : "");
   document.getElementById("crmHojeKpis").innerHTML = `
     <div class="kpi"><div class="lbl">Para ligar hoje</div><div class="val">${fmt(paraHoje.length)}</div></div>
     <div class="kpi ${atrasados.length ? "crm-alerta" : ""}"><div class="lbl">Follow-ups atrasados</div><div class="val">${fmt(atrasados.length)}</div></div>
@@ -314,6 +324,7 @@ function crmItensFiltrados() {
   const hoje = todayISO();
   let itens = crmState.carteira.filter(c => c.sistema === s).map(c => ({ c, r: crmResumo(c) }));
   if (exec) itens = itens.filter(x => x.c.executivoId === exec);
+  if (crmGestaoComCarteira() && crmUi.escopo === "minha") itens = itens.filter(x => crmEhMinha(x.c));
   if (busca) {
     itens = itens.filter(x => {
       const ct = crmContatoRapido(x.c);
@@ -338,14 +349,14 @@ function crmLinhaCliente(x) {
   const { c, r } = x;
   const ct = crmContatoRapido(c);
   return `
-    <tr>
+    <tr class="${crmEhMinha(c) ? "crm-minha" : ""}">
       <td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>
         <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${r.total === 0 ? " · cliente novo" : ""}</div></td>
-      <td class="crm-col-exec">${escapeHtml(c.executivoNome || "—")}</td>
+      <td class="crm-col-exec">${crmEhMinha(c) ? '<span class="status-pill pill-normal">Eu</span>' : escapeHtml(c.executivoNome || "—")}</td>
       <td>${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">—</span>'}<div class="muted sv-sub">${escapeHtml(ct.cargo)}</div></td>
       <td>${crmUltimaHtml(r)}</td>
       <td>${crmFollowupHtml(r.fu)}</td>
-      <td class="crm-acoes">${crmAtalhosHtml(ct)}</td>
+      <td class="crm-acoes">${crmAtalhosHtml(ct)}${crmPodeLigarPara(c) && crmGestaoComCarteira() ? ` <button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>` : ""}</td>
     </tr>`;
 }
 
@@ -367,6 +378,9 @@ function crmRenderClientes() {
   const view = document.getElementById("view-crm-clientes");
   view.classList.toggle("crm-ve-todos", comExecutivo);
   document.getElementById("crmCliExecutivoCampo").style.display = comExecutivo ? "" : "none";
+  if (!crmGestaoComCarteira()) crmUi.escopo = "todas";
+  document.getElementById("crmEscopoSeg").style.display = crmGestaoComCarteira() ? "" : "none";
+  document.querySelectorAll("#crmEscopoSeg button").forEach(b => b.classList.toggle("on", b.dataset.crmescopo === crmUi.escopo));
   document.getElementById("crmModoSeg").style.display = kanban ? "" : "none";
   document.querySelectorAll("#crmModoSeg button").forEach(b => b.classList.toggle("on", b.dataset.crmmodo === crmUi.modo));
   document.getElementById("crmBtnAdicionar").style.display = crmPodeGerirCarteira() ? "" : "none";
@@ -414,9 +428,9 @@ function crmCartaoKanban(x) {
     (c.etapa && diasEtapa !== null ? ` · há ${diasEtapa} ${diasEtapa === 1 ? "dia" : "dias"} nesta etapa` : "");
   const acoes = [];
   if (crmDigitos(ct.telefone)) acoes.push(`<a class="btn small outline" href="tel:${escapeAttr(crmDigitos(ct.telefone))}">Ligar</a>`);
-  if (crmPodeRegistrarLigacao()) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
+  if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
   return `
-    <div class="kanban-card crm-cartao" data-id="${escapeAttr(c.id)}">
+    <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""}" data-id="${escapeAttr(c.id)}">
       <button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>
       <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${crmEhExecutivo() ? "" : " · " + escapeHtml(c.executivoNome || "—")}</div>
       <div class="crm-cartao-contato">${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">sem contato</span>'}${ct.cargo ? ` <span class="muted">· ${escapeHtml(ct.cargo)}</span>` : ""}</div>
@@ -529,7 +543,7 @@ function crmRenderFicha() {
       </div>
       <div class="page-head-actions crm-ficha-acoes">
         ${crmAtalhosHtml(ct)}
-        ${crmPodeRegistrarLigacao() ? `<button type="button" class="btn primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>` : ""}
+        ${crmPodeLigarPara(c) ? `<button type="button" class="btn primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>` : ""}
       </div>
     </div>
     ${etapaCampo ? `<div class="crm-ficha-etapa">${etapaCampo}</div>` : ""}
@@ -593,7 +607,7 @@ let crmLigSalvando = false;
 
 function crmAbrirLigacao(id) {
   const c = crmCarteiraPorId(id);
-  if (!c || !crmPodeRegistrarLigacao()) return;
+  if (!c || !crmPodeLigarPara(c)) return;
   crmLigCarteiraId = id;
   crmLigResultado = null;
   document.getElementById("crmLigTitulo").textContent = c.cliente;
@@ -839,6 +853,12 @@ function initCrmTelas() {
   });
   ["crmCliBusca", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo"].forEach(id => {
     document.getElementById(id).addEventListener("input", crmRenderClientes);
+  });
+  document.getElementById("crmEscopoSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-crmescopo]");
+    if (!b) return;
+    crmUi.escopo = b.dataset.crmescopo;
+    crmRenderClientes();
   });
   document.getElementById("crmModoSeg").addEventListener("click", (e) => {
     const b = e.target.closest("[data-crmmodo]");

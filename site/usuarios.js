@@ -13,7 +13,7 @@ const USR_SISTEMA = { atacado: "Atacado", encomenda: "Encomenda" };
 
 const USR_BASE = {
   role: "editor", is_admin: false, pode_autorizar_gerencia: false, pode_exportar_backup: false, pode_acessar_sem_venda: false,
-  pode_acessar_portal_representante: false, crm_papel: null, crm_sistema: null, crm_sistemas: [], visible_views: null
+  pode_acessar_portal_representante: false, crm_papel: null, crm_sistema: null, crm_sistemas: [], crm_tem_carteira: false, visible_views: null
 };
 
 // Perfis prontos da janela "Novo usuário". Executivo entra no Torun só com o Dashboard (visible_views = ["dashboard"]).
@@ -52,6 +52,8 @@ function usrValoresDe(row) {
   const lista = Array.isArray(row.crm_sistemas) ? row.crm_sistemas : (row.crm_sistema ? [row.crm_sistema] : []);
   v.crm_sistemas = v.crm_papel === "executivo" ? Object.keys(USR_SISTEMA).filter(k => lista.includes(k)) : [];
   v.crm_sistema = v.crm_sistemas[0] || null;
+  // carteira própria só existe para a gestão (administrador sem papel conta como gestão)
+  v.crm_tem_carteira = (v.crm_papel === "gestao" || (!v.crm_papel && v.is_admin)) && row.crm_tem_carteira === true;
   v.visible_views = Array.isArray(row.visible_views) ? row.visible_views.slice() : null;
   return v;
 }
@@ -83,9 +85,9 @@ function usrSelo(classe, texto) {
   return `<span class="usr-selo ${classe}">${escapeHtml(texto)}</span>`;
 }
 
-function usrSeloCrm(papel) {
+function usrSeloCrm(papel, comCarteira) {
   if (!papel) return `<span class="muted">—</span>`;
-  return usrSelo({ executivo: "exe", financeiro: "fin", gestao: "ges" }[papel], USR_PAPEL_CRM[papel]);
+  return usrSelo({ executivo: "exe", financeiro: "fin", gestao: "ges" }[papel], USR_PAPEL_CRM[papel] + (papel === "gestao" && comCarteira ? " + carteira" : ""));
 }
 
 /* ---------------- carga e chamada da função ---------------- */
@@ -154,8 +156,8 @@ function usrLinhaPessoa(u) {
         <div class="muted usr-sub mono">${escapeHtml(u.email || "—")}</div></div></div></td>
       <td>${celulaVarejo}</td>
       <td>${a.semvenda ? usrSelo("ok", "Liberado") : '<span class="muted">—</span>'}</td>
-      <td>${crmExiste ? usrSeloCrm(a.encomenda) : '<span class="muted">—</span>'}</td>
-      <td>${crmExiste ? usrSeloCrm(a.atacado) : '<span class="muted">—</span>'}</td>
+      <td>${crmExiste ? usrSeloCrm(a.encomenda, v.crm_tem_carteira) : '<span class="muted">—</span>'}</td>
+      <td>${crmExiste ? usrSeloCrm(a.atacado, v.crm_tem_carteira) : '<span class="muted">—</span>'}</td>
       <td class="usr-acoes"><button type="button" class="btn small outline" data-usracesso="${escapeAttr(u.user_id)}">Editar acesso</button></td>
     </tr>`;
 }
@@ -296,7 +298,7 @@ function usrErroNovo(msg) {
 function usrPerfilParaEnvio(valores) {
   const colunas = usrColunas();
   const sempre = ["role", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup", "pode_acessar_sem_venda", "visible_views"];
-  const opcionais = ["pode_acessar_portal_representante", "crm_papel", "crm_sistema", "crm_sistemas"];
+  const opcionais = ["pode_acessar_portal_representante", "crm_papel", "crm_sistema", "crm_sistemas", "crm_tem_carteira"];
   const envio = {};
   sempre.forEach(k => { envio[k] = valores[k]; });
   opcionais.forEach(k => { if (colunas.has(k)) envio[k] = valores[k]; });
@@ -449,6 +451,7 @@ function usrDiferencas() {
   if (!igual(f.visible_views, o.visible_views)) itens.push(["Telas do Torun", usrTextoTelas(o.visible_views), usrTextoTelas(f.visible_views)]);
   if (f.pode_acessar_sem_venda !== o.pode_acessar_sem_venda) itens.push(["Sem Venda", o.pode_acessar_sem_venda ? "liberado" : "sem acesso", f.pode_acessar_sem_venda ? "liberado" : "sem acesso"]);
   if (f.crm_papel !== o.crm_papel || !igual(f.crm_sistemas, o.crm_sistemas)) itens.push(["Papel no CRM", usrTextoCrm(o.crm_papel, o.crm_sistemas), usrTextoCrm(f.crm_papel, f.crm_sistemas)]);
+  if (f.crm_tem_carteira !== o.crm_tem_carteira) itens.push(["Carteira própria da gestão", o.crm_tem_carteira ? "sim" : "não", f.crm_tem_carteira ? "sim" : "não"]);
   if (f.is_admin !== o.is_admin) itens.push(["Administrador", sim(o.is_admin), sim(f.is_admin)]);
   if (f.pode_autorizar_gerencia !== o.pode_autorizar_gerencia) itens.push(["Autorizar Gerência", sim(o.pode_autorizar_gerencia), sim(f.pode_autorizar_gerencia)]);
   if (f.pode_exportar_backup !== o.pode_exportar_backup) itens.push(["Exportar backup", sim(o.pode_exportar_backup), sim(f.pode_exportar_backup)]);
@@ -554,6 +557,9 @@ function usrRenderAcesso() {
                 ${Object.entries(USR_SISTEMA).map(([id, rot]) => `<button type="button" class="usr-perfil ${f.crm_sistemas.includes(id) ? "on" : ""}" role="checkbox" aria-checked="${f.crm_sistemas.includes(id)}" data-usrcrmsis="${id}"><b>${f.crm_sistemas.includes(id) ? "✓ " : ""}${rot}</b><span>${id === "atacado" ? "Kanban, Hoje e carteira própria do Atacado." : "Hoje e carteira própria da Encomenda."}</span></button>`).join("")}
               </div>
               <div class="muted usr-sub usr-sub-cima">${f.crm_sistemas.length === 2 ? "Vê só as próprias carteiras do Atacado e da Encomenda e troca entre os dois sistemas." : f.crm_sistemas.length === 1 ? "Vê só a própria carteira " + (f.crm_sistemas[0] === "atacado" ? "do Atacado." : "da Encomenda.") : "Marque pelo menos um sistema."}</div></div>` : ""}
+            ${f.crm_papel === "gestao" || (!f.crm_papel && row.is_admin) ? (colunas.has("crm_tem_carteira")
+              ? `<div class="usr-linha-seg"><button type="button" class="usr-perfil ${f.crm_tem_carteira ? "on" : ""}" role="switch" aria-checked="${f.crm_tem_carteira}" data-usrcrmcart="1"><b>${f.crm_tem_carteira ? "✓ " : ""}Também tem carteira própria</b><span>${f.crm_tem_carteira ? "Aparece como responsável ao adicionar cliente, abre em Hoje e registra ligações nos clientes dela." : "Desligado: só lê as carteiras e redistribui. Não tem clientes próprios."}</span></button></div>`
+              : '<div class="muted usr-sub usr-sub-cima">Para dar carteira própria à gestão, rode sql/crm_gestao_carteira_propria.sql no Supabase.</div>') : ""}
             ${!f.crm_papel && row.is_admin ? '<div class="muted usr-sub usr-sub-cima">Administrador sem papel marcado conta como Gestão no CRM.</div>' : ""}`
           : `<div class="note">O CRM ainda não foi liberado no banco (rode sql/crm_nucleo.sql no Supabase).</div>`}
         </div>
@@ -596,6 +602,7 @@ function usrEscolherCrm(id) {
   f.crm_papel = id === "none" ? null : id;
   f.crm_sistemas = id === "executivo" ? (f.crm_sistemas.length ? f.crm_sistemas : (usrUi.original.crm_sistemas.length ? usrUi.original.crm_sistemas.slice() : ["atacado"])) : [];
   f.crm_sistema = f.crm_sistemas[0] || null;
+  if (id === "executivo" || id === "financeiro") f.crm_tem_carteira = false;
 }
 
 async function usrSalvarAcesso() {
@@ -621,6 +628,7 @@ async function usrSalvarAcesso() {
   if (f.nome.trim() !== o.nome.trim()) payload.nome = f.nome.trim();
   ["role", "visible_views", "pode_acessar_sem_venda", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup"].forEach(k => { if (mudou(k)) payload[k] = f[k]; });
   if (colunas.has("pode_acessar_portal_representante") && mudou("pode_acessar_portal_representante")) payload.pode_acessar_portal_representante = f.pode_acessar_portal_representante;
+  if (colunas.has("crm_tem_carteira") && mudou("crm_tem_carteira")) payload.crm_tem_carteira = f.crm_tem_carteira;
   if (colunas.has("crm_papel") && (mudou("crm_papel") || mudou("crm_sistemas"))) {
     payload.crm_papel = f.crm_papel;
     payload.crm_sistema = f.crm_papel === "executivo" ? f.crm_sistemas[0] : null; // o primeiro: a regra antiga do banco exige um sistema
@@ -657,7 +665,7 @@ async function usrDescartar() {
 /* ---------------- eventos ---------------- */
 
 function usrCliqueAcesso(e) {
-  const t = e.target.closest("[data-usrvoltar],[data-usrdescartar],[data-usrsalvar],[data-usrrole],[data-usrtelas],[data-usrcrm],[data-usrcrmsis],[data-usravancado],[data-usrsenha]");
+  const t = e.target.closest("[data-usrvoltar],[data-usrdescartar],[data-usrsalvar],[data-usrrole],[data-usrtelas],[data-usrcrm],[data-usrcrmsis],[data-usrcrmcart],[data-usravancado],[data-usrsenha]");
   if (!t || !usrUi.form) { if (t && t.dataset.usrvoltar) setView("administracao"); return; }
   if (t.dataset.usrsenha) { usrAbrirSenha(); return; }
   if (t.dataset.usrvoltar) { usrDescartar(); return; }
@@ -672,6 +680,7 @@ function usrCliqueAcesso(e) {
     f.crm_sistemas = Object.keys(USR_SISTEMA).filter(k => marcados.includes(k));
     f.crm_sistema = f.crm_sistemas[0] || null;
   }
+  else if (t.dataset.usrcrmcart) usrUi.form.crm_tem_carteira = !usrUi.form.crm_tem_carteira;
   else if (t.dataset.usravancado) usrUi.avancadoAberto = !usrUi.avancadoAberto;
   usrRenderAcesso();
 }

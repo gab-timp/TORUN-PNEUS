@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=21">
-<link rel="stylesheet" href="crm.css?v=4">
+<link rel="stylesheet" href="crm.css?v=5">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -923,6 +923,9 @@
       <div class="page-head">
         <div><h1>Clientes</h1><div class="sub" id="crmCliSub"></div></div>
         <div class="page-head-actions crm-acoes-topo">
+          <div class="crm-seg" id="crmEscopoSeg" style="display:none;" role="group" aria-label="Quais carteiras">
+            <button type="button" data-crmescopo="todas" class="on">Todas as carteiras</button><button type="button" data-crmescopo="minha">Só a minha</button>
+          </div>
           <div class="crm-seg" id="crmModoSeg" style="display:none;" role="group" aria-label="Forma de ver a carteira">
             <button type="button" data-crmmodo="lista" class="on">Lista</button><button type="button" data-crmmodo="kanban">Kanban</button>
           </div>
@@ -4473,9 +4476,9 @@
 </div>
 
 <script src="semvenda.js?v=25"></script>
-<script src="crm.js?v=6"></script>
+<script src="crm.js?v=7"></script>
 <script src="crm-perfil.js?v=1"></script>
-<script src="usuarios.js?v=5"></script>
+<script src="usuarios.js?v=6"></script>
 <script src="app.js?v=278"></script>
 </body>
 </html>

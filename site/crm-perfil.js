@@ -266,7 +266,7 @@ function crmWizPassoHtml(chave) {
       <div class="crm-add-resultados" id="crmWizResultados"></div>
       <div class="crm-add-selecionado" id="crmWizSelecionado"></div>
       ${crmEhExecutivo() ? "" : `<div class="field"><label>Executivo responsável</label><select id="crmWizExec">${crmWiz.execs.length
-        ? `<option value="">Selecione…</option>` + crmWiz.execs.map(e => `<option value="${escapeAttr(e.id)}" ${e.id === crmWiz.execId ? "selected" : ""}>${escapeHtml(e.nome)}</option>`).join("")
+        ? `<option value="">Selecione…</option>` + crmWiz.execs.map(e => `<option value="${escapeAttr(e.id)}" ${e.id === crmWiz.execId ? "selected" : ""}>${escapeHtml(e.nome)}${e.id === crmMeuId() ? " (eu)" : ""}</option>`).join("")
         : `<option value="">Nenhum executivo cadastrado neste sistema</option>`}</select></div>`}
       <label class="crm-add-outro"><input type="checkbox" id="crmWizOutro" ${crmWiz.outro ? "checked" : ""}> Este cliente também compra no outro sistema (${CRM_SISTEMAS[s === "atacado" ? "encomenda" : "atacado"]})</label>`;
   }
