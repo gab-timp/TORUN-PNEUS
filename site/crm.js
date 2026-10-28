@@ -283,18 +283,20 @@ function crmLinkWhats(numero) {
 }
 
 // atalhos de contato: botão quadrado só com ícone (nome no tooltip e no leitor de tela)
-function crmAtalhoIcone(href, icone, rotulo, ct, externo) {
+function crmAtalhoIcone(href, icone, rotulo, ct, externo, copiar) {
   const nome = ct && ct.nome ? ` ${escapeAttr(ct.nome)}` : "";
   const alvo = externo ? ' target="_blank" rel="noopener"' : "";
-  return `<a class="crm-ico" href="${escapeAttr(href)}"${alvo} title="${rotulo}" aria-label="${rotulo}${nome ? " —" + nome : ""}"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-${icone}"/></svg></a>`;
+  const cop = copiar ? ` data-crmcopiar="${escapeAttr(copiar)}"` : "";
+  return `<a class="crm-ico" href="${escapeAttr(href)}"${alvo}${cop} title="${rotulo}" aria-label="${rotulo}${nome ? " —" + nome : ""}"><svg class="ic" viewBox="0 0 20 20" aria-hidden="true"><use href="#i-${icone}"/></svg></a>`;
 }
 function crmAtalhosHtml(ct) {
   const partes = [];
   if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
   const wa = crmLinkWhats(ct.whatsapp || ct.telefone);
   if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp", ct, true));
-  // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador)
-  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail)", ct, true));
+  // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador) e copia o endereço
+  // do contato (o decisor, que vem primeiro), para colar onde precisar
+  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, ct.email));
   return partes.join(" ");
 }
 
@@ -876,10 +878,17 @@ async function crmExcluirContato(id) {
 
 /* ---------------- ligações dos eventos da tela ---------------- */
 
+// copia o texto e avisa; não impede o clique de seguir para o link
+async function crmCopiarTexto(texto, rotulo) {
+  try { await navigator.clipboard.writeText(texto); toast(rotulo + " copiado: " + texto); }
+  catch (err) { toast("Não deu para copiar. " + rotulo + ": " + texto); }
+}
+
 function crmClickDelegado(e) {
-  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel]");
+  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
   if (!t) return;
-  if (t.dataset.crmficha) crmAbrirFicha(t.dataset.crmficha);
+  if (t.dataset.crmcopiar) crmCopiarTexto(t.dataset.crmcopiar, "E-mail");
+  else if (t.dataset.crmficha) crmAbrirFicha(t.dataset.crmficha);
   else if (t.dataset.crmligar) crmAbrirLigacao(t.dataset.crmligar);
   else if (t.dataset.crmvoltar) setView("crm-clientes");
   else if (t.dataset.crmcontatonovo) crmAbrirContato(t.dataset.crmcontatonovo, null);
