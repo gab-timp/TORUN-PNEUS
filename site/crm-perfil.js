@@ -11,11 +11,6 @@ const CRM_UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG
 const CRM_FUNCOES = ["Proprietário", "Comprador / fechador", "Financeiro", "Fiscal", "Estoque", "Outros"];
 const CRM_TIPOS_PNEU = ["Carga", "Passeio", "Agrícola", "OTR", "Moto", "Remold"];
 const CRM_DIAS_ALERTA_TTD = 60;
-const CRM_WIZ_MODOS = [
-  ["crm", "Já está no CRM", "Clientes que o Atacado ou a Encomenda já cadastraram."],
-  ["torun", "Importar do Torun", "Cliente do Varejo que ainda não está no CRM."],
-  ["novo", "Cliente novo", "Não existe em lugar nenhum. Cadastre agora."]
-];
 
 // passos do assistente: chave -> rótulo. "carteira" só existe ao adicionar; "contatos" só ao adicionar (na ficha os
 // contatos têm a janela própria da aba Atividade).
@@ -147,9 +142,10 @@ const crmWiz = {
   d: {}, filiais: [], pneus: [], contatos: [],
   ocupados: new Map(), execs: [], execId: "", outro: false, busca: "",
   ocupadosOutro: new Map(), // quem tem o cliente no OUTRO sistema (só informativo)
-  fonte: "crm",       // como o cliente é escolhido: 'crm' (já cadastrado) | 'torun' (importar) | 'novo' (cadastrar agora)
-  selCrm: null, selTorun: null,
+  fonte: null,        // linha escolhida na lista do passo 1: 'crm' (já cadastrado) | 'torun' (importar) | 'novo' (cadastrar agora)
+  selNome: null,      // nome do cliente escolhido (fonte crm ou torun)
   novo: { nome: "", documento: "", telefone: "", cidade: "", estado: "" },
+  nomeAuto: false,    // o nome foi preenchido pelo CNPJ, não digitado
   infoNova: null,     // dados que viram a linha em crm_clientes quando a fonte é torun ou novo
   escolhaSig: "",
   salvando: false,
@@ -191,7 +187,7 @@ async function crmAbrirAdicionar() {
   Object.assign(crmWiz, {
     modo: "novo", passo: 0, cliente: null, d: crmWizPerfilVazio(), filiais: [], pneus: [], contatos: crmWizContatosVazios(),
     ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false,
-    fonte: crmState.clientesIndisponivel ? "torun" : "crm", selCrm: null, selTorun: null,
+    fonte: null, selNome: null,
     novo: { nome: "", documento: "", telefone: "", cidade: "", estado: "" }, infoNova: null, escolhaSig: "",
     passos: CRM_WIZ_PASSOS.slice()
   });
@@ -278,28 +274,16 @@ function crmWizPassoHtml(chave) {
   if (chave === "carteira") {
     const s = crmSistemaAtual();
     const legado = crmState.clientesIndisponivel;
-    const modos = legado ? [CRM_WIZ_MODOS[1]] : CRM_WIZ_MODOS;
-    const f = crmWiz.fonte;
     const n = crmWiz.novo;
-    const painel = f === "novo" ? `
-      <div class="crm-wiz-grade">
-        <div class="field crm-wiz-cheio"><label for="crmWizNNome">Nome do cliente *</label><input type="text" id="crmWizNNome" data-wn="nome" value="${escapeAttr(n.nome)}" autocomplete="off">
-          <small class="muted">É o nome que aparece em toda a carteira. Não pode repetir um cliente que já está no CRM.</small></div>
-        <div class="field"><label for="crmWizNDoc">CNPJ ou CPF</label><input type="text" id="crmWizNDoc" data-wn="documento" value="${escapeAttr(n.documento)}" placeholder="00.000.000/0000-00" autocomplete="off"></div>
-        <div class="field"><label for="crmWizNTel">Telefone</label><input type="text" id="crmWizNTel" data-wn="telefone" value="${escapeAttr(n.telefone)}" placeholder="(00) 00000-0000" autocomplete="off"></div>
-        <div class="field"><label for="crmWizNCid">Cidade</label><input type="text" id="crmWizNCid" data-wn="cidade" value="${escapeAttr(n.cidade)}" autocomplete="off"></div>
-        <div class="field"><label for="crmWizNUf">UF</label><select id="crmWizNUf" data-wn="estado">${crmOpts(CRM_UFS, n.estado, "—")}</select></div>
-      </div>
-      <div id="crmWizAvisos" aria-live="polite"></div>
-      <p class="muted sv-sub">Só o nome é obrigatório. O CNPJ é opcional, mas se você informar, o sistema confere se esse cliente já existe. O resto entra nos passos seguintes.</p>` : `
-      <div class="field"><label for="crmWizBusca">${f === "torun" ? "Buscar no cadastro do Torun" : "Buscar pelo nome"}</label><input type="text" id="crmWizBusca" value="${escapeAttr(crmWiz.busca)}" autocomplete="off"></div>
-      <div class="crm-add-resultados" id="crmWizResultados"></div>
-      <div class="crm-add-selecionado" id="crmWizSelecionado"></div>
-      ${f === "torun" ? `<p class="muted sv-sub">${legado ? "O cadastro próprio do CRM ainda não foi criado no banco; por enquanto só dá para escolher cliente do Torun." : "Importar copia nome, CNPJ, endereço e contato para o cadastro do CRM. Depois disso os dois cadastros são independentes: mudar um não muda o outro."}</p>` : ""}`;
     return `
       <h4 class="crm-wiz-titulo">Qual cliente entra na carteira?</h4>
-      <div class="crm-wiz-modos" role="group" aria-label="Como escolher o cliente">${modos.map(m => `<button type="button" class="crm-wiz-modo ${m[0] === "novo" ? "novo" : ""}" data-wizmodo="${m[0]}" aria-pressed="${f === m[0]}"><b>${m[1]}</b><span>${m[2]}</span></button>`).join("")}</div>
-      ${painel}
+      <div class="crm-wiz-grade">
+        <div class="field"><label for="crmWizNDoc">CNPJ ou CPF</label><input type="text" id="crmWizNDoc" data-wn="documento" value="${escapeAttr(n.documento)}" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label for="crmWizNNome">Razão social ou nome</label><input type="text" id="crmWizNNome" data-wn="nome" value="${escapeAttr(n.nome)}" autocomplete="off"></div>
+      </div>
+      <p class="muted sv-sub">${legado ? "O cadastro próprio do CRM ainda não foi criado no banco; por enquanto só dá para escolher cliente do Torun. " : "O sistema procura no CRM e no Torun enquanto você digita. O CNPJ vale mais que o nome. "}Clique na linha do cliente para escolher.</p>
+      <div class="crm-add-resultados" id="crmWizResultados" role="listbox" aria-label="Clientes encontrados" aria-live="polite"></div>
+      <div id="crmWizNovoCampos"></div>
       ${crmEhExecutivo() ? "" : `<div class="field"><label>Executivo responsável</label><select id="crmWizExec">${crmWiz.execs.length
         ? `<option value="">Selecione…</option>` + crmWiz.execs.map(e => `<option value="${escapeAttr(e.id)}" ${e.id === crmWiz.execId ? "selected" : ""}>${escapeHtml(e.nome)}${e.id === crmMeuId() ? " (eu)" : ""}</option>`).join("")
         : `<option value="">Nenhum executivo cadastrado neste sistema</option>`}</select></div>`}
@@ -443,59 +427,67 @@ function crmParecidos(nome) {
   return achados;
 }
 
-function crmWizRenderBusca() {
-  if (crmWiz.fonte === "novo") { crmWizRenderAvisos(); return; }
-  const lista = document.getElementById("crmWizResultados");
-  if (!lista) return;
-  const busca = (crmWiz.busca || "").trim().toLowerCase();
-  const doTorun = crmWiz.fonte === "torun";
-  const base = doTorun ? (state.clientes || []) : Array.from(crmState.clientes.values());
-  const achados = base.filter(cl => !busca || cl.nome.toLowerCase().includes(busca)).sort((a, b) => a.nome.localeCompare(b.nome)).slice(0, 40);
-  const outroSis = CRM_SISTEMAS[crmSistemaAtual() === "atacado" ? "encomenda" : "atacado"];
-  lista.innerHTML = achados.length ? achados.map(cl => {
-    const dono = crmWiz.ocupados.get(cl.nome);
-    const cidade = [cl.cidade, cl.estado].filter(Boolean).join("/");
-    const cartao = (aviso) => `<div class="crm-add-res crm-add-ocupado"><b>${escapeHtml(cl.nome)}</b><div class="muted sv-sub">${escapeHtml(cidade)}</div><div class="crm-add-aviso">${aviso}</div></div>`;
-    if (dono) return cartao(`Já está na carteira de ${escapeHtml(dono)}`);
-    // importar: quem já foi copiado para o CRM não pode ser importado de novo
-    if (doTorun && !crmState.clientesIndisponivel && crmAcharNoCrm(cl.nome, cl.documento)) return cartao(`Já está no CRM. Use a aba “Já está no CRM”`);
-    const sel = doTorun ? crmWiz.selTorun : crmWiz.selCrm;
-    const on = sel === cl.nome;
-    const outro = !doTorun && crmWiz.ocupadosOutro.get(cl.nome);
-    return `<button type="button" class="crm-add-res ${on ? "on" : ""}" data-wizcli="${escapeAttr(cl.nome)}" aria-pressed="${on}"><b>${escapeHtml(cl.nome)}</b><div class="muted sv-sub">${escapeHtml(cidade)}${outro ? ` · também está no ${escapeHtml(outroSis)}, de ${escapeHtml(outro)}` : ""}</div></button>`;
-  }).join("") : `<div class="muted sv-sub">${doTorun ? "Nenhum cliente com esse nome no cadastro do Torun." : "Nenhum cliente com esse nome no CRM."}</div>`;
-  const nomeSel = doTorun ? crmWiz.selTorun : crmWiz.selCrm;
-  const cl = nomeSel ? (doTorun ? (state.clientes || []).find(x => x.nome === nomeSel) : crmInfoCliente(nomeSel)) : null;
-  document.getElementById("crmWizSelecionado").innerHTML = cl && cl.nome
-    ? `<b>${escapeHtml(cl.nome)}</b><div class="muted sv-sub">${escapeHtml([cl.cidade, cl.estado].filter(Boolean).join("/"))} · ${doTorun ? (crmState.clientesIndisponivel ? "do cadastro do Torun" : "do Torun, será copiado para o CRM") : "do cadastro do CRM"}</div>`
-    : `<span class="muted">Nenhum cliente escolhido ainda.</span>`;
+// Uma lista só, CRM e Torun juntos, filtrada pelo CNPJ e pelo nome digitados. Cada linha mostra o status do cliente.
+function crmWizItens() {
+  const n = crmNorm(crmWiz.novo.nome), d = crmDigitos(crmWiz.novo.documento);
+  const casa = (c) => {
+    const cd = crmDigitos(c.documento);
+    const porDoc = d && (d.length >= 11 ? cd === d : cd.includes(d));
+    const porNome = n && crmNorm(c.nome).includes(n);
+    if (d.length >= 11 && porDoc) return true;
+    if (!d && !n) return true;
+    return (!d || porDoc) && (!n || porNome);
+  };
+  const itens = [];
+  if (!crmState.clientesIndisponivel) crmState.clientes.forEach(c => { if (casa(c)) itens.push({ fonte: "crm", c }); });
+  (state.clientes || []).forEach(c => {
+    // quem já foi copiado para o CRM aparece uma vez só, como cliente do CRM
+    if (!crmState.clientesIndisponivel && crmAcharNoCrm(c.nome, c.documento)) return;
+    if (casa(c)) itens.push({ fonte: "torun", c });
+  });
+  itens.sort((a, b) => (a.fonte === b.fonte ? 0 : a.fonte === "crm" ? -1 : 1) || a.c.nome.localeCompare(b.c.nome));
+  return itens;
 }
 
-// avisos do "Cliente novo": só o que já existe no CRM bloqueia; Torun e nomes parecidos só avisam
-function crmWizRenderAvisos() {
-  const el = document.getElementById("crmWizAvisos");
-  if (!el) return;
-  const { nome, documento } = crmWiz.novo;
-  const partes = [];
-  const noCrm = crmAcharNoCrm(nome, documento);
-  if (noCrm) {
-    const dono = crmWiz.ocupados.get(noCrm.nome);
-    const outro = crmWiz.ocupadosOutro.get(noCrm.nome);
-    const outroSis = CRM_SISTEMAS[crmSistemaAtual() === "atacado" ? "encomenda" : "atacado"];
-    const onde = dono ? `Está na carteira de ${dono}.` : outro ? `Está no ${outroSis}, na carteira de ${outro}, e fica disponível aqui.` : "Fica disponível para esta carteira.";
-    partes.push(`<div class="crm-aviso crm-aviso-forte"><b>Já está no CRM:</b> ${escapeHtml(noCrm.nome)}. ${escapeHtml(onde)} Não dá para criar de novo.
-      <div><button type="button" class="btn small outline" data-wizmodo="crm" data-wizbusca="${escapeAttr(noCrm.nome)}">Ver em “Já está no CRM”</button></div></div>`);
-  } else {
-    const noTorun = crmAcharNoTorun(nome, documento);
-    if (noTorun) {
-      const porDoc = crmDigitos(documento).length >= 11 && crmDigitos(noTorun.documento) === crmDigitos(documento);
-      partes.push(`<div class="crm-aviso"><b>Já existe no Torun:</b> ${escapeHtml(noTorun.nome)} (${porDoc ? "mesmo CNPJ" : "mesmo nome"}). Importar em vez de criar um novo? Você ainda pode criar mesmo assim.
-        <div><button type="button" class="btn small" data-wizmodo="torun" data-wizbusca="${escapeAttr(noTorun.nome)}" data-wizsel="${escapeAttr(noTorun.nome)}">Importar do Torun</button></div></div>`);
-    }
+function crmWizRenderBusca() {
+  const lista = document.getElementById("crmWizResultados");
+  if (!lista) return;
+  const legado = crmState.clientesIndisponivel;
+  const outroSis = CRM_SISTEMAS[crmSistemaAtual() === "atacado" ? "encomenda" : "atacado"];
+  const itens = crmWizItens().slice(0, 40);
+  const nome = crmTxt(crmWiz.novo.nome);
+  let html = itens.map(({ fonte, c }) => {
+    const sub = [[c.cidade, c.estado].filter(Boolean).join("/"), c.documento].filter(Boolean).map(escapeHtml).join(" · ");
+    const dono = crmWiz.ocupados.get(c.nome);
+    if (dono) return `<div class="crm-add-res crm-add-ocupado crm-add-linha"><span><b>${escapeHtml(c.nome)}</b><div class="muted sv-sub">${sub}</div></span><span class="crm-selo crm-selo-bad">Na carteira de ${escapeHtml(dono)}</span></div>`;
+    const outro = fonte === "crm" && crmWiz.ocupadosOutro.get(c.nome);
+    const on = crmWiz.fonte === fonte && crmWiz.selNome === c.nome;
+    const selo = fonte === "crm" ? `<span class="crm-selo crm-selo-ok">Já está no CRM</span>` : `<span class="crm-selo crm-selo-tor">${legado ? "Cadastro do Torun" : "Só no Torun · será copiado"}</span>`;
+    return `<button type="button" class="crm-add-res crm-add-linha ${on ? "on" : ""}" role="option" aria-selected="${on}" data-wizcli="${escapeAttr(c.nome)}" data-wizfonte="${fonte}"><span><b>${escapeHtml(c.nome)}</b><div class="muted sv-sub">${sub}${outro ? ` · também está no ${escapeHtml(outroSis)}, de ${escapeHtml(outro)}` : ""}</div></span>${selo}</button>`;
+  }).join("");
+  // não achou: oferece cadastrar o nome digitado (só se não existe no CRM nem no Torun, nem pelo CNPJ)
+  if (!legado && nome && !crmAcharNoCrm(nome, crmWiz.novo.documento) && !crmAcharNoTorun(nome, crmWiz.novo.documento)) {
+    const on = crmWiz.fonte === "novo";
+    html += `<button type="button" class="crm-add-res crm-add-linha crm-add-novo ${on ? "on" : ""}" role="option" aria-selected="${on}" data-wiznovo="1"><span><b>Cadastrar “${escapeHtml(nome)}” como cliente novo</b><div class="muted sv-sub">Não existe no CRM nem no Torun${crmDigitos(crmWiz.novo.documento).length >= 11 ? " (nem pelo CNPJ)" : ""}.</div></span><span class="crm-selo crm-selo-novo">Cliente novo</span></button>`;
   }
-  const parecidos = crmParecidos(nome);
-  if (parecidos.length) partes.push(`<div class="crm-aviso"><b>Parecido com:</b> ${parecidos.map(escapeHtml).join("; ")}. É só uma sugestão: se for outro cliente, siga em frente.</div>`);
-  el.innerHTML = partes.join("");
+  if (!html) html = `<div class="muted sv-sub">${legado ? "Nenhum cliente do Torun com esse nome ou CNPJ." : "Nenhum cliente com esse CNPJ. Informe também a razão social para cadastrar como cliente novo."}</div>`;
+  lista.innerHTML = html;
+  crmWizRenderNovoCampos();
+}
+
+// telefone e cidade do cliente novo: só aparecem quando a linha "cliente novo" está escolhida
+function crmWizRenderNovoCampos() {
+  const el = document.getElementById("crmWizNovoCampos");
+  if (!el) return;
+  const mostrar = crmWiz.fonte === "novo";
+  if (!mostrar) { el.innerHTML = ""; return; }
+  if (el.firstChild) return; // já está na tela: não reconstruir enquanto a pessoa digita
+  const n = crmWiz.novo;
+  el.innerHTML = `<div class="crm-wiz-grade">
+      <div class="field"><label for="crmWizNTel">Telefone</label><input type="text" id="crmWizNTel" data-wn="telefone" value="${escapeAttr(n.telefone)}" placeholder="(00) 00000-0000" autocomplete="off"></div>
+      <div class="field"><label for="crmWizNCid">Cidade</label><input type="text" id="crmWizNCid" data-wn="cidade" value="${escapeAttr(n.cidade)}" autocomplete="off"></div>
+      <div class="field"><label for="crmWizNUf">UF</label><select id="crmWizNUf" data-wn="estado">${crmOpts(CRM_UFS, n.estado, "—")}</select></div>
+    </div>`;
 }
 
 // fecha o passo 1: guarda o nome final e carrega os dados para os passos seguintes
@@ -503,11 +495,11 @@ function crmWizAplicarEscolha() {
   const f = crmWiz.fonte;
   let nome, info;
   if (f === "crm") {
-    nome = crmWiz.selCrm;
+    nome = crmWiz.selNome;
     info = crmInfoCliente(nome);
     crmWiz.infoNova = null;
   } else if (f === "torun") {
-    nome = crmWiz.selTorun;
+    nome = crmWiz.selNome;
     info = (state.clientes || []).find(x => x.nome === nome) || { nome };
     crmWiz.infoNova = info;
   } else {
@@ -542,18 +534,20 @@ function crmClienteToRow(info, origem) {
 
 function crmWizValidar(chave) {
   if (chave === "carteira") {
-    const f = crmWiz.fonte;
+    const f = crmWiz.fonte, sel = crmWiz.selNome;
+    if (!f) return "Escolha um cliente da lista ou cadastre um novo.";
     if (f === "crm") {
-      if (!crmWiz.selCrm || !crmState.clientes.has(crmWiz.selCrm)) return "Escolha um cliente que já está no CRM.";
-      if (crmWiz.ocupados.has(crmWiz.selCrm)) return `Esse cliente já está na carteira de ${crmWiz.ocupados.get(crmWiz.selCrm)}.`;
+      if (!sel || !crmState.clientes.has(sel)) return "Escolha um cliente que já está no CRM.";
+      if (crmWiz.ocupados.has(sel)) return `Esse cliente já está na carteira de ${crmWiz.ocupados.get(sel)}.`;
     } else if (f === "torun") {
-      if (!crmWiz.selTorun) return "Escolha um cliente do cadastro do Torun.";
-      if (crmWiz.ocupados.has(crmWiz.selTorun)) return `Esse cliente já está na carteira de ${crmWiz.ocupados.get(crmWiz.selTorun)}.`;
-      const t = (state.clientes || []).find(x => x.nome === crmWiz.selTorun);
-      if (!crmState.clientesIndisponivel && crmAcharNoCrm(crmWiz.selTorun, t && t.documento)) return "Esse cliente já está no CRM. Use a aba “Já está no CRM”.";
+      if (!sel) return "Escolha um cliente do cadastro do Torun.";
+      if (crmWiz.ocupados.has(sel)) return `Esse cliente já está na carteira de ${crmWiz.ocupados.get(sel)}.`;
+      const t = (state.clientes || []).find(x => x.nome === sel);
+      if (!crmState.clientesIndisponivel && crmAcharNoCrm(sel, t && t.documento)) return "Esse cliente já está no CRM. Escolha-o na lista.";
     } else {
       if (!crmTxt(crmWiz.novo.nome)) return "Informe o nome do cliente.";
-      if (crmAcharNoCrm(crmWiz.novo.nome, crmWiz.novo.documento)) return "Esse cliente já existe no CRM (mesmo nome ou CNPJ). Use a aba “Já está no CRM”.";
+      if (crmAcharNoCrm(crmWiz.novo.nome, crmWiz.novo.documento)) return "Esse cliente já existe no CRM (mesmo nome ou CNPJ). Escolha-o na lista.";
+      if (crmAcharNoTorun(crmWiz.novo.nome, crmWiz.novo.documento)) return "Esse cliente já existe no Torun (mesmo nome ou CNPJ). Escolha-o na lista para importar.";
     }
     if (!crmEhExecutivo() && !crmWiz.execs.some(e => e.id === crmWiz.execId)) return "Escolha o executivo responsável.";
   }
@@ -629,7 +623,7 @@ async function crmWizSalvarNovo() {
     crmState.clientes.set(cliente, crmClienteFromRow(ins.data[0]));
     // se a carteira falhar daqui em diante, tentar de novo não cadastra o cliente outra vez
     crmWiz.fonte = "crm";
-    crmWiz.selCrm = cliente;
+    crmWiz.selNome = cliente;
     crmWiz.escolhaSig = "crm|" + cliente;
   }
 
@@ -679,9 +673,29 @@ function crmWizInit() {
 
   corpo.addEventListener("input", (e) => {
     const t = e.target;
-    if (t.id === "crmWizBusca") { crmWiz.busca = t.value; crmWizRenderBusca(); return; }
     crmWiz.sujo = true;
-    if (t.dataset.wn) { crmWiz.novo[t.dataset.wn] = t.value; crmWizRenderAvisos(); crmWizErro(""); return; }
+    if (t.dataset.wn) {
+      const campo = t.dataset.wn;
+      crmWiz.novo[campo] = t.value;
+      crmWizErro("");
+      if (campo === "nome" || campo === "documento") {
+        // mudou o que se procura: a escolha anterior deixa de valer
+        crmWiz.fonte = null; crmWiz.selNome = null;
+        // CNPJ completo que só pode ser de um cliente: já traz o nome
+        if (campo === "nome") crmWiz.nomeAuto = false;
+        if (campo === "documento" && (!crmTxt(crmWiz.novo.nome) || crmWiz.nomeAuto) && crmDigitos(t.value).length >= 11) {
+          crmWiz.novo.nome = "";
+          const achados = crmWizItens();
+          if (achados.length === 1) {
+            crmWiz.novo.nome = achados[0].c.nome;
+            crmWiz.nomeAuto = true;
+            document.getElementById("crmWizNNome").value = achados[0].c.nome;
+          }
+        }
+        crmWizRenderBusca();
+      }
+      return;
+    }
     if (t.dataset.w) crmWiz.d[t.dataset.w] = t.value;
     else if (t.dataset.wl) {
       const lista = crmWiz[t.dataset.wl];
@@ -693,7 +707,7 @@ function crmWizInit() {
   corpo.addEventListener("change", (e) => {
     const t = e.target;
     crmWiz.sujo = true;
-    if (t.dataset.wn) { crmWiz.novo[t.dataset.wn] = t.value; crmWizRenderAvisos(); crmWizErro(""); }
+    if (t.dataset.wn) { crmWiz.novo[t.dataset.wn] = t.value; crmWizErro(""); }
     else if (t.id === "crmWizExec") { crmWiz.execId = t.value; crmWizErro(""); }
     else if (t.id === "crmWizOutro") crmWiz.outro = t.checked;
     else if (t.dataset.w) {
@@ -704,15 +718,19 @@ function crmWizInit() {
   corpo.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.wizcli || b.dataset.wizmodo || b.dataset.wseg || b.dataset.wuf || b.dataset.wadd || b.dataset.wdel) crmWiz.sujo = true;
-    if (b.dataset.wizmodo) {
-      crmWiz.fonte = b.dataset.wizmodo;
-      crmWiz.busca = b.dataset.wizbusca || "";
-      if (b.dataset.wizsel) { if (crmWiz.fonte === "torun") crmWiz.selTorun = b.dataset.wizsel; else crmWiz.selCrm = b.dataset.wizsel; }
+    if (b.dataset.wizcli || b.dataset.wiznovo || b.dataset.wseg || b.dataset.wuf || b.dataset.wadd || b.dataset.wdel) crmWiz.sujo = true;
+    if (b.dataset.wiznovo) {
+      crmWiz.fonte = "novo"; crmWiz.selNome = null;
       crmWizErro("");
-      crmWizRender();
+      crmWizRenderBusca();
     } else if (b.dataset.wizcli) {
-      if (crmWiz.fonte === "torun") crmWiz.selTorun = b.dataset.wizcli; else crmWiz.selCrm = b.dataset.wizcli;
+      crmWiz.fonte = b.dataset.wizfonte; crmWiz.selNome = b.dataset.wizcli;
+      // os campos de cima passam a mostrar o cliente escolhido
+      const cl = b.dataset.wizfonte === "torun" ? (state.clientes || []).find(x => x.nome === b.dataset.wizcli) : crmInfoCliente(b.dataset.wizcli);
+      crmWiz.novo.nome = b.dataset.wizcli;
+      crmWiz.novo.documento = (cl && cl.documento) || "";
+      document.getElementById("crmWizNNome").value = crmWiz.novo.nome;
+      document.getElementById("crmWizNDoc").value = crmWiz.novo.documento;
       crmWizErro("");
       crmWizRenderBusca();
     } else if (b.dataset.wseg) {
