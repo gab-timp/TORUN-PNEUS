@@ -2539,19 +2539,17 @@ function svLinhasProposta() {
     .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem));
 }
 
-// mesmas condições do relatório de preço do representante; vazio = "sob consulta"
-const SV_CONDICOES_PROPOSTA = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
-
+// campo livre (as formas da Reserva só aparecem como sugestão); vazio = "sob consulta"
 function svSubProposta() {
   const cliente = document.getElementById("svPropCliente").value.trim();
   const validade = document.getElementById("svPropValidade").value;
-  const condicao = document.getElementById("svPropCondicao").value;
+  const condicao = document.getElementById("svPropCondicao").value.trim();
   return [validade ? "Válida até " + formatDateBR(validade) : "", cliente, condicao ? "Pagamento: " + condicao : ""].filter(Boolean).join(" · ");
 }
 
 function svRodapeProposta() {
-  const condicao = document.getElementById("svPropCondicao").value;
-  return (condicao ? "" : "Condições de pagamento sob consulta. ") + "Frete não incluso, combinado à parte. Quantidades disponíveis em " + formatDateBR(todayISO()) + ".";
+  const condicao = document.getElementById("svPropCondicao").value.trim();
+  return (condicao ? "" : "Forma de pagamento sob consulta. ") + "Frete não incluso, combinado à parte. Quantidades disponíveis em " + formatDateBR(todayISO()) + ".";
 }
 
 function svAtualizarCabecalhoProposta() {
@@ -2574,11 +2572,8 @@ function svAbrirProposta() {
   selCategoria.innerHTML = svOpcoesCategoria("Todas");
   if ([...selCategoria.options].some(o => o.value === categoriaAtual)) selCategoria.value = categoriaAtual;
 
-  const selCondicao = document.getElementById("svPropCondicao");
-  const condicaoAtual = selCondicao.value;
-  selCondicao.innerHTML = `<option value="">Sob consulta</option>` +
-    SV_CONDICOES_PROPOSTA.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
-  selCondicao.value = condicaoAtual;
+  document.getElementById("svPropFormas").innerHTML = SV_FORMAS_PAGAMENTO
+    .map(f => `<option value="${escapeAttr(f)}"></option>`).join("");
 
   document.getElementById("svPropClientes").innerHTML = svClientes
     .map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
