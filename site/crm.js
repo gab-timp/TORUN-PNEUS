@@ -293,7 +293,8 @@ function crmAtalhosHtml(ct) {
   if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar", ct));
   const wa = crmLinkWhats(ct.whatsapp || ct.telefone);
   if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp", ct, true));
-  if (ct.email) partes.push(crmAtalhoIcone("mailto:" + ct.email, "email", "E-mail", ct));
+  // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador)
+  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail)", ct, true));
   return partes.join(" ");
 }
 
