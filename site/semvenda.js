@@ -2539,7 +2539,7 @@ function svLinhasProposta() {
     .sort((a, b) => a.codigo.localeCompare(b.codigo) || a.armazem.localeCompare(b.armazem));
 }
 
-// campo livre (as formas da Reserva só aparecem como sugestão); vazio = "sob consulta"
+// campo de texto livre, sem lista; vazio = "sob consulta"
 function svSubProposta() {
   const cliente = document.getElementById("svPropCliente").value.trim();
   const validade = document.getElementById("svPropValidade").value;
@@ -2571,9 +2571,6 @@ function svAbrirProposta() {
   const categoriaAtual = selCategoria.value;
   selCategoria.innerHTML = svOpcoesCategoria("Todas");
   if ([...selCategoria.options].some(o => o.value === categoriaAtual)) selCategoria.value = categoriaAtual;
-
-  document.getElementById("svPropFormas").innerHTML = SV_FORMAS_PAGAMENTO
-    .map(f => `<option value="${escapeAttr(f)}"></option>`).join("");
 
   document.getElementById("svPropClientes").innerHTML = svClientes
     .map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
