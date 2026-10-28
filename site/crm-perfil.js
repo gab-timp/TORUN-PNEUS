@@ -141,7 +141,8 @@ const crmWiz = {
   cliente: null,
   d: {}, filiais: [], pneus: [], contatos: [],
   ocupados: new Map(), execs: [], execId: "", outro: false, busca: "",
-  salvando: false
+  salvando: false,
+  sujo: false         // algo foi digitado ou escolhido: fechar pede confirmação
 };
 
 const crmWizPerfilVazio = () => ({
@@ -177,7 +178,7 @@ async function crmAbrirAdicionar() {
   const s = crmSistemaAtual();
   Object.assign(crmWiz, {
     modo: "novo", passo: 0, cliente: null, d: crmWizPerfilVazio(), filiais: [], pneus: [], contatos: crmWizContatosVazios(),
-    ocupados: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false,
+    ocupados: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false,
     passos: CRM_WIZ_PASSOS.slice()
   });
   document.getElementById("crmAddHeader").textContent = "Adicionar cliente à carteira";
@@ -203,7 +204,7 @@ function crmAbrirPerfil(cliente, chave) {
   if (!crmPodeGerirCarteira()) return;
   crmWizAbertura++;
   const passos = CRM_WIZ_PASSOS.filter(p => p[0] !== "carteira" && p[0] !== "contatos");
-  Object.assign(crmWiz, { modo: "editar", cliente, contatos: [], ocupados: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, passos });
+  Object.assign(crmWiz, { modo: "editar", cliente, contatos: [], ocupados: new Map(), execs: [], execId: "", outro: false, busca: "", salvando: false, sujo: false, passos });
   crmWizCarregarCliente(cliente);
   const i = passos.findIndex(p => p[0] === chave);
   crmWiz.passo = i >= 0 ? i : 0;
@@ -214,8 +215,18 @@ function crmAbrirPerfil(cliente, chave) {
   crmWizRender();
 }
 
+// fecha sem perguntar (depois de salvar)
 function crmFecharAdicionar() {
+  document.getElementById("crmWizConfirma").hidden = true;
   document.getElementById("crmAddOverlay").classList.remove("show");
+}
+
+// X e Cancelar: se já tem algo preenchido, pergunta antes de descartar
+function crmWizPedirFechar() {
+  if (crmWiz.salvando) return;
+  if (!crmWiz.sujo) { crmFecharAdicionar(); return; }
+  document.getElementById("crmWizConfirma").hidden = false;
+  document.getElementById("crmWizConfirmaNao").focus();
 }
 
 function crmWizErro(msg) {
@@ -486,6 +497,7 @@ function crmWizInit() {
   corpo.addEventListener("input", (e) => {
     const t = e.target;
     if (t.id === "crmWizBusca") { crmWiz.busca = t.value; crmWizRenderBusca(); return; }
+    crmWiz.sujo = true;
     if (t.dataset.w) crmWiz.d[t.dataset.w] = t.value;
     else if (t.dataset.wl) {
       const lista = crmWiz[t.dataset.wl];
@@ -496,6 +508,7 @@ function crmWizInit() {
   });
   corpo.addEventListener("change", (e) => {
     const t = e.target;
+    crmWiz.sujo = true;
     if (t.id === "crmWizExec") { crmWiz.execId = t.value; crmWizErro(""); }
     else if (t.id === "crmWizOutro") crmWiz.outro = t.checked;
     else if (t.dataset.w) {
@@ -506,6 +519,7 @@ function crmWizInit() {
   corpo.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (b.dataset.wizcli || b.dataset.wseg || b.dataset.wuf || b.dataset.wadd || b.dataset.wdel) crmWiz.sujo = true;
     if (b.dataset.wizcli) {
       if (crmWiz.cliente !== b.dataset.wizcli) { crmWiz.cliente = b.dataset.wizcli; crmWizCarregarCliente(crmWiz.cliente); }
       crmWizErro("");
@@ -533,8 +547,10 @@ function crmWizInit() {
   });
   document.getElementById("crmWizVoltar").addEventListener("click", () => crmWizIr(crmWiz.passo - 1));
   document.getElementById("crmWizProximo").addEventListener("click", crmWizProximo);
-  document.getElementById("crmAddCancelar").addEventListener("click", crmFecharAdicionar);
-  document.getElementById("crmAddFechar").addEventListener("click", crmFecharAdicionar);
+  document.getElementById("crmAddCancelar").addEventListener("click", crmWizPedirFechar);
+  document.getElementById("crmAddFechar").addEventListener("click", crmWizPedirFechar);
+  document.getElementById("crmWizConfirmaNao").addEventListener("click", () => { document.getElementById("crmWizConfirma").hidden = true; });
+  document.getElementById("crmWizConfirmaSim").addEventListener("click", crmFecharAdicionar);
 
   // abas e botões de editar da ficha
   document.getElementById("crmFicha").addEventListener("click", (e) => {

@@ -3676,6 +3676,13 @@
     <ol class="crm-wiz-trilha" id="crmWizTrilha"></ol>
     <div class="crm-wiz-corpo" id="crmWizCorpo"></div>
     <div class="note crm-erro" id="crmAddErro" style="display:none;"></div>
+    <div class="crm-wiz-confirma" id="crmWizConfirma" role="alertdialog" aria-labelledby="crmWizConfirmaTxt" hidden>
+      <span id="crmWizConfirmaTxt"><b>Descartar o que foi preenchido?</b> Se fechar agora, o que você digitou se perde.</span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="crmWizConfirmaNao">Continuar editando</button>
+        <button type="button" class="btn danger" id="crmWizConfirmaSim">Descartar e fechar</button>
+      </div>
+    </div>
     <div class="crm-modal-rodape">
       <span class="muted sv-sub" id="crmWizDica"></span>
       <div class="form-actions">

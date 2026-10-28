@@ -159,6 +159,10 @@ body.sistema-crm .sidebar-divider{display:none;}
   .crm-wiz-dec span{display:inline;}
 }
 
+.crm-wiz-confirma{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;border:1.5px solid var(--danger);background:var(--danger-pale);border-radius:10px;font-size:13px;}
+.crm-wiz-confirma[hidden]{display:none;}
+.crm-wiz-confirma .form-actions{margin-top:0;}
+
 /* abas da ficha */
 .crm-abas{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;margin:0 0 16px;}
 .crm-abas button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:700;color:var(--ink-soft);padding:10px 16px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;}
