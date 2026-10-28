@@ -2520,6 +2520,18 @@ function svLigarClientes() {
 // preço digitado só pra esta proposta, por código (null = "Sob consulta"); zera sempre que a tela abre,
 // pra um preço antigo não esconder uma atualização do cadastro
 let svPropostaPrecos = {};
+// quantidade digitada só pra esta proposta, por código + armazém (sem trava no disponível); zera junto com os preços
+let svPropostaQtds = {};
+
+function svChaveQtdProposta(l) {
+  return l.codigo + "|" + l.armazem;
+}
+
+// quantidade que sai na proposta: a digitada, ou o disponível; vazio e 0 valem 0 (a linha fica de fora do PDF)
+function svQtdProposta(l) {
+  const chave = svChaveQtdProposta(l);
+  return Object.prototype.hasOwnProperty.call(svPropostaQtds, chave) ? svPropostaQtds[chave] : l.disp;
+}
 
 function svPrecoProposta(codigo) {
   if (Object.prototype.hasOwnProperty.call(svPropostaPrecos, codigo)) return svPropostaPrecos[codigo];
@@ -2559,6 +2571,7 @@ function svAtualizarCabecalhoProposta() {
 
 function svAbrirProposta() {
   svPropostaPrecos = {};
+  svPropostaQtds = {};
   const disponiveis = svCalcularEstoque().linhas.filter(l => l.disp > 0);
 
   const selArmazem = document.getElementById("svPropArmazem");
@@ -2598,6 +2611,7 @@ function svRenderTabelaProposta() {
         ${svCelulaTexto(l.produto && l.produto.marca, "muted")}
         <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
         <td class="sv-num">${fmt(l.disp)}</td>
+        <td class="sv-num"><input type="number" class="sv-prop-qtd" data-svqtd="${escapeAttr(svChaveQtdProposta(l))}" min="0" step="1" value="${svQtdProposta(l)}" aria-label="Quantidade de ${escapeAttr(l.codigo)} na proposta"></td>
         <td class="sv-num"><input type="number" class="sv-prop-preco" data-svpreco="${escapeAttr(l.codigo)}" min="0" step="0.01" placeholder="Sob consulta" value="${preco === null ? "" : preco}" aria-label="Preço por unidade de ${escapeAttr(l.codigo)}"></td>
       </tr>`;
   }).join("");
@@ -2618,7 +2632,7 @@ function svBuildPropostaHtml(linhas) {
         ${svCelulaTexto(l.produto && l.produto.modelo, "vazio")}
         ${svCelulaTexto(l.produto && l.produto.marca, "vazio")}
         <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
-        <td class="num">${fmt(l.disp)}</td>
+        <td class="num">${fmt(svQtdProposta(l))}</td>
         <td class="num">${preco === null ? "Sob consulta" : escapeHtml(formatMoney(preco))}</td>
       </tr>`;
   }).join("");
@@ -2651,8 +2665,8 @@ async function svGerarProposta(e) {
     // confere o estoque com dados atualizados: a aba pode estar aberta há horas e o PDF vai pro cliente
     if (!(await svCarregarDados(true))) return;
     svRenderTabelaProposta();
-    const linhas = svLinhasProposta();
-    if (linhas.length === 0) { toast("Não há pneus disponíveis com esses filtros."); return; }
+    const linhas = svLinhasProposta().filter(l => svQtdProposta(l) > 0);
+    if (linhas.length === 0) { toast("Não há pneus com quantidade na proposta com esses filtros."); return; }
     const area = document.getElementById("reportPrintArea");
     document.body.classList.remove("imprimindo-doc"); // caso uma impressão anterior tenha sido interrompida
     document.body.classList.add("imprimindo-doc");
@@ -2732,6 +2746,12 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svAtualizarCabecalhoProposta);
   });
   document.getElementById("svPropTbody").addEventListener("input", (e) => {
+    const campoQtd = e.target.closest(".sv-prop-qtd");
+    if (campoQtd) {
+      const q = Math.floor(Number(campoQtd.value));
+      svPropostaQtds[campoQtd.dataset.svqtd] = Number.isFinite(q) && q > 0 ? q : 0;
+      return;
+    }
     const campo = e.target.closest(".sv-prop-preco");
     if (!campo) return;
     const n = campo.value === "" ? null : Math.round(Number(campo.value) * 100) / 100;

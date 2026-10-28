@@ -322,10 +322,12 @@ td.sv-num{font-family:'Space Mono',monospace;}
    ganha barra de rolagem em tela de 1280px */
 .sv-prop-previa th{white-space:normal;}
 .sv-prop-previa th,.sv-prop-previa td{padding-left:8px;padding-right:8px;}
+.sv-prop-qtd,
 .sv-prop-preco{
   width:96px;text-align:right;font-family:'Space Mono',monospace;font-size:12px;padding:6px 8px;
   border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);outline:none;
 }
+.sv-prop-qtd:focus,
 .sv-prop-preco:focus{border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
 .sv-prop-rodape{margin-top:14px;font-size:11px;color:var(--ink-soft);max-width:480px;}
 @media (max-width: 980px){.sv-prop-layout{grid-template-columns:1fr;}}
