@@ -361,3 +361,17 @@ td.sv-num{font-family:'Space Mono',monospace;}
   @bottom-left{content:"Proposta"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
   @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
 }
+
+/* ---------------- Pedido total ou parcial ---------------- */
+.sv-seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);padding:3px;gap:2px;width:max-content;max-width:100%;}
+.sv-seg button{border:0;background:transparent;padding:7px 16px;border-radius:7px;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
+.sv-seg button.on{background:var(--ink);color:var(--surface);}
+.sv-seg button:disabled{opacity:.4;cursor:not-allowed;}
+.sv-seg button:focus-visible{outline:2px solid var(--orange);outline-offset:1px;}
+.sv-opcoes{display:flex;flex-direction:column;gap:8px;}
+.field label.sv-opcao{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--surface);font-size:12px;color:var(--ink-soft);text-transform:none;letter-spacing:0;font-weight:400;line-height:1.4;}
+.field label.sv-opcao b{display:block;font-size:13px;color:var(--ink);margin-bottom:2px;}
+.field label.sv-opcao input{margin-top:3px;accent-color:var(--orange);width:auto;}
+.field label.sv-opcao:has(input:checked){border-color:var(--ink);box-shadow:0 0 0 1px var(--ink);}
+.sv-pedido-barra{height:6px;border-radius:99px;background:var(--paper-2);overflow:hidden;margin-top:6px;min-width:70px;}
+.sv-pedido-barra i{display:block;height:100%;background:var(--orange);}

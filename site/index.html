@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
-<link rel="stylesheet" href="semvenda.css?v=23">
+<link rel="stylesheet" href="semvenda.css?v=25">
 <link rel="stylesheet" href="crm.css?v=12">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -767,8 +767,8 @@
         <div class="table-wrap">
           <table class="sv-res-tabela">
             <colgroup>
-              <col style="width:8.5%"><col style="width:8.5%"><col style="width:7%"><col style="width:10%"><col style="width:11%"><col style="width:9%">
-              <col style="width:9%"><col style="width:4%"><col style="width:12%"><col style="width:8.5%"><col style="width:12.5%">
+              <col style="width:7.5%"><col style="width:7.5%"><col style="width:7%"><col style="width:9.5%"><col style="width:10%"><col style="width:8.5%">
+              <col style="width:8.5%"><col style="width:4%"><col style="width:7%"><col style="width:11%"><col style="width:8.5%"><col style="width:11%">
             </colgroup>
             <thead>
               <tr>
@@ -780,6 +780,7 @@
                 <th>Transporte</th>
                 <th>Unidade</th>
                 <th>Qtd.</th>
+                <th>Pedido</th>
                 <th>Situação</th>
                 <th>Data</th>
                 <th></th>
@@ -3796,6 +3797,14 @@
           <div class="sv-erro-msg" id="svResErro_data" role="alert"></div>
         </div>
       </div>
+      <div class="field" id="svResCampo_pedido">
+        <label id="svResPedidoRotulo">Pedido</label>
+        <div class="sv-seg" id="svResPedido" role="group" aria-labelledby="svResPedidoRotulo">
+          <button type="button" class="on" data-svpedido="TOTAL" aria-pressed="true">Total</button>
+          <button type="button" data-svpedido="PARCIAL" aria-pressed="false">Parcial</button>
+        </div>
+        <div class="note" id="svResPedidoNota">Cliente leva tudo de uma vez.</div>
+      </div>
       <div class="sv-res-linha">
         <div class="field" id="svResCampo_tipotransp">
           <label for="svResTipoTransporte">Tipo de transporte</label>
@@ -3873,6 +3882,27 @@
   <div class="modal" role="dialog" aria-labelledby="svVendaTitulo">
     <h3 id="svVendaTitulo">Confirmar venda?</h3>
     <p id="svVendaTexto"></p>
+    <div class="field">
+      <label id="svVendaModoRotulo">Esta venda</label>
+      <div class="sv-seg" id="svVendaModo" role="group" aria-labelledby="svVendaModoRotulo">
+        <button type="button" id="svVendaModoTotal" data-svmodo="TOTAL" class="on" aria-pressed="true">Total</button>
+        <button type="button" id="svVendaModoParcial" data-svmodo="PARCIAL" aria-pressed="false">Parcial</button>
+      </div>
+    </div>
+    <div id="svVendaParcialBox" style="display:none;">
+      <div class="field">
+        <label for="svVendaQtd">Quantidade vendida agora</label>
+        <input type="number" id="svVendaQtd" min="1" step="1" placeholder="0">
+        <div class="note" id="svVendaQtdNota"></div>
+      </div>
+      <div class="field">
+        <label id="svVendaSobraRotulo">O que fazer com as <span id="svVendaResto">0</span> un. que sobraram?</label>
+        <div class="sv-opcoes" role="radiogroup" aria-labelledby="svVendaSobraRotulo">
+          <label class="sv-opcao"><input type="radio" name="svVendaSobra" value="MANTER" checked><span><b>Continuam reservadas</b>A reserva fica ativa só com o restante e pode ser vendida depois.</span></label>
+          <label class="sv-opcao"><input type="radio" name="svVendaSobra" value="LIBERAR"><span><b>Voltam para o estoque</b>O restante é liberado agora e a reserva se encerra.</span></label>
+        </div>
+      </div>
+    </div>
     <div class="field">
       <label for="svVendaPreco">Preço por unidade (R$)</label>
       <input type="number" id="svVendaPreco" min="0" step="0.01" placeholder="0,00">
@@ -4504,7 +4534,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=28"></script>
+<script src="semvenda.js?v=29"></script>
 <script src="crm.js?v=19"></script>
 <script src="crm-perfil.js?v=5"></script>
 <script src="usuarios.js?v=6"></script>

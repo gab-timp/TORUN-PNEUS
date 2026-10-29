@@ -141,6 +141,10 @@ function svReservaFromRow(r) {
     divisaoPagamento: Array.isArray(r.divisao_pagamento) ? r.divisao_pagamento : null,
     valorRecebido: r.valor_recebido === null || r.valor_recebido === undefined ? null : Number(r.valor_recebido),
     tipoTransporte: r.tipo_transporte || "", transportadora: r.transportadora || "",
+    // sql/sem_venda_pedido_parcial.sql: pedido total (padrão) ou parcial; a venda parcial divide a reserva em duas linhas
+    tipoPedido: r.tipo_pedido === "PARCIAL" ? "PARCIAL" : "TOTAL",
+    pedidoTotal: r.pedido_total === null || r.pedido_total === undefined ? null : Number(r.pedido_total),
+    reservaOrigemId: r.reserva_origem_id || null, liberada: !!r.liberada,
     // preço e dia gravados no "Confirmar venda"; vazios nas vendas confirmadas antes dessa mudança
     precoUnitario: r.preco_unitario === null || r.preco_unitario === undefined ? null : Number(r.preco_unitario),
     vendidoEm: r.vendido_em || "",
@@ -154,7 +158,8 @@ function svReservaToRow(r) {
     vendedor_interno: r.vendedorInterno, representante: r.representante || null,
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
     situacao: r.situacao, data: r.data, obs: r.obs || null, forma_pagamento: r.formaPagamento || null, unidade_negocio: r.unidadeNegocio || null,
-    tipo_transporte: r.tipoTransporte || null, transportadora: r.transportadora || null
+    tipo_transporte: r.tipoTransporte || null, transportadora: r.transportadora || null,
+    tipo_pedido: r.tipoPedido === "PARCIAL" ? "PARCIAL" : "TOTAL"
   };
 }
 
@@ -1098,7 +1103,7 @@ let svResFiltroAtual = "ativas_vendidas";
 const SV_RES_FILTROS = [
   { chave: "ativas_vendidas", rotulo: "Ativas e vendidas" },
   { chave: "ativas", rotulo: "Só ativas" },
-  { chave: "canceladas", rotulo: "Canceladas" },
+  { chave: "canceladas", rotulo: "Canceladas e liberadas" },
   { chave: "todas", rotulo: "Todas" }
 ];
 const SV_CAMPOS_RES = ["produto", "cliente", "unidade", "vendedor", "representante", "forma", "quantidade", "data", "tipotransp", "transportadora"];
@@ -1120,11 +1125,34 @@ function svFiltrarPorSituacao(rows, chave) {
 }
 
 function svSituacaoReserva(r) {
+  if (r.situacao === "CANCELADA" && r.liberada) return { chave: "LIBERADA", rotulo: "Liberada", pill: "pill-atencao" };
   if (r.situacao === "CANCELADA") return { chave: "CANCELADA", rotulo: "Cancelada", pill: "pill-neutro" };
   if (r.situacao === "VENDIDA") return { chave: "VENDIDA", rotulo: "Vendido", pill: "pill-normal" };
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
   if (prev && prev.status !== "FINALIZADO") return { chave: "AGUARDANDO", rotulo: "Aguardando chegada", pill: "pill-azul" };
   return { chave: "RESERVADO", rotulo: "Reservado", pill: "pill-baixo" };
+}
+
+// Coluna "Pedido": Total, ou Parcial com quantas unidades do pedido já foram vendidas. O pedido é a reserva original
+// (a linha vendida aponta pra ela em reservaOrigemId); a reserva que sobrou e as vendas dela contam juntas.
+function svPedidoCelula(r) {
+  const parcial = r.tipoPedido === "PARCIAL" || r.pedidoTotal !== null || !!r.reservaOrigemId;
+  if (!parcial) return `<span class="status-pill pill-neutro">Total</span>`;
+  const origem = r.reservaOrigemId || r.id;
+  const vendidas = svState.reservas
+    .filter(x => x.situacao === "VENDIDA" && (x.id === origem || x.reservaOrigemId === origem))
+    .reduce((s, x) => s + x.quantidade, 0);
+  const total = r.pedidoTotal;
+  let extra = "";
+  if (total && r.situacao === "ATIVA") {
+    extra = `<div class="muted sv-sub">${fmt(vendidas)} de ${fmt(total)} vendidas</div>
+      <div class="sv-pedido-barra"><i style="width:${Math.min(100, Math.round(vendidas / total * 100))}%"></i></div>`;
+  } else if (total && r.situacao === "VENDIDA") {
+    extra = `<div class="muted sv-sub">parte de um pedido de ${fmt(total)} un.</div>`;
+  } else if (r.liberada) {
+    extra = `<div class="muted sv-sub">restante de uma venda parcial</div>`;
+  }
+  return `<span class="status-pill pill-azul">Parcial</span>${extra}`;
 }
 
 function svOrigemReserva(r) {
@@ -1354,8 +1382,27 @@ function svRenderReservaForm() {
   document.getElementById("svResTransportadoraAviso").style.display = svTransportadoras.length === 0 ? "" : "none";
 }
 
+// Pedido da reserva: Total (cliente leva tudo de uma vez, o padrão) ou Parcial (leva em partes)
+const SV_PEDIDO_NOTAS = {
+  TOTAL: "Cliente leva tudo de uma vez.",
+  PARCIAL: "Cliente leva em partes. Dá para confirmar a venda mais de uma vez."
+};
+function svTipoPedidoReserva() {
+  const on = document.querySelector("#svResPedido [data-svpedido].on");
+  return on ? on.dataset.svpedido : "TOTAL";
+}
+function svEscolherPedidoReserva(tipo) {
+  document.querySelectorAll("#svResPedido [data-svpedido]").forEach(b => {
+    const ligado = b.dataset.svpedido === tipo;
+    b.classList.toggle("on", ligado);
+    b.setAttribute("aria-pressed", String(ligado));
+  });
+  document.getElementById("svResPedidoNota").textContent = SV_PEDIDO_NOTAS[tipo];
+}
+
 function svAbrirNovaReserva() {
   document.getElementById("svFormReserva").reset();
+  svEscolherPedidoReserva("TOTAL");
   document.getElementById("svResData").value = todayISO();
   svLimparErrosReserva();
   svFecharPicker();
@@ -1452,6 +1499,7 @@ function svRenderReservaTabela() {
         <td>${r.tipoTransporte ? `<span class="sv-tt ${r.tipoTransporte === "NOSSO" ? "nosso" : "cli"}">${escapeHtml(SV_TIPOS_TRANSPORTE[r.tipoTransporte] || r.tipoTransporte)}</span>${r.transportadora ? `<div class="sv-transp">${escapeHtml(r.transportadora)}</div>` : ""}` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td>${r.unidadeNegocio ? `<span class="sv-un ${r.unidadeNegocio === "ATACADO" ? "atacado" : "encomenda"}">${escapeHtml(SV_UNIDADES[r.unidadeNegocio] || r.unidadeNegocio)}</span>` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td class="mono">${fmt(r.quantidade)}</td>
+        <td>${svPedidoCelula(r)}</td>
         <td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span>${sitExtra}</td>
         <td><span class="mono">${r.data ? formatDateBR(r.data) : "—"}</span>${dataExtra ? `<div class="muted sv-sub">${escapeHtml(dataExtra)}</div>` : ""}</td>
         <td class="sv-acoes">${acoes}</td>
@@ -1532,7 +1580,23 @@ function svVendaModal(r) {
     const cancelBtn = $("svVendaCancelar");
     const produto = svGetProduto(r.codigo);
     const temPreco = !!produto && produto.preco !== null;
-    $("svVendaTexto").textContent = `Marcar as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente} como vendidas?`;
+    // venda total (todas as unidades da reserva) ou parcial (só uma parte, e a sobra continua reservada ou é liberada)
+    const segModo = $("svVendaModo");
+    const btnModoTotal = $("svVendaModoTotal");
+    const btnModoParcial = $("svVendaModoParcial");
+    const boxParcial = $("svVendaParcialBox");
+    const qtdInput = $("svVendaQtd");
+    const qtdNota = $("svVendaQtdNota");
+    const restoEl = $("svVendaResto");
+    const podeParcial = r.quantidade >= 2;
+    let modo = podeParcial && (r.tipoPedido === "PARCIAL" || r.pedidoTotal !== null) ? "PARCIAL" : "TOTAL";
+    btnModoTotal.textContent = `Total · ${fmt(r.quantidade)} un.`;
+    btnModoParcial.disabled = !podeParcial;
+    btnModoParcial.title = podeParcial ? "" : "Só tem 1 unidade reservada: não dá pra dividir.";
+    qtdInput.max = String(r.quantidade - 1);
+    qtdInput.value = "";
+    document.querySelector('input[name="svVendaSobra"][value="MANTER"]').checked = true;
+    $("svVendaTexto").textContent = `Reserva de ${r.quantidade} un. de ${r.codigo} para ${r.cliente}.`;
     $("svVendaDica").textContent = temPreco
       ? "Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor."
       : "Esse produto não tem preço de proposta no cadastro: digite o preço da venda.";
@@ -1568,12 +1632,37 @@ function svVendaModal(r) {
 
     // vazio ou ilegível = NaN (o campo numérico devolve "" quando o texto digitado não é um número)
     const lerPreco = () => (input.value.trim() === "" ? NaN : Math.round(Number(input.value) * 100) / 100);
-    const totalVenda = () => { const p = lerPreco(); return p >= 0 ? Math.round(p * r.quantidade * 100) / 100 : 0; };
+    // unidades desta venda: todas as da reserva, ou as digitadas na venda parcial (NaN enquanto estiver vazio ou fora de 1 a N-1)
+    const lerQtd = () => {
+      if (modo === "TOTAL") return r.quantidade;
+      const n = parseInt(qtdInput.value, 10);
+      return n >= 1 && n < r.quantidade ? n : NaN;
+    };
+    const totalVenda = () => { const p = lerPreco(); const q = lerQtd(); return p >= 0 && q > 0 ? Math.round(p * q * 100) / 100 : 0; };
     const atualizarTotal = () => {
       const p = lerPreco();
-      const valido = p >= 0;
+      const q = lerQtd();
+      const valido = p >= 0 && q > 0;
       totalEl.textContent = valido ? formatMoney(totalVenda()) : "—";
-      contaEl.textContent = valido ? `${fmt(r.quantidade)} un. × ${formatMoney(p)}` : "";
+      contaEl.textContent = valido ? `${fmt(q)} un. × ${formatMoney(p)}` : "";
+    };
+    // Total x Parcial: a pergunta da sobra e a quantidade só aparecem em Parcial
+    const atualizarModo = () => {
+      btnModoTotal.classList.toggle("on", modo === "TOTAL");
+      btnModoParcial.classList.toggle("on", modo === "PARCIAL");
+      btnModoTotal.setAttribute("aria-pressed", String(modo === "TOTAL"));
+      btnModoParcial.setAttribute("aria-pressed", String(modo === "PARCIAL"));
+      boxParcial.style.display = modo === "PARCIAL" ? "" : "none";
+      const q = parseInt(qtdInput.value, 10);
+      restoEl.textContent = fmt(q >= 1 && q < r.quantidade ? r.quantidade - q : r.quantidade);
+      qtdNota.textContent = `Reservadas: ${fmt(r.quantidade)} un. Digite de 1 a ${fmt(r.quantidade - 1)}. Para vender todas, escolha Total.`;
+    };
+    const onModo = (e) => {
+      const b = e.target.closest("[data-svmodo]");
+      if (!b || b.disabled) return;
+      modo = b.dataset.svmodo;
+      onInput();
+      if (modo === "PARCIAL") qtdInput.focus();
     };
     // Boleto Trademaster: valor recebido e diferença para o total (o deságio da financeira)
     const atualizarTrademaster = () => {
@@ -1600,7 +1689,7 @@ function svVendaModal(r) {
           : dif > 0 ? `Falta ${escapeHtml(formatMoney(dif))} pra completar o valor da venda.`
           : `Passou ${escapeHtml(formatMoney(-dif))} do valor da venda.`}</div>`;
     };
-    const atualizarTudo = () => { atualizarTotal(); atualizarTrademaster(); atualizarDivisao(); };
+    const atualizarTudo = () => { atualizarModo(); atualizarTotal(); atualizarTrademaster(); atualizarDivisao(); };
     const onInput = () => { erro.style.display = "none"; atualizarTudo(); };
     const onDividir = () => {
       boxDiv.style.display = chkDividir.checked ? "" : "none";
@@ -1632,10 +1721,15 @@ function svVendaModal(r) {
       listaDiv.removeEventListener("click", onListaClick);
       selTipo.removeEventListener("change", onInput);
       selTransp.removeEventListener("change", onInput);
+      segModo.removeEventListener("click", onModo);
+      qtdInput.removeEventListener("input", onInput);
+      qtdInput.removeEventListener("keydown", onTecla);
       resolve(resultado);
     };
     const falha = (msg) => { erro.textContent = msg; erro.style.display = "block"; };
     const onOk = () => {
+      const qtd = lerQtd();
+      if (Number.isNaN(qtd)) return falha(`Informe quantas unidades foram vendidas, de 1 a ${fmt(r.quantidade - 1)}. Para vender todas, escolha Total.`);
       const p = lerPreco();
       if (Number.isNaN(p)) return falha("Informe o preço por unidade.");
       if (p < 0) return falha("O preço não pode ser negativo.");
@@ -1667,7 +1761,9 @@ function svVendaModal(r) {
       }
       cleanup({
         preco: p, forma: selForma.value, valorRecebido: ehTm ? Math.round(parseFloat(recebido.value) * 100) / 100 : null,
-        divisao, tipo: selTipo.value, transportadora: selTransp.value
+        divisao, tipo: selTipo.value, transportadora: selTransp.value,
+        parcial: modo === "PARCIAL", quantidade: qtd,
+        sobra: modo === "PARCIAL" ? document.querySelector('input[name="svVendaSobra"]:checked').value : null
       });
     };
     const onCancel = () => cleanup(null);
@@ -1685,11 +1781,41 @@ function svVendaModal(r) {
     listaDiv.addEventListener("click", onListaClick);
     selTipo.addEventListener("change", onInput);
     selTransp.addEventListener("change", onInput);
+    segModo.addEventListener("click", onModo);
+    qtdInput.addEventListener("input", onInput);
+    qtdInput.addEventListener("keydown", onTecla);
     atualizarTudo();
     overlay.classList.add("show");
     input.focus();
     input.select();
   });
+}
+
+// Venda parcial: a função sv_vender_parcial divide a reserva de uma vez só (a parte vendida vira uma linha VENDIDA nova e
+// a reserva fica com o restante, ou é liberada). Sem o SQL rodado a função não existe e a tela avisa.
+async function svVenderParcial(r, venda) {
+  const { data, error } = await sb.rpc("sv_vender_parcial", {
+    p_id: r.id, p_novo_id: uid("svres"), p_quantidade: venda.quantidade, p_sobra: venda.sobra, p_preco: venda.preco,
+    p_forma: venda.forma, p_valor_recebido: venda.valorRecebido, p_divisao: venda.divisao,
+    p_tipo_transporte: venda.tipo, p_transportadora: venda.transportadora, p_vendido_em: todayISO()
+  });
+  if (error) {
+    if (/já foi alterada|não encontrada/i.test(error.message)) {
+      toast("Essa reserva já foi alterada por outra pessoa. Atualizando a lista.");
+      await svCarregarDados(true);
+      svRenderReserva();
+    } else {
+      toast("Não foi possível confirmar a venda parcial: " + error.message);
+    }
+    return;
+  }
+  (data || []).map(svReservaFromRow).forEach(nova => {
+    const i = svState.reservas.findIndex(x => x.id === nova.id);
+    if (i >= 0) svState.reservas[i] = nova; else svState.reservas.unshift(nova);
+  });
+  svRenderReserva();
+  const resto = r.quantidade - venda.quantidade;
+  toast(`Venda confirmada: ${fmt(venda.quantidade)} un. ${venda.sobra === "LIBERAR" ? `vendidas e ${fmt(resto)} un. liberadas.` : `vendidas, ${fmt(resto)} un. continuam reservadas.`}`);
 }
 
 async function svMudarSituacaoReserva(id, nova) {
@@ -1700,6 +1826,7 @@ async function svMudarSituacaoReserva(id, nova) {
     // a venda grava o preço por unidade, a condição de pagamento e o dia: é daí que o Dashboard tira o "Valor vendido" e o mês
     const venda = await svVendaModal(r);
     if (venda === null) return;
+    if (venda.parcial) { await svVenderParcial(r, venda); return; }
     campos = {
       situacao: nova, preco_unitario: venda.preco, forma_pagamento: venda.forma,
       valor_recebido: venda.valorRecebido, divisao_pagamento: venda.divisao,
@@ -1749,6 +1876,10 @@ function svLigarReserva() {
     }
   });
   $("svBtnNovaReserva").addEventListener("click", svAbrirNovaReserva);
+  $("svResPedido").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-svpedido]");
+    if (b) svEscolherPedidoReserva(b.dataset.svpedido);
+  });
   $("svResNovoCliente").addEventListener("click", () => svAbrirClienteModal(null, true));
   $("svResFechar").addEventListener("click", svFecharNovaReserva);
   $("svResCancelar").addEventListener("click", svFecharNovaReserva);
@@ -1853,6 +1984,7 @@ async function svSalvarReservaDados() {
     armazem: opcao.tipo === "E" ? opcao.armazem : null,
     previsaoId: opcao.tipo === "P" ? opcao.previsaoId : null,
     formaPagamento: forma, unidadeNegocio: unidade, tipoTransporte, transportadora,
+    tipoPedido: svTipoPedidoReserva(),
     situacao: "ATIVA", data, obs
   };
   const { data: inserida, error } = await sb.from("sv_reservas").insert({ ...svReservaToRow(nova), created_by: currentUser ? currentUser.id : null }).select();
