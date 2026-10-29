@@ -215,3 +215,16 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-wiz-tipo .note{margin:0;}
 .crm-abas button.fora{opacity:.45;cursor:not-allowed;}
 .crm-abas button.fora:hover{color:var(--ink-soft);}
+
+/* metas */
+.crm-meta-ano{min-width:120px;}
+.crm-meta-topo{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;}
+.crm-meta-money{display:flex;align-items:center;gap:8px;}
+.crm-meta-money > span{color:var(--ink-soft);font-weight:700;}
+.crm-meta-money input{text-align:right;font-family:'Space Mono',monospace;width:170px;}
+.crm-meta-grande input{font-size:22px;font-weight:700;width:240px;min-height:46px;}
+.crm-meta-rodape{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;}
+.crm-selo-warn{background:#FEF3C7;color:#B45309;}
+.crm-meta-money input{border:1px solid var(--line);border-radius:7px;padding:9px 10px;font-size:13.5px;background:var(--paper);color:var(--ink);}
+.crm-meta-money input:focus{outline:0;border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
+.crm-meta-money input:disabled{opacity:.6;}

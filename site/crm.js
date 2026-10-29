@@ -63,6 +63,8 @@ function crmEhMinha(c) { return crmGestaoComCarteira() && c.executivoId === crmM
 function crmPodeRegistrarLigacao() { return crmTemCarteiraPropria() && crmPodeEscrever(); }
 // executivo só enxerga a própria carteira; a gestão só registra nos clientes em que é a responsável
 function crmPodeLigarPara(c) { return crmPodeEscrever() && (crmEhExecutivo() || crmEhMinha(c)); }
+// Metas (Gestão > Metas): só a gestão do CRM (administrador sem papel conta como gestão)
+function crmPodeVerMetas() { return crmPapelEfetivo() === "gestao"; }
 function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPapelEfetivo()) && crmPodeEscrever(); }
 
 function crmSistemasVisiveis() {
@@ -81,6 +83,7 @@ function crmTemKanban() { return crmSistemaAtual() === "atacado"; }
 
 // chamado pelo aplicarSistema do semvenda.js ao entrar em Atacado ou Encomenda: o sistema aberto vale pra todas as telas
 function crmEntrarNoSistema(sistema) {
+  crmAplicarMenuGestao();
   crmUi.sistema = sistema;
   crmUi.modo = "lista";
   crmUi.fichaId = null;
@@ -88,6 +91,14 @@ function crmEntrarNoSistema(sistema) {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
+}
+
+// grupo Gestão do menu: Metas para a gestão do CRM, Administração (já admin-only) para o administrador
+function crmAplicarMenuGestao() {
+  const metas = document.getElementById("crmNavMetas");
+  if (metas) metas.style.display = crmPodeVerMetas() ? "" : "none";
+  const grupo = document.getElementById("crmGrupoGestao");
+  if (grupo) grupo.style.display = crmPodeVerMetas() || currentUserIsAdmin ? "" : "none";
 }
 
 // quem tem carteira própria começa em Hoje; gestão e financeiro, na lista de clientes
@@ -318,6 +329,7 @@ function crmRender() {
   if (id ==="view-crm-hoje") crmRenderHoje();
   else if (id === "view-crm-clientes") crmRenderClientes();
   else if (id === "view-crm-cliente") crmRenderFicha();
+  else if (id === "view-crm-metas") crmRenderMetas();
 }
 
 /* ---------------- Hoje ---------------- */
@@ -551,6 +563,129 @@ async function crmGravarEtapa(c, nova, origem) {
   if (h.error) toast("A etapa mudou, mas o histórico não foi gravado: " + h.error.message);
   else if (h.data && h.data[0]) { crmState.historico.push(crmHistFromRow(h.data[0])); crmReindexar(); }
   return true;
+}
+
+/* ---------------- Metas (Gestão) ---------------- */
+/* Meta anual da equipe + meta individual de cada executivo; a soma das individuais tem que ser igual à da equipe.
+   Dados em crm_meta_equipe / crm_meta_executivo (sql/crm_metas.sql); quem grava é a função crm_salvar_metas, que
+   confere a soma no banco. Valores em reais inteiros. */
+
+const crmMetas = { ano: null, execs: [], indisponivel: false, salvando: false };
+
+function crmNumMeta(texto) { return Number(String(texto || "").replace(/\D/g, "")) || 0; }
+function crmFmtInteiro(n) { return Number(n || 0).toLocaleString("pt-BR"); }
+function crmPct(n) { return n.toFixed(1).replace(".", ",") + "%"; }
+
+function crmAnosMeta() {
+  const atual = Number(todayISO().slice(0, 4));
+  return [atual, atual + 1];
+}
+
+async function crmRenderMetas() {
+  const corpo = document.getElementById("crmMetasCorpo");
+  const selAno = document.getElementById("crmMetasAno");
+  if (!corpo || !selAno) return;
+  const anos = crmAnosMeta();
+  if (!crmMetas.ano || !anos.includes(crmMetas.ano)) crmMetas.ano = anos[0];
+  selAno.innerHTML = anos.map(a => `<option value="${a}" ${a === crmMetas.ano ? "selected" : ""}>${a}</option>`).join("");
+  corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
+  const ano = crmMetas.ano;
+  const [ex, eq, ind] = await Promise.all([
+    sb.rpc("crm_executivos_metas"),
+    sb.from("crm_meta_equipe").select("valor").eq("ano", ano).maybeSingle(),
+    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano)
+  ]);
+  if (ano !== crmMetas.ano) return; // trocou de ano enquanto carregava
+  if (ex.error || eq.error || ind.error) {
+    crmMetas.indisponivel = true;
+    corpo.innerHTML = `<div class="card"><div class="empty-state">As metas ainda não estão disponíveis: rode o SQL <b>sql/crm_metas.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
+    return;
+  }
+  crmMetas.indisponivel = false;
+  const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
+  crmMetas.execs = (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 }));
+  const equipe = eq.data ? Number(eq.data.valor) : 0;
+  const podeEditar = crmPodeEscrever();
+
+  const linhas = crmMetas.execs.map((e, i) => `
+    <tr>
+      <td><div class="crm-nome">${escapeHtml(e.nome)}</div></td>
+      <td>${e.sistemas.length ? e.sistemas.map(s => `<span class="crm-selo crm-selo-tor">${escapeHtml(CRM_SISTEMAS[s] || s)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>
+      <td class="num"><span class="crm-meta-money"><span>R$</span><input type="text" inputmode="numeric" class="crm-meta-in" data-crmmetaexec="${i}" value="${e.valor ? crmFmtInteiro(e.valor) : ""}" placeholder="0" aria-label="Meta de ${escapeAttr(e.nome)}" ${podeEditar ? "" : "disabled"}></span></td>
+      <td><div class="crm-meter"><div class="crm-meter-barra"><i id="crmMetaBarra${i}"></i></div></div><div class="muted sv-sub" id="crmMetaPct${i}"></div></td>
+    </tr>`).join("");
+
+  corpo.innerHTML = `
+    <div class="card">
+      <div class="crm-meta-topo">
+        <div><h2>Meta anual da equipe</h2><div class="note">Faturamento de janeiro a dezembro de ${ano}.</div></div>
+        <div class="field"><label for="crmMetaEquipe">Meta da equipe</label>
+          <span class="crm-meta-money crm-meta-grande"><span>R$</span><input type="text" inputmode="numeric" id="crmMetaEquipe" class="crm-meta-in" value="${equipe ? crmFmtInteiro(equipe) : ""}" placeholder="0" ${podeEditar ? "" : "disabled"}></span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Meta individual de cada executivo</h2><div class="note">A soma das metas individuais tem que bater com a meta da equipe.</div></div>
+      ${crmMetas.execs.length ? `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Executivo</th><th>Sistemas</th><th class="num">Meta ${ano}</th><th style="width:30%">Parte da meta da equipe</th></tr></thead>
+        <tbody>${linhas}</tbody>
+        <tfoot><tr><td colspan="2">Soma das metas individuais</td><td class="num" id="crmMetaSoma"></td><td><span class="crm-selo" id="crmMetaStatus"></span></td></tr></tfoot>
+      </table></div>` : `<div class="empty-state">Nenhum executivo cadastrado. Marque o papel Executivo em Administração > Usuários.</div>`}
+      <div class="crm-meta-rodape">
+        <div class="note" id="crmMetaNota"></div>
+        <button type="button" class="btn primary" id="crmMetaSalvar" ${podeEditar ? "" : "disabled"}>Salvar metas</button>
+      </div>
+    </div>`;
+  crmAtualizarMetasCalculo();
+}
+
+// recalcula soma, barras, aviso e botão sem refazer os campos (o foco não se perde)
+function crmAtualizarMetasCalculo() {
+  const campoEquipe = document.getElementById("crmMetaEquipe");
+  if (!campoEquipe || crmMetas.indisponivel) return;
+  const equipe = crmNumMeta(campoEquipe.value);
+  const valores = crmMetas.execs.map((e, i) => crmNumMeta(document.querySelector(`[data-crmmetaexec="${i}"]`).value));
+  const soma = valores.reduce((a, b) => a + b, 0);
+  valores.forEach((v, i) => {
+    const p = equipe ? v / equipe * 100 : 0;
+    document.getElementById("crmMetaBarra" + i).style.width = Math.min(100, p) + "%";
+    document.getElementById("crmMetaPct" + i).textContent = crmPct(p) + " da meta da equipe";
+  });
+  const dif = equipe - soma;
+  const fecha = dif === 0 && equipe > 0 && crmMetas.execs.length > 0;
+  const somaEl = document.getElementById("crmMetaSoma");
+  if (somaEl) somaEl.textContent = formatMoney(soma);
+  const st = document.getElementById("crmMetaStatus");
+  if (st) {
+    st.className = "crm-selo " + (fecha ? "crm-selo-ok" : dif === 0 ? "" : dif > 0 ? "crm-selo-warn" : "crm-selo-bad");
+    st.textContent = fecha ? "Fecha com a equipe" : dif === 0 ? "Informe as metas" : dif > 0 ? `Faltam ${formatMoney(dif)} a distribuir` : `Passou ${formatMoney(-dif)} da meta da equipe`;
+  }
+  document.getElementById("crmMetaNota").textContent = fecha
+    ? "As metas individuais somam a meta da equipe. Pode salvar."
+    : "Só dá pra salvar quando a soma das individuais for igual à meta da equipe.";
+  document.getElementById("crmMetaSalvar").disabled = !fecha || !crmPodeEscrever() || crmMetas.salvando;
+}
+
+async function crmSalvarMetas() {
+  if (crmMetas.salvando || crmMetas.indisponivel) return;
+  const equipe = crmNumMeta(document.getElementById("crmMetaEquipe").value);
+  const individuais = crmMetas.execs.map((e, i) => ({ executivo_user_id: e.id, valor: crmNumMeta(document.querySelector(`[data-crmmetaexec="${i}"]`).value) }));
+  crmMetas.salvando = true;
+  crmAtualizarMetasCalculo();
+  const { error } = await sb.rpc("crm_salvar_metas", { p_ano: crmMetas.ano, p_equipe: equipe, p_individuais: individuais });
+  crmMetas.salvando = false;
+  if (error) {
+    toast("Não foi possível salvar as metas: " + error.message);
+    crmAtualizarMetasCalculo();
+    return;
+  }
+  toast("Metas de " + crmMetas.ano + " salvas.");
+  crmRenderMetas();
+}
+
+function crmMascarar(el) {
+  const d = el.value.replace(/\D/g, "");
+  el.value = d ? crmFmtInteiro(Number(d)) : "";
 }
 
 /* ---------------- ficha do cliente ---------------- */
@@ -926,6 +1061,17 @@ function initCrmTelas() {
     crmRenderClientes();
   });
   document.getElementById("crmBtnAdicionar").addEventListener("click", crmAbrirAdicionar);
+
+  // metas
+  document.getElementById("crmMetasAno").addEventListener("change", (e) => { crmMetas.ano = Number(e.target.value); crmRenderMetas(); });
+  document.getElementById("crmMetasCorpo").addEventListener("input", (e) => {
+    if (!e.target.classList.contains("crm-meta-in")) return;
+    crmMascarar(e.target);
+    crmAtualizarMetasCalculo();
+  });
+  document.getElementById("crmMetasCorpo").addEventListener("click", (e) => {
+    if (e.target.id === "crmMetaSalvar") crmSalvarMetas();
+  });
   document.getElementById("crmFicha").addEventListener("change", (e) => {
     if (e.target.id !== "crmFichaEtapa") return;
     const c = crmCarteiraPorId(crmUi.fichaId);
