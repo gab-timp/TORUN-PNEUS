@@ -331,9 +331,14 @@ function crmAtalhosHtml(ct) {
   if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Web e copia o número)", ct, true, { texto: ct.whatsapp || ct.telefone, rotulo: "WhatsApp" }));
   // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador) e copia o endereço
   // do contato (o decisor, que vem primeiro), para colar onde precisar
-  // authuser: abre na conta do Gmail igual ao e-mail de login de quem está usando (o Google escolheria a conta padrão do navegador)
-  const conta = currentUser && currentUser.email ? "authuser=" + encodeURIComponent(currentUser.email) + "&" : "";
-  if (ct.email) partes.push(crmAtalhoIcone("https://mail.google.com/mail/?" + conta + "view=cm&fs=1&to=" + encodeURIComponent(ct.email), "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, { texto: ct.email, rotulo: "E-mail" }));
+  // abre na conta do Gmail igual ao e-mail de login de quem está usando, e não na conta que estiver como padrão no navegador:
+  // só "authuser" é ignorado quando essa conta não está entre as abertas no navegador, então passa pelo seletor de contas do Google
+  // com o e-mail já preenchido (entra direto se a conta está aberta; se não, pede o login dela)
+  const gmail = "https://mail.google.com/mail/?view=cm&fs=1&to=" + (ct.email ? encodeURIComponent(ct.email) : "");
+  const hrefEmail = currentUser && currentUser.email
+    ? "https://accounts.google.com/AccountChooser?Email=" + encodeURIComponent(currentUser.email) + "&continue=" + encodeURIComponent(gmail)
+    : gmail;
+  if (ct.email) partes.push(crmAtalhoIcone(hrefEmail, "email", "E-mail (abre o Gmail e copia o endereço)", ct, true, { texto: ct.email, rotulo: "E-mail" }));
   return partes.join(" ");
 }
 
