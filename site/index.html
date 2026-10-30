@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=25">
-<link rel="stylesheet" href="crm.css?v=20">
+<link rel="stylesheet" href="crm.css?v=21">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -376,6 +376,9 @@
         <button type="button" class="nav-label">Financeiro <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
         <button class="nav-item" data-view="crm-faturamento" data-label="Faturamento">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-coins"/></svg> Faturamento
+        </button>
+        <button class="nav-item" data-view="crm-relatorio" data-label="Relatório de comissão">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatório de comissão
         </button>
       </div>
       <!-- Gestão: Metas é da gestão do CRM (inclusive sem ser admin); Administração continua só do admin. O grupo aparece pelo crmAplicarMenuGestao() -->
@@ -999,6 +1002,19 @@
         <div class="empty-state" id="crmCliVazio" style="display:none;"></div>
         <div class="note crm-rodape" id="crmCliRodape"></div>
       </div>
+    </section>
+
+    <section id="view-crm-relatorio" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Relatório de comissão</h1><div class="sub" id="crmRelSub"></div></div>
+        <div class="page-head-actions crm-des-filtros">
+          <div class="field"><label for="crmRelMes">Mês</label><select id="crmRelMes"></select></div>
+          <div class="field"><label for="crmRelExec">Executivo</label><select id="crmRelExec"></select></div>
+          <button type="button" class="btn outline" id="crmRelCsv">Exportar planilha</button>
+          <button type="button" class="btn primary" id="crmRelPdf">Baixar PDF</button>
+        </div>
+      </div>
+      <div id="crmRelCorpo"></div>
     </section>
 
     <section id="view-crm-faturamento" class="view crm-view">
@@ -4606,13 +4622,14 @@
 </div>
 
 <script src="semvenda.js?v=29"></script>
-<script src="crm.js?v=30"></script>
+<script src="crm.js?v=31"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=3"></script>
 <script src="crm-desempenho.js?v=1"></script>
 <script src="crm-dashboard.js?v=2"></script>
 <script src="crm-metas-mes.js?v=1"></script>
+<script src="crm-relatorio.js?v=1"></script>
 <script src="usuarios.js?v=6"></script>
-<script src="app.js?v=284"></script>
+<script src="app.js?v=285"></script>
 </body>
 </html>

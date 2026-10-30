@@ -344,3 +344,13 @@ tr.crm-fat-filho td:first-child{padding-left:34px;}
 .crm-dash-par{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
 .crm-dash-par .card{margin-bottom:0;}
 @media (max-width:900px){.crm-dash-par{grid-template-columns:minmax(0,1fr);}}
+
+/* relatório de comissão (tela e PDF) */
+#view-crm-relatorio .card{margin-bottom:14px;}
+tr.crm-rel-exec td{background:var(--paper-2,#EFEEEA);font-weight:800;}
+tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
+.pc-h2{font-size:13px;margin:18px 0 8px;color:#0b0b0b;}
+.pc-detalhe tr.pc-exec td{background:#EFEEEA;font-weight:800;}
+.pc-detalhe tr.pc-grupo td{background:#D8F1EE;font-weight:700;}
+.pc-detalhe tr.pc-sub td{font-weight:800;border-top:2px solid #111;}
+.pc-detalhe tr{page-break-inside:avoid;}

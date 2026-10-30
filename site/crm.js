@@ -407,6 +407,7 @@ function crmRender() {
   else if (id === "view-crm-metas") { crmRenderMetas(); if (typeof crmMetasMesRender === "function") crmMetasMesRender(); }
   else if (id === "view-crm-desempenho" && typeof crmRenderDesempenho === "function") crmRenderDesempenho();
   else if (id === "view-crm-dashboard" && typeof crmRenderDashboard === "function") crmRenderDashboard();
+  else if (id === "view-crm-relatorio" && typeof crmRenderRelatorio === "function") crmRenderRelatorio();
   else if (id === "view-crm-faturamento" && typeof crmRenderFaturamento === "function") crmRenderFaturamento();
 }
 
@@ -1321,6 +1322,7 @@ function initCrmTelas() {
   if (typeof crmFatInit === "function") crmFatInit();
   if (typeof crmDesInit === "function") crmDesInit();
   if (typeof crmDashInit === "function") crmDashInit();
+  if (typeof crmRelInit === "function") crmRelInit();
   if (typeof crmMetasMesInit === "function") crmMetasMesInit();
 
   // metas

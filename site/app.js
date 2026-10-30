@@ -1001,6 +1001,7 @@ function viewPermitida(view) {
   // administrador abre qualquer tela (Varejo, Sem Venda, Atacado e Encomenda)
   if (currentUserIsAdmin) return true;
   // Atacado e Encomenda (telas "crm-") têm papel próprio (Administração > Usuários), fora da lista de telas visíveis
+  if (view === "crm-relatorio") return typeof crmPodeVerFaturamento === "function" ? crmPodeVerFaturamento() : false;
   if (view === "crm-faturamento") return typeof crmPodeVerFaturamento === "function" ? crmPodeVerFaturamento() : false;
   if (view === "crm-dashboard") return typeof crmPodeVerDashboard === "function" ? crmPodeVerDashboard() : false;
   if (view === "crm-desempenho") return typeof crmPodeVerDesempenho === "function" ? crmPodeVerDesempenho() : false;
