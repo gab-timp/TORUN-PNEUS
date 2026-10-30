@@ -2,16 +2,18 @@
 /* Telas 13 a 16 do mockup do CRM. Uma tela só: a gestão vê o time todo (e filtra por executivo); o executivo vê só os números
    dele. Cruza o faturamento lançado pela Beth (funções de sql/crm_dashboard.sql), a meta anual (crm_meta_executivo), a comissão
    (faturamento de cada cliente no mês x % do executivo naquele mês) e as ligações já carregadas em crmState.
-   Regras assumidas (o mockup não escrevia todas):
-   - meta do mês = meta anual do executivo / 12; a meta do período é a soma das metas dos executivos do sistema aberto;
-   - ritmo esperado = parte do período que já passou (dias do mês, ou meses e dias do ano);
+   Regras (definidas com o usuário):
+   - meta do mês = a que a gestão digita mês a mês (crm_metas_mensais.sql); meta do time no mês = meta da equipe digitada;
+   - meta do ano = a meta anual (crm_metas.sql), separada das mensais; meta do time no ano = meta anual da equipe;
+   - ritmo esperado do mês = parte do mês que já passou (dias); do ano = metas mensais digitadas somadas até hoje (mês atual
+     proporcional aos dias; mês sem meta digitada conta zero) dividido pela meta anual;
    - propostas = ligações com resultado "Estimativa enviada"; fechou = "Fechou negócio"; atenderam = tudo menos "Não atendeu";
-   - mensal: cliente "comprou" se faturou no mês, "ainda não" se já faturou antes (neste ano ou no anterior) e não neste mês,
-     "nunca" se não tem faturamento nenhum nesses dois anos; ticket médio = faturamento / clientes que compraram;
+   - mensal: cliente "comprou" se faturou no mês, "ainda não" se já teve faturamento lançado em qualquer época e não neste mês,
+     "nunca" se nunca teve faturamento lançado (crm_dashboard_clientes_historico); ticket médio = faturamento / clientes que compraram;
    - anual: frequência = meses do ano (até o mês atual) com compra; "todo mês" = todos, "maioria" = mais da metade, "de vez em
      quando" = de 1 até a metade, "nunca" = nenhum. */
 
-const crmDash = { modo: "mensal", mes: null, ano: null, exec: "", fat: [], pct: new Map(), metas: new Map(), execsMeta: [], metasOk: false, indisponivel: false, carregando: false };
+const crmDash = { modo: "mensal", mes: null, ano: null, exec: "", fat: [], pct: new Map(), metas: new Map(), metasMes: new Map(), equipeMes: new Map(), equipeAno: 0, hist: new Set(), execsMeta: [], metasOk: false, metasMesOk: false, indisponivel: false, carregando: false };
 
 function crmPodeVerDashboard() { return currentUserIsAdmin || crmPapelEfetivo() === "gestao" || crmPapelEfetivo() === "executivo"; }
 const crmDashEhGestao = () => crmPapelEfetivo() === "gestao";
@@ -54,11 +56,15 @@ function crmDashPeriodo() {
 async function crmDashCarregar() {
   const ano = crmDash.modo === "anual" ? crmDash.ano : Number(crmDash.mes.slice(0, 4));
   const gestao = crmDashEhGestao();
-  const [f, p, m, ex] = await Promise.all([
+  const [f, p, m, ex, mm, em, ea, h] = await Promise.all([
     sb.rpc("crm_dashboard_faturamento", { p_ano: ano }),
     sb.rpc("crm_dashboard_percentuais", { p_ano: ano }),
     sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano),
-    gestao ? sb.rpc("crm_executivos_metas") : Promise.resolve({ data: [], error: null })
+    gestao ? sb.rpc("crm_executivos_metas") : Promise.resolve({ data: [], error: null }),
+    sb.from("crm_meta_mes_executivo").select("mes, executivo_user_id, valor").gte("mes", ano + "-01-01").lte("mes", ano + "-12-01"),
+    gestao ? sb.from("crm_meta_mes_equipe").select("mes, valor").gte("mes", ano + "-01-01").lte("mes", ano + "-12-01") : Promise.resolve({ data: [], error: null }),
+    gestao ? sb.from("crm_meta_equipe").select("valor").eq("ano", ano).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    sb.rpc("crm_dashboard_clientes_historico")
   ]);
   if (f.error || p.error) { crmDash.indisponivel = f.error ? f.error.message : p.error.message; return false; }
   crmDash.indisponivel = false;
@@ -71,6 +77,11 @@ async function crmDashCarregar() {
   crmDash.pct.forEach(arr => arr.sort((a, b) => a.mes.localeCompare(b.mes)));
   crmDash.metasOk = !m.error;
   crmDash.metas = new Map((m.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
+  crmDash.metasMesOk = !mm.error && !em.error;
+  crmDash.metasMes = new Map((mm.data || []).map(r => [r.executivo_user_id + "|" + String(r.mes).slice(0, 7), Number(r.valor)]));
+  crmDash.equipeMes = new Map((em.data || []).map(r => [String(r.mes).slice(0, 7), Number(r.valor)]));
+  crmDash.equipeAno = ea.error || !ea.data ? 0 : Number(ea.data.valor);
+  crmDash.hist = new Set(h.error ? [] : (h.data || []).map(r => r.sistema + "|" + r.cliente));
   crmDash.execsMeta = ex.error ? [] : (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [] }));
   return true;
 }
@@ -111,8 +122,22 @@ function crmDashDados() {
   });
   const soma = (arr) => arr.reduce((t, r) => t + r.valor, 0);
   const comissao = (arr) => crmFatArred(arr.reduce((t, r) => t + r.valor * crmDashPct(r.exec, r.mes) / 100, 0));
-  const metaDe = (e) => (crmDash.metas.get(e.id) || 0) / per.divisorMeta;
-  return { s, per, execs, ids, rows, doPeriodo, ligs, soma, comissao, metaDe };
+  // meta do executivo no período: a do mês digitada (mensal) ou a anual (anual)
+  const metaDe = (e) => crmDash.modo === "mensal" ? (crmDash.metasMes.get(e.id + "|" + per.meses[0]) || 0) : (crmDash.metas.get(e.id) || 0);
+  // meta do time: a da equipe cadastrada quando a gestão olha todos; senão a soma dos executivos em análise
+  const metaTime = () => crmDashEhGestao() && !crmDash.exec
+    ? (crmDash.modo === "mensal" ? (crmDash.equipeMes.get(per.meses[0]) || 0) : crmDash.equipeAno)
+    : execs.reduce((t, e) => t + metaDe(e), 0);
+  // ritmo esperado do ano: metas mensais digitadas somadas até hoje / meta anual
+  const ritmoAno = (metaAno) => {
+    if (!(metaAno > 0)) return null;
+    const hoje = todayISO(), mAtual = hoje.slice(0, 7), frac = Number(hoje.slice(8, 10)) / crmDashDiasMes(mAtual);
+    const mensalDe = (m) => crmDashEhGestao() && !crmDash.exec ? (crmDash.equipeMes.get(m) || 0) : execs.reduce((t, e) => t + (crmDash.metasMes.get(e.id + "|" + m) || 0), 0);
+    let acum = 0;
+    per.meses.forEach(m => { if (m < mAtual) acum += mensalDe(m); else if (m === mAtual) acum += mensalDe(m) * frac; });
+    return acum / metaAno * 100;
+  };
+  return { s, per, execs, ids, rows, doPeriodo, ligs, soma, comissao, metaDe, metaTime, ritmoAno };
 }
 
 /* ---------------- peças de tela ---------------- */
@@ -135,28 +160,29 @@ const crmDashMedidor = (pct) => `<div class="crm-meter"><div class="crm-meter-ba
 function crmRenderDashboardCorpo() {
   const corpo = document.getElementById("crmDashCorpo");
   const d = crmDashDados();
-  const { per, execs, rows, doPeriodo, ligs, soma, comissao, metaDe } = d;
+  const { per, execs, rows, doPeriodo, ligs, soma, comissao, metaDe, metaTime, ritmoAno } = d;
   const gestao = crmDashEhGestao();
   const mensal = crmDash.modo === "mensal";
   const nomePer = mensal ? "do mês" : "do ano";
 
   /* meta */
-  const metaTotal = execs.reduce((t, e) => t + metaDe(e), 0);
+  const metaTotal = metaTime();
   const fat = soma(doPeriodo);
   const ating = metaTotal > 0 ? fat / metaTotal * 100 : 0;
-  const ritmo = per.passou * 100;
+  const ritmo = mensal ? per.passou * 100 : ritmoAno(metaTotal);
+  const metasDisponiveis = mensal ? crmDash.metasMesOk : crmDash.metasOk;
   const fatAnt = mensal ? soma(rows.filter(r => r.mes === per.anterior)) : soma(rows.filter(r => r.mes.startsWith(per.anterior)));
   const parcial = per.passou > 0 && per.passou < 1;
-  const metaTxt = !crmDash.metasOk ? `<div class="muted sv-sub">As metas ainda não estão disponíveis (SQL das metas).</div>`
+  const metaTxt = !metasDisponiveis ? `<div class="muted sv-sub">As metas ainda não estão disponíveis (rode o SQL das metas${mensal ? " mensais, sql/crm_metas_mensais.sql" : ""}).</div>`
     : metaTotal > 0 ? `
       <div class="crm-dash-meta-num"><b class="mono">${crmPct(ating)}</b> <span class="muted">da meta</span></div>
       ${crmDashMedidor(ating)}
       <div class="muted sv-sub">${formatMoney(fat)} faturados de ${formatMoney(metaTotal)} · faltam ${formatMoney(Math.max(metaTotal - fat, 0))}</div>
-      <div class="muted sv-sub">${parcial ? `ritmo esperado hoje: ${crmDashPctInt(ritmo)} da meta · ` : ""}${mensal ? crmDashMesRotulo(per.anterior) : per.anterior} fechou em ${formatMoney(fatAnt)}</div>`
-    : `<div class="muted sv-sub">${gestao ? "Nenhuma meta cadastrada para este ano. A gestão cadastra em Gestão > Metas." : "A gestão ainda não definiu a sua meta deste ano."}</div>`;
+      <div class="muted sv-sub">${parcial && ritmo !== null ? `ritmo esperado hoje: ${crmDashPctInt(ritmo)} da meta · ` : ""}${mensal ? crmDashMesRotulo(per.anterior) : per.anterior} fechou em ${formatMoney(fatAnt)}</div>`
+    : `<div class="aviso-meta muted sv-sub">${gestao ? (mensal ? `Nenhuma meta cadastrada para ${escapeHtml(crmDashMesRotulo(per.meses[0]))}. A gestão cadastra em Gestão › Metas › Mês a mês.` : "Nenhuma meta anual cadastrada para este ano. A gestão cadastra em Gestão › Metas.") : (mensal ? "A gestão ainda não definiu a sua meta deste mês." : "A gestão ainda não definiu a sua meta deste ano.")}</div>`;
   const cartaoMeta = `<div class="card crm-dash-meta"><div class="card-head"><h2>${gestao && !crmDash.exec ? `Meta ${mensal ? "do mês" : "do ano"} · time` : `Sua meta ${mensal ? "do mês" : "do ano"}`}</h2><div class="note">${escapeHtml(per.rotulo)}${parcial ? " (até hoje)" : ""}</div></div>${metaTxt}</div>`;
 
-  const tabelaMeta = gestao && !crmDash.exec && crmDash.metasOk && execs.length ? `
+  const tabelaMeta = gestao && !crmDash.exec && metasDisponiveis && execs.length ? `
     <div class="card"><div class="card-head"><h2>Meta ${nomePer} por executivo</h2></div>
       <div class="table-wrap"><table><thead><tr><th>Executivo</th><th class="num">Meta ${nomePer}</th><th class="num">Faturamento</th><th class="num">Atingimento</th></tr></thead>
       <tbody>${execs.map(e => { const f = soma(doPeriodo.filter(r => r.exec === e.id)), m = metaDe(e); return `<tr><td><b>${escapeHtml(e.nome)}</b></td><td class="num">${m > 0 ? formatMoney(m) : "—"}</td><td class="num">${formatMoney(f)}</td><td class="num">${m > 0 ? crmPct(f / m * 100) : "—"}</td></tr>`; }).join("")}</tbody></table></div></div>` : "";
@@ -188,7 +214,7 @@ function crmRenderDashboardCorpo() {
   const info = clientes.map(c => {
     const r = ate(c);
     const mesesCom = per.meses.filter(m => r.some(x => x.mes === m && x.valor > 0));
-    return { c, fatPer: soma(r.filter(x => per.meses.includes(x.mes))), mesesCom: mesesCom.length, jaComprou: r.some(x => x.valor > 0), ant: soma(r.filter(x => x.mes === per.anterior)) };
+    return { c, fatPer: soma(r.filter(x => per.meses.includes(x.mes))), mesesCom: mesesCom.length, jaComprou: r.some(x => x.valor > 0) || crmDash.hist.has(c.sistema + "|" + c.cliente), ant: soma(r.filter(x => x.mes === per.anterior)) };
   });
   const comp = info.filter(x => x.fatPer > 0);
   const ticket = comp.length ? soma(comp.map(x => ({ valor: x.fatPer }))) / comp.length : 0;

@@ -7,6 +7,7 @@
 --   crm_dashboard_faturamento(p_ano)  -> uma linha por sistema, cliente, executivo do lançamento e mês (soma dos lançamentos),
 --                                        dos anos p_ano e p_ano - 1. O executivo gravado é o da carteira NA HORA do lançamento,
 --                                        o mesmo que o relatório de comissão usa.
+--   crm_dashboard_clientes_historico() -> clientes que já tiveram qualquer faturamento (para "nunca comprou").
 --   crm_dashboard_percentuais(p_ano)  -> % de comissão de cada executivo, por mês, até dezembro de p_ano (o % de um mês sem
 --                                        linha própria é o último anterior, como na tela Faturamento).
 --
@@ -62,6 +63,32 @@ begin
 end;
 $$;
 
+-- Clientes que já tiveram QUALQUER faturamento lançado (todo o histórico), para o "nunca comprou" do Dashboard mensal.
+-- Mesmo escopo das outras: gestão vê todos; executivo, só os clientes dele.
+create or replace function crm_dashboard_clientes_historico()
+returns table(sistema text, cliente text)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_papel text := current_user_crm_papel();
+begin
+  if v_papel is null or v_papel not in ('executivo', 'gestao') then
+    return;
+  end if;
+  return query
+    select distinct i.sistema, i.cliente
+    from crm_faturamento_itens i
+    where i.valor > 0
+      and (v_papel = 'gestao' or (i.executivo_user_id = auth.uid() and crm_pode_sistema(i.sistema)));
+end;
+$$;
+
+revoke all on function crm_dashboard_clientes_historico() from public;
+grant execute on function crm_dashboard_clientes_historico() to authenticated;
+
 revoke all on function crm_dashboard_faturamento(int) from public;
 grant execute on function crm_dashboard_faturamento(int) to authenticated;
 revoke all on function crm_dashboard_percentuais(int) from public;
@@ -70,4 +97,5 @@ grant execute on function crm_dashboard_percentuais(int) to authenticated;
 -- ---------------------------------------------------------------- confere
 select
   (select count(*) = 1 from pg_proc where proname = 'crm_dashboard_faturamento') as faturamento,
-  (select count(*) = 1 from pg_proc where proname = 'crm_dashboard_percentuais') as percentuais;
+  (select count(*) = 1 from pg_proc where proname = 'crm_dashboard_percentuais') as percentuais,
+  (select count(*) = 1 from pg_proc where proname = 'crm_dashboard_clientes_historico') as historico;

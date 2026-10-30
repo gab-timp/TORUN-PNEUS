@@ -1040,7 +1040,11 @@
         <div><h1>Metas</h1><div class="sub">Meta anual da equipe e a parte de cada executivo para chegar nela.</div></div>
         <div class="field crm-meta-ano"><label for="crmMetasAno">Ano</label><select id="crmMetasAno"></select></div>
       </div>
+      <div class="crm-seg" id="crmMetasAbas" role="group" aria-label="Tipo de meta" style="margin-bottom:14px;">
+        <button type="button" data-crmmetasaba="anual" class="on">Anual</button><button type="button" data-crmmetasaba="mensal">Mês a mês</button>
+      </div>
       <div id="crmMetasCorpo"></div>
+      <div id="crmMetasMesCorpo" style="display:none;"></div>
     </section>
 
     <section id="view-crm-cliente" class="view crm-view">
@@ -4602,11 +4606,12 @@
 </div>
 
 <script src="semvenda.js?v=29"></script>
-<script src="crm.js?v=29"></script>
+<script src="crm.js?v=30"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=3"></script>
 <script src="crm-desempenho.js?v=1"></script>
-<script src="crm-dashboard.js?v=1"></script>
+<script src="crm-dashboard.js?v=2"></script>
+<script src="crm-metas-mes.js?v=1"></script>
 <script src="usuarios.js?v=6"></script>
 <script src="app.js?v=284"></script>
 </body>
