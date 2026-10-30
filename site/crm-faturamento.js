@@ -18,7 +18,8 @@ const crmFat = {
   indisponivel: false,
   carregando: false,
   salvando: false,
-  execs: []           // estrutura montada na tela (executivo > clientes e representantes)
+  editando: null,     // id do lançamento em correção (null = lançamento novo)
+  execs: []         // estrutura montada na tela (executivo > clientes e representantes)
 };
 
 function crmPodeVerFaturamento() { const p = crmPapelEfetivo(); return currentUserIsAdmin || p === "financeiro" || p === "gestao"; }
@@ -93,7 +94,11 @@ function crmFatEstrutura() {
   });
 }
 
-const crmFatJaLancado = (cliente) => crmFat.itens.filter(i => i.cliente === cliente).reduce((t, i) => t + i.valor, 0);
+// o que já está salvo para o cliente; na correção, o lançamento aberto não conta (os valores dele estão nos campos)
+const crmFatJaLancado = (cliente, ignorar) => crmFat.itens.filter(i => i.cliente === cliente && i.lanc !== ignorar).reduce((t, i) => t + i.valor, 0);
+const crmFatLancTrecho = (l) => `${crmFatDM(l.de)} a ${crmFatDM(l.ate)}`;
+// lançamentos que contam como "já lançado" para dias, legenda e sobreposição
+const crmFatOutros = () => crmFat.lanc.filter(l => l.id !== crmFat.editando);
 
 /* ---------------- tela ---------------- */
 
@@ -121,7 +126,9 @@ async function crmRenderFaturamento() {
     return;
   }
   if (!crmFat.aberto.size) crmFat.aberto.add(crmFat.execs[0].id);
-  crmFatSugerirPeriodo(false);
+  const emCorrecao = crmFat.editando && crmFat.lanc.find(l => l.id === crmFat.editando);
+  if (emCorrecao) { crmFat.de = emCorrecao.de; crmFat.ate = emCorrecao.ate; }
+  else { crmFat.editando = null; crmFatSugerirPeriodo(false); }
   corpo.innerHTML = crmFatHtml();
   crmFatAtualizarPeriodo();
   crmFatCalcular();
@@ -147,9 +154,12 @@ function crmFatHtml() {
   const mes = crmFat.mes, ultimo = crmFatUltimoDia(mes);
   const dias = Array.from({ length: ultimo }, (_, i) => `<i data-fatdia="${i + 1}">${String(i + 1).padStart(2, "0")}</i>`).join("");
   const lanc = crmFat.lanc.length
-    ? crmFat.lanc.map(l => `<span><b class="k1"></b>Já lançado: ${crmFatDM(l.de)} a ${crmFatDM(l.ate)} · salvo em ${crmFatDM(crmDiaLocal(l.quando))} às ${crmHoraLocal(l.quando)}${l.por ? ", por " + escapeHtml(l.por) : ""}</span>`).join("")
+    ? crmFat.lanc.map(l => `<span class="crm-fat-lanc"><b class="k1"></b>${l.id === crmFat.editando ? "Em correção" : "Já lançado"}: ${crmFatLancTrecho(l)} · ${escapeHtml(formatMoney(l.total))} · salvo em ${crmFatDM(crmDiaLocal(l.quando))} às ${crmHoraLocal(l.quando)}${l.por ? ", por " + escapeHtml(l.por) : ""}${edita ? ` <button type="button" class="btn small outline" data-fatabrir="${escapeAttr(l.id)}" ${l.id === crmFat.editando ? "disabled" : ""}>Abrir</button> <button type="button" class="btn small outline" data-fatexcluir="${escapeAttr(l.id)}">Excluir</button>` : ""}</span>`).join("")
     : `<span class="muted">Nenhum lançamento neste mês ainda.</span>`;
-  const periodo = `
+  const emCorrecao = crmFat.editando && crmFat.lanc.find(l => l.id === crmFat.editando);
+  const faixa = emCorrecao ? `
+    <div class="crm-fat-faixa" role="status"><span>Corrigindo o lançamento de <b>${crmFatLancTrecho(emCorrecao)}</b>. Ao salvar, ele é substituído pelos valores abaixo. “Já lançado no mês” não conta este lançamento.</span><button type="button" class="btn small outline" id="crmFatCancelar">Cancelar correção</button></div>` : "";
+  const periodo = faixa + `
     <div class="card crm-fat-periodo">
       <div class="crm-fat-prow">
         <div class="field"><label for="crmFatDe">Lançar de</label><input type="date" id="crmFatDe" class="crm-fat-data" value="${crmFat.de}" min="${crmFatData(mes, 1)}" max="${crmFatData(mes, ultimo)}" ${edita ? "" : "disabled"}></div>
@@ -166,11 +176,12 @@ function crmFatHtml() {
   const blocos = crmFat.execs.map((e, i) => {
     const aberto = crmFat.aberto.has(e.id);
     const linha = (nome, filho) => {
-      const ja = crmFatJaLancado(nome);
+      const ja = crmFatJaLancado(nome, crmFat.editando);
+      const atual = crmFat.editando ? crmFat.itens.find(i => i.lanc === crmFat.editando && i.cliente === nome) : null;
       return `<tr class="${filho ? "crm-fat-filho" : ""}" data-fatcli="${escapeAttr(nome)}" data-ja="${ja}" data-exec="${escapeAttr(e.id)}" data-rep="${escapeAttr(filho || "")}">
         <td>${escapeHtml(nome)}</td>
         <td class="num mono">${formatMoney(ja)}</td>
-        <td class="num"><input type="text" inputmode="decimal" class="crm-fat-in" data-fatin="${escapeAttr(nome)}" value="" placeholder="0,00" aria-label="Faturado por ${escapeAttr(nome)} neste lançamento" ${edita ? "" : "disabled"}></td>
+        <td class="num"><input type="text" inputmode="decimal" class="crm-fat-in" data-fatin="${escapeAttr(nome)}" value="${atual ? escapeAttr(crmNumParaBR(atual.valor)) : ""}" placeholder="0,00" aria-label="Faturado por ${escapeAttr(nome)} neste lançamento" ${edita ? "" : "disabled"}></td>
         <td class="num mono crm-fat-tot"></td>
         <td class="num mono crm-fat-com"></td>
       </tr>`;
@@ -207,7 +218,7 @@ function crmFatHtml() {
       <div class="note crm-fat-nt">${edita ? "Só a Beth edita esta tela. Gestores e executivos veem o resultado no Dashboard." : "Só o financeiro edita esta tela."}</div>
       <div class="note crm-fat-erro" id="crmFatErro" role="alert"></div>
       <button type="button" class="btn outline" id="crmFatRelatorio">Relatório do mês</button>
-      ${edita ? `<button type="button" class="btn outline" id="crmFatSalvar">Salvar lançamento</button><button type="button" class="btn primary" id="crmFatSalvarRel">Salvar e gerar relatório</button>` : ""}
+      ${edita ? `<button type="button" class="btn outline" id="crmFatSalvar">${crmFat.editando ? "Salvar correção" : "Salvar lançamento"}</button><button type="button" class="btn primary" id="crmFatSalvarRel">${crmFat.editando ? "Salvar correção e gerar relatório" : "Salvar e gerar relatório"}</button>` : ""}
     </div>`;
   return periodo + blocos + rodape;
 }
@@ -230,7 +241,7 @@ function crmFatCalcular() {
   if (!raiz || crmFat.indisponivel) return;
   const ate = crmFat.ate, de = crmFat.de;
   const perNovo = de && ate ? `${crmFatDM(de)} a ${crmFatDM(ate)}` : "—";
-  const maxSalvo = crmFat.lanc.reduce((m, l) => l.ate > m ? l.ate : m, "");
+  const maxSalvo = crmFatOutros().reduce((m, l) => l.ate > m ? l.ate : m, "");
   const maxTotal = maxSalvo > (ate || "") ? maxSalvo : (ate || maxSalvo);
   const mm = crmFat.mes.slice(5, 7);
   const perJa = maxSalvo ? `01/${mm} a ${crmFatDM(maxSalvo)}` : "";
@@ -284,10 +295,11 @@ function crmFatAtualizarPeriodo() {
   const mes = crmFat.mes, ultimo = crmFatUltimoDia(mes);
   const a = crmFatDia(crmFat.de), b = crmFatDia(crmFat.ate);
   const valido = a > 0 && b >= a && crmFat.de.slice(0, 7) === mes && crmFat.ate.slice(0, 7) === mes;
-  const sobrepoe = valido && crmFat.lanc.some(l => a <= crmFatDia(l.ate) && b >= crmFatDia(l.de));
+  const outros = crmFatOutros();
+  const sobrepoe = valido && outros.some(l => a <= crmFatDia(l.ate) && b >= crmFatDia(l.de));
   document.querySelectorAll("#crmFatDias i").forEach(el => {
     const d = Number(el.dataset.fatdia);
-    const lancado = crmFat.lanc.some(l => d >= crmFatDia(l.de) && d <= crmFatDia(l.ate));
+    const lancado = outros.some(l => d >= crmFatDia(l.de) && d <= crmFatDia(l.ate));
     const novo = valido && d >= a && d <= b;
     el.className = lancado && novo ? "c" : lancado ? "j" : novo ? "n" : "";
   });
@@ -322,23 +334,48 @@ async function crmFatSalvar(gerarRelatorio) {
   }
   if (!itens.length) { crmFatErro("Informe o faturamento de pelo menos um cliente."); return; }
   for (const [id, p] of crmFat.pctNovo) if (!(p >= 0 && p <= 100)) { crmFatErro("O percentual de comissão tem que ficar entre 0 e 100."); return; }
-  if (crmFat.lanc.some(l => a <= crmFatDia(l.ate) && b >= crmFatDia(l.de))) {
+  if (crmFatOutros().some(l => a <= crmFatDia(l.ate) && b >= crmFatDia(l.de))) {
     const ok = await confirmModal("Período já lançado", `${crmFatDM(crmFat.de)} a ${crmFatDM(crmFat.ate)} se sobrepõe a um lançamento já salvo. Se salvar, o mesmo dia pode entrar duas vezes no faturamento do mês. Salvar mesmo assim?`, "Salvar mesmo assim");
     if (!ok) return;
   }
   const percentuais = crmFat.execs.map(e => ({ executivo_user_id: e.id, percentual: crmFat.pctNovo.has(e.id) ? crmFat.pctNovo.get(e.id) : 0 }));
   crmFat.salvando = true;
   document.querySelectorAll("#crmFatSalvar, #crmFatSalvarRel").forEach(b2 => { b2.disabled = true; });
-  const { error } = await sb.rpc("crm_salvar_lancamento", { p_sistema: crmSistemaAtual(), p_de: crmFat.de, p_ate: crmFat.ate, p_itens: itens, p_percentuais: percentuais });
+  const corrigindo = crmFat.editando;
+  const { error } = corrigindo
+    ? await sb.rpc("crm_atualizar_lancamento", { p_id: corrigindo, p_de: crmFat.de, p_ate: crmFat.ate, p_itens: itens, p_percentuais: percentuais })
+    : await sb.rpc("crm_salvar_lancamento", { p_sistema: crmSistemaAtual(), p_de: crmFat.de, p_ate: crmFat.ate, p_itens: itens, p_percentuais: percentuais });
   crmFat.salvando = false;
   if (error) {
     document.querySelectorAll("#crmFatSalvar, #crmFatSalvarRel").forEach(b2 => { b2.disabled = false; });
     crmFatErro("Não foi possível salvar: " + error.message);
     return;
   }
-  toast("Lançamento salvo.");
+  toast(corrigindo ? "Lançamento corrigido." : "Lançamento salvo.");
+  crmFat.editando = null;
   await crmRenderFaturamento();
   if (gerarRelatorio) crmFatImprimir();
+}
+
+async function crmFatExcluir(id) {
+  if (crmFat.salvando || !crmPodeLancarFaturamento()) return;
+  const l = crmFat.lanc.find(x => x.id === id);
+  if (!l) return;
+  const n = new Set(crmFat.itens.filter(i => i.lanc === id).map(i => i.cliente)).size;
+  const ok = await confirmModal("Excluir lançamento", `Excluir o lançamento de ${crmFatLancTrecho(l)} (${formatMoney(l.total)}, ${n} ${n === 1 ? "cliente" : "clientes"})? O valor sai do faturamento do mês e da comissão. Não dá para desfazer; para refazer, é só lançar de novo.`, "Excluir");
+  if (!ok) return;
+  crmFat.salvando = true;
+  const { error } = await sb.rpc("crm_excluir_lancamento", { p_id: id });
+  crmFat.salvando = false;
+  if (error) { crmFatErro("Não foi possível excluir: " + error.message); return; }
+  toast("Lançamento excluído.");
+  if (crmFat.editando === id) crmFat.editando = null;
+  await crmRenderFaturamento();
+}
+
+function crmFatAbrir(id) {
+  crmFat.editando = id;
+  crmRenderFaturamento();
 }
 
 /* ---------------- relatório de comissão (PDF) ---------------- */
@@ -391,7 +428,7 @@ function crmFatImprimir() {
 function crmFatInit() {
   const raiz = document.getElementById("crmFatCorpo");
   if (!raiz) return;
-  document.getElementById("crmFatMes").addEventListener("change", (e) => { crmFat.mes = e.target.value; crmFat.aberto.clear(); crmRenderFaturamento(); });
+  document.getElementById("crmFatMes").addEventListener("change", (e) => { crmFat.mes = e.target.value; crmFat.editando = null; crmFat.aberto.clear(); crmRenderFaturamento(); });
   raiz.addEventListener("input", (e) => {
     const t = e.target;
     if (t.classList.contains("crm-fat-in")) { crmFatErro(""); crmFatCalcular(); }
@@ -419,7 +456,10 @@ function crmFatInit() {
   raiz.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (b.dataset.fattoggle) {
+    if (b.dataset.fatabrir) crmFatAbrir(b.dataset.fatabrir);
+    else if (b.dataset.fatexcluir) crmFatExcluir(b.dataset.fatexcluir);
+    else if (b.id === "crmFatCancelar") { crmFat.editando = null; crmRenderFaturamento(); }
+    else if (b.dataset.fattoggle) {
       const id = b.dataset.fattoggle;
       if (crmFat.aberto.has(id)) crmFat.aberto.delete(id); else crmFat.aberto.add(id);
       const aberto = crmFat.aberto.has(id);

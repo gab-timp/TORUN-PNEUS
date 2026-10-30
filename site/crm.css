@@ -306,3 +306,7 @@ tr.crm-fat-filho td:first-child{padding-left:34px;}
 .crm-fat-in,.crm-fat-pct{border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);}
 .crm-fat-in:focus,.crm-fat-pct:focus{outline:0;border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-pale);}
 .crm-fat-in:disabled{opacity:.6;}
+
+/* correção de lançamento do faturamento */
+.crm-fat-lanc{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.crm-fat-faixa{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;background:var(--warning-pale);color:var(--warning);padding:10px 16px;border-radius:10px;margin-bottom:12px;font-size:12.5px;}
