@@ -160,7 +160,8 @@ function crmDashBarras(meses, valores, titulo, parcialUltimo) {
   return `<div class="card"><div class="card-head"><h2>${titulo}</h2></div><div class="crm-fat-grafico" role="img" aria-label="${escapeAttr(titulo)}">${cols}</div></div>`;
 }
 
-const crmDashMedidor = (pct) => `<div class="crm-meter"><div class="crm-meter-barra"><i style="width:${Math.min(Math.max(pct, 0), 100)}%"></i></div></div>`;
+// barra de atingimento; ritmo (0 a 100) desenha o marcador laranja do ritmo esperado; tamanho "grande" é a barra do cartão do time
+const crmDashMedidor = (pct, ritmo, tamanho) => `<div class="crm-dm-medidor ${tamanho || ""}"><div class="crm-dm-trilho"><i style="width:${Math.min(Math.max(pct, 0), 100)}%"></i></div>${ritmo !== null && ritmo !== undefined ? `<s style="left:${Math.min(Math.max(ritmo, 0), 100)}%" title="ritmo esperado"></s>` : ""}</div>`;
 
 function crmRenderDashboardCorpo() {
   const corpo = document.getElementById("crmDashCorpo");
@@ -187,7 +188,32 @@ function crmRenderDashboardCorpo() {
     : `<div class="aviso-meta muted sv-sub">${gestao ? (mensal ? `Nenhuma meta cadastrada para ${escapeHtml(crmDashMesRotulo(per.meses[0]))}. A gestão cadastra em Gestão › Metas › Mês a mês.` : "Nenhuma meta anual cadastrada para este ano. A gestão cadastra em Gestão › Metas.") : (mensal ? "A gestão ainda não definiu a sua meta deste mês." : "A gestão ainda não definiu a sua meta deste ano.")}</div>`;
   const cartaoMeta = `<div class="card crm-dash-meta"><div class="card-head"><h2>${gestao && !crmDash.exec ? `Meta ${mensal ? "do mês" : "do ano"} · time` : `Sua meta ${mensal ? "do mês" : "do ano"}`}</h2><div class="note">${escapeHtml(per.rotulo)}${parcial ? " (até hoje)" : ""}</div></div>${metaTxt}</div>`;
 
-  const tabelaMeta = gestao && !crmDash.exec && metasDisponiveis && execs.length ? `
+  // gestão olhando o time todo, com meta cadastrada: um cartão só (percentual do time, barra com o ritmo esperado e a tabela por executivo)
+  const combinado = gestao && !crmDash.exec && metasDisponiveis && metaTotal > 0 && execs.length > 0;
+  const ritmoTxt = parcial && ritmo !== null
+    ? `ritmo esperado hoje: ${crmDashPctInt(ritmo)} da meta (${mensal ? `${per.passou === 1 ? "mês fechado" : `${Number(todayISO().slice(8, 10))} de ${crmDashDiasMes(per.meses[0])} dias`}` : `metas mensais somadas até ${crmFatDM(todayISO())}`})`
+    : "";
+  const corAting = (p) => ritmo === null ? "" : p >= ritmo ? "crm-dm-bem" : "crm-dm-atras";
+  const cartaoCombinado = combinado ? `
+    <div class="card crm-dm">
+      <div class="crm-dm-esq">
+        <div class="crm-dm-rot">Meta ${mensal ? "do mês" : "do ano"} · time <span>${escapeHtml(per.rotulo)}${parcial ? " (até hoje)" : ""}</span></div>
+        <div class="crm-dm-num"><b class="mono">${crmPct(ating)}</b> <span class="muted">da meta ${mensal ? "do mês" : "do ano"}</span></div>
+        <div class="crm-dm-val"><b class="mono">${formatMoney(fat)}</b> faturados de <b class="mono">${formatMoney(metaTotal)}</b></div>
+        ${crmDashMedidor(ating, parcial ? ritmo : null, "grande")}
+        <div class="muted sv-sub">Faltam <b class="mono">${formatMoney(Math.max(metaTotal - fat, 0))}</b> · ${mensal ? crmDashMesRotulo(per.anterior) : per.anterior} fechou em ${formatMoney(fatAnt)}</div>
+        ${ritmoTxt ? `<div class="muted sv-sub crm-dm-ritmo"><i></i>${escapeHtml(ritmoTxt)}</div>` : ""}
+      </div>
+      <div class="crm-dm-dir"><div class="table-wrap"><table>
+        <thead><tr><th>Executivo</th><th class="num">Meta ${nomePer}</th><th class="num">Faturamento</th><th>Atingimento</th></tr></thead>
+        <tbody>${execs.map(e => {
+          const f = soma(doPeriodo.filter(r => r.exec === e.id)), m = metaDe(e), p = m > 0 ? f / m * 100 : 0;
+          return `<tr><td><b>${escapeHtml(e.nome)}</b></td><td class="num">${m > 0 ? formatMoney(m) : "—"}</td><td class="num">${formatMoney(f)}</td>
+            <td>${m > 0 ? `<div class="crm-dm-ating">${crmDashMedidor(p, parcial ? ritmo : null, "")}<b class="mono ${corAting(p)}">${crmPct(p)}</b></div>` : "—"}</td></tr>`;
+        }).join("")}</tbody></table></div></div>
+    </div>` : "";
+
+  const tabelaMeta = !combinado && gestao && !crmDash.exec && metasDisponiveis && execs.length ? `
     <div class="card"><div class="card-head"><h2>Meta ${nomePer} por executivo</h2></div>
       <div class="table-wrap"><table><thead><tr><th>Executivo</th><th class="num">Meta ${nomePer}</th><th class="num">Faturamento</th><th class="num">Atingimento</th></tr></thead>
       <tbody>${execs.map(e => { const f = soma(doPeriodo.filter(r => r.exec === e.id)), m = metaDe(e); return `<tr><td><b>${escapeHtml(e.nome)}</b></td><td class="num">${m > 0 ? formatMoney(m) : "—"}</td><td class="num">${formatMoney(f)}</td><td class="num">${m > 0 ? crmPct(f / m * 100) : "—"}</td></tr>`; }).join("")}</tbody></table></div></div>` : "";
@@ -262,7 +288,7 @@ function crmRenderDashboardCorpo() {
       <div class="table-wrap"><table><thead><tr><th>Cliente</th>${gestao ? "<th>Executivo</th>" : ""}<th class="num">Faturamento</th>${mensal ? '<th class="num">Comissão</th>' : '<th class="num">Parte</th>'}</tr></thead>
       <tbody>${topo.map(x => `<tr><td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(x.c.id)}">${escapeHtml(x.c.cliente)}</button></td>${gestao ? `<td>${escapeHtml(x.c.executivoNome || "—")}</td>` : ""}<td class="num">${formatMoney(x.fatPer)}</td><td class="num">${mensal ? formatMoney(comissao(doPeriodo.filter(r => r.cliente === x.c.cliente))) : (fat > 0 ? crmPct(x.fatPer / fat * 100) : "—")}</td></tr>`).join("")}</tbody></table></div></div>` : "";
 
-  corpo.innerHTML = `<div class="crm-dash-topo">${cartaoMeta}</div>${tabelaMeta}${kpis}${tabelaExec}${comportamento}${graficos}${ranking}`;
+  corpo.innerHTML = `${combinado ? cartaoCombinado : `<div class="crm-dash-topo">${cartaoMeta}</div>`}${tabelaMeta}${kpis}${tabelaExec}${comportamento}${graficos}${ranking}`;
 }
 
 const crmDashMesRotuloOuAno = (k, mensal) => mensal ? crmDashMesCurto(k) + "/" + k.slice(2, 4) : k;

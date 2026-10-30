@@ -410,3 +410,25 @@ tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
 /* editar cliente: seletor de tipo marcado por aria-pressed */
 .crm-seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);}
 .crm-seg button:disabled{opacity:.45;cursor:not-allowed;}
+
+/* dashboard: cartão único da meta do time com a tabela por executivo ao lado */
+.crm-dm{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:30px;align-items:center;}
+@media (max-width:900px){.crm-dm{grid-template-columns:minmax(0,1fr);gap:18px;}}
+.crm-dm-rot{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--ink-soft);margin-bottom:10px;}
+.crm-dm-rot span{margin-left:6px;text-transform:none;letter-spacing:0;font-weight:600;}
+.crm-dm-num{font-size:32px;line-height:1.1;margin-bottom:10px;}
+.crm-dm-num b{font-size:38px;font-weight:800;}
+.crm-dm-num .muted{font-size:14px;font-family:'Inter',sans-serif;}
+.crm-dm-val{font-size:13px;margin-bottom:12px;}
+.crm-dm-medidor{position:relative;height:14px;margin:4px 0 10px;}
+.crm-dm-medidor.grande{height:16px;}
+.crm-dm-trilho{height:100%;border-radius:8px;background:var(--paper-2);overflow:hidden;}
+.crm-dm-trilho i{display:block;height:100%;border-radius:8px;background:var(--ink);}
+.crm-dm-medidor s{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;border-radius:2px;background:var(--orange);text-decoration:none;}
+.crm-dm-ritmo{display:flex;gap:8px;align-items:center;margin-top:6px;}
+.crm-dm-ritmo i{display:inline-block;width:4px;height:14px;border-radius:2px;background:var(--orange);flex:none;}
+.crm-dm-ating{display:flex;align-items:center;gap:12px;min-width:200px;}
+.crm-dm-ating .crm-dm-medidor{flex:1;height:10px;margin:0;}
+.crm-dm-ating b{width:60px;text-align:right;font-size:12.5px;}
+.crm-dm-bem{color:var(--good);}
+.crm-dm-atras{color:var(--warning,#B45309);}
