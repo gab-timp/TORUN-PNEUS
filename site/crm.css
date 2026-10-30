@@ -228,3 +228,16 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-meta-money input{border:1px solid var(--line);border-radius:7px;padding:9px 10px;font-size:13.5px;background:var(--paper);color:var(--ink);}
 .crm-meta-money input:focus{outline:0;border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
 .crm-meta-money input:disabled{opacity:.6;}
+
+/* representantes */
+.crm-selo-rep{background:#D8F1EE;color:#0E6560;}
+.crm-selo-via{background:#EAF0F7;color:#2B4C7E;}
+.crm-view tr.crm-rep-linha td{background:#F1FAF9;}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .crm-selo-rep{background:#12332F;color:#7FD6CD;}
+  :root:not([data-theme="light"]) .crm-selo-via{background:#1B2A44;color:#8DB4FF;}
+  :root:not([data-theme="light"]) .crm-view tr.crm-rep-linha td{background:#10211F;}
+}
+:root[data-theme="dark"] .crm-selo-rep{background:#12332F;color:#7FD6CD;}
+:root[data-theme="dark"] .crm-selo-via{background:#1B2A44;color:#8DB4FF;}
+:root[data-theme="dark"] .crm-view tr.crm-rep-linha td{background:#10211F;}

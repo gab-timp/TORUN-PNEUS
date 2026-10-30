@@ -31,7 +31,7 @@ let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastr
 let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
-const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false, prospectsDisponivel: false };
+const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false, prospectsDisponivel: false, representantesDisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
 const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade", escopo: "todas" };
 let crmUltimaCarga = 0;
@@ -62,7 +62,7 @@ const crmMeuId = () => (currentUser ? currentUser.id : null);
 function crmEhMinha(c) { return crmGestaoComCarteira() && c.executivoId === crmMeuId(); }
 function crmPodeRegistrarLigacao() { return crmTemCarteiraPropria() && crmPodeEscrever(); }
 // executivo só enxerga a própria carteira; a gestão só registra nos clientes em que é a responsável
-function crmPodeLigarPara(c) { return crmPodeEscrever() && (crmEhExecutivo() || crmEhMinha(c)); }
+function crmPodeLigarPara(c) { return crmPodeEscrever() && !crmEhRepresentante(c.cliente) && (crmEhExecutivo() || crmEhMinha(c)); }
 // Metas (Gestão > Metas): só a gestão do CRM (administrador sem papel conta como gestão)
 function crmPodeVerMetas() { return crmPapelEfetivo() === "gestao"; }
 function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPapelEfetivo()) && crmPodeEscrever(); }
@@ -87,7 +87,7 @@ function crmEntrarNoSistema(sistema) {
   crmUi.sistema = sistema;
   crmUi.modo = "lista";
   crmUi.fichaId = null;
-  ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliExecutivo"].forEach(id => {
+  ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliExecutivo", "crmCliRepresentante"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -138,7 +138,7 @@ function crmClienteFromRow(r) {
     cidade: r.cidade || "", estado: r.estado || "", limiteCredito: r.limite_credito != null ? Number(r.limite_credito) : null,
     origem: r.origem,
     // sql/crm_prospects.sql: sem a coluna, todo cadastro é cliente efetivo
-    tipo: r.tipo === "prospect" ? "prospect" : "cliente", origemLead: r.origem_lead || "", interesseTipos: r.interesse_tipos || [],
+    tipo: r.tipo === "prospect" ? "prospect" : r.tipo === "representante" ? "representante" : "cliente", representante: r.representante || null, origemLead: r.origem_lead || "", interesseTipos: r.interesse_tipos || [],
     observacao: r.observacao || ""
   };
 }
@@ -212,13 +212,31 @@ async function crmCarregarClientes() {
   // a escolha prospect/cliente só aparece depois que o SQL criou a coluna "tipo" (consulta à parte: vale mesmo com a tabela vazia)
   const col = await sb.from("crm_clientes").select("tipo").limit(1);
   crmState.prospectsDisponivel = !col.error;
+  // a opção Representante só aparece depois que o SQL criou a coluna "representante"
+  const colRep = await sb.from("crm_clientes").select("representante").limit(1);
+  crmState.representantesDisponivel = !colRep.error;
 }
 
 function crmEhProspect(nome) { const c = crmState.clientes.get(nome); return !!c && c.tipo === "prospect"; }
-// selo ao lado do nome; sem o SQL dos prospects não aparece nada
+// representante: agrupador de clientes, sem ligação nem follow-up (sql/crm_representantes.sql)
+function crmEhRepresentante(nome) { const c = crmState.clientes.get(nome); return !!c && c.tipo === "representante"; }
+function crmRepresentanteDe(nome) { const c = crmState.clientes.get(nome); return c && c.representante ? c.representante : null; }
+function crmTipoDe(nome) { return crmEhRepresentante(nome) ? "representante" : crmEhProspect(nome) ? "prospect" : "cliente"; }
+// carteira dos clientes que vêm por um representante, no sistema aberto
+function crmClientesDoRepresentante(nome, sistema) {
+  return crmState.carteira.filter(c => c.sistema === sistema && crmRepresentanteDe(c.cliente) === nome);
+}
+// representantes que a pessoa enxerga no sistema aberto (executivo só enxerga os da própria carteira, pelo RLS)
+function crmRepresentantesDoSistema(sistema) {
+  return crmState.carteira.filter(c => c.sistema === sistema && crmEhRepresentante(c.cliente));
+}
+// selo ao lado do nome; sem o SQL dos prospects não aparece nada. Cliente que vem por representante ganha o selo "via ..."
 function crmTipoSelo(nome) {
   if (!crmState.prospectsDisponivel) return "";
-  return crmEhProspect(nome) ? '<span class="crm-selo crm-selo-pro">Prospect</span>' : '<span class="crm-selo">Cliente</span>';
+  if (crmEhRepresentante(nome)) return '<span class="crm-selo crm-selo-rep">Representante</span>';
+  const base = crmEhProspect(nome) ? '<span class="crm-selo crm-selo-pro">Prospect</span>' : '<span class="crm-selo">Cliente</span>';
+  const via = crmRepresentanteDe(nome);
+  return via ? base + ' <span class="crm-selo crm-selo-via">via ' + escapeHtml(via) + '</span>' : base;
 }
 
 function crmInfoCliente(nome) {
@@ -357,7 +375,7 @@ function crmRenderHoje() {
   const comExecutivo = !crmEhExecutivo() && !soMeus;
   const hoje = todayISO();
   const mes = hoje.slice(0, 7);
-  const itens = crmState.carteira.filter(c => c.sistema === s && (!soMeus || c.executivoId === crmMeuId())).map(c => ({ c, r: crmResumo(c) }));
+  const itens = crmState.carteira.filter(c => c.sistema === s && !crmEhRepresentante(c.cliente) && (!soMeus || c.executivoId === crmMeuId())).map(c => ({ c, r: crmResumo(c) }));
   const atrasados = itens.filter(x => x.r.fu && x.r.fu < hoje).sort((a, b) => a.r.fu.localeCompare(b.r.fu) || a.c.cliente.localeCompare(b.c.cliente));
   const paraHoje = itens.filter(x => x.r.fu === hoje).sort((a, b) => a.c.cliente.localeCompare(b.c.cliente));
   const ligacoes = crmState.ligacoes.filter(l => l.sistema === s && (!soMeus || l.executivoId === crmMeuId()));
@@ -393,7 +411,10 @@ function crmItensFiltrados() {
   const hoje = todayISO();
   let itens = crmState.carteira.filter(c => c.sistema === s).map(c => ({ c, r: crmResumo(c) }));
   if (exec) itens = itens.filter(x => x.c.executivoId === exec);
-  if (tipo) itens = itens.filter(x => crmEhProspect(x.c.cliente) === (tipo === "prospect"));
+  if (tipo) itens = itens.filter(x => crmTipoDe(x.c.cliente) === tipo);
+  const repFiltro = crmState.representantesDisponivel ? document.getElementById("crmCliRepresentante").value : "";
+  if (repFiltro === "__sem") itens = itens.filter(x => !crmEhRepresentante(x.c.cliente) && !crmRepresentanteDe(x.c.cliente));
+  else if (repFiltro) itens = itens.filter(x => crmRepresentanteDe(x.c.cliente) === repFiltro);
   if (crmGestaoComCarteira() && crmUi.escopo === "minha") itens = itens.filter(x => crmEhMinha(x.c));
   if (busca) {
     itens = itens.filter(x => {
@@ -415,8 +436,25 @@ function crmItensFiltrados() {
   return itens;
 }
 
+function crmLinhaRepresentante(x) {
+  const { c } = x;
+  const filhos = crmClientesDoRepresentante(c.cliente, c.sistema);
+  const atrasados = filhos.filter(f => { const fu = crmResumo(f).fu; return fu && fu < todayISO(); }).length;
+  return `
+    <tr class="crm-rep-linha ${crmEhMinha(c) ? "crm-minha" : ""}">
+      <td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button> ${crmTipoSelo(c.cliente)}
+        <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${crmCidadeUF(c.cliente) ? " · " : ""}${filhos.length} ${filhos.length === 1 ? "cliente" : "clientes"}${atrasados ? ` · ${atrasados} com follow-up atrasado` : ""}</div></td>
+      <td class="crm-col-exec">${crmEhMinha(c) ? '<span class="status-pill pill-normal">Eu</span>' : escapeHtml(c.executivoNome || "—")}</td>
+      <td><span class="muted">—</span></td>
+      <td><span class="muted sv-sub">Sem ligação: o follow-up é de cada cliente</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="crm-acoes"></td>
+    </tr>`;
+}
+
 function crmLinhaCliente(x) {
   const { c, r } = x;
+  if (crmEhRepresentante(c.cliente)) return crmLinhaRepresentante(x);
   const ct = crmContatoRapido(c);
   return `
     <tr class="${crmEhMinha(c) ? "crm-minha" : ""}">
@@ -441,6 +479,18 @@ function crmAtualizarFiltroExecutivo() {
   sel.value = mapa.has(atual) ? atual : "";
 }
 
+function crmAtualizarFiltroRepresentante() {
+  const campo = document.getElementById("crmCliRepresentanteCampo");
+  const sel = document.getElementById("crmCliRepresentante");
+  const ativo = crmState.representantesDisponivel;
+  campo.style.display = ativo ? "" : "none";
+  if (!ativo) return;
+  const atual = sel.value;
+  const nomes = crmRepresentantesDoSistema(crmSistemaAtual()).map(c => c.cliente).sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">Todos</option>' + nomes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("") + '<option value="__sem">Sem representante</option>';
+  sel.value = atual === "__sem" || nomes.includes(atual) ? atual : "";
+}
+
 function crmRenderClientes() {
   const comExecutivo = !crmEhExecutivo();
   const kanban = crmTemKanban();
@@ -458,6 +508,7 @@ function crmRenderClientes() {
     ? "A carteira de cada executivo: contato, última ligação e próximo follow-up."
     : "Sua carteira: contato, última ligação e próximo follow-up de cada cliente.";
   crmAtualizarFiltroExecutivo();
+  crmAtualizarFiltroRepresentante();
   document.getElementById("crmCliTipoCampo").style.display = crmState.prospectsDisponivel ? "" : "none";
 
   const itens = crmItensFiltrados();
@@ -473,7 +524,7 @@ function crmRenderClientes() {
   document.getElementById("crmListaWrap").style.display = lista ? "" : "none";
   document.getElementById("crmKanbanWrap").style.display = lista ? "none" : "";
   if (lista) document.getElementById("crmCliTbody").innerHTML = itens.map(crmLinhaCliente).join("");
-  else crmRenderKanban(itens);
+  else crmRenderKanban(itens.filter(x => !crmEhRepresentante(x.c.cliente)));
 }
 
 /* ---------- kanban do Atacado ---------- */
@@ -705,6 +756,7 @@ function crmRenderFicha() {
     raiz.innerHTML = `<div class="card"><div class="empty-state">Cliente não encontrado na carteira. <button type="button" class="sv-link" data-crmvoltar="1">Voltar para Clientes</button></div></div>`;
     return;
   }
+  if (crmEhRepresentante(c.cliente)) { crmRenderFichaRepresentante(raiz, c); return; }
   const r = crmResumo(c);
   const ligs = crmLigacoesDe(c);
   const contatos = crmContatosDe(c);
@@ -793,6 +845,56 @@ function crmRenderFicha() {
         </div>` : ""}
       </div>
     </div>`}`;
+}
+
+/* ---------------- ficha do representante ---------------- */
+
+// Representante é só agrupador: lista os clientes dele (cada um com o próprio follow-up) e não tem ligação nem etapa.
+function crmRenderFichaRepresentante(raiz, c) {
+  const filhos = crmClientesDoRepresentante(c.cliente, c.sistema).map(f => ({ c: f, r: crmResumo(f) }))
+    .sort((a, b) => a.c.cliente.localeCompare(b.c.cliente));
+  const hoje = todayISO();
+  const atrasados = filhos.filter(x => x.r.fu && x.r.fu < hoje).length;
+  const semLigacao = filhos.filter(x => x.r.total === 0).length;
+  const info = crmInfoCliente(c.cliente);
+  const podeNovo = crmPodeGerirCarteira() && (!crmEhExecutivo() || c.executivoId === crmMeuId());
+  raiz.innerHTML = `
+    <div class="page-head">
+      <div>
+        <button type="button" class="sv-link crm-voltar" data-crmvoltar="1">← Clientes</button>
+        <h1>${escapeHtml(c.cliente)} ${crmTipoSelo(c.cliente)}</h1>
+        <div class="sub">${escapeHtml(crmCidadeUF(c.cliente) || "Sem cidade no cadastro")} · ${CRM_SISTEMAS[c.sistema]} · Executivo: ${escapeHtml(c.executivoNome || "—")}</div>
+      </div>
+      <div class="page-head-actions crm-ficha-acoes">
+        ${podeNovo ? `<button type="button" class="btn primary" data-crmnovoviarep="${escapeAttr(c.cliente)}">+ Cliente via este representante</button>` : ""}
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Clientes</div><div class="val">${fmt(filhos.length)}</div></div>
+      <div class="kpi ${atrasados ? "crm-alerta" : ""}"><div class="lbl">Follow-ups atrasados</div><div class="val">${fmt(atrasados)}</div></div>
+      <div class="kpi"><div class="lbl">Ainda sem ligação</div><div class="val">${fmt(semLigacao)}</div></div>
+    </div>
+    <div class="crm-ficha-grade">
+      <div class="card">
+        <div class="card-head"><h2>Dados</h2></div>
+        ${crmDl([["CNPJ / CPF", escapeHtml(info.documento), true], ["Contato de referência", escapeHtml(info.contato)], ["Telefone", escapeHtml(info.telefone), true], ["Observação", escapeHtml(info.observacao)]])}
+        <p class="muted sv-sub" style="margin-top:12px;">O representante não recebe ligação nem follow-up e não aparece em Hoje. Os clientes dele são clientes normais da carteira de ${escapeHtml(c.executivoNome || "do executivo")}.</p>
+      </div>
+      <div class="crm-ficha-direita">
+        <div class="card">
+          <div class="card-head"><h2>Clientes deste representante</h2><div class="note">${filhos.length} ${filhos.length === 1 ? "cliente" : "clientes"}</div></div>
+          ${filhos.length ? `<div class="table-wrap"><table>
+            <thead><tr><th>Cliente</th><th>Contato</th><th>Última ligação</th><th>Próximo follow-up</th></tr></thead>
+            <tbody>${filhos.map(x => { const ct = crmContatoRapido(x.c); return `<tr>
+              <td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(x.c.id)}">${escapeHtml(x.c.cliente)}</button>
+                <div class="muted sv-sub">${escapeHtml(crmCidadeUF(x.c.cliente))}</div></td>
+              <td>${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">—</span>'}<div class="muted sv-sub">${escapeHtml(ct.cargo)}</div></td>
+              <td>${crmUltimaHtml(x.r)}</td>
+              <td>${crmFollowupHtml(x.r.fu)}</td>
+            </tr>`; }).join("")}</tbody></table></div>` : `<div class="empty-state">Nenhum cliente neste representante ainda. Use “+ Cliente via este representante”.</div>`}
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ---------------- registrar ligação ---------------- */
@@ -1035,6 +1137,7 @@ function crmClickDelegado(e) {
   else if (t.dataset.crmficha) crmAbrirFicha(t.dataset.crmficha);
   else if (t.dataset.crmligar) crmAbrirLigacao(t.dataset.crmligar);
   else if (t.dataset.crmvoltar) setView("crm-clientes");
+  else if (t.dataset.crmnovoviarep) crmAbrirAdicionar({ representante: t.dataset.crmnovoviarep });
   else if (t.dataset.crmcontatonovo) crmAbrirContato(t.dataset.crmcontatonovo, null);
   else if (t.dataset.crmcontatoedit) crmAbrirContato(crmUi.fichaId, t.dataset.crmcontatoedit);
   else if (t.dataset.crmcontatodel) crmExcluirContato(t.dataset.crmcontatodel);
@@ -1045,7 +1148,7 @@ function initCrmTelas() {
   ["view-crm-hoje", "view-crm-clientes", "view-crm-cliente"].forEach(id => {
     document.getElementById(id).addEventListener("click", crmClickDelegado);
   });
-  ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo"].forEach(id => {
+  ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo", "crmCliRepresentante"].forEach(id => {
     document.getElementById(id).addEventListener("input", crmRenderClientes);
   });
   document.getElementById("crmEscopoSeg").addEventListener("click", (e) => {
