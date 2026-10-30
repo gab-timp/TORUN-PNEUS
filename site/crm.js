@@ -98,6 +98,8 @@ function crmEntrarNoSistema(sistema) {
 function crmAplicarMenuGestao() {
   const metas = document.getElementById("crmNavMetas");
   if (metas) metas.style.display = crmPodeVerMetas() ? "" : "none";
+  const acomp = document.getElementById("crmGrupoAcompanhamento");
+  if (acomp) acomp.style.display = typeof crmPodeVerDesempenho === "function" && crmPodeVerDesempenho() ? "" : "none";
   const fin = document.getElementById("crmGrupoFinanceiro");
   if (fin) fin.style.display = typeof crmPodeVerFaturamento === "function" && crmPodeVerFaturamento() ? "" : "none";
   const grupo = document.getElementById("crmGrupoGestao");
@@ -401,6 +403,7 @@ function crmRender() {
   else if (id === "view-crm-clientes") crmRenderClientes();
   else if (id === "view-crm-cliente") crmRenderFicha();
   else if (id === "view-crm-metas") crmRenderMetas();
+  else if (id === "view-crm-desempenho" && typeof crmRenderDesempenho === "function") crmRenderDesempenho();
   else if (id === "view-crm-faturamento" && typeof crmRenderFaturamento === "function") crmRenderFaturamento();
 }
 
@@ -1292,7 +1295,7 @@ function crmClickDelegado(e) {
 
 function initCrmTelas() {
   if (!document.getElementById("view-crm-hoje")) return;
-  ["view-crm-hoje", "view-crm-clientes", "view-crm-cliente"].forEach(id => {
+  ["view-crm-hoje", "view-crm-clientes", "view-crm-cliente", "view-crm-desempenho"].forEach(id => {
     document.getElementById(id).addEventListener("click", crmClickDelegado);
   });
   ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo", "crmCliRepresentante"].forEach(id => {
@@ -1313,6 +1316,7 @@ function initCrmTelas() {
   document.getElementById("crmBtnAdicionar").addEventListener("click", crmAbrirAdicionar);
 
   if (typeof crmFatInit === "function") crmFatInit();
+  if (typeof crmDesInit === "function") crmDesInit();
 
   // metas
   document.getElementById("crmMetasAno").addEventListener("change", (e) => { crmMetas.ano = Number(e.target.value); crmRenderMetas(); });

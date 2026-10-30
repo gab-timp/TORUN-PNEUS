@@ -1002,6 +1002,7 @@ function viewPermitida(view) {
   if (currentUserIsAdmin) return true;
   // Atacado e Encomenda (telas "crm-") têm papel próprio (Administração > Usuários), fora da lista de telas visíveis
   if (view === "crm-faturamento") return typeof crmPodeVerFaturamento === "function" ? crmPodeVerFaturamento() : false;
+  if (view === "crm-desempenho") return typeof crmPodeVerDesempenho === "function" ? crmPodeVerDesempenho() : false;
   if (view === "crm-metas") return typeof crmPodeVerMetas === "function" ? crmPodeVerMetas() : false;
   if (String(view).startsWith("crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
   if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;

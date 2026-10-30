@@ -324,3 +324,13 @@ tr.crm-fat-filho td:first-child{padding-left:34px;}
 .crm-fat-bar{width:100%;max-width:48px;background:var(--ink);border-radius:5px 5px 0 0;min-height:0;}
 .crm-fat-bar.parcial{background:var(--orange);}
 .crm-fat-mes{font-size:10.5px;color:var(--ink-soft);font-weight:600;text-align:center;}
+
+/* ligações e desempenho (gestão) */
+.crm-des-filtros{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+#view-crm-desempenho .card{margin-bottom:14px;}
+.crm-des-barras{display:flex;flex-direction:column;gap:9px;}
+.crm-des-linha{display:grid;grid-template-columns:160px minmax(0,1fr) 90px;gap:12px;align-items:center;}
+.crm-des-trilho{height:12px;background:var(--paper-2,#EFEEEA);border-radius:6px;overflow:hidden;}
+.crm-des-barra{display:block;height:100%;background:var(--orange);border-radius:6px;}
+.crm-des-n{font-size:12px;text-align:right;white-space:nowrap;}
+@media (max-width:560px){.crm-des-linha{grid-template-columns:minmax(0,1fr) 80px;}.crm-des-trilho{grid-column:1 / -1;order:3;}}
