@@ -1131,7 +1131,7 @@ async function crmCopiarTexto(texto, rotulo) {
 }
 
 function crmClickDelegado(e) {
-  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
+  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
   if (!t) return;
   if (t.dataset.crmcopiar) {
     // só copia no computador (mouse); no celular o toque segue para o link de ligação
