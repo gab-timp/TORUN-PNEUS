@@ -310,3 +310,8 @@ tr.crm-fat-filho td:first-child{padding-left:34px;}
 /* correção de lançamento do faturamento */
 .crm-fat-lanc{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .crm-fat-faixa{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;background:var(--warning-pale);color:var(--warning);padding:10px 16px;border-radius:10px;margin-bottom:12px;font-size:12.5px;}
+
+/* cliente nos dois sistemas: bloco que abre sob a caixa "também compra no outro sistema" */
+.crm-add-outro-bloco{margin:-6px 0 16px 24px;padding-left:12px;border-left:3px solid var(--orange-pale);display:flex;flex-direction:column;gap:8px;}
+.crm-add-outro-bloco .crm-add-outro{margin-bottom:0;}
+.crm-add-outro-aviso{margin:-8px 0 16px 24px;}

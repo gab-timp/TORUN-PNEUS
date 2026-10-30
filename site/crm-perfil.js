@@ -196,6 +196,46 @@ function crmWizContatosVazios() {
   return CRM_FUNCOES.map((f, i) => ({ funcao: f, nome: "", telefone: "", email: "", decisor: i === 0 }));
 }
 
+/* ---------------- cliente nos dois sistemas ---------------- */
+// Marcar "também compra no outro sistema" cria o cliente na carteira de lá (função crm_levar_cliente), com o executivo
+// escolhido aqui e, se quiser, uma cópia dos contatos. Quem já está na carteira de lá não entra de novo.
+
+const crmOutroSistema = (s) => s === "atacado" ? "encomenda" : "atacado";
+
+async function crmCarregarExecsOutro() {
+  const { data, error } = await sb.rpc("crm_executivos_outro_sistema", { p_origem: crmSistemaAtual() });
+  crmWiz.execsOutro = error ? [] : (data || []).map(r => ({ id: r.user_id, nome: r.nome }));
+  crmWiz.execsOutroErro = error ? error.message : "";
+  if (crmWiz.modo === "novo" && crmWiz.outro) crmWizRender();
+}
+
+function crmWizOutroHtml() {
+  const outro = CRM_SISTEMAS[crmOutroSistema(crmSistemaAtual())];
+  const ocupado = crmWiz.selNome ? crmWiz.ocupadosOutro.get(crmWiz.selNome) : null;
+  if (ocupado) {
+    return `<label class="crm-add-outro"><input type="checkbox" id="crmWizOutro" disabled> <span class="muted">Este cliente também compra no outro sistema (${outro})</span></label>
+      <div class="note crm-add-outro-aviso">Já está na carteira do ${outro}, com ${escapeHtml(ocupado)}. Nada é duplicado.</div>`;
+  }
+  const bloco = crmWiz.outro ? `
+    <div class="crm-add-outro-bloco">
+      <div class="field"><label for="crmWizOutroExec">Executivo responsável no ${outro}</label>
+        <select id="crmWizOutroExec">${crmWiz.execsOutro === null
+          ? `<option value="">Carregando…</option>`
+          : crmWiz.execsOutro.length
+            ? `<option value="">Selecione…</option>` + crmWiz.execsOutro.map(e => `<option value="${escapeAttr(e.id)}" ${e.id === crmWiz.outroExec ? "selected" : ""}>${escapeHtml(e.nome)}</option>`).join("")
+            : `<option value="">Nenhum executivo cadastrado no ${outro}</option>`}</select></div>
+      <label class="crm-add-outro"><input type="checkbox" id="crmWizOutroContatos" ${crmWiz.outroContatos ? "checked" : ""}> Levar os contatos também</label>
+      <div class="note">O cliente entra no ${outro} como cliente novo, sem histórico de ligações, e aparece no Hoje do executivo escolhido. O perfil é o mesmo nos dois sistemas.</div>
+    </div>` : "";
+  return `<label class="crm-add-outro"><input type="checkbox" id="crmWizOutro" ${crmWiz.outro ? "checked" : ""}> Este cliente também compra no outro sistema (${outro})</label>${bloco}`;
+}
+
+// devolve a mensagem de erro, ou "" quando deu certo
+async function crmLevarParaOutroSistema(cliente, execId, contatos) {
+  const { error } = await sb.rpc("crm_levar_cliente", { p_origem: crmSistemaAtual(), p_cliente: cliente, p_exec: execId, p_contatos: !!contatos });
+  return error ? error.message : "";
+}
+
 async function crmAbrirAdicionar(opcoes) {
   if (!crmPodeGerirCarteira()) return;
   const s = crmSistemaAtual();
@@ -204,7 +244,7 @@ async function crmAbrirAdicionar(opcoes) {
   const repLinha = viaRep ? crmRepresentantesDoSistema(s).find(c => c.cliente === viaRep) : null;
   Object.assign(crmWiz, {
     modo: "novo", tipo: "cliente", rep: repLinha ? viaRep : "", repFixo: !!repLinha, p: { origem: "", tipos: [], obs: "" }, passo: 0, cliente: null, d: crmWizPerfilVazio(), filiais: [], pneus: [], contatos: crmWizContatosVazios(),
-    ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: repLinha ? repLinha.executivoId : "", outro: false, busca: "", salvando: false, sujo: false,
+    ocupados: new Map(), ocupadosOutro: new Map(), execs: [], execId: repLinha ? repLinha.executivoId : "", outro: false, outroExec: "", outroContatos: true, execsOutro: null, busca: "", salvando: false, sujo: false,
     fonte: null, selNome: null,
     novo: { nome: "", documento: "", telefone: "", cidade: "", estado: "" }, infoNova: null, escolhaSig: "",
     passos: CRM_WIZ_PASSOS.slice()
@@ -379,7 +419,7 @@ function crmWizPassoHtml(chave) {
         ? `<option value="">Selecione…</option>` + crmWiz.execs.map(e => `<option value="${escapeAttr(e.id)}" ${e.id === crmWiz.execId ? "selected" : ""}>${escapeHtml(e.nome)}${e.id === crmMeuId() ? " (eu)" : ""}</option>`).join("")
         : `<option value="">Nenhum executivo cadastrado neste sistema</option>`}</select></div>`}
       ${tp === "representante" ? "" : crmWizRepSelectHtml()}
-      ${soNovo ? "" : `<label class="crm-add-outro"><input type="checkbox" id="crmWizOutro" ${crmWiz.outro ? "checked" : ""}> Este cliente também compra no outro sistema (${CRM_SISTEMAS[s === "atacado" ? "encomenda" : "atacado"]})</label>`}`;
+      ${soNovo ? "" : crmWizOutroHtml()}`;
   }
   if (chave === "cadastro") {
     return `
@@ -787,6 +827,8 @@ async function crmWizSalvarConversao() {
 async function crmWizSalvarNovo() {
   const s = crmSistemaAtual();
   const cliente = crmWiz.cliente;
+  const levar = crmWiz.tipo === "cliente" && crmWiz.outro && !crmWiz.ocupadosOutro.get(cliente);
+  if (levar && !crmWiz.outroExec) { crmWizErro("Escolha o executivo responsável no " + CRM_SISTEMAS[crmOutroSistema(s)] + ", ou desmarque “também compra no outro sistema”."); return; }
 
   // cliente que ainda não está no cadastro do CRM (importado do Torun ou novo): entra agora, só no fim do assistente,
   // para quem desistiu no meio não deixar cadastro solto
@@ -857,10 +899,16 @@ async function crmWizSalvarNovo() {
     if (erroPerfil) toast("O cliente entrou na carteira, mas o perfil não foi salvo: " + erroPerfil + ". Abra a ficha e use Editar.");
   }
 
+  // cliente também no outro sistema: cria a carteira de lá (e copia os contatos, se pedido)
+  let erroOutro = "";
+  if (levar) erroOutro = await crmLevarParaOutroSistema(cliente, crmWiz.outroExec, crmWiz.outroContatos);
+
   crmReindexar();
   crmFecharAdicionar();
   crmRender();
-  toast(crmWiz.tipo === "representante" ? "Representante adicionado à carteira." : crmWiz.tipo === "prospect" ? "Prospect adicionado à carteira." : "Cliente adicionado à carteira.");
+  const outroNome = CRM_SISTEMAS[crmOutroSistema(s)];
+  if (erroOutro) toast("O cliente entrou na carteira, mas não foi levado para o " + outroNome + ": " + erroOutro);
+  else toast(crmWiz.tipo === "representante" ? "Representante adicionado à carteira." : crmWiz.tipo === "prospect" ? "Prospect adicionado à carteira." : levar ? "Cliente adicionado à carteira e levado para o " + outroNome + "." : "Cliente adicionado à carteira.");
 }
 
 /* eventos do assistente */
@@ -914,7 +962,14 @@ function crmWizInit() {
       crmWizRender();
     }
     else if (t.id === "crmWizExec") { crmWiz.execId = t.value; crmWizErro(""); }
-    else if (t.id === "crmWizOutro") crmWiz.outro = t.checked;
+    else if (t.id === "crmWizOutro") {
+      crmWiz.outro = t.checked;
+      crmWizErro("");
+      crmWizRender();
+      if (t.checked && crmWiz.execsOutro === null) crmCarregarExecsOutro();
+    }
+    else if (t.id === "crmWizOutroExec") { crmWiz.outroExec = t.value; crmWizErro(""); }
+    else if (t.id === "crmWizOutroContatos") crmWiz.outroContatos = t.checked;
     else if (t.dataset.wp) crmWiz.p[t.dataset.wp] = t.value;
     else if (t.dataset.wpd) crmWiz.pd[t.dataset.wpd] = t.value;
     else if (t.dataset.w) {

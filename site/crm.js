@@ -794,6 +794,7 @@ function crmRenderFicha() {
       <div class="page-head-actions crm-ficha-acoes">
         ${crmAtalhosHtml(ct)}
         ${crmEhProspect(c.cliente) && crmPodeGerirCarteira() && (!crmEhExecutivo() || c.executivoId === crmMeuId()) ? `<button type="button" class="btn outline" data-crmeditarprospect="${escapeAttr(c.cliente)}">Editar</button> <button type="button" class="btn outline" data-crmconverter="${escapeAttr(c.cliente)}">Tornar cliente efetivo</button>` : ""}
+        ${crmPodeLevarOutroSistema(c) ? `<button type="button" class="btn outline" data-crmlevar="${escapeAttr(c.id)}">Levar também para o ${CRM_SISTEMAS[c.sistema === "atacado" ? "encomenda" : "atacado"]}</button>` : ""}
         ${crmPodeLigarPara(c) ? `<button type="button" class="btn primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>` : ""}
       </div>
     </div>
@@ -1036,6 +1037,56 @@ async function crmSalvarLigacao() {
   }
 }
 
+/* ---------------- levar o cliente para a carteira do outro sistema (botão da ficha) ---------------- */
+// Mesmo efeito da caixa "também compra no outro sistema" do assistente, para quem esqueceu de marcar: função crm_levar_cliente.
+
+let crmLevarCarteiraId = null;
+
+function crmPodeLevarOutroSistema(c) {
+  return crmPodeGerirCarteira() && crmTipoDe(c.cliente) === "cliente" && (!crmEhExecutivo() || c.executivoId === crmMeuId());
+}
+
+async function crmAbrirLevar(carteiraId) {
+  const c = crmCarteiraPorId(carteiraId);
+  if (!c || !crmPodeLevarOutroSistema(c)) return;
+  crmLevarCarteiraId = carteiraId;
+  const outro = CRM_SISTEMAS[c.sistema === "atacado" ? "encomenda" : "atacado"];
+  document.getElementById("crmLevarTitulo").textContent = "Levar para o " + outro;
+  document.getElementById("crmLevarSub").textContent = c.cliente + " passa a ter também uma carteira no " + outro + ".";
+  document.getElementById("crmLevarExecRot").textContent = "Executivo responsável no " + outro;
+  document.getElementById("crmLevarContatos").checked = true;
+  document.getElementById("crmLevarErro").style.display = "none";
+  const sel = document.getElementById("crmLevarExec");
+  sel.innerHTML = `<option value="">Carregando…</option>`;
+  document.getElementById("crmLevarOverlay").classList.add("show");
+  const { data, error } = await sb.rpc("crm_executivos_outro_sistema", { p_origem: c.sistema });
+  if (crmLevarCarteiraId !== carteiraId) return;
+  if (error || !(data || []).length) { sel.innerHTML = `<option value="">Nenhum executivo cadastrado no ${escapeHtml(outro)}</option>`; return; }
+  sel.innerHTML = `<option value="">Selecione…</option>` + data.map(r => `<option value="${escapeAttr(r.user_id)}">${escapeHtml(r.nome)}</option>`).join("");
+}
+
+function crmFecharLevar() {
+  document.getElementById("crmLevarOverlay").classList.remove("show");
+  crmLevarCarteiraId = null;
+}
+
+async function crmSalvarLevar() {
+  const c = crmCarteiraPorId(crmLevarCarteiraId);
+  if (!c) return;
+  const erro = document.getElementById("crmLevarErro");
+  const exec = document.getElementById("crmLevarExec").value;
+  if (!exec) { erro.textContent = "Escolha o executivo responsável."; erro.style.display = "block"; return; }
+  const botao = document.getElementById("crmLevarSalvar");
+  botao.disabled = true;
+  const msg = await crmLevarParaOutroSistema(c.cliente, exec, document.getElementById("crmLevarContatos").checked);
+  botao.disabled = false;
+  if (msg) { erro.textContent = "Não foi possível levar: " + msg; erro.style.display = "block"; return; }
+  c.tambemOutro = true;
+  crmFecharLevar();
+  crmRender();
+  toast(c.cliente + " levado para o " + CRM_SISTEMAS[c.sistema === "atacado" ? "encomenda" : "atacado"] + ".");
+}
+
 /* ---------------- contatos ---------------- */
 
 let crmContCarteiraId = null;
@@ -1131,7 +1182,7 @@ async function crmCopiarTexto(texto, rotulo) {
 }
 
 function crmClickDelegado(e) {
-  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
+  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmlevar],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
   if (!t) return;
   if (t.dataset.crmcopiar) {
     // só copia no computador (mouse); no celular o toque segue para o link de ligação
@@ -1141,7 +1192,8 @@ function crmClickDelegado(e) {
   else if (t.dataset.crmficha) crmAbrirFicha(t.dataset.crmficha);
   else if (t.dataset.crmligar) crmAbrirLigacao(t.dataset.crmligar);
   else if (t.dataset.crmvoltar) setView("crm-clientes");
-  else if (t.dataset.crmnovoviarep) crmAbrirAdicionar({ representante: t.dataset.crmnovoviarep });
+  else if (t.dataset.crmlevar) crmAbrirLevar(t.dataset.crmlevar);
+  else if (t.dataset.crmnovoviarep)crmAbrirAdicionar({ representante: t.dataset.crmnovoviarep });
   else if (t.dataset.crmcontatonovo) crmAbrirContato(t.dataset.crmcontatonovo, null);
   else if (t.dataset.crmcontatoedit) crmAbrirContato(crmUi.fichaId, t.dataset.crmcontatoedit);
   else if (t.dataset.crmcontatodel) crmExcluirContato(t.dataset.crmcontatodel);
@@ -1207,6 +1259,8 @@ function initCrmTelas() {
   document.getElementById("crmLigSalvar").addEventListener("click", crmSalvarLigacao);
 
   // contato
+  document.getElementById("crmLevarCancelar").addEventListener("click", crmFecharLevar);
+  document.getElementById("crmLevarSalvar").addEventListener("click", crmSalvarLevar);
   document.getElementById("crmContCancelar").addEventListener("click", crmFecharContato);
   document.getElementById("crmContSalvar").addEventListener("click", crmSalvarContato);
 
