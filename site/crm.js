@@ -31,7 +31,7 @@ let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastr
 let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
-const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false, prospectsDisponivel: false, representantesDisponivel: false };
+const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false, prospectsDisponivel: false, representantesDisponivel: false, fat: new Map(), fatDisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
 const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade", escopo: "todas" };
 let crmUltimaCarga = 0;
@@ -189,6 +189,7 @@ function crmCarregar(forcar) {
     crmReindexar();
     await crmCarregarClientes();
     await crmCarregarPerfis();
+    await crmCarregarFaturado();
     return true;
   })().finally(() => { crmCargaEmAndamento = null; });
   return crmCargaEmAndamento;
@@ -267,6 +268,50 @@ function crmDataCurta(iso) {
 }
 
 // última ligação e próximo follow-up: quem manda é a ÚLTIMA ligação; sem ligação nenhuma vale a data da entrada na carteira
+/* ---------------- faturamento por cliente (só leitura; quem lança é a Beth, em crm-faturamento.js) ---------------- */
+// função crm_faturamento_por_cliente (sql/crm_faturamento_leitura.sql): o executivo só recebe os clientes dele.
+// Sem o SQL a coluna e os filtros de faturamento simplesmente não aparecem.
+
+const CRM_MES_ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+// "AAAA-MM" do mês atual deslocado de n meses (n negativo = para trás)
+function crmMesRel(n) {
+  const h = todayISO();
+  const d = new Date(Number(h.slice(0, 4)), Number(h.slice(5, 7)) - 1 + n, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+async function crmCarregarFaturado() {
+  const { data, error } = await sb.rpc("crm_faturamento_por_cliente", { p_meses: 7 });
+  crmState.fatDisponivel = !error;
+  crmState.fat = new Map();
+  if (error) return;
+  (data || []).forEach(r => {
+    const k = crmChave(r.sistema, r.cliente);
+    if (!crmState.fat.has(k)) crmState.fat.set(k, new Map());
+    crmState.fat.get(k).set(String(r.mes).slice(0, 7), Number(r.valor));
+  });
+}
+
+function crmFaturado(c, mes) {
+  const m = crmState.fat.get(crmChave(c.sistema, c.cliente));
+  return m && m.has(mes) ? m.get(mes) : 0;
+}
+
+// representante soma os clientes dele; prospect não fatura
+function crmFaturadoMes(c, mes) {
+  if (crmEhRepresentante(c.cliente)) return crmClientesDoRepresentante(c.cliente, c.sistema).reduce((t, f) => t + crmFaturado(f, mes), 0);
+  return crmFaturado(c, mes);
+}
+
+function crmFaturadoCelula(c) {
+  if (crmEhProspect(c.cliente)) return '<span class="muted">—</span>';
+  const atual = crmFaturadoMes(c, crmMesRel(0)), ant = crmFaturadoMes(c, crmMesRel(-1));
+  const abrev = CRM_MES_ABREV[Number(crmMesRel(-1).slice(5, 7)) - 1];
+  return (atual > 0 ? `<b class="mono">${formatMoney(atual)}</b>` : '<span class="muted">sem faturamento</span>') +
+    `<div class="muted sv-sub">${abrev}: ${ant > 0 ? formatMoney(ant) : "—"}</div>`;
+}
+
 function crmResumo(c) {
   const l = crmLigacoesDe(c);
   const ultima = l[0] || null;
@@ -433,8 +478,10 @@ function crmItensFiltrados() {
   }
   if (situacao === "atrasado") itens = itens.filter(x => x.r.fu && x.r.fu < hoje);
   else if (situacao === "sem30") itens = itens.filter(x => !x.r.ultima || diasDesde(crmDiaLocal(x.r.ultima.createdAt)) >= 30);
+  else if (situacao === "semfat" && crmState.fatDisponivel) itens = itens.filter(x => crmTipoDe(x.c.cliente) === "cliente" && crmFaturado(x.c, crmMesRel(0)) === 0);
   const porNome = (a, b) => a.c.cliente.localeCompare(b.c.cliente);
   if (ordem === "nome") itens.sort(porNome);
+  else if (ordem === "fat" && crmState.fatDisponivel) itens.sort((a, b) => crmFaturadoMes(b.c, crmMesRel(0)) - crmFaturadoMes(a.c, crmMesRel(0)) || porNome(a, b));
   else if (ordem === "semligar") {
     // nunca ligado primeiro, depois a ligação mais antiga
     itens.sort((a, b) => (a.r.ultima ? a.r.ultima.createdAt : "").localeCompare(b.r.ultima ? b.r.ultima.createdAt : "") || porNome(a, b));
@@ -455,6 +502,7 @@ function crmLinhaRepresentante(x) {
         <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${crmCidadeUF(c.cliente) ? " · " : ""}${filhos.length} ${filhos.length === 1 ? "cliente" : "clientes"}${atrasados ? ` · ${atrasados} com follow-up atrasado` : ""}</div></td>
       <td class="crm-col-exec">${crmEhMinha(c) ? '<span class="status-pill pill-normal">Eu</span>' : escapeHtml(c.executivoNome || "—")}</td>
       <td><span class="muted">—</span></td>
+      <td class="crm-col-fat">${crmFaturadoCelula(c)}</td>
       <td><span class="muted sv-sub">Sem ligação: o follow-up é de cada cliente</span></td>
       <td><span class="muted">—</span></td>
       <td class="crm-acoes"></td>
@@ -471,6 +519,7 @@ function crmLinhaCliente(x) {
         <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${r.total === 0 ? (crmEhProspect(c.cliente) ? " · sem ligação ainda" : " · cliente novo") : ""}</div></td>
       <td class="crm-col-exec">${crmEhMinha(c) ? '<span class="status-pill pill-normal">Eu</span>' : escapeHtml(c.executivoNome || "—")}</td>
       <td>${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">—</span>'}<div class="muted sv-sub">${escapeHtml(ct.cargo)}</div></td>
+      <td class="crm-col-fat">${crmFaturadoCelula(c)}</td>
       <td>${crmUltimaHtml(r)}</td>
       <td>${crmFollowupHtml(r.fu)}</td>
       <td class="crm-acoes">${crmAtalhosHtml(ct)}${crmPodeLigarPara(c) && crmGestaoComCarteira() ? ` <button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>` : ""}</td>
@@ -520,9 +569,19 @@ function crmRenderClientes() {
   crmAtualizarFiltroRepresentante();
   document.getElementById("crmCliTipoCampo").style.display = crmState.prospectsDisponivel ? "" : "none";
 
+  // faturamento do mês: some junto com as opções de filtro enquanto o SQL de leitura não rodou
+  const fatOk = crmState.fatDisponivel;
+  document.getElementById("crmListaWrap").classList.toggle("crm-sem-fat", !fatOk);
+  document.querySelectorAll('#crmCliSituacao option[value="semfat"], #crmCliOrdem option[value="fat"]').forEach(o => { o.hidden = !fatOk; o.disabled = !fatOk; });
+  if (!fatOk) {
+    if (document.getElementById("crmCliSituacao").value === "semfat") document.getElementById("crmCliSituacao").value = "";
+    if (document.getElementById("crmCliOrdem").value === "fat") document.getElementById("crmCliOrdem").value = "followup";
+  }
+
   const itens = crmItensFiltrados();
   const total = crmState.carteira.filter(c => c.sistema === crmSistemaAtual()).length;
-  document.getElementById("crmCliRodape").textContent = `${itens.length} de ${total} ${total === 1 ? "cliente" : "clientes"} na carteira`;
+  const fatTotal = itens.filter(x => !crmEhRepresentante(x.c.cliente)).reduce((t, x) => t + crmFaturado(x.c, crmMesRel(0)), 0);
+  document.getElementById("crmCliRodape").textContent = `${itens.length} de ${total} ${total === 1 ? "cliente" : "clientes"} na carteira` + (fatOk ? ` · Faturamento do mês: ${formatMoney(fatTotal)}` : "");
   const vazio = document.getElementById("crmCliVazio");
   vazio.style.display = itens.length === 0 ? "block" : "none";
   vazio.textContent = total === 0
@@ -567,6 +626,7 @@ function crmCartaoKanban(x) {
       <div class="crm-cartao-contato">${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">sem contato</span>'}${ct.cargo ? ` <span class="muted">· ${escapeHtml(ct.cargo)}</span>` : ""}</div>
       <div class="crm-cartao-linha"><span class="crm-rot">Última ligação</span><div>${crmUltimaHtml(r)}</div></div>
       <div class="crm-cartao-linha"><span class="crm-rot">Próximo follow-up</span><div>${crmFollowupHtml(r.fu)}</div></div>
+      ${crmState.fatDisponivel && !crmEhProspect(c.cliente) ? `<div class="crm-cartao-linha"><span class="crm-rot">Faturamento do mês</span><div>${crmFaturado(c, crmMesRel(0)) > 0 ? `<b class="mono">${formatMoney(crmFaturado(c, crmMesRel(0)))}</b>` : '<span class="muted">sem faturamento</span>'}</div></div>` : ""}
       <div class="crm-cartao-rodape">${escapeHtml(rodape)}</div>
       ${acoes.length ? `<div class="crm-cartao-acoes">${acoes.join(" ")}</div>` : ""}
     </div>`;
@@ -805,6 +865,7 @@ function crmRenderFicha() {
     </div>
     ${etapaCampo ? `<div class="crm-ficha-etapa">${etapaCampo}</div>` : ""}
     <div class="kpis">
+      ${crmFichaKpiFaturamento(c)}
       <div class="kpi"><div class="lbl">Última ligação</div><div class="val crm-val-texto">${r.ultima ? crmDataCurta(crmDiaLocal(r.ultima.createdAt)) : "—"}</div><div class="crm-kpi-sub">${r.ultima ? crmPill(r.ultima.resultado) : '<span class="muted">Nunca ligado</span>'}</div></div>
       <div class="kpi"><div class="lbl">Próximo follow-up</div><div class="val crm-val-texto">${r.fu ? crmDataCurta(r.fu) : "—"}</div><div class="crm-kpi-sub">${r.fu ? (crmFollowupSelo(r.fu) || '<span class="muted sv-sub">data marcada</span>') : '<span class="muted">sem data marcada</span>'}</div></div>
       <div class="kpi"><div class="lbl">Ligações neste cliente</div><div class="val">${fmt(ligs.length)}</div><div class="muted sv-sub">${atendidas} atendidas · ${fechamentos} ${fechamentos === 1 ? "fechamento" : "fechamentos"}</div></div>
@@ -829,6 +890,7 @@ function crmRenderFicha() {
 
       <div class="crm-ficha-direita">
         ${crmProspectCardHtml(c)}
+        ${crmFichaGraficoFaturamento(c)}
         <div class="card">
           <div class="card-head"><h2>Histórico de ligações</h2><div class="note">${ligs.length} ${ligs.length === 1 ? "ligação" : "ligações"}</div></div>
           ${ligs.length ? `<div class="table-wrap"><table>
@@ -855,6 +917,30 @@ function crmRenderFicha() {
         </div>` : ""}
       </div>
     </div>`}`;
+}
+
+// ficha: cartão do mês e gráfico dos últimos 6 meses (mês atual parcial); só cliente efetivo e com o SQL de leitura rodado
+function crmFichaKpiFaturamento(c) {
+  if (!crmState.fatDisponivel || crmTipoDe(c.cliente) !== "cliente") return "";
+  const atual = crmFaturado(c, crmMesRel(0)), ant = crmFaturado(c, crmMesRel(-1));
+  const nomeAnt = CRM_MES_ABREV[Number(crmMesRel(-1).slice(5, 7)) - 1];
+  return `<div class="kpi"><div class="lbl">Faturamento do mês</div><div class="val crm-val-texto">${formatMoney(atual)}</div><div class="muted sv-sub">${nomeAnt}: ${ant > 0 ? formatMoney(ant) : "sem faturamento"}</div></div>`;
+}
+
+function crmFichaGraficoFaturamento(c) {
+  if (!crmState.fatDisponivel || crmTipoDe(c.cliente) !== "cliente") return "";
+  const meses = [-5, -4, -3, -2, -1, 0].map(n => crmMesRel(n));
+  const vals = meses.map(m => crmFaturado(c, m));
+  const max = Math.max(...vals, 1);
+  const barras = meses.map((m, i) => `<div class="crm-fat-col" title="${escapeAttr(CRM_MES_ABREV[Number(m.slice(5, 7)) - 1] + "/" + m.slice(0, 4) + ": " + formatMoney(vals[i]))}">
+      <span class="crm-fat-val mono">${vals[i] > 0 ? formatMoney(vals[i]).replace("R$", "").trim() : "—"}</span>
+      <div class="crm-fat-bar ${i === meses.length - 1 ? "parcial" : ""}" style="height:${Math.max(Math.round(vals[i] / max * 100), vals[i] > 0 ? 3 : 0)}%"></div>
+      <span class="crm-fat-mes">${CRM_MES_ABREV[Number(m.slice(5, 7)) - 1]}${i === meses.length - 1 ? " (parcial)" : ""}</span>
+    </div>`).join("");
+  return `<div class="card">
+    <div class="card-head"><h2>Faturamento mensal</h2><div class="note">soma dos lançamentos do financeiro</div></div>
+    <div class="crm-fat-grafico" role="img" aria-label="Faturamento dos últimos 6 meses">${barras}</div>
+  </div>`;
 }
 
 /* ---------------- ficha do representante ---------------- */

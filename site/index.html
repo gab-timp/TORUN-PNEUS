@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=25">
-<link rel="stylesheet" href="crm.css?v=17">
+<link rel="stylesheet" href="crm.css?v=18">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -967,14 +967,14 @@
             <select id="crmCliTipo"><option value="">Todos</option><option value="cliente">Clientes efetivos</option><option value="prospect">Prospects</option><option value="representante">Representantes</option></select></div>
           <div class="field" id="crmCliRepresentanteCampo" style="display:none;"><label for="crmCliRepresentante">Representante</label><select id="crmCliRepresentante"></select></div>
           <div class="field"><label for="crmCliSituacao">Situação</label>
-            <select id="crmCliSituacao"><option value="">Todos os clientes</option><option value="atrasado">Follow-up atrasado</option><option value="sem30">Sem ligação há 30 dias ou mais</option></select></div>
+            <select id="crmCliSituacao"><option value="">Todos os clientes</option><option value="atrasado">Follow-up atrasado</option><option value="sem30">Sem ligação há 30 dias ou mais</option><option value="semfat">Sem faturamento no mês</option></select></div>
           <div class="field"><label for="crmCliOrdem">Ordenar por</label>
-            <select id="crmCliOrdem"><option value="followup">Próximo follow-up</option><option value="semligar">Sem ligar há mais tempo</option><option value="nome">Nome</option></select></div>
+            <select id="crmCliOrdem"><option value="followup">Próximo follow-up</option><option value="fat">Faturamento do mês</option><option value="semligar">Sem ligar há mais tempo</option><option value="nome">Nome</option></select></div>
         </div>
         <div id="crmListaWrap">
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Cliente</th><th class="crm-col-exec">Executivo</th><th>Contato principal</th><th>Última ligação</th><th>Próximo follow-up</th><th>Atalhos</th></tr></thead>
+              <thead><tr><th>Cliente</th><th class="crm-col-exec">Executivo</th><th>Contato principal</th><th class="crm-col-fat">Faturamento do mês</th><th>Última ligação</th><th>Próximo follow-up</th><th>Atalhos</th></tr></thead>
               <tbody id="crmCliTbody"></tbody>
             </table>
           </div>
@@ -4566,7 +4566,7 @@
 </div>
 
 <script src="semvenda.js?v=29"></script>
-<script src="crm.js?v=26"></script>
+<script src="crm.js?v=27"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=3"></script>
 <script src="usuarios.js?v=6"></script>

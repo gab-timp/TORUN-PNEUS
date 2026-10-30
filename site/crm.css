@@ -315,3 +315,12 @@ tr.crm-fat-filho td:first-child{padding-left:34px;}
 .crm-add-outro-bloco{margin:-6px 0 16px 24px;padding-left:12px;border-left:3px solid var(--orange-pale);display:flex;flex-direction:column;gap:8px;}
 .crm-add-outro-bloco .crm-add-outro{margin-bottom:0;}
 .crm-add-outro-aviso{margin:-8px 0 16px 24px;}
+
+/* faturamento do mês na lista, no kanban e na ficha (leitura do que a Beth lança) */
+.crm-sem-fat .crm-col-fat{display:none;}
+.crm-fat-grafico{display:flex;gap:10px;align-items:flex-end;height:170px;padding:6px 4px 0;}
+.crm-fat-col{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;}
+.crm-fat-val{font-size:10px;color:var(--ink-soft);white-space:nowrap;}
+.crm-fat-bar{width:100%;max-width:48px;background:var(--ink);border-radius:5px 5px 0 0;min-height:0;}
+.crm-fat-bar.parcial{background:var(--orange);}
+.crm-fat-mes{font-size:10.5px;color:var(--ink-soft);font-weight:600;text-align:center;}
