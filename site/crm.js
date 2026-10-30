@@ -97,6 +97,8 @@ function crmEntrarNoSistema(sistema) {
 function crmAplicarMenuGestao() {
   const metas = document.getElementById("crmNavMetas");
   if (metas) metas.style.display = crmPodeVerMetas() ? "" : "none";
+  const fin = document.getElementById("crmGrupoFinanceiro");
+  if (fin) fin.style.display = typeof crmPodeVerFaturamento === "function" && crmPodeVerFaturamento() ? "" : "none";
   const grupo = document.getElementById("crmGrupoGestao");
   if (grupo) grupo.style.display = crmPodeVerMetas() || currentUserIsAdmin ? "" : "none";
 }
@@ -348,6 +350,7 @@ function crmRender() {
   else if (id === "view-crm-clientes") crmRenderClientes();
   else if (id === "view-crm-cliente") crmRenderFicha();
   else if (id === "view-crm-metas") crmRenderMetas();
+  else if (id === "view-crm-faturamento" && typeof crmRenderFaturamento === "function") crmRenderFaturamento();
 }
 
 /* ---------------- Hoje ---------------- */
@@ -1164,6 +1167,8 @@ function initCrmTelas() {
     crmRenderClientes();
   });
   document.getElementById("crmBtnAdicionar").addEventListener("click", crmAbrirAdicionar);
+
+  if (typeof crmFatInit === "function") crmFatInit();
 
   // metas
   document.getElementById("crmMetasAno").addEventListener("change", (e) => { crmMetas.ano = Number(e.target.value); crmRenderMetas(); });

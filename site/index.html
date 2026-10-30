@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=25">
-<link rel="stylesheet" href="crm.css?v=13">
+<link rel="stylesheet" href="crm.css?v=15">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -361,6 +361,13 @@
         </button>
       </div>
       <!-- mesma tela Administração do Torun (só admin): é nela que o admin marca o papel de cada pessoa no CRM -->
+      <!-- Financeiro: a Beth (papel financeiro) lança o faturamento; a gestão só consulta. O grupo aparece pelo crmAplicarMenuGestao() -->
+      <div class="nav-group" id="crmGrupoFinanceiro" data-group="crm-financeiro" style="display:none;">
+        <button type="button" class="nav-label">Financeiro <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" data-view="crm-faturamento" data-label="Faturamento">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-coins"/></svg> Faturamento
+        </button>
+      </div>
       <!-- Gestão: Metas é da gestão do CRM (inclusive sem ser admin); Administração continua só do admin. O grupo aparece pelo crmAplicarMenuGestao() -->
       <div class="nav-group" id="crmGrupoGestao" data-group="crm-gestao" style="display:none;">
         <button type="button" class="nav-label">Gestão <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
@@ -982,6 +989,14 @@
         <div class="empty-state" id="crmCliVazio" style="display:none;"></div>
         <div class="note crm-rodape" id="crmCliRodape"></div>
       </div>
+    </section>
+
+    <section id="view-crm-faturamento" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Faturamento</h1><div class="sub" id="crmFatSub"></div></div>
+        <div class="field crm-meta-ano"><label for="crmFatMes">Mês</label><select id="crmFatMes"></select></div>
+      </div>
+      <div id="crmFatCorpo"></div>
     </section>
 
     <section id="view-crm-metas" class="view crm-view">
@@ -4536,9 +4551,10 @@
 </div>
 
 <script src="semvenda.js?v=29"></script>
-<script src="crm.js?v=20"></script>
+<script src="crm.js?v=21"></script>
 <script src="crm-perfil.js?v=6"></script>
+<script src="crm-faturamento.js?v=1"></script>
 <script src="usuarios.js?v=6"></script>
-<script src="app.js?v=280"></script>
+<script src="app.js?v=281"></script>
 </body>
 </html>

@@ -241,3 +241,68 @@ body.sistema-crm .sidebar-divider{display:none;}
 :root[data-theme="dark"] .crm-selo-rep{background:#12332F;color:#7FD6CD;}
 :root[data-theme="dark"] .crm-selo-via{background:#1B2A44;color:#8DB4FF;}
 :root[data-theme="dark"] .crm-view tr.crm-rep-linha td{background:#10211F;}
+
+/* faturamento (Beth) */
+.crm-fat-periodo{padding:16px 18px;}
+.crm-fat-prow{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;}
+.crm-fat-ajuda{max-width:240px;margin-left:auto;line-height:1.4;}
+.crm-fat-dias-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);margin:14px 0 8px;padding-top:12px;border-top:1px solid var(--line);}
+.crm-fat-dias{display:flex;gap:4px;flex-wrap:wrap;}
+.crm-fat-dias i{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font:700 9.5px 'Space Mono',monospace;color:var(--ink-soft);font-style:normal;background:var(--surface);}
+.crm-fat-dias i.j{background:var(--black);border-color:var(--black);color:#fff;}
+.crm-fat-dias i.n{background:var(--orange);border-color:var(--orange);color:#fff;}
+.crm-fat-dias i.c{background:var(--danger);border-color:var(--danger);color:#fff;}
+.crm-fat-leg{display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin:10px 0 6px;}
+.crm-fat-leg b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;border:1px solid var(--line);}
+.crm-fat-leg .k1{background:var(--black);border-color:var(--black);}
+.crm-fat-leg .k2{background:var(--orange);border-color:var(--orange);}
+.crm-fat-alerta{background:var(--warning-pale);color:var(--warning);font-weight:700;padding:8px 12px;border-radius:8px;font-size:12.5px;}
+.crm-fat-exec{padding:0;overflow:hidden;margin-bottom:14px;}
+.crm-fat-ehead{display:flex;align-items:center;gap:16px;padding:12px 18px;flex-wrap:wrap;}
+.crm-fat-exec.aberto .crm-fat-ehead{background:var(--paper);border-bottom:1px solid var(--line);}
+.crm-fat-av{width:30px;height:30px;border-radius:50%;background:var(--black);color:var(--orange);font:800 10px/30px 'Inter',sans-serif;text-align:center;flex:none;}
+.crm-fat-en{flex:1;min-width:150px;}.crm-fat-en b{display:block;font-size:14px;}.crm-fat-en span{font-size:11.5px;color:var(--ink-soft);}
+.crm-fat-kv label{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:3px;}
+.crm-fat-kv b{font:700 13.5px 'Space Mono',monospace;}
+.crm-fat-kv b.g{color:var(--good);}.crm-fat-kv b.o{color:var(--orange-deep);}
+.crm-fat-pc{display:inline-flex;align-items:center;gap:6px;}
+.crm-fat-pct{width:62px;text-align:right;font:700 13px 'Space Mono',monospace;padding:6px 8px;}
+.crm-fat-tabela{display:none;}
+.crm-fat-exec.aberto .crm-fat-tabela{display:block;}
+.crm-fat-tabela th small{display:block;font-weight:600;letter-spacing:0;text-transform:none;font-size:10px;margin-top:2px;}
+.crm-fat-in{width:130px;text-align:right;font:500 12.5px 'Space Mono',monospace;padding:7px 9px;}
+.crm-fat-in:not(:placeholder-shown){border-color:var(--orange);background:var(--tint-orange);}
+.crm-fat-in.invalido,.crm-fat-pct.invalido{border-color:var(--danger);background:var(--danger-pale);}
+tr.crm-fat-grupo td{background:#D8F1EE;color:#0E6560;font-weight:800;}
+tr.crm-fat-filho td:first-child{padding-left:34px;}
+.crm-fat-rodape{position:sticky;bottom:0;margin-top:6px;border:1.5px solid var(--line-strong);background:var(--surface);border-radius:14px;padding:12px 18px;display:flex;gap:22px;align-items:center;flex-wrap:wrap;}
+.crm-fat-rodape .crm-fat-kv b{font-size:17px;}
+.crm-fat-nt{max-width:230px;line-height:1.4;margin-right:auto;}
+.crm-fat-erro{display:none;color:var(--danger);font-weight:700;flex-basis:100%;order:9;}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) tr.crm-fat-grupo td{background:#12332F;color:#7FD6CD;}
+}
+:root[data-theme="dark"] tr.crm-fat-grupo td{background:#12332F;color:#7FD6CD;}
+
+/* relatório de comissão em PDF (mesmo mecanismo do romaneio: #reportPrintArea + window.print) */
+.print-comissao{font-family:'Inter',sans-serif;color:#0b0b0b;page:comissao;}
+.print-comissao, .print-comissao *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.pc-topo{border-bottom:3px solid #FF6A13;padding-bottom:12px;margin-bottom:16px;}
+.pc-topo h1{font-size:19px;margin:0 0 3px;color:#0b0b0b;}
+.pc-sub{font-size:11.5px;color:#5a5a55;}
+.pc-tabela{width:100%;border-collapse:collapse;font-size:11.5px;}
+.pc-tabela th{background:#F2F2F2;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;color:#5a5a55;border:1px solid #ccc;}
+.pc-tabela td{padding:6px 8px;border:1px solid #ccc;}
+.pc-tabela .num{text-align:right;}
+.pc-tabela tfoot td{font-weight:800;background:#F2F2F2;}
+.pc-rodape{margin-top:14px;font-size:11px;color:#5a5a55;max-width:480px;}
+@page comissao{
+  size:A4;
+  margin:16mm;
+  @top-left{content:"";} @top-center{content:"";} @top-right{content:"";}
+  @bottom-left{content:"Relatório de comissão"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
+  @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
+}
+.crm-fat-in,.crm-fat-pct{border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);}
+.crm-fat-in:focus,.crm-fat-pct:focus{outline:0;border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-pale);}
+.crm-fat-in:disabled{opacity:.6;}

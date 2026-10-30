@@ -998,6 +998,7 @@ function viewPermitida(view) {
   // "Acesso de uma pessoa" (Administração > Usuários): só administrador, mesmo sem a tela estar na lista de telas visíveis
   if (view === "usuario-acesso") return !!currentUserIsAdmin;
   // Atacado e Encomenda (telas "crm-") têm papel próprio (Administração > Usuários), fora da lista de telas visíveis
+  if (view === "crm-faturamento") return typeof crmPodeVerFaturamento === "function" ? crmPodeVerFaturamento() : false;
   if (view === "crm-metas") return typeof crmPodeVerMetas === "function" ? crmPodeVerMetas() : false;
   if (String(view).startsWith("crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
   if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
