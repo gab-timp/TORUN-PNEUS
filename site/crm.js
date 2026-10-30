@@ -35,6 +35,7 @@ const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perf
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
 const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade", escopo: "todas" };
 let crmUltimaCarga = 0;
+let crmJaCarregou = false; // true depois da primeira carga completa: a partir daí as telas abrem na hora e a recarga corre por trás
 let crmCargaEmAndamento = null;
 let crmSortables = [];
 
@@ -194,6 +195,7 @@ function crmCarregar(forcar) {
     await crmCarregarClientes();
     await crmCarregarPerfis();
     await crmCarregarFaturado();
+    crmJaCarregou = true;
     return true;
   })().finally(() => { crmCargaEmAndamento = null; });
   return crmCargaEmAndamento;
@@ -393,9 +395,17 @@ function crmAtalhosHtml(ct) {
 
 /* ---------------- entrada nas telas ---------------- */
 
+// Telas que só desenham o que já está em crmState: depois da recarga em segundo plano, desenham de novo. As outras (faturamento,
+// dashboard, relatório, metas) buscam os próprios dados ao abrir; redesenhar de novo só repetiria essas buscas.
+const CRM_VIEWS_REDESENHAR = ["crm-hoje", "crm-clientes", "crm-cliente", "crm-desempenho"];
+
+// Com a carga já feita, a tela abre na hora com o que tem e o CRM atualiza por trás; na primeira abertura espera a carga.
 async function crmAoAbrirView(view) {
+  const tinha = crmJaCarregou;
+  if (tinha) crmRender();
   await crmCarregar(view !== "crm-cliente");
-  crmRender();
+  const ativa = document.querySelector(".view.active");
+  if (!tinha || (ativa && ativa.id === "view-" + view && CRM_VIEWS_REDESENHAR.includes(view))) crmRender();
 }
 
 function crmRender() {
