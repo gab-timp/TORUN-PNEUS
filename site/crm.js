@@ -52,7 +52,7 @@ function crmDefinirPerfil(r) {
 function crmPapelEfetivo() {
   return crmPapel || (currentUserIsAdmin ? "gestao" : null);
 }
-function temAcessoCrm() { return !!crmPapelEfetivo(); }
+function temAcessoCrm() { return currentUserIsAdmin || !!crmPapelEfetivo(); }
 function crmEhExecutivo() { return crmPapelEfetivo() === "executivo"; }
 function crmPodeEscrever() { return currentUserRole !== "viewer"; }
 // gestão que ligou a carteira própria: lê tudo e tem clientes dela, onde registra ligação
@@ -64,11 +64,12 @@ function crmPodeRegistrarLigacao() { return crmTemCarteiraPropria() && crmPodeEs
 // executivo só enxerga a própria carteira; a gestão só registra nos clientes em que é a responsável
 function crmPodeLigarPara(c) { return crmPodeEscrever() && !crmEhRepresentante(c.cliente) && (crmEhExecutivo() || crmEhMinha(c)); }
 // Metas (Gestão > Metas): só a gestão do CRM (administrador sem papel conta como gestão)
-function crmPodeVerMetas() { return crmPapelEfetivo() === "gestao"; }
+function crmPodeVerMetas() { return currentUserIsAdmin || crmPapelEfetivo() === "gestao"; }
 function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPapelEfetivo()) && crmPodeEscrever(); }
 
 function crmSistemasVisiveis() {
   const p = crmPapelEfetivo();
+  if (currentUserIsAdmin) return ["atacado", "encomenda"]; // administrador abre os dois sistemas, mesmo com um papel marcado para teste
   if (p === "executivo") return crmSistemas.slice();
   return p ? ["atacado", "encomenda"] : [];
 }

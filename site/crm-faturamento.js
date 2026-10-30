@@ -21,7 +21,7 @@ const crmFat = {
   execs: []           // estrutura montada na tela (executivo > clientes e representantes)
 };
 
-function crmPodeVerFaturamento() { const p = crmPapelEfetivo(); return p === "financeiro" || p === "gestao"; }
+function crmPodeVerFaturamento() { const p = crmPapelEfetivo(); return currentUserIsAdmin || p === "financeiro" || p === "gestao"; }
 function crmPodeLancarFaturamento() { return crmPapelEfetivo() === "financeiro" && crmPodeEscrever(); }
 
 /* ---------------- datas ---------------- */

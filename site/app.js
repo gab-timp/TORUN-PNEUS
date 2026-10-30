@@ -980,7 +980,8 @@ async function registrarLog(tabela, registroId, acao, motivo, descricao) {
 function applyViewRestrictions() {
   document.querySelectorAll(".nav-item").forEach(b => {
     if (b.dataset.view.startsWith("sv-") || b.dataset.view.startsWith("crm-")) return; // Sem Venda e CRM: o acesso é pela permissão própria, não por "telas visíveis"
-    b.style.display = (!currentUserVisibleViews || currentUserVisibleViews.includes(b.dataset.view)) ? "" : "none";
+    // administrador vê todas as telas, mesmo que a própria lista de telas visíveis tenha ficado restrita
+    b.style.display = (currentUserIsAdmin || !currentUserVisibleViews || currentUserVisibleViews.includes(b.dataset.view)) ? "" : "none";
   });
 }
 
@@ -997,6 +998,8 @@ function primeiraViewPermitida() {
 function viewPermitida(view) {
   // "Acesso de uma pessoa" (Administração > Usuários): só administrador, mesmo sem a tela estar na lista de telas visíveis
   if (view === "usuario-acesso") return !!currentUserIsAdmin;
+  // administrador abre qualquer tela (Varejo, Sem Venda, Atacado e Encomenda)
+  if (currentUserIsAdmin) return true;
   // Atacado e Encomenda (telas "crm-") têm papel próprio (Administração > Usuários), fora da lista de telas visíveis
   if (view === "crm-faturamento") return typeof crmPodeVerFaturamento === "function" ? crmPodeVerFaturamento() : false;
   if (view === "crm-metas") return typeof crmPodeVerMetas === "function" ? crmPodeVerMetas() : false;
