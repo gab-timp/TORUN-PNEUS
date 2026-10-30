@@ -138,41 +138,43 @@ join crm_clientes k on k.nome = c.cliente
 where k.id in (select chave from crm_dados_teste where tabela = 'crm_clientes') and c.etapa is not null;
 
 -- ---------------------------------------------------------------- faturamento: 2 lançamentos por mês, 6 meses
-create temp table _teste_lanc as
-select gen_random_uuid() as id, s.sistema,
-  case h.parte when 1 then m.mes_ini else m.mes_ini + 15 end as de,
-  case h.parte when 1 then least(m.mes_ini + 14, current_date)
-               else least(((m.mes_ini + interval '1 month')::date) - 1, current_date) end as ate
-from (values ('atacado'), ('encomenda')) s(sistema)
-cross join (select (date_trunc('month', current_date) - (n * interval '1 month'))::date as mes_ini from generate_series(0, 5) n) m
-cross join (values (1), (2)) h(parte)
-where (case h.parte when 1 then m.mes_ini else m.mes_ini + 15 end) <= current_date
-  and exists (
-    select 1 from crm_carteira c join crm_clientes k on k.nome = c.cliente
-    where c.sistema = s.sistema and k.tipo = 'cliente'
-      and k.id in (select chave from crm_dados_teste where tabela = 'crm_clientes')
-  );
-
+-- (sem tabela temporária: o SQL Editor do Supabase pode rodar cada comando em uma conexão diferente)
 insert into crm_faturamento_lancamentos (id, sistema, periodo_de, periodo_ate, total, created_by_nome, created_at)
-select id, sistema, de, ate, 0, 'TESTE (dados fictícios)', (ate + time '17:00')::timestamptz from _teste_lanc;
+select md5('teste|' || x.sistema || '|' || x.de::text)::uuid, x.sistema, x.de, x.ate, 0, 'TESTE (dados fictícios)', (x.ate + time '17:00')::timestamptz
+from (
+  select s.sistema,
+    case h.parte when 1 then m.mes_ini else m.mes_ini + 15 end as de,
+    case h.parte when 1 then least(m.mes_ini + 14, current_date)
+                 else least(((m.mes_ini + interval '1 month')::date) - 1, current_date) end as ate
+  from (values ('atacado'), ('encomenda')) s(sistema)
+  cross join (select (date_trunc('month', current_date) - (n * interval '1 month'))::date as mes_ini from generate_series(0, 5) n) m
+  cross join (values (1), (2)) h(parte)
+  where (case h.parte when 1 then m.mes_ini else m.mes_ini + 15 end) <= current_date
+    and exists (
+      select 1 from crm_carteira c join crm_clientes k on k.nome = c.cliente
+      where c.sistema = s.sistema and k.tipo = 'cliente'
+        and k.id in (select chave from crm_dados_teste where tabela = 'crm_clientes')
+    )
+) x;
 
-insert into crm_dados_teste (tabela, chave) select 'crm_faturamento_lancamentos', id::text from _teste_lanc;
+insert into crm_dados_teste (tabela, chave)
+select 'crm_faturamento_lancamentos', id::text from crm_faturamento_lancamentos where created_by_nome = 'TESTE (dados fictícios)';
 
 insert into crm_faturamento_itens (lancamento_id, sistema, cliente, executivo_user_id, executivo_nome, valor)
 select l.id, l.sistema, c.cliente, c.executivo_user_id, c.executivo_nome,
   round((3000 + abs(hashtext(c.cliente || l.id::text)) % 60000)::numeric, 2)
-from _teste_lanc l
+from crm_faturamento_lancamentos l
 join crm_carteira c on c.sistema = l.sistema
 join crm_clientes k on k.nome = c.cliente
-where k.tipo = 'cliente'
+where l.created_by_nome = 'TESTE (dados fictícios)'
+  and k.tipo = 'cliente'
   and k.id in (select chave from crm_dados_teste where tabela = 'crm_clientes')
   and abs(hashtext(c.cliente || 'f' || l.id::text)) % 100 < 65;
 
 update crm_faturamento_lancamentos l
 set total = (select coalesce(sum(i.valor), 0) from crm_faturamento_itens i where i.lancamento_id = l.id)
-where l.id in (select id from _teste_lanc);
+where l.created_by_nome = 'TESTE (dados fictícios)';
 
-drop table _teste_lanc;
 
 -- ---------------------------------------------------------------- % de comissão (só onde não existe)
 with exs as (
