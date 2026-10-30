@@ -18,6 +18,7 @@ const crmFat = {
   indisponivel: false,
   carregando: false,
   salvando: false,
+  cache: new Map(),   // última busca por sistema|mês: a tela abre na hora com ela e atualiza por trás
   editando: null,     // id do lançamento em correção (null = lançamento novo)
   execs: []         // estrutura montada na tela (executivo > clientes e representantes)
 };
@@ -47,10 +48,10 @@ const crmFatArred = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /* ---------------- carga ---------------- */
 
-async function crmFatCarregar() {
+// Busca os dados do mês sem mexer no estado da tela (ela pode ter valores digitados); a tela aplica o resultado quando decide.
+async function crmFatBuscar() {
   const s = crmSistemaAtual();
   const mes = crmFat.mes;
-  crmFat.carregando = true;
   const ini = crmFatData(mes, 1), fim = crmFatData(mes, crmFatUltimoDia(mes));
   const l = await sb.from("crm_faturamento_lancamentos").select("*").eq("sistema", s).gte("periodo_de", ini).lte("periodo_de", fim).order("periodo_de");
   let itens = { data: [], error: null };
@@ -58,17 +59,34 @@ async function crmFatCarregar() {
     itens = await sb.from("crm_faturamento_itens").select("*").in("lancamento_id", l.data.map(x => x.id));
   }
   const p = await sb.from("crm_comissao_percentual").select("*").lte("mes", ini).order("mes", { ascending: false });
-  crmFat.carregando = false;
   const erro = l.error || itens.error || p.error;
-  if (erro) { crmFat.indisponivel = erro.message; return false; }
-  crmFat.indisponivel = false;
-  crmFat.lanc = (l.data || []).map(x => ({ id: x.id, de: x.periodo_de, ate: x.periodo_ate, total: Number(x.total), por: x.created_by_nome || "", quando: x.created_at }));
-  crmFat.itens = (itens.data || []).map(x => ({ lanc: x.lancamento_id, cliente: x.cliente, exec: x.executivo_user_id, valor: Number(x.valor) }));
+  if (erro) return { ok: false, erro: erro.message };
   // % do mês: a linha mais recente de cada executivo até este mês
-  crmFat.pct = new Map();
-  (p.data || []).forEach(x => { if (!crmFat.pct.has(x.executivo_user_id)) crmFat.pct.set(x.executivo_user_id, Number(x.percentual)); });
-  crmFat.pctNovo = new Map(crmFat.pct);
-  return true;
+  const pct = new Map();
+  (p.data || []).forEach(x => { if (!pct.has(x.executivo_user_id)) pct.set(x.executivo_user_id, Number(x.percentual)); });
+  return {
+    ok: true,
+    lanc: (l.data || []).map(x => ({ id: x.id, de: x.periodo_de, ate: x.periodo_ate, total: Number(x.total), por: x.created_by_nome || "", quando: x.created_at })),
+    itens: (itens.data || []).map(x => ({ lanc: x.lancamento_id, cliente: x.cliente, exec: x.executivo_user_id, valor: Number(x.valor) })),
+    pct
+  };
+}
+
+function crmFatAplicar(d) {
+  crmFat.indisponivel = false;
+  crmFat.lanc = d.lanc;
+  crmFat.itens = d.itens;
+  crmFat.pct = new Map(d.pct);
+  crmFat.pctNovo = new Map(d.pct);
+}
+
+const crmFatAssinatura = (d) => JSON.stringify([d.lanc, d.itens, [...d.pct]]);
+
+// há algo digitado que uma atualização por trás não pode apagar (valor de cliente ou % de comissão mexido)
+function crmFatTemDigitado() {
+  if ([...document.querySelectorAll("#crmFatCorpo .crm-fat-in")].some(i => i.value.trim())) return true;
+  for (const [k, v] of crmFat.pctNovo) if (crmFat.pct.get(k) !== v) return true;
+  return false;
 }
 
 // quem aparece na tela: clientes efetivos da carteira do sistema aberto, por executivo (prospect e representante não faturam)
@@ -112,14 +130,31 @@ async function crmRenderFaturamento() {
   document.getElementById("crmFatSub").textContent = crmPodeLancarFaturamento()
     ? "Escolha o período que está lançando e informe quanto cada cliente faturou nele. O faturamento do mês é a soma dos lançamentos, e o relatório de comissão sai pronto ao salvar."
     : "Faturamento lançado pelo financeiro, por período. A gestão só consulta.";
-  corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o faturamento…</div></div>`;
   const mesPedido = crmFat.mes;
-  const ok = await crmFatCarregar();
+  const chave = crmSistemaAtual() + "|" + mesPedido;
+  // com o resultado da última vez a tela abre na hora; a busca nova corre por trás
+  const cache = crmFat.cache.get(chave);
+  if (cache) { crmFatAplicar(cache); crmFatDesenhar(); }
+  else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o faturamento…</div></div>`;
+  const d = await crmFatBuscar();
   if (mesPedido !== crmFat.mes) return;
-  if (!ok) {
-    corpo.innerHTML = `<div class="card"><div class="empty-state">O faturamento ainda não está disponível: rode o SQL <b>sql/crm_faturamento.sql</b> no Supabase. (${escapeHtml(String(crmFat.indisponivel))})</div></div>`;
+  if (!d.ok) {
+    if (!cache) {
+      crmFat.indisponivel = d.erro;
+      corpo.innerHTML = `<div class="card"><div class="empty-state">O faturamento ainda não está disponível: rode o SQL <b>sql/crm_faturamento.sql</b> no Supabase. (${escapeHtml(String(d.erro))})</div></div>`;
+    }
     return;
   }
+  crmFat.cache.set(chave, d);
+  if (!cache) { crmFatAplicar(d); crmFatDesenhar(); return; }
+  // com a tela já desenhada: só redesenha se mudou e se não há nada digitado nem lançamento em correção
+  if (crmFatAssinatura(d) === crmFatAssinatura(cache) || crmFat.editando || crmFatTemDigitado()) return;
+  crmFatAplicar(d);
+  crmFatDesenhar();
+}
+
+function crmFatDesenhar() {
+  const corpo = document.getElementById("crmFatCorpo");
   crmFat.execs = crmFatEstrutura();
   if (!crmFat.execs.length) {
     corpo.innerHTML = `<div class="card"><div class="empty-state">Nenhum cliente efetivo na carteira ${CRM_SISTEMAS[crmSistemaAtual()] ? "do " + CRM_SISTEMAS[crmSistemaAtual()] : ""} ainda. Prospects e representantes não faturam.</div></div>`;
@@ -353,6 +388,7 @@ async function crmFatSalvar(gerarRelatorio) {
   }
   toast(corrigindo ? "Lançamento corrigido." : "Lançamento salvo.");
   crmFat.editando = null;
+  crmFat.cache.clear();
   await crmRenderFaturamento();
   if (gerarRelatorio) crmFatImprimir();
 }
@@ -370,6 +406,7 @@ async function crmFatExcluir(id) {
   if (error) { crmFatErro("Não foi possível excluir: " + error.message); return; }
   toast("Lançamento excluído.");
   if (crmFat.editando === id) crmFat.editando = null;
+  crmFat.cache.clear();
   await crmRenderFaturamento();
 }
 

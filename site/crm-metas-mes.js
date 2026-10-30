@@ -3,7 +3,7 @@
    (a função crm_salvar_metas_mes confere no banco). A meta anual (aba "Anual", em crm.js) continua separada. Dados em
    crm_meta_mes_equipe / crm_meta_mes_executivo (sql/crm_metas_mensais.sql). Usa crmNumMeta, crmFmtInteiro e crmPct do crm.js. */
 
-const crmMetasMes = { aba: "anual", mes: null, execs: [], comMeta: new Set(), anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
+const crmMetasMes = { aba: "anual", mes: null, execs: [], comMeta: new Set(), cache: new Map(), sujo: false, anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
 
 const crmMMRotulo = (k) => `${CRM_DES_MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(0, 4)}`;
 function crmMMAdd(k, n) {
@@ -39,7 +39,10 @@ async function crmMetasMesCarregar(mesPedido) {
   if (mesPedido) crmMetasMes.mes = mesPedido;
   if (!crmMetasMes.mes || !meses.includes(crmMetasMes.mes)) crmMetasMes.mes = todayISO().slice(0, 7);
   const mes = crmMetasMes.mes;
-  corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
+  // com o resultado da última vez a tela abre na hora; a busca nova corre por trás
+  const cache = crmMetasMes.cache.get(mes);
+  if (cache) crmMetasMesAplicar(cache);
+  else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
   const ano = Number(mes.slice(0, 4));
   const [ex, eq, ind, anu, tem] = await Promise.all([
     sb.rpc("crm_executivos_metas"),
@@ -50,16 +53,33 @@ async function crmMetasMesCarregar(mesPedido) {
   ]);
   if (mes !== crmMetasMes.mes) return;
   if (ex.error || eq.error || ind.error) {
-    crmMetasMes.indisponivel = true;
-    corpo.innerHTML = `<div class="card"><div class="empty-state">As metas mês a mês ainda não estão disponíveis: rode o SQL <b>sql/crm_metas_mensais.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
+    if (!cache) {
+      crmMetasMes.indisponivel = true;
+      corpo.innerHTML = `<div class="card"><div class="empty-state">As metas mês a mês ainda não estão disponíveis: rode o SQL <b>sql/crm_metas_mensais.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
+    }
     return;
   }
-  crmMetasMes.indisponivel = false;
   const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
-  crmMetasMes.comMeta = new Set((tem.data || []).map(r => String(r.mes).slice(0, 7)));
-  crmMetasMes.anuais = new Map((anu.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
-  crmMetasMes.execs = (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 }));
-  crmMetasMesDesenhar(eq.data ? Number(eq.data.valor) : 0);
+  const dados = {
+    execs: (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 })),
+    anuais: new Map((anu.data || []).map(r => [r.executivo_user_id, Number(r.valor)])),
+    comMeta: new Set((tem.data || []).map(r => String(r.mes).slice(0, 7))),
+    equipe: eq.data ? Number(eq.data.valor) : 0
+  };
+  crmMetasMes.cache.set(mes, dados);
+  const assin = (d) => JSON.stringify([d.execs, [...d.anuais], [...d.comMeta], d.equipe]);
+  // com a tela já desenhada: só redesenha se mudou e se ninguém digitou nada nela
+  if (cache && (assin(cache) === assin(dados) || crmMetasMes.sujo)) return;
+  crmMetasMesAplicar(dados);
+}
+
+function crmMetasMesAplicar(d) {
+  crmMetasMes.indisponivel = false;
+  crmMetasMes.execs = d.execs.map(e => ({ ...e }));
+  crmMetasMes.anuais = d.anuais;
+  crmMetasMes.comMeta = new Set(d.comMeta);
+  crmMetasMes.sujo = false;
+  crmMetasMesDesenhar(d.equipe);
 }
 
 function crmMetasMesCfg(equipe) {
@@ -119,6 +139,8 @@ async function crmMetasMesSalvar() {
   }
   toast("Metas de " + crmMMRotulo(crmMetasMes.mes) + " salvas.");
   crmMetasMes.comMeta.add(crmMetasMes.mes);
+  crmMetasMes.cache.delete(crmMetasMes.mes);
+  crmMetasMes.sujo = false;
   const btnRegua = document.querySelector(`[data-crmmmmes="${crmMetasMes.mes}"]`);
   if (btnRegua) btnRegua.classList.add("tem");
   crmMetasMesCalculo();
@@ -140,6 +162,7 @@ async function crmMetasMesCopiar() {
   const mapa = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
   document.getElementById("crmMMEquipe").value = crmFmtInteiro(Number(eq.data.valor));
   crmMetasMes.execs.forEach((e, i) => { const v = mapa.get(e.id) || 0; document.querySelector(`[data-crmmmexec="${i}"]`).value = v ? crmFmtInteiro(v) : ""; });
+  crmMetasMes.sujo = true;
   crmMetasMesCalculo();
   toast("Metas de " + crmMMRotulo(ant) + " copiadas. Confira e clique em Salvar.");
 }
@@ -157,6 +180,7 @@ function crmMetasMesInit() {
   corpo.addEventListener("input", (e) => {
     if (e.target.classList.contains("crm-meta-in")) {
       crmMascarar(e.target);
+      crmMetasMes.sujo = true;
       crmMtUltimo = e.target.dataset.crmmmexec === undefined ? -1 : Number(e.target.dataset.crmmmexec);
       crmMetasMesCalculo();
     }

@@ -707,7 +707,7 @@ async function crmGravarEtapa(c, nova, origem) {
    Dados em crm_meta_equipe / crm_meta_executivo (sql/crm_metas.sql); quem grava é a função crm_salvar_metas, que
    confere a soma no banco. Valores em reais inteiros. */
 
-const crmMetas = { ano: null, execs: [], indisponivel: false, salvando: false };
+const crmMetas = { ano: null, execs: [], indisponivel: false, salvando: false, cache: new Map(), sujo: false };
 
 function crmNumMeta(texto) { return Number(String(texto || "").replace(/\D/g, "")) || 0; }
 function crmFmtInteiro(n) { return Number(n || 0).toLocaleString("pt-BR"); }
@@ -725,8 +725,11 @@ async function crmRenderMetas() {
   const anos = crmAnosMeta();
   if (!crmMetas.ano || !anos.includes(crmMetas.ano)) crmMetas.ano = anos[0];
   selAno.innerHTML = anos.map(a => `<option value="${a}" ${a === crmMetas.ano ? "selected" : ""}>${a}</option>`).join("");
-  corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
   const ano = crmMetas.ano;
+  // com o resultado da última vez a tela abre na hora; a busca nova corre por trás
+  const cache = crmMetas.cache.get(ano);
+  if (cache) crmMetasDesenhar(cache);
+  else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
   const [ex, eq, ind] = await Promise.all([
     sb.rpc("crm_executivos_metas"),
     sb.from("crm_meta_equipe").select("valor").eq("ano", ano).maybeSingle(),
@@ -734,18 +737,29 @@ async function crmRenderMetas() {
   ]);
   if (ano !== crmMetas.ano) return; // trocou de ano enquanto carregava
   if (ex.error || eq.error || ind.error) {
-    crmMetas.indisponivel = true;
-    corpo.innerHTML = `<div class="card"><div class="empty-state">As metas ainda não estão disponíveis: rode o SQL <b>sql/crm_metas.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
+    if (!cache) {
+      crmMetas.indisponivel = true;
+      corpo.innerHTML = `<div class="card"><div class="empty-state">As metas ainda não estão disponíveis: rode o SQL <b>sql/crm_metas.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
+    }
     return;
   }
-  crmMetas.indisponivel = false;
   const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
-  crmMetas.execs = (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 }));
-  const equipe = eq.data ? Number(eq.data.valor) : 0;
-  const podeEditar = crmPodeEscrever();
+  const dados = {
+    execs: (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 })),
+    equipe: eq.data ? Number(eq.data.valor) : 0
+  };
+  crmMetas.cache.set(ano, dados);
+  // com a tela já desenhada: só redesenha se mudou e se ninguém digitou nada nela
+  if (cache && (JSON.stringify(cache) === JSON.stringify(dados) || crmMetas.sujo)) return;
+  crmMetasDesenhar(dados);
+}
 
+function crmMetasDesenhar(dados) {
+  crmMetas.indisponivel = false;
+  crmMetas.execs = dados.execs.map(e => ({ ...e }));
+  crmMetas.sujo = false;
   crmMtUltimo = -1;
-  corpo.innerHTML = crmMtTelaHtml(crmMetasCfg(equipe, podeEditar));
+  document.getElementById("crmMetasCorpo").innerHTML = crmMtTelaHtml(crmMetasCfg(dados.equipe, crmPodeEscrever()));
   crmAtualizarMetasCalculo();
 }
 
@@ -781,6 +795,7 @@ async function crmSalvarMetas() {
     return;
   }
   toast("Metas de " + crmMetas.ano + " salvas.");
+  crmMetas.cache.delete(crmMetas.ano);
   crmRenderMetas();
 }
 
@@ -1304,6 +1319,7 @@ function initCrmTelas() {
   document.getElementById("crmMetasCorpo").addEventListener("input", (e) => {
     if (!e.target.classList.contains("crm-meta-in")) return;
     crmMascarar(e.target);
+    crmMetas.sujo = true;
     crmMtUltimo = e.target.dataset.crmmetaexec === undefined ? -1 : Number(e.target.dataset.crmmetaexec);
     crmAtualizarMetasCalculo();
   });

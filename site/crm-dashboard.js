@@ -13,7 +13,7 @@
    - anual: frequência = meses do ano (até o mês atual) com compra; "todo mês" = todos, "maioria" = mais da metade, "de vez em
      quando" = de 1 até a metade, "nunca" = nenhum. */
 
-const crmDash = { modo: "mensal", mes: null, ano: null, exec: "", fat: [], pct: new Map(), metas: new Map(), metasMes: new Map(), equipeMes: new Map(), equipeAno: 0, hist: new Set(), execsMeta: [], metasOk: false, metasMesOk: false, indisponivel: false, carregando: false };
+const crmDash = { modo: "mensal", mes: null, ano: null, exec: "", fat: [], pct: new Map(), metas: new Map(), metasMes: new Map(), equipeMes: new Map(), equipeAno: 0, hist: new Set(), execsMeta: [], metasOk: false, metasMesOk: false, indisponivel: false, carregando: false, cache: new Map() };
 
 function crmPodeVerDashboard() { return currentUserIsAdmin || crmPapelEfetivo() === "gestao" || crmPapelEfetivo() === "executivo"; }
 const crmDashEhGestao = () => crmPapelEfetivo() === "gestao";
@@ -53,6 +53,10 @@ function crmDashPeriodo() {
 
 /* ---------------- carga ---------------- */
 
+// resultado de uma busca (por ano) para a tela abrir na hora na próxima vez
+const crmDashSnapshot = () => ({ fat: crmDash.fat, pct: crmDash.pct, metas: crmDash.metas, metasMes: crmDash.metasMes, equipeMes: crmDash.equipeMes, equipeAno: crmDash.equipeAno, hist: crmDash.hist, execsMeta: crmDash.execsMeta, metasOk: crmDash.metasOk, metasMesOk: crmDash.metasMesOk });
+const crmDashAssinatura = (o) => JSON.stringify([o.fat, [...o.pct], [...o.metas], [...o.metasMes], [...o.equipeMes], o.equipeAno, [...o.hist], o.execsMeta]);
+
 async function crmDashCarregar() {
   const ano = crmDash.modo === "anual" ? crmDash.ano : Number(crmDash.mes.slice(0, 4));
   const gestao = crmDashEhGestao();
@@ -83,6 +87,7 @@ async function crmDashCarregar() {
   crmDash.equipeAno = ea.error || !ea.data ? 0 : Number(ea.data.valor);
   crmDash.hist = new Set(h.error ? [] : (h.data || []).map(r => r.sistema + "|" + r.cliente));
   crmDash.execsMeta = ex.error ? [] : (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [] }));
+  crmDash.cache.set(ano, crmDashSnapshot());
   return true;
 }
 
@@ -289,15 +294,20 @@ async function crmRenderDashboard() {
     if (crmDash.exec && !mapa.has(crmDash.exec)) crmDash.exec = "";
     document.getElementById("crmDashExec").innerHTML = `<option value="">Todos</option>` + lista.map(([id, n]) => `<option value="${escapeAttr(id)}" ${id === crmDash.exec ? "selected" : ""}>${escapeHtml(n)}</option>`).join("");
   }
-  corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o dashboard…</div></div>`;
+  const ano = crmDash.modo === "anual" ? crmDash.ano : Number(crmDash.mes.slice(0, 4));
+  // com o resultado da última vez (do mesmo ano) a tela abre na hora; a busca nova corre por trás
+  const snap = crmDash.cache.get(ano);
+  if (snap) { Object.assign(crmDash, snap); crmRenderDashboardCorpo(); }
+  else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o dashboard…</div></div>`;
+  const antes = snap ? crmDashAssinatura(snap) : null;
   const pedido = crmDash.modo + crmDash.mes + crmDash.ano;
   const ok = await crmDashCarregar();
   if (pedido !== crmDash.modo + crmDash.mes + crmDash.ano) return;
   if (!ok) {
-    corpo.innerHTML = `<div class="card"><div class="empty-state">O dashboard ainda não está disponível: rode o SQL <b>sql/crm_dashboard.sql</b> no Supabase. (${escapeHtml(String(crmDash.indisponivel))})</div></div>`;
+    if (!snap) corpo.innerHTML = `<div class="card"><div class="empty-state">O dashboard ainda não está disponível: rode o SQL <b>sql/crm_dashboard.sql</b> no Supabase. (${escapeHtml(String(crmDash.indisponivel))})</div></div>`;
     return;
   }
-  crmRenderDashboardCorpo();
+  if (!snap || crmDashAssinatura(crmDash) !== antes) crmRenderDashboardCorpo();
 }
 
 function crmDashInit() {

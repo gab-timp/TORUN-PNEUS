@@ -7,11 +7,12 @@
    itens e crm_comissao_percentual); o executivo de cada item é o que estava na carteira quando a Beth lançou. Exporta CSV
    e PDF respeitando os filtros de mês e executivo. Usa os helpers de data de crm-faturamento.js. */
 
-const crmRel = { mes: null, exec: "", lanc: [], itens: [], pct: new Map(), indisponivel: false, linhas: [] };
+const crmRel = { mes: null, exec: "", lanc: [], itens: [], pct: new Map(), indisponivel: false, linhas: [], cache: new Map() };
 
 /* ---------------- carga ---------------- */
 
-async function crmRelCarregar() {
+// Busca os dados do mês sem mexer no estado da tela.
+async function crmRelBuscar() {
   const s = crmSistemaAtual();
   const mes = crmRel.mes;
   const ini = crmFatData(mes, 1), fim = crmFatData(mes, crmFatUltimoDia(mes));
@@ -20,14 +21,25 @@ async function crmRelCarregar() {
   if (!l.error && (l.data || []).length) itens = await sb.from("crm_faturamento_itens").select("*").in("lancamento_id", l.data.map(x => x.id));
   const p = await sb.from("crm_comissao_percentual").select("*").lte("mes", ini).order("mes", { ascending: false });
   const erro = l.error || itens.error || p.error;
-  if (erro) { crmRel.indisponivel = erro.message; return false; }
-  crmRel.indisponivel = false;
-  crmRel.lanc = (l.data || []).map(x => ({ id: x.id, de: x.periodo_de, ate: x.periodo_ate, por: x.created_by_nome || "", quando: x.created_at }));
-  crmRel.itens = (itens.data || []).map(x => ({ cliente: x.cliente, exec: x.executivo_user_id, execNome: x.executivo_nome || "", valor: Number(x.valor) }));
-  crmRel.pct = new Map();
-  (p.data || []).forEach(x => { if (!crmRel.pct.has(x.executivo_user_id)) crmRel.pct.set(x.executivo_user_id, Number(x.percentual)); });
-  return true;
+  if (erro) return { ok: false, erro: erro.message };
+  const pct = new Map();
+  (p.data || []).forEach(x => { if (!pct.has(x.executivo_user_id)) pct.set(x.executivo_user_id, Number(x.percentual)); });
+  return {
+    ok: true,
+    lanc: (l.data || []).map(x => ({ id: x.id, de: x.periodo_de, ate: x.periodo_ate, por: x.created_by_nome || "", quando: x.created_at })),
+    itens: (itens.data || []).map(x => ({ cliente: x.cliente, exec: x.executivo_user_id, execNome: x.executivo_nome || "", valor: Number(x.valor) })),
+    pct
+  };
 }
+
+function crmRelAplicar(d) {
+  crmRel.indisponivel = false;
+  crmRel.lanc = d.lanc;
+  crmRel.itens = d.itens;
+  crmRel.pct = new Map(d.pct);
+}
+
+const crmRelAssinatura = (d) => JSON.stringify([d.lanc, d.itens, [...d.pct]]);
 
 // uma linha por executivo > cliente, já com % e comissão; o filtro de executivo vale aqui
 function crmRelMontar() {
@@ -62,20 +74,34 @@ async function crmRenderRelatorio() {
   const meses = crmFatMeses();
   if (!crmRel.mes || !meses.includes(crmRel.mes)) crmRel.mes = meses[0];
   document.getElementById("crmRelMes").innerHTML = meses.map(m => `<option value="${m}" ${m === crmRel.mes ? "selected" : ""}>${crmFatRotuloMes(m)}</option>`).join("");
-  corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o relatório…</div></div>`;
   const pedido = crmRel.mes;
-  const ok = await crmRelCarregar();
+  const chave = crmSistemaAtual() + "|" + pedido;
+  // com o resultado da última vez a tela abre na hora; a busca nova corre por trás
+  const cache = crmRel.cache.get(chave);
+  if (cache) { crmRelAplicar(cache); crmRelPreencherFiltro(); crmRelDesenhar(); }
+  else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o relatório…</div></div>`;
+  const d = await crmRelBuscar();
   if (pedido !== crmRel.mes) return;
-  if (!ok) {
-    corpo.innerHTML = `<div class="card"><div class="empty-state">O relatório ainda não está disponível: rode o SQL <b>sql/crm_faturamento.sql</b> no Supabase. (${escapeHtml(String(crmRel.indisponivel))})</div></div>`;
+  if (!d.ok) {
+    if (!cache) {
+      crmRel.indisponivel = d.erro;
+      corpo.innerHTML = `<div class="card"><div class="empty-state">O relatório ainda não está disponível: rode o SQL <b>sql/crm_faturamento.sql</b> no Supabase. (${escapeHtml(String(d.erro))})</div></div>`;
+    }
     return;
   }
-  // filtro de executivo: quem tem faturamento no mês
+  crmRel.cache.set(chave, d);
+  if (cache && crmRelAssinatura(d) === crmRelAssinatura(cache)) return;
+  crmRelAplicar(d);
+  crmRelPreencherFiltro();
+  crmRelDesenhar();
+}
+
+// filtro de executivo: quem tem faturamento no mês
+function crmRelPreencherFiltro() {
   const nomes = new Map();
   crmRel.itens.forEach(i => nomes.set(i.exec, i.execNome || "(sem nome)"));
   if (crmRel.exec && !nomes.has(crmRel.exec)) crmRel.exec = "";
   document.getElementById("crmRelExec").innerHTML = `<option value="">Todos</option>` + [...nomes.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([id, n]) => `<option value="${escapeAttr(id)}" ${id === crmRel.exec ? "selected" : ""}>${escapeHtml(n)}</option>`).join("");
-  crmRelDesenhar();
 }
 
 function crmRelSubtitulo() {
