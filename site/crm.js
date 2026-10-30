@@ -307,12 +307,12 @@ function crmContatoRapido(c) {
 
 const crmDigitos = s => String(s || "").replace(/\D/g, "");
 
-// abre a conversa no WhatsApp Desktop (a equipe usa o programa, que também faz a ligação de voz); o link wa.me abriria só o Web
+// abre a conversa no WhatsApp Web (mensagens); a ligação de voz é feita no WhatsApp Desktop, fora do sistema
 function crmLinkWhats(numero) {
   let d = crmDigitos(numero);
   if (!d) return null;
   if (d.length <= 11) d = "55" + d;
-  return "whatsapp://send?phone=" + d;
+  return "https://wa.me/" + d;
 }
 
 // atalhos de contato: botão quadrado só com ícone (nome no tooltip e no leitor de tela)
@@ -328,7 +328,7 @@ function crmAtalhosHtml(ct) {
   // no computador o telefone só copia o número (para discar onde preferir); no celular o toque segue para a ligação
   if (crmDigitos(ct.telefone)) partes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar (copia o número)", ct, false, { texto: ct.telefone, rotulo: "Telefone", soCopia: true }));
   const wa = crmLinkWhats(ct.whatsapp || ct.telefone);
-  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Desktop e copia o número)", ct, false, { texto: ct.whatsapp || ct.telefone, rotulo: "WhatsApp" }));
+  if (wa) partes.push(crmAtalhoIcone(wa, "whats", "WhatsApp (abre o WhatsApp Web e copia o número)", ct, true, { texto: ct.whatsapp || ct.telefone, rotulo: "WhatsApp" }));
   // abre a janela de novo e-mail direto no Gmail (sem depender do programa de e-mail do computador) e copia o endereço
   // do contato (o decisor, que vem primeiro), para colar onde precisar
   // authuser: abre na conta do Gmail igual ao e-mail de login de quem está usando (o Google escolheria a conta padrão do navegador)
