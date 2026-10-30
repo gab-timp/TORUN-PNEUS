@@ -406,3 +406,7 @@ tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
 .crm-mt-acoes{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-top:14px;margin-top:6px;border-top:1px solid var(--line);}
 .crm-mt-tab{margin-bottom:14px;}
 @media (prefers-reduced-motion:reduce){.crm-mt-pilha i,.crm-mt-trilho i{transition:none;}}
+
+/* editar cliente: seletor de tipo marcado por aria-pressed */
+.crm-seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);}
+.crm-seg button:disabled{opacity:.45;cursor:not-allowed;}

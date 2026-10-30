@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=25">
-<link rel="stylesheet" href="crm.css?v=22">
+<link rel="stylesheet" href="crm.css?v=23">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -3769,6 +3769,39 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="crmEdOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmEdTitulo">
+    <h3 id="crmEdTitulo">Editar cliente</h3>
+    <div class="muted sv-sub">Dados do cliente no CRM. O perfil completo (dados cadastrais, filiais, pneus) continua na aba Perfil.</div>
+    <div class="field"><label for="crmEdNome">Nome do cliente</label><input type="text" id="crmEdNome" autocomplete="off"></div>
+    <div class="note">O nome muda em todo o CRM, no Atacado e no Encomenda. O cadastro do Torun (Varejo) não muda.</div>
+    <div class="field" style="margin-top:12px;"><label>Tipo</label>
+      <div class="crm-seg" role="group" aria-label="Tipo de cadastro"><button type="button" id="crmEdTipoCli" aria-pressed="true">Cliente efetivo</button><button type="button" id="crmEdTipoPros" aria-pressed="false">Prospect</button></div>
+      <div class="note" id="crmEdTipoDica"></div></div>
+    <div class="field" id="crmEdRepCampo"><label for="crmEdRep">Representante</label><select id="crmEdRep"></select>
+      <div class="note">Trocar o representante não muda o executivo do cliente.</div></div>
+    <div class="note crm-erro" id="crmEdErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmEdCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmEdSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmTrocOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmTrocTitulo">
+    <h3 id="crmTrocTitulo">Trocar executivo</h3>
+    <div class="muted sv-sub" id="crmTrocSub"></div>
+    <div class="field"><label for="crmTrocExec">Novo executivo responsável</label><select id="crmTrocExec"></select></div>
+    <div class="note">As ligações antigas continuam com o nome de quem ligou. Lançamentos de faturamento já salvos pela Beth não mudam; os próximos já usam o executivo novo.</div>
+    <div class="note crm-erro" id="crmTrocErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmTrocCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmTrocSalvar">Trocar executivo</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="crmLevarOverlay">
   <div class="modal" role="dialog" aria-labelledby="crmLevarTitulo">
     <h3 id="crmLevarTitulo">Levar para o outro sistema</h3>
@@ -4622,7 +4655,7 @@
 </div>
 
 <script src="semvenda.js?v=29"></script>
-<script src="crm.js?v=34"></script>
+<script src="crm.js?v=35"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=4"></script>
 <script src="crm-desempenho.js?v=1"></script>
@@ -4630,6 +4663,7 @@
 <script src="crm-metas-visual.js?v=1"></script>
 <script src="crm-metas-mes.js?v=3"></script>
 <script src="crm-relatorio.js?v=2"></script>
+<script src="crm-editar.js?v=1"></script>
 <script src="usuarios.js?v=6"></script>
 <script src="app.js?v=285"></script>
 </body>

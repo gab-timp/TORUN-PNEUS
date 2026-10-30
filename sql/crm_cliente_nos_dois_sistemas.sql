@@ -13,6 +13,8 @@
 -- representante não vão). Se o cliente já está na carteira do outro sistema, a função avisa com quem ele está e não grava nada.
 --
 -- ORDEM: rode ANTES de publicar a versão nova do site (crm-perfil.js v7). Pré-requisito: crm_nucleo.sql e crm_clientes.sql.
+-- Os responsáveis possíveis seguem a mesma regra de crm_executivos(): executivos que atendem o sistema (inclusive pela lista
+-- crm_sistemas) e a gestão com carteira própria.
 -- Pode rodar de novo. Rode o script INTEIRO no SQL Editor do Supabase (ele mostra só o resultado da última consulta).
 
 create or replace function crm_executivos_outro_sistema(p_origem text)
@@ -31,7 +33,14 @@ begin
   return query
     select u.user_id, coalesce(nullif(u.nome, ''), u.email)
     from user_roles u
-    where u.crm_papel = 'executivo' and u.crm_sistema = v_destino
+    where (
+        u.crm_papel = 'executivo'
+        and v_destino = any(coalesce(u.crm_sistemas, case when u.crm_sistema is not null then array[u.crm_sistema] else array[]::text[] end))
+      )
+      or (
+        u.crm_tem_carteira
+        and coalesce(u.crm_papel, case when u.is_admin then 'gestao' end) = 'gestao'
+      )
     order by 2;
 end;
 $$;
@@ -75,7 +84,14 @@ begin
 
   select coalesce(nullif(u.nome, ''), u.email) into v_exec_nome
   from user_roles u
-  where u.user_id = p_exec and u.crm_papel = 'executivo' and u.crm_sistema = v_destino;
+  where u.user_id = p_exec and ((
+        u.crm_papel = 'executivo'
+        and v_destino = any(coalesce(u.crm_sistemas, case when u.crm_sistema is not null then array[u.crm_sistema] else array[]::text[] end))
+      )
+      or (
+        u.crm_tem_carteira
+        and coalesce(u.crm_papel, case when u.is_admin then 'gestao' end) = 'gestao'
+      ));
   if v_exec_nome is null then
     raise exception 'Escolha um executivo do sistema %.', v_destino;
   end if;

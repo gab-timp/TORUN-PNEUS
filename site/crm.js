@@ -855,6 +855,8 @@ function crmRenderFicha() {
       <div class="page-head-actions crm-ficha-acoes">
         ${crmAtalhosHtml(ct)}
         ${crmEhProspect(c.cliente) && crmPodeGerirCarteira() && (!crmEhExecutivo() || c.executivoId === crmMeuId()) ? `<button type="button" class="btn outline" data-crmeditarprospect="${escapeAttr(c.cliente)}">Editar</button> <button type="button" class="btn outline" data-crmconverter="${escapeAttr(c.cliente)}">Tornar cliente efetivo</button>` : ""}
+        ${typeof crmPodeEditarCliente === "function" && crmPodeEditarCliente(c) ? `<button type="button" class="btn outline" data-crmeditarcli="${escapeAttr(c.id)}">Editar cliente</button>` : ""}
+        ${typeof crmPodeTrocarExecutivo === "function" && crmPodeTrocarExecutivo(c) ? `<button type="button" class="btn outline" data-crmtrocarexec="${escapeAttr(c.id)}">Trocar executivo</button>` : ""}
         ${crmPodeLevarOutroSistema(c) ? `<button type="button" class="btn outline" data-crmlevar="${escapeAttr(c.id)}">Levar também para o ${CRM_SISTEMAS[c.sistema === "atacado" ? "encomenda" : "atacado"]}</button>` : ""}
         ${crmPodeLigarPara(c) ? `<button type="button" class="btn primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>` : ""}
       </div>
@@ -911,8 +913,10 @@ function crmRenderFicha() {
               <td>${escapeHtml(h.porNome)} <span class="muted sv-sub">${h.origem === "kanban" ? "arrastou no kanban" : h.origem === "ligacao" ? "ao registrar ligação" : "na ficha"}</span></td>
             </tr>`).join("")}</tbody></table></div>
         </div>` : ""}
+        <div id="crmFichaMudancas"></div>
       </div>
     </div>`}`;
+  if (typeof crmFichaMudancasCarregar === "function" && crmUi.fichaAba === "atividade") crmFichaMudancasCarregar(c);
 }
 
 // ficha: cartão do mês e gráfico dos últimos 6 meses (mês atual parcial); só cliente efetivo e com o SQL de leitura rodado
@@ -1269,7 +1273,7 @@ async function crmCopiarTexto(texto, rotulo) {
 }
 
 function crmClickDelegado(e) {
-  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmlevar],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
+  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmlevar],[data-crmeditarcli],[data-crmtrocarexec],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
   if (!t) return;
   if (t.dataset.crmcopiar) {
     // só copia no computador (mouse); no celular o toque segue para o link de ligação
@@ -1280,6 +1284,8 @@ function crmClickDelegado(e) {
   else if (t.dataset.crmligar) crmAbrirLigacao(t.dataset.crmligar);
   else if (t.dataset.crmvoltar) setView("crm-clientes");
   else if (t.dataset.crmlevar) crmAbrirLevar(t.dataset.crmlevar);
+  else if (t.dataset.crmeditarcli) crmAbrirEditarCliente(t.dataset.crmeditarcli);
+  else if (t.dataset.crmtrocarexec) crmAbrirTrocarExecutivo(t.dataset.crmtrocarexec);
   else if (t.dataset.crmnovoviarep)crmAbrirAdicionar({ representante: t.dataset.crmnovoviarep });
   else if (t.dataset.crmcontatonovo) crmAbrirContato(t.dataset.crmcontatonovo, null);
   else if (t.dataset.crmcontatoedit) crmAbrirContato(crmUi.fichaId, t.dataset.crmcontatoedit);
@@ -1313,6 +1319,7 @@ function initCrmTelas() {
   if (typeof crmDashInit === "function") crmDashInit();
   if (typeof crmRelInit === "function") crmRelInit();
   if (typeof crmMetasMesInit === "function") crmMetasMesInit();
+  if (typeof crmEditarInit === "function") crmEditarInit();
 
   // metas
   document.getElementById("crmMetasAno").addEventListener("change", (e) => { crmMetas.ano = Number(e.target.value); crmRenderMetas(); });
