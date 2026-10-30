@@ -3,7 +3,7 @@
    (a função crm_salvar_metas_mes confere no banco). A meta anual (aba "Anual", em crm.js) continua separada. Dados em
    crm_meta_mes_equipe / crm_meta_mes_executivo (sql/crm_metas_mensais.sql). Usa crmNumMeta, crmFmtInteiro e crmPct do crm.js. */
 
-const crmMetasMes = { aba: "anual", mes: null, execs: [], comMeta: new Set(), cache: new Map(), sujo: false, anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
+const crmMetasMes = { aba: "mensal", mes: null, execs: [], comMeta: new Set(), cache: new Map(), sujo: false, anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
 
 const crmMMRotulo = (k) => `${CRM_DES_MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(0, 4)}`;
 function crmMMAdd(k, n) {
