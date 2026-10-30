@@ -3,7 +3,7 @@
    (a função crm_salvar_metas_mes confere no banco). A meta anual (aba "Anual", em crm.js) continua separada. Dados em
    crm_meta_mes_equipe / crm_meta_mes_executivo (sql/crm_metas_mensais.sql). Usa crmNumMeta, crmFmtInteiro e crmPct do crm.js. */
 
-const crmMetasMes = { aba: "anual", mes: null, execs: [], anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
+const crmMetasMes = { aba: "anual", mes: null, execs: [], comMeta: new Set(), anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
 
 const crmMMRotulo = (k) => `${CRM_DES_MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(0, 4)}`;
 function crmMMAdd(k, n) {
@@ -24,7 +24,11 @@ function crmMetasMesRender() {
   abas.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.crmmetasaba === crmMetasMes.aba));
   const mensal = crmMetasMes.aba === "mensal";
   document.getElementById("crmMetasCorpo").style.display = mensal ? "none" : "";
-  document.querySelector("#view-crm-metas .crm-meta-ano").style.display = mensal ? "none" : "";
+  if (mensal) {
+    if (!crmMetasMes.mes) crmMetasMes.mes = todayISO().slice(0, 7);
+    const selAno = document.getElementById("crmMetasAno");
+    if (selAno && [...selAno.options].some(o => o.value === crmMetasMes.mes.slice(0, 4))) selAno.value = crmMetasMes.mes.slice(0, 4);
+  }
   document.getElementById("crmMetasMesCorpo").style.display = mensal ? "" : "none";
   if (mensal) crmMetasMesCarregar();
 }
@@ -37,11 +41,12 @@ async function crmMetasMesCarregar(mesPedido) {
   const mes = crmMetasMes.mes;
   corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
   const ano = Number(mes.slice(0, 4));
-  const [ex, eq, ind, anu] = await Promise.all([
+  const [ex, eq, ind, anu, tem] = await Promise.all([
     sb.rpc("crm_executivos_metas"),
     sb.from("crm_meta_mes_equipe").select("valor").eq("mes", mes + "-01").maybeSingle(),
     sb.from("crm_meta_mes_executivo").select("executivo_user_id, valor").eq("mes", mes + "-01"),
-    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano)
+    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano),
+    sb.from("crm_meta_mes_equipe").select("mes").gte("mes", ano + "-01-01").lte("mes", ano + "-12-01")
   ]);
   if (mes !== crmMetasMes.mes) return;
   if (ex.error || eq.error || ind.error) {
@@ -51,46 +56,38 @@ async function crmMetasMesCarregar(mesPedido) {
   }
   crmMetasMes.indisponivel = false;
   const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
+  crmMetasMes.comMeta = new Set((tem.data || []).map(r => String(r.mes).slice(0, 7)));
   crmMetasMes.anuais = new Map((anu.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
   crmMetasMes.execs = (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 }));
   crmMetasMesDesenhar(eq.data ? Number(eq.data.valor) : 0);
 }
 
+function crmMetasMesCfg(equipe) {
+  const mes = crmMetasMes.mes;
+  const nomeMes = CRM_DES_MESES[Number(mes.slice(5, 7)) - 1].toLowerCase();
+  return {
+    p: "crmMM", attr: "data-crmmmexec", ariaMeta: "Meta de " + crmMMRotulo(mes), titulo: "Meta de " + nomeMes + " por executivo",
+    rotEq: "Meta da equipe em " + nomeMes, notaEq: crmMMRotulo(mes),
+    execs: crmMetasMes.execs, equipe, podeEditar: crmPodeEscrever(),
+    ref: { titulo: "Meta anual (referência)", valores: crmMetasMes.execs.map(e => crmMetasMes.anuais.get(e.id) || 0) },
+    salvarTxt: "Salvar metas de " + nomeMes
+  };
+}
+
 function crmMetasMesDesenhar(equipe) {
   const corpo = document.getElementById("crmMetasMesCorpo");
   const mes = crmMetasMes.mes;
-  const podeEditar = crmPodeEscrever();
-  const dinheiro = (v) => v ? crmFmtInteiro(v) : "";
-  const linhas = crmMetasMes.execs.map((e, i) => `
-    <tr>
-      <td><div class="crm-nome">${escapeHtml(e.nome)}</div></td>
-      <td>${e.sistemas.length ? e.sistemas.map(s => `<span class="crm-selo crm-selo-tor">${escapeHtml(CRM_SISTEMAS[s] || s)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>
-      <td class="num"><span class="crm-meta-money"><span>R$</span><input type="text" inputmode="numeric" class="crm-meta-in" data-crmmmexec="${i}" value="${dinheiro(e.valor)}" aria-label="Meta de ${escapeAttr(crmMMRotulo(mes))} de ${escapeAttr(e.nome)}" ${podeEditar ? "" : "disabled"}></span></td>
-      <td class="num muted">${crmMetasMes.anuais.get(e.id) ? crmFmtInteiro(crmMetasMes.anuais.get(e.id)) : "—"}</td>
-    </tr>`).join("");
-  const meses = crmMMMeses();
+  const ano = mes.slice(0, 4);
+  const regua = Array.from({ length: 12 }, (_, i) => {
+    const k = `${ano}-${String(i + 1).padStart(2, "0")}`;
+    return `<button type="button" data-crmmmmes="${k}" aria-pressed="${k === mes}" class="${crmMetasMes.comMeta.has(k) ? "tem" : ""}" title="${escapeAttr(crmMMRotulo(k))}">${CRM_MES_ABREV[i].charAt(0).toUpperCase() + CRM_MES_ABREV[i].slice(1)}<i></i></button>`;
+  }).join("");
+  crmMtUltimo = -1;
   corpo.innerHTML = `
-    <div class="card">
-      <div class="crm-meta-topo">
-        <div class="field"><label for="crmMMMes">Mês</label><select id="crmMMMes">${meses.map(m => `<option value="${m}" ${m === mes ? "selected" : ""}>${crmMMRotulo(m)}</option>`).join("")}</select></div>
-        <div class="field"><label for="crmMMEquipe">Meta da equipe em ${escapeHtml(CRM_DES_MESES[Number(mes.slice(5, 7)) - 1].toLowerCase())}</label>
-          <span class="crm-meta-money crm-meta-grande"><span>R$</span><input type="text" inputmode="numeric" id="crmMMEquipe" class="crm-meta-in" value="${dinheiro(equipe)}" ${podeEditar ? "" : "disabled"}></span></div>
-        <div class="field"><button type="button" class="btn outline" id="crmMMCopiar" ${podeEditar ? "" : "disabled"}>Copiar de ${escapeHtml(CRM_DES_MESES[Number(crmMMAdd(mes, -1).slice(5, 7)) - 1].toLowerCase())}</button></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Meta de ${escapeHtml(crmMMRotulo(mes))} por executivo</h2><div class="note">A soma das metas individuais tem que bater com a meta da equipe.</div></div>
-      ${crmMetasMes.execs.length ? `
-      <div class="table-wrap"><table>
-        <thead><tr><th>Executivo</th><th>Sistemas</th><th class="num">Meta do mês</th><th class="num">Meta anual (referência)</th></tr></thead>
-        <tbody>${linhas}</tbody>
-        <tfoot><tr><td colspan="2">Soma das metas individuais</td><td class="num" id="crmMMSoma"></td><td><span class="crm-selo" id="crmMMStatus"></span></td></tr></tfoot>
-      </table></div>` : `<div class="empty-state">Nenhum executivo cadastrado. Marque o papel Executivo em Administração > Usuários.</div>`}
-      <div class="crm-meta-rodape">
-        <div class="note" id="crmMMNota"></div>
-        <button type="button" class="btn primary" id="crmMMSalvar" ${podeEditar ? "" : "disabled"}>Salvar metas de ${escapeHtml(CRM_DES_MESES[Number(mes.slice(5, 7)) - 1].toLowerCase())}</button>
-      </div>
-    </div>`;
+    <div class="crm-mt-regua" role="group" aria-label="Mês">${regua}</div>
+    <div class="crm-mt-regua-rod"><span class="crm-mt-legponto"></span>mês com meta cadastrada
+      <button type="button" class="btn outline small" id="crmMMCopiar" ${crmPodeEscrever() ? "" : "disabled"}>Copiar de ${escapeHtml(CRM_DES_MESES[Number(crmMMAdd(mes, -1).slice(5, 7)) - 1].toLowerCase())}</button></div>
+    ${crmMtTelaHtml(crmMetasMesCfg(equipe))}`;
   crmMetasMesCalculo();
 }
 
@@ -102,20 +99,8 @@ function crmMetasMesLer() {
 
 function crmMetasMesCalculo() {
   if (!document.getElementById("crmMMEquipe") || crmMetasMes.indisponivel) return;
-  const { equipe, soma } = crmMetasMesLer();
-  const dif = equipe - soma;
-  const fecha = dif === 0 && equipe > 0 && crmMetasMes.execs.length > 0;
-  const somaEl = document.getElementById("crmMMSoma");
-  if (somaEl) somaEl.textContent = "R$ " + crmFmtInteiro(soma);
-  const st = document.getElementById("crmMMStatus");
-  if (st) {
-    st.className = "crm-selo " + (fecha ? "crm-selo-ok" : dif === 0 ? "" : dif > 0 ? "crm-selo-warn" : "crm-selo-bad");
-    st.textContent = fecha ? "bate com a equipe" : dif > 0 ? `faltam R$ ${crmFmtInteiro(dif)}` : dif < 0 ? `passa R$ ${crmFmtInteiro(-dif)}` : "informe as metas";
-  }
-  const nota = document.getElementById("crmMMNota");
-  if (nota) nota.textContent = fecha ? "Tudo certo para salvar." : equipe === 0 ? "Informe a meta da equipe do mês." : dif === 0 ? "Informe a meta de pelo menos um executivo." : `A soma dos executivos (R$ ${crmFmtInteiro(soma)}) não bate com a meta da equipe (R$ ${crmFmtInteiro(equipe)}).`;
-  const btn = document.getElementById("crmMMSalvar");
-  if (btn) btn.disabled = !fecha || !crmPodeEscrever() || crmMetasMes.salvando;
+  const { equipe, valores } = crmMetasMesLer();
+  crmMtCalcular(crmMetasMesCfg(equipe), equipe, valores, crmMetasMes.salvando);
 }
 
 async function crmMetasMesSalvar() {
@@ -133,6 +118,9 @@ async function crmMetasMesSalvar() {
     return;
   }
   toast("Metas de " + crmMMRotulo(crmMetasMes.mes) + " salvas.");
+  crmMetasMes.comMeta.add(crmMetasMes.mes);
+  const btnRegua = document.querySelector(`[data-crmmmmes="${crmMetasMes.mes}"]`);
+  if (btnRegua) btnRegua.classList.add("tem");
   crmMetasMesCalculo();
 }
 
@@ -169,14 +157,19 @@ function crmMetasMesInit() {
   corpo.addEventListener("input", (e) => {
     if (e.target.classList.contains("crm-meta-in")) {
       crmMascarar(e.target);
+      crmMtUltimo = e.target.dataset.crmmmexec === undefined ? -1 : Number(e.target.dataset.crmmmexec);
       crmMetasMesCalculo();
     }
   });
-  corpo.addEventListener("change", (e) => { if (e.target.id === "crmMMMes") crmMetasMesCarregar(e.target.value); });
+  document.getElementById("crmMetasAno").addEventListener("change", (e) => {
+    if (crmMetasMes.aba !== "mensal") return;
+    crmMetasMesCarregar(e.target.value + "-" + (crmMetasMes.mes || todayISO().slice(0, 7)).slice(5, 7));
+  });
   corpo.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
     if (b.id === "crmMMSalvar") crmMetasMesSalvar();
     else if (b.id === "crmMMCopiar") crmMetasMesCopiar();
+    else if (b.dataset.crmmmmes) crmMetasMesCarregar(b.dataset.crmmmmes);
   });
 }

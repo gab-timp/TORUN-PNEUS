@@ -734,63 +734,27 @@ async function crmRenderMetas() {
   const equipe = eq.data ? Number(eq.data.valor) : 0;
   const podeEditar = crmPodeEscrever();
 
-  const linhas = crmMetas.execs.map((e, i) => `
-    <tr>
-      <td><div class="crm-nome">${escapeHtml(e.nome)}</div></td>
-      <td>${e.sistemas.length ? e.sistemas.map(s => `<span class="crm-selo crm-selo-tor">${escapeHtml(CRM_SISTEMAS[s] || s)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>
-      <td class="num"><span class="crm-meta-money"><span>R$</span><input type="text" inputmode="numeric" class="crm-meta-in" data-crmmetaexec="${i}" value="${e.valor ? crmFmtInteiro(e.valor) : ""}" placeholder="0" aria-label="Meta de ${escapeAttr(e.nome)}" ${podeEditar ? "" : "disabled"}></span></td>
-      <td><div class="crm-meter"><div class="crm-meter-barra"><i id="crmMetaBarra${i}"></i></div></div><div class="muted sv-sub" id="crmMetaPct${i}"></div></td>
-    </tr>`).join("");
-
-  corpo.innerHTML = `
-    <div class="card">
-      <div class="crm-meta-topo">
-        <div><h2>Meta anual da equipe</h2><div class="note">Faturamento de janeiro a dezembro de ${ano}.</div></div>
-        <div class="field"><label for="crmMetaEquipe">Meta da equipe</label>
-          <span class="crm-meta-money crm-meta-grande"><span>R$</span><input type="text" inputmode="numeric" id="crmMetaEquipe" class="crm-meta-in" value="${equipe ? crmFmtInteiro(equipe) : ""}" placeholder="0" ${podeEditar ? "" : "disabled"}></span></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Meta individual de cada executivo</h2><div class="note">A soma das metas individuais tem que bater com a meta da equipe.</div></div>
-      ${crmMetas.execs.length ? `
-      <div class="table-wrap"><table>
-        <thead><tr><th>Executivo</th><th>Sistemas</th><th class="num">Meta ${ano}</th><th style="width:30%">Parte da meta da equipe</th></tr></thead>
-        <tbody>${linhas}</tbody>
-        <tfoot><tr><td colspan="2">Soma das metas individuais</td><td class="num" id="crmMetaSoma"></td><td><span class="crm-selo" id="crmMetaStatus"></span></td></tr></tfoot>
-      </table></div>` : `<div class="empty-state">Nenhum executivo cadastrado. Marque o papel Executivo em Administração > Usuários.</div>`}
-      <div class="crm-meta-rodape">
-        <div class="note" id="crmMetaNota"></div>
-        <button type="button" class="btn primary" id="crmMetaSalvar" ${podeEditar ? "" : "disabled"}>Salvar metas</button>
-      </div>
-    </div>`;
+  crmMtUltimo = -1;
+  corpo.innerHTML = crmMtTelaHtml(crmMetasCfg(equipe, podeEditar));
   crmAtualizarMetasCalculo();
 }
 
-// recalcula soma, barras, aviso e botão sem refazer os campos (o foco não se perde)
+// configuração da tela da aba Anual para o visual compartilhado (crm-metas-visual.js)
+function crmMetasCfg(equipe, podeEditar) {
+  return {
+    p: "crmMeta", attr: "data-crmmetaexec", ariaMeta: "Meta " + crmMetas.ano, titulo: "Meta individual de cada executivo",
+    rotEq: "Meta anual da equipe · " + crmMetas.ano, notaEq: "Faturamento de janeiro a dezembro de " + crmMetas.ano + ".",
+    execs: crmMetas.execs, equipe, podeEditar, ref: null, salvarTxt: "Salvar metas"
+  };
+}
+
+// recalcula soma, barra, status e botão sem refazer os campos (o foco não se perde)
 function crmAtualizarMetasCalculo() {
   const campoEquipe = document.getElementById("crmMetaEquipe");
   if (!campoEquipe || crmMetas.indisponivel) return;
   const equipe = crmNumMeta(campoEquipe.value);
   const valores = crmMetas.execs.map((e, i) => crmNumMeta(document.querySelector(`[data-crmmetaexec="${i}"]`).value));
-  const soma = valores.reduce((a, b) => a + b, 0);
-  valores.forEach((v, i) => {
-    const p = equipe ? v / equipe * 100 : 0;
-    document.getElementById("crmMetaBarra" + i).style.width = Math.min(100, p) + "%";
-    document.getElementById("crmMetaPct" + i).textContent = crmPct(p) + " da meta da equipe";
-  });
-  const dif = equipe - soma;
-  const fecha = dif === 0 && equipe > 0 && crmMetas.execs.length > 0;
-  const somaEl = document.getElementById("crmMetaSoma");
-  if (somaEl) somaEl.textContent = formatMoney(soma);
-  const st = document.getElementById("crmMetaStatus");
-  if (st) {
-    st.className = "crm-selo " + (fecha ? "crm-selo-ok" : dif === 0 ? "" : dif > 0 ? "crm-selo-warn" : "crm-selo-bad");
-    st.textContent = fecha ? "Fecha com a equipe" : dif === 0 ? "Informe as metas" : dif > 0 ? `Faltam ${formatMoney(dif)} a distribuir` : `Passou ${formatMoney(-dif)} da meta da equipe`;
-  }
-  document.getElementById("crmMetaNota").textContent = fecha
-    ? "As metas individuais somam a meta da equipe. Pode salvar."
-    : "Só dá pra salvar quando a soma das individuais for igual à meta da equipe.";
-  document.getElementById("crmMetaSalvar").disabled = !fecha || !crmPodeEscrever() || crmMetas.salvando;
+  crmMtCalcular(crmMetasCfg(equipe, true), equipe, valores, crmMetas.salvando);
 }
 
 async function crmSalvarMetas() {
@@ -1330,6 +1294,7 @@ function initCrmTelas() {
   document.getElementById("crmMetasCorpo").addEventListener("input", (e) => {
     if (!e.target.classList.contains("crm-meta-in")) return;
     crmMascarar(e.target);
+    crmMtUltimo = e.target.dataset.crmmetaexec === undefined ? -1 : Number(e.target.dataset.crmmetaexec);
     crmAtualizarMetasCalculo();
   });
   document.getElementById("crmMetasCorpo").addEventListener("click", (e) => {
