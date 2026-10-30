@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=176">
 <link rel="stylesheet" href="semvenda.css?v=25">
-<link rel="stylesheet" href="crm.css?v=19">
+<link rel="stylesheet" href="crm.css?v=20">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -364,8 +364,11 @@
       <!-- Acompanhamento: ligações e desempenho do time, só para a gestão. O grupo aparece pelo crmAplicarMenuGestao() -->
       <div class="nav-group" id="crmGrupoAcompanhamento" data-group="crm-acompanhamento" style="display:none;">
         <button type="button" class="nav-label">Acompanhamento <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
-        <button class="nav-item" data-view="crm-desempenho" data-label="Ligações e desempenho">
+        <button class="nav-item" id="crmNavDesempenho" data-view="crm-desempenho" data-label="Ligações e desempenho">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-trend"/></svg> Ligações e desempenho
+        </button>
+        <button class="nav-item" data-view="crm-dashboard" data-label="Dashboard">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
         </button>
       </div>
       <!-- Financeiro: a Beth (papel financeiro) lança o faturamento; a gestão só consulta. O grupo aparece pelo crmAplicarMenuGestao() -->
@@ -1004,6 +1007,21 @@
         <div class="field crm-meta-ano"><label for="crmFatMes">Mês</label><select id="crmFatMes"></select></div>
       </div>
       <div id="crmFatCorpo"></div>
+    </section>
+
+    <section id="view-crm-dashboard" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Dashboard</h1><div class="sub" id="crmDashSub"></div></div>
+        <div class="page-head-actions crm-des-filtros">
+          <div class="crm-seg" id="crmDashModo" role="group" aria-label="Ver por">
+            <button type="button" data-crmdashmodo="mensal" class="on">Mensal</button><button type="button" data-crmdashmodo="anual">Anual</button>
+          </div>
+          <div class="field" id="crmDashMesCampo"><label for="crmDashMes">Mês</label><select id="crmDashMes"></select></div>
+          <div class="field" id="crmDashAnoCampo" style="display:none;"><label for="crmDashAno">Ano</label><select id="crmDashAno"></select></div>
+          <div class="field" id="crmDashExecCampo" style="display:none;"><label for="crmDashExec">Executivo</label><select id="crmDashExec"></select></div>
+        </div>
+      </div>
+      <div id="crmDashCorpo"></div>
     </section>
 
     <section id="view-crm-desempenho" class="view crm-view">
@@ -4584,11 +4602,12 @@
 </div>
 
 <script src="semvenda.js?v=29"></script>
-<script src="crm.js?v=28"></script>
+<script src="crm.js?v=29"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=3"></script>
 <script src="crm-desempenho.js?v=1"></script>
+<script src="crm-dashboard.js?v=1"></script>
 <script src="usuarios.js?v=6"></script>
-<script src="app.js?v=283"></script>
+<script src="app.js?v=284"></script>
 </body>
 </html>

@@ -334,3 +334,13 @@ tr.crm-fat-filho td:first-child{padding-left:34px;}
 .crm-des-barra{display:block;height:100%;background:var(--orange);border-radius:6px;}
 .crm-des-n{font-size:12px;text-align:right;white-space:nowrap;}
 @media (max-width:560px){.crm-des-linha{grid-template-columns:minmax(0,1fr) 80px;}.crm-des-trilho{grid-column:1 / -1;order:3;}}
+
+/* dashboard (mensal e anual) */
+#view-crm-dashboard .card{margin-bottom:14px;}
+.crm-dash-topo{margin-bottom:0;}
+.crm-dash-meta{max-width:640px;}
+.crm-dash-meta-num{font-size:26px;margin-bottom:8px;}
+.crm-dash-meta-num b{font-weight:800;}
+.crm-dash-par{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.crm-dash-par .card{margin-bottom:0;}
+@media (max-width:900px){.crm-dash-par{grid-template-columns:minmax(0,1fr);}}
