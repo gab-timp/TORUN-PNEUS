@@ -5067,6 +5067,15 @@ function initEntregas() {
     e.preventDefault();
 
     const rows = Array.from(document.querySelectorAll("#pedItens .item-row"));
+    // Itens vindos do portal do representante trazem valorUnitario/desconto/valorTotal, mas o
+    // formulário aqui só edita código, quantidade e processo. Para não apagar esses valores a cada edição
+    // comum (mesmo bug do entregaToRow, só que dentro do array itens), preserva os campos de valor do item
+    // original do pedido quando o código bate; só perde quando o item é novo ou o código muda. Casa por
+    // código consumindo da lista original (FIFO) pra sobreviver a reordenar/remover linhas sem embaralhar
+    // valores entre itens diferentes.
+    const itensOriginaisDisponiveis = editingPedidoId
+      ? [...((state.entregas.find(x => x.id === editingPedidoId) || {}).itens || [])]
+      : [];
     const itens = [];
     for (const row of rows) {
       const codigo = row.querySelector(".item-produto").value;
@@ -5074,7 +5083,15 @@ function initEntregas() {
       const processoItem = row.querySelector(".item-processo").value.trim();
       if (!codigo && !quantidadeRaw) continue;
       if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
-      itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10), processo: processoItem || null });
+      const item = { codigo, quantidade: parseInt(quantidadeRaw, 10), processo: processoItem || null };
+      const idxOriginal = itensOriginaisDisponiveis.findIndex(it => it.codigo === codigo);
+      if (idxOriginal !== -1) {
+        const [itemOriginal] = itensOriginaisDisponiveis.splice(idxOriginal, 1);
+        if (itemOriginal.valorUnitario != null) item.valorUnitario = itemOriginal.valorUnitario;
+        if (itemOriginal.desconto != null) item.desconto = itemOriginal.desconto;
+        if (itemOriginal.valorTotal != null) item.valorTotal = itemOriginal.valorTotal;
+      }
+      itens.push(item);
     }
 
     // Trava de pedido NOVO: medida com saldo zerado não passa, pra ninguém. Só na tela --
