@@ -237,6 +237,67 @@ grupo('CRM: dashboard (datas e % de comissão)', () => {
   proximos(run('crmDashPct("e9", "2026-03")'), 0, '% de executivo sem linha é zero');
 });
 
+/* ================================================================ IGUALDADE ENTRE OS SISTEMAS ================================================================
+ * Regra do usuário: Atacado e Encomenda ficam sempre de igual para igual. Este grupo falha se aparecer, no código do CRM, uma
+ * decisão que trata os dois sistemas de forma diferente. As únicas ocorrências da palavra "atacado"/"encomenda" que passam são
+ * as listadas abaixo (nomes dos sistemas, padrão inicial, e o cálculo de "o OUTRO sistema", que serve aos dois lados).
+ * Se uma diferença nova for DE PROPÓSITO (decisão de negócio), acrescente a linha na lista permitida com o motivo.
+ */
+grupo('igualdade Atacado x Encomenda', () => {
+  const arquivosCrm = ['crm.js', 'crm-perfil.js', 'crm-faturamento.js', 'crm-desempenho.js', 'crm-dashboard.js', 'crm-metas-visual.js', 'crm-metas-mes.js', 'crm-relatorio.js', 'crm-editar.js'];
+  // cada item: o que pode aparecer e por quê (sem comentário no final da linha)
+  const permitidas = [
+    { re: /^const CRM_SISTEMAS = \{ atacado: "Atacado", encomenda: "Encomenda" \};$/, motivo: 'nomes dos dois sistemas' },
+    { re: /^let crmSistemas = \[\];$/, motivo: 'lista de sistemas do executivo' },
+    { re: /^const crmUi = \{ sistema: "atacado", /, motivo: 'sistema aberto por padrão, antes de escolher' },
+    { re: /^if \(currentUserIsAdmin\) return \["atacado", "encomenda"\];$/, motivo: 'administrador vê os dois' },
+    { re: /^return p \? \["atacado", "encomenda"\] : \[\];$/, motivo: 'gestão e financeiro veem os dois' },
+    { re: /^if \(!vis\.includes\(crmUi\.sistema\)\) crmUi\.sistema = vis\[0\] \|\| "atacado";$/, motivo: 'volta ao primeiro sistema visível' },
+    { re: /\? "encomenda" : "atacado"/, motivo: 'cálculo do OUTRO sistema (levar cliente), serve aos dois lados' }
+  ];
+  const palavra = /["'`](?:atacado|encomenda)["'`]|\bAtacado\b|\bEncomenda\b/;
+  const desvios = [];
+  for (const arq of arquivosCrm) {
+    let emBloco = false;
+    ler(arq).split('\n').forEach((bruta, i) => {
+      let t = bruta.trim();
+      if (emBloco) { if (t.includes('*/')) emBloco = false; return; }
+      if (t.startsWith('/*')) { if (!t.includes('*/')) emBloco = true; return; }
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      t = t.replace(/\s\/\/.*$/, '').trim(); // comentário no fim da linha
+      if (!palavra.test(t)) return;
+      if (!permitidas.some(p => p.re.test(t))) desvios.push(arq + ':' + (i + 1) + '  ' + t.slice(0, 110));
+    });
+  }
+  iguais(desvios, [], 'CRM: nenhuma decisão trata Atacado e Encomenda de forma diferente (achados: ' + desvios.length + ')');
+  if (desvios.length) falhasLista.push('Onde apareceu uma diferença nova entre os sistemas:\n    ' + desvios.join('\n    ') + '\n    Se for de propósito, acrescente a linha em "permitidas" (testes/rodar.js) com o motivo.');
+
+  // o mesmo no SQL do CRM: nenhuma regra por sistema além de "o outro sistema"
+  const sqlDir = path.join(SITE, '..', 'sql');
+  const sqlDesvios = [];
+  if (fs.existsSync(sqlDir)) {
+    fs.readdirSync(sqlDir).filter(f => /^crm_.*\.sql$/.test(f)).forEach(f => {
+      fs.readFileSync(path.join(sqlDir, f), 'utf8').replace(/\r\n/g, '\n').split('\n').forEach((ln, i) => {
+        const t = ln.trim();
+        if (t.startsWith('--')) return;
+        const cod = t.replace(/\s--.*$/, '');
+        if (/(=|<>|!=)\s*'(atacado|encomenda)'|'(atacado|encomenda)'\s*(=|<>)|when\s+'(atacado|encomenda)'/i.test(cod)
+            && !/case when \w+ = 'atacado' then 'encomenda' else 'atacado' end/i.test(cod)) sqlDesvios.push(f + ':' + (i + 1) + '  ' + cod.slice(0, 110));
+      });
+    });
+  }
+  iguais(sqlDesvios, [], 'SQL do CRM: nenhuma regra trata Atacado e Encomenda de forma diferente');
+  if (sqlDesvios.length) falhasLista.push('Diferença nova entre os sistemas no SQL:\n    ' + sqlDesvios.join('\n    '));
+
+  // tela de entrada: os dois cartões dizem a mesma coisa (só muda o nome do sistema) e o menu do CRM é um só
+  const html = ler('index.html');
+  const desc = (nome) => { const m = new RegExp('data-sistema="' + nome + '"[^]*?sistema-card-desc">([^<]*)<').exec(html); return m ? m[1] : null; };
+  const norm = (t, nome) => (t || '').toLowerCase().replace(new RegExp(nome, 'g'), '<sistema>');
+  iguais(norm(desc('atacado'), 'atacado'), norm(desc('encomenda'), 'encomenda'), 'cartões de entrada: Atacado e Encomenda têm a mesma descrição (só muda o nome)');
+  iguais((html.match(/id="navCrm"/g) || []).length, 1, 'menu: existe um único menu de CRM para os dois sistemas');
+  iguais((html.match(/\sid="[^"]*(?:Atacado|Encomenda)[^"]*"/g) || []).length, 0, 'telas: nenhum elemento do CRM é exclusivo de um dos sistemas (id com o nome do sistema)');
+});
+
 /* ---------------- resultado ---------------- */
 console.log('\n' + (total - falhas) + ' de ' + total + ' conferências passaram.');
 if (falhas) {

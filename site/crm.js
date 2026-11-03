@@ -1,5 +1,5 @@
 /* ---------------- CRM Atacado e Encomenda (dentro do Sem Venda), etapa 1 ---------------- */
-/* Hoje, Clientes (lista e kanban do Atacado), ficha do cliente, registrar ligação e adicionar à carteira.
+/* Hoje, Clientes (lista e kanban, nos dois sistemas), ficha do cliente, registrar ligação e adicionar à carteira.
    Dados nas tabelas crm_* (sql/crm_nucleo.sql); quem enxerga o quê é decidido pelo banco (RLS) a partir do
    papel gravado em Administração > Usuários. Carrega antes do app.js (como o semvenda.js) e usa os helpers
    dele (sb, toast, confirmModal, escapeHtml, escapeAttr, formatDateBR, todayISO, diasDesde, dataMaisDias,
@@ -613,7 +613,7 @@ function crmRenderClientes() {
   else crmRenderKanban(itens.filter(x => !crmEhRepresentante(x.c.cliente)));
 }
 
-/* ---------- kanban do Atacado ---------- */
+/* ---------- kanban (Atacado e Encomenda) ---------- */
 
 function crmMontarKanban() {
   const board = document.getElementById("crmBoard");
