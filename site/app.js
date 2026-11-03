@@ -5090,6 +5090,10 @@ function initEntregas() {
         if (itemOriginal.valorUnitario != null) item.valorUnitario = itemOriginal.valorUnitario;
         if (itemOriginal.desconto != null) item.desconto = itemOriginal.desconto;
         if (itemOriginal.valorTotal != null) item.valorTotal = itemOriginal.valorTotal;
+        // mudou a quantidade: o total acompanha, com a mesma conta do portal do representante
+        if (item.valorUnitario != null && item.quantidade !== itemOriginal.quantidade) {
+          item.valorTotal = item.quantidade * item.valorUnitario * (1 - (item.desconto || 0) / 100);
+        }
       }
       itens.push(item);
     }
