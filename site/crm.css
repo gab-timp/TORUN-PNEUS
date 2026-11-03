@@ -186,7 +186,7 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-aviso{border:1.5px solid var(--orange);background:var(--orange-pale);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;margin-bottom:16px;}
 .crm-aviso-forte{border-color:var(--danger);background:var(--danger-pale);color:var(--danger);}
 .crm-view td.num,.crm-view th.num{text-align:right;white-space:nowrap;}
-.crm-view tfoot td{font-weight:800;background:var(--paper-2);}
+.crm-view tfoot td{font-weight:800;background:var(--paper-2);padding:12px 12px;}
 .crm-gap{font-weight:800;color:var(--orange-deep);}
 .crm-meter{display:flex;align-items:center;gap:8px;min-width:130px;}
 .crm-meter-barra{flex:1;height:8px;border-radius:4px;background:var(--paper-2);overflow:hidden;border:1px solid var(--line);}
