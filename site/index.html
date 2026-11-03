@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=176">
+<link rel="stylesheet" href="styles.css?v=177">
 <link rel="stylesheet" href="semvenda.css?v=25">
 <link rel="stylesheet" href="crm.css?v=26">
 <link rel="stylesheet" href="usuarios.css?v=3">
@@ -2125,8 +2125,9 @@
               <input type="number" id="venComissaoPct" min="0" step="0.01" placeholder="Ex: 2,5">
             </div>
             <div class="field">
-              <label>Comissão calculada</label>
-              <input type="text" id="venComissaoCalc" value="R$ 0,00" disabled>
+              <label for="venComissaoCalc">Comissão (R$)</label>
+              <input type="text" id="venComissaoCalc" value="R$ 0,00" inputmode="decimal" autocomplete="off">
+              <div class="sub" id="venComissaoEstado" style="margin-top:6px; font-size:11.5px;" aria-live="polite"></div>
             </div>
           </div>
           <div class="field" style="flex:0 0 auto; margin-bottom:12px;">
@@ -4662,6 +4663,6 @@
 <script src="crm-relatorio.js?v=2"></script>
 <script src="crm-editar.js?v=1"></script>
 <script src="usuarios.js?v=6"></script>
-<script src="app.js?v=287"></script>
+<script src="app.js?v=289"></script>
 </body>
 </html>

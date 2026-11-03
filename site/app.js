@@ -9040,6 +9040,57 @@ function resetarFretePuxado() {
   if (hint) hint.style.display = "none";
 }
 
+/* ---------------- comissão da venda: calculada sozinha, com ajuste à mão ---------------- */
+// Enquanto ninguém digita no campo em R$, ele mostra valor da venda x %. Digitou? O valor vale como está
+// (dataset.manual = "1"), o % vira valor / venda, e só o botão "Voltar ao cálculo automático" ou mexer no % desfaz.
+function comissaoVendaParse(txt) {
+  let t = String(txt || "").replace(/[^\d,.-]/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(t);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+function comissaoVendaAuto() {
+  const base = parseFloat(document.getElementById("venValor").value) || 0;
+  const pct = parseFloat(document.getElementById("venComissaoPct").value) || 0;
+  return base * pct / 100;
+}
+function comissaoVendaManual() {
+  return document.getElementById("venComissaoCalc").dataset.manual === "1";
+}
+function comissaoVendaValorFinal() {
+  return comissaoVendaManual()
+    ? Number(document.getElementById("venComissaoCalc").dataset.valor) || 0
+    : comissaoVendaAuto();
+}
+function comissaoVendaDesenhar() {
+  const campo = document.getElementById("venComissaoCalc");
+  const estado = document.getElementById("venComissaoEstado");
+  const manual = comissaoVendaManual();
+  campo.classList.toggle("comissao-manual", manual);
+  if (!manual) campo.value = formatMoney(comissaoVendaAuto());
+  estado.innerHTML = manual
+    ? `<span class="comissao-tag manual">Ajustado à mão</span><button type="button" class="btn small outline" id="btnComissaoAuto">Voltar ao cálculo automático</button>`
+    : `<span class="comissao-tag">Automático</span><span class="muted">valor da venda × %. Clique no valor pra ajustar.</span>`;
+}
+function comissaoVendaDefinirManual(valor) {
+  const campo = document.getElementById("venComissaoCalc");
+  const pctEl = document.getElementById("venComissaoPct");
+  if (campo.dataset.manual !== "1") pctEl.dataset.original = pctEl.value; // guarda o % digitado pra "Voltar ao automático"
+  campo.dataset.manual = "1";
+  campo.dataset.valor = String(valor);
+  const base = parseFloat(document.getElementById("venValor").value) || 0;
+  pctEl.value = base > 0 ? (valor / base * 100).toFixed(2) : "";
+}
+function comissaoVendaVoltarAuto(restaurarPct = true) {
+  const campo = document.getElementById("venComissaoCalc");
+  const pctEl = document.getElementById("venComissaoPct");
+  if (restaurarPct && pctEl.dataset.original !== undefined) pctEl.value = pctEl.dataset.original;
+  delete pctEl.dataset.original;
+  delete campo.dataset.manual;
+  delete campo.dataset.valor;
+  comissaoVendaDesenhar();
+}
+
 function startEditVenda(vendaId) {
   const v = state.vendas.find(x => x.id === vendaId);
   if (!v) return;
@@ -9056,7 +9107,14 @@ function startEditVenda(vendaId) {
   document.getElementById("venFormaPagamento").value = v.formaPagamento || "";
   preencherVendedorSelect(document.getElementById("venVendedor"), v.vendedor || "");
   document.getElementById("venComissaoPct").value = v.comissaoPercentual || "";
-  document.getElementById("venComissaoCalc").value = formatMoney(v.comissao || 0);
+  comissaoVendaVoltarAuto();
+  // valor salvo diferente de venda x % (mais de 1 centavo) = foi ajustado à mão: mostra o valor salvo, não o recalculado
+  if (Math.abs((v.comissao || 0) - comissaoVendaAuto()) > 0.01) {
+    comissaoVendaDefinirManual(v.comissao || 0);
+    document.getElementById("venComissaoPct").value = v.comissaoPercentual || "";
+    document.getElementById("venComissaoCalc").value = formatMoney(v.comissao || 0);
+    comissaoVendaDesenhar();
+  }
 
   const isTrademaster = v.formaPagamento === "BOLETO TRADEMASTER";
   const temParcelas = v.formaPagamento !== "" && v.formaPagamento !== "PIX";
@@ -9125,7 +9183,7 @@ function cancelEditVenda() {
   document.getElementById("venData").value = todayISO();
   document.getElementById("venTransportadora").disabled = false;
   document.getElementById("venValorFrete").disabled = false;
-  document.getElementById("venComissaoCalc").value = "R$ 0,00";
+  comissaoVendaVoltarAuto();
   document.getElementById("rowParcelas").style.display = "none";
   document.getElementById("rowTrademaster").style.display = "none";
   document.getElementById("venValorRecebido").required = false;
@@ -9791,16 +9849,29 @@ function initForms() {
   freteInput.addEventListener("input", () => { delete freteInput.dataset.auto; mostrarHintFrete(""); });
   transpInput.addEventListener("input", () => { delete transpInput.dataset.auto; });
 
-  const comissaoBaseAtual = () => {
-    // comissão sempre sai do valor da venda, nunca do valor recebido (Boleto Trademaster inclusive)
-    return parseFloat(document.getElementById("venValor").value) || 0;
-  };
-  const atualizarComissaoCalc = () => {
-    const pct = parseFloat(document.getElementById("venComissaoPct").value) || 0;
-    document.getElementById("venComissaoCalc").value = formatMoney(comissaoBaseAtual() * pct / 100);
-  };
-  document.getElementById("venComissaoPct").addEventListener("input", atualizarComissaoCalc);
-  document.getElementById("venValor").addEventListener("input", atualizarComissaoCalc);
+  // comissão sempre sai do valor da venda, nunca do valor recebido (Boleto Trademaster inclusive)
+  const comissaoCampo = document.getElementById("venComissaoCalc");
+  document.getElementById("venComissaoPct").addEventListener("input", () => {
+    // mexer no % assume o controle de volta: a comissão passa a ser venda x %
+    if (comissaoVendaManual()) comissaoVendaVoltarAuto(false); else comissaoVendaDesenhar();
+  });
+  document.getElementById("venValor").addEventListener("input", () => {
+    if (comissaoVendaManual()) comissaoVendaDefinirManual(comissaoVendaValorFinal()); // valor ajustado fica; só o % acompanha
+    else comissaoVendaDesenhar();
+  });
+  comissaoCampo.addEventListener("focus", () => comissaoCampo.select());
+  comissaoCampo.addEventListener("input", () => {
+    comissaoVendaDefinirManual(comissaoVendaParse(comissaoCampo.value));
+    comissaoCampo.classList.add("comissao-manual");
+    document.getElementById("venComissaoEstado").innerHTML = `<span class="comissao-tag manual">Ajustado à mão</span><button type="button" class="btn small outline" id="btnComissaoAuto">Voltar ao cálculo automático</button>`;
+  });
+  comissaoCampo.addEventListener("blur", () => {
+    if (comissaoVendaManual()) comissaoCampo.value = formatMoney(comissaoVendaValorFinal());
+  });
+  document.getElementById("venComissaoEstado").addEventListener("click", (e) => {
+    if (e.target.closest("#btnComissaoAuto")) comissaoVendaVoltarAuto();
+  });
+  comissaoVendaDesenhar();
 
   const atualizarDiferencaCalc = () => {
     const valorVenda = parseFloat(document.getElementById("venValor").value) || 0;
@@ -9967,7 +10038,7 @@ function initForms() {
       formaPagamento,
       vendedor: document.getElementById("venVendedor").value.trim(),
       comissaoPercentual,
-      comissao: comissaoBase * comissaoPercentual / 100,
+      comissao: comissaoVendaManual() ? comissaoVendaValorFinal() : comissaoBase * comissaoPercentual / 100,
       valorFrete: clienteRetira ? null : (valorFreteRaw ? parseFloat(valorFreteRaw) : null),
       transportadora: clienteRetira ? "Cliente retira" : (document.getElementById("venTransportadora").value.trim() || null),
       obs: document.getElementById("venObs").value.trim(),

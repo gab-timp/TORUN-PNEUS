@@ -2776,3 +2776,7 @@ body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{d
   .kanban-board{scroll-snap-type:x mandatory;}
   .kanban-col{flex-basis:88vw; width:88vw; max-width:320px; scroll-snap-align:start;}
 }
+
+#venComissaoCalc.comissao-manual{border-color:var(--orange); background:#FFF8F2;}
+.comissao-tag{display:inline-block; font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; border-radius:999px; padding:2px 8px; margin-right:6px; background:var(--ok-bg,#D7F0DF); color:var(--ok-fg,#136B33);}
+.comissao-tag.manual{background:var(--orange-pale,#FFE7D6); color:var(--orange-deep,#C64F0C);}
