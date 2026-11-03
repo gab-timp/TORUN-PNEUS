@@ -81,7 +81,8 @@ function crmSistemaAtual() {
   return crmUi.sistema;
 }
 
-function crmTemKanban() { return crmSistemaAtual() === "atacado"; }
+// kanban e etapa existem nos dois sistemas (Atacado e Encomenda); um ponto só decide, para os dois ficarem sempre iguais
+function crmTemKanban() { return true; }
 
 // chamado pelo aplicarSistema do semvenda.js ao entrar em Atacado ou Encomenda: o sistema aberto vale pra todas as telas
 function crmEntrarNoSistema(sistema) {
@@ -830,7 +831,7 @@ function crmRenderFicha() {
   const atendidas = ligs.filter(l => l.resultado !== "Não atendeu").length;
   const fechamentos = ligs.filter(l => l.resultado === "Fechou negócio").length;
   const diasEtapa = c.etapaDesde ? diasDesde(crmDiaLocal(c.etapaDesde)) : null;
-  const kanban = c.sistema === "atacado";
+  const kanban = crmTemKanban();
   const podeMover = crmPodeGerirCarteira();
 
   const etapaCampo = kanban
@@ -1021,7 +1022,7 @@ function crmAbrirLigacao(id) {
   document.getElementById("crmLigResultados").innerHTML = CRM_RESULTADOS.map(r =>
     `<button type="button" class="crm-chip" data-crmresultado="${escapeAttr(r)}" aria-pressed="false">${escapeHtml(r)}</button>`).join("");
 
-  const comEtapa = c.sistema === "atacado";
+  const comEtapa = crmTemKanban();
   document.getElementById("crmLigEtapaCampo").style.display = comEtapa ? "" : "none";
   if (comEtapa) {
     document.getElementById("crmLigEtapa").innerHTML = (c.etapa ? "" : `<option value="">Sem etapa</option>`) +
@@ -1070,7 +1071,7 @@ function crmEscolherResultado(resultado) {
   });
   document.getElementById("crmLigErro").style.display = "none";
   const c = crmCarteiraPorId(crmLigCarteiraId);
-  if (c && c.sistema === "atacado" && CRM_ETAPA_SUGERIDA[resultado]) {
+  if (c && crmTemKanban() && CRM_ETAPA_SUGERIDA[resultado]) {
     document.getElementById("crmLigEtapa").value = CRM_ETAPA_SUGERIDA[resultado];
   }
   // Não atendeu: a ligação se repete amanhã, a não ser que a pessoa escolha outra data (ou limpe o campo)
@@ -1102,7 +1103,7 @@ async function crmSalvarLigacao() {
   else if (escolha === "cad") contatoNome = crmInfoCliente(c.cliente).contato || null;
   else { const p = crmState.contatos.find(x => "c:" + x.id === escolha); contatoNome = p ? p.nome : null; }
 
-  const etapaEscolhida = c.sistema === "atacado" ? document.getElementById("crmLigEtapa").value : "";
+  const etapaEscolhida = crmTemKanban() ? document.getElementById("crmLigEtapa").value : "";
   const mudouEtapa = !!etapaEscolhida && etapaEscolhida !== (c.etapa || "");
 
   crmLigSalvando = true;
