@@ -3,7 +3,18 @@
    (a função crm_salvar_metas_mes confere no banco). A meta anual (aba "Anual", em crm.js) continua separada. Dados em
    crm_meta_mes_equipe / crm_meta_mes_executivo (sql/crm_metas_mensais.sql). Usa crmNumMeta, crmFmtInteiro e crmPct do crm.js. */
 
-const crmMetasMes = { aba: "mensal", mes: null, execs: [], comMeta: new Set(), cache: new Map(), sujo: false, anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
+const crmMetasMes = { comissaoOk: false, aba: "mensal", mes: null, execs: [], comMeta: new Set(), cache: new Map(), sujo: false, anuais: new Map(), indisponivel: false, salvando: false, copiando: false };
+
+// percentual de comissão: texto "1,5" <-> número 1.5 (null = vazio)
+const crmNumPct = (t) => { const s = String(t || "").replace(",", ".").trim(); if (!s) return null; const n = Number(s); return Number.isFinite(n) ? n : null; };
+const crmFmtPct = (n) => n == null ? "" : String(n).replace(".", ",");
+function crmMascararPct(el) {
+  let v = el.value.replace(/[^\d,.]/g, "").replace(/\./g, ",");
+  const i = v.indexOf(",");
+  if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, "").slice(0, 2);
+  if (crmNumPct(v) > 100) v = "100";
+  el.value = v;
+}
 
 const crmMMRotulo = (k) => `${CRM_DES_MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(0, 4)}`;
 function crmMMAdd(k, n) {
@@ -44,12 +55,14 @@ async function crmMetasMesCarregar(mesPedido) {
   if (cache) crmMetasMesAplicar(cache);
   else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
   const ano = Number(mes.slice(0, 4));
-  const [ex, eq, ind, anu, tem] = await Promise.all([
+  const ant = crmMMAdd(mes, -1);
+  const [ex, eq, ind, anu, tem, com] = await Promise.all([
     sb.rpc("crm_executivos_metas"),
     sb.from("crm_meta_mes_equipe").select("valor").eq("mes", mes + "-01").maybeSingle(),
     sb.from("crm_meta_mes_executivo").select("executivo_user_id, valor").eq("mes", mes + "-01"),
     sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano),
-    sb.from("crm_meta_mes_equipe").select("mes").gte("mes", ano + "-01-01").lte("mes", ano + "-12-01")
+    sb.from("crm_meta_mes_equipe").select("mes").gte("mes", ano + "-01-01").lte("mes", ano + "-12-01"),
+    sb.from("crm_comissao_percentual").select("executivo_user_id, mes, percentual").in("mes", [mes + "-01", ant + "-01"])
   ]);
   if (mes !== crmMetasMes.mes) return;
   if (ex.error || eq.error || ind.error) {
@@ -60,14 +73,23 @@ async function crmMetasMesCarregar(mesPedido) {
     return;
   }
   const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
+  // % de comissão: a do mês; sem ela, a do mês anterior como sugestão. Só aparece depois do SQL sql/crm_metas_comissoes.sql
+  const comissaoOk = !com.error && (ex.data || []).length > 0 && (ex.data || []).every(e => e.papel !== undefined);
+  const pctMes = new Map(), pctAnt = new Map();
+  ((com.data || [])).forEach(r => (String(r.mes).slice(0, 7) === mes ? pctMes : pctAnt).set(r.executivo_user_id, Number(r.percentual)));
   const dados = {
-    execs: (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 })),
+    comissaoOk,
+    execs: (ex.data || []).map(e => ({
+      id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], papel: e.papel || "", valor: salvos.get(e.user_id) || 0,
+      pct: pctMes.has(e.user_id) ? crmFmtPct(pctMes.get(e.user_id)) : crmFmtPct(pctAnt.has(e.user_id) ? pctAnt.get(e.user_id) : null),
+      pctSug: !pctMes.has(e.user_id) && pctAnt.has(e.user_id)
+    })),
     anuais: new Map((anu.data || []).map(r => [r.executivo_user_id, Number(r.valor)])),
     comMeta: new Set((tem.data || []).map(r => String(r.mes).slice(0, 7))),
     equipe: eq.data ? Number(eq.data.valor) : 0
   };
   crmMetasMes.cache.set(mes, dados);
-  const assin = (d) => JSON.stringify([d.execs, [...d.anuais], [...d.comMeta], d.equipe]);
+  const assin = (d) => JSON.stringify([d.execs, [...d.anuais], [...d.comMeta], d.equipe, d.comissaoOk]);
   // com a tela já desenhada: só redesenha se mudou e se ninguém digitou nada nela
   if (cache && (assin(cache) === assin(dados) || crmMetasMes.sujo)) return;
   crmMetasMesAplicar(dados);
@@ -76,6 +98,7 @@ async function crmMetasMesCarregar(mesPedido) {
 function crmMetasMesAplicar(d) {
   crmMetasMes.indisponivel = false;
   crmMetasMes.execs = d.execs.map(e => ({ ...e }));
+  crmMetasMes.comissaoOk = !!d.comissaoOk;
   crmMetasMes.anuais = d.anuais;
   crmMetasMes.comMeta = new Set(d.comMeta);
   crmMetasMes.sujo = false;
@@ -89,6 +112,7 @@ function crmMetasMesCfg(equipe) {
     p: "crmMM", attr: "data-crmmmexec", ariaMeta: "Meta de " + crmMMRotulo(mes), titulo: "Meta de " + nomeMes + " por executivo",
     rotEq: "Meta da equipe em " + nomeMes, notaEq: crmMMRotulo(mes),
     execs: crmMetasMes.execs, equipe, podeEditar: crmPodeEscrever(),
+    com: crmMetasMes.comissaoOk ? { pcts: crmMetasMes.execs.map(e => e.pct), sug: crmMetasMes.execs.map(e => e.pctSug) } : null,
     ref: { titulo: "Meta anual (referência)", valores: crmMetasMes.execs.map(e => crmMetasMes.anuais.get(e.id) || 0) },
     salvarTxt: "Salvar metas de " + nomeMes
   };
@@ -114,13 +138,14 @@ function crmMetasMesDesenhar(equipe) {
 function crmMetasMesLer() {
   const equipe = crmNumMeta((document.getElementById("crmMMEquipe") || {}).value);
   const valores = crmMetasMes.execs.map((e, i) => crmNumMeta(document.querySelector(`[data-crmmmexec="${i}"]`).value));
-  return { equipe, valores, soma: valores.reduce((t, v) => t + v, 0) };
+  const pcts = crmMetasMes.execs.map((e, i) => { const el = document.querySelector(`[data-crmcom="${i}"]`); return el ? crmNumPct(el.value) : null; });
+  return { equipe, valores, pcts, soma: valores.reduce((t, v) => t + v, 0) };
 }
 
 function crmMetasMesCalculo() {
   if (!document.getElementById("crmMMEquipe") || crmMetasMes.indisponivel) return;
-  const { equipe, valores } = crmMetasMesLer();
-  crmMtCalcular(crmMetasMesCfg(equipe), equipe, valores, crmMetasMes.salvando);
+  const { equipe, valores, pcts } = crmMetasMesLer();
+  crmMtCalcular(crmMetasMesCfg(equipe), equipe, valores, crmMetasMes.salvando, pcts);
 }
 
 async function crmMetasMesSalvar() {
@@ -137,7 +162,20 @@ async function crmMetasMesSalvar() {
     if (nota) nota.textContent = "Não foi possível salvar: " + error.message;
     return;
   }
-  toast("Metas de " + crmMMRotulo(crmMetasMes.mes) + " salvas.");
+  if (crmMetasMes.comissaoOk) {
+    const { pcts } = crmMetasMesLer();
+    const lista = crmMetasMes.execs.map((e, i) => ({ executivo_user_id: e.id, percentual: pcts[i] })).filter(x => x.percentual !== null);
+    const r = await sb.rpc("crm_salvar_comissoes_mes", { p_mes: crmMetasMes.mes + "-01", p_percentuais: lista });
+    if (r.error) {
+      const nota = document.getElementById("crmMMNota");
+      if (nota) nota.textContent = "As metas foram salvas, mas os percentuais de comissão não: " + r.error.message;
+      toast("Metas salvas, mas os percentuais de comissão não foram salvos.");
+      crmMetasMes.cache.delete(crmMetasMes.mes);
+      return;
+    }
+    document.querySelectorAll(".crm-com-in.crm-com-sug").forEach(el => el.classList.remove("crm-com-sug"));
+  }
+  toast("Metas de " + crmMMRotulo(crmMetasMes.mes) + (crmMetasMes.comissaoOk ? " e comissões" : "") + " salvas.");
   crmMetasMes.comMeta.add(crmMetasMes.mes);
   crmMetasMes.cache.delete(crmMetasMes.mes);
   crmMetasMes.sujo = false;
@@ -151,9 +189,10 @@ async function crmMetasMesCopiar() {
   if (crmMetasMes.copiando) return;
   crmMetasMes.copiando = true;
   const ant = crmMMAdd(crmMetasMes.mes, -1);
-  const [eq, ind] = await Promise.all([
+  const [eq, ind, comAnt] = await Promise.all([
     sb.from("crm_meta_mes_equipe").select("valor").eq("mes", ant + "-01").maybeSingle(),
-    sb.from("crm_meta_mes_executivo").select("executivo_user_id, valor").eq("mes", ant + "-01")
+    sb.from("crm_meta_mes_executivo").select("executivo_user_id, valor").eq("mes", ant + "-01"),
+    crmMetasMes.comissaoOk ? sb.from("crm_comissao_percentual").select("executivo_user_id, percentual").eq("mes", ant + "-01") : Promise.resolve({ data: [] })
   ]);
   crmMetasMes.copiando = false;
   const nota = document.getElementById("crmMMNota");
@@ -162,6 +201,11 @@ async function crmMetasMesCopiar() {
   const mapa = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
   document.getElementById("crmMMEquipe").value = crmFmtInteiro(Number(eq.data.valor));
   crmMetasMes.execs.forEach((e, i) => { const v = mapa.get(e.id) || 0; document.querySelector(`[data-crmmmexec="${i}"]`).value = v ? crmFmtInteiro(v) : ""; });
+  const pctAnt = new Map(((comAnt && comAnt.data) || []).map(r => [r.executivo_user_id, Number(r.percentual)]));
+  crmMetasMes.execs.forEach((e, i) => {
+    const el = document.querySelector(`[data-crmcom="${i}"]`);
+    if (el && pctAnt.has(e.id)) { el.value = crmFmtPct(pctAnt.get(e.id)); el.classList.remove("crm-com-sug"); }
+  });
   crmMetasMes.sujo = true;
   crmMetasMesCalculo();
   toast("Metas de " + crmMMRotulo(ant) + " copiadas. Confira e clique em Salvar.");
@@ -178,6 +222,13 @@ function crmMetasMesInit() {
   });
   const corpo = document.getElementById("crmMetasMesCorpo");
   corpo.addEventListener("input", (e) => {
+    if (e.target.classList.contains("crm-com-in")) {
+      crmMascararPct(e.target);
+      e.target.classList.remove("crm-com-sug");
+      crmMetasMes.sujo = true;
+      crmMetasMesCalculo();
+      return;
+    }
     if (e.target.classList.contains("crm-meta-in")) {
       crmMascarar(e.target);
       crmMetasMes.sujo = true;

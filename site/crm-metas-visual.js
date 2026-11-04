@@ -9,36 +9,43 @@ let crmMtUltimo = -1; // último executivo mexido: é nele que aparece o vermelh
 
 const crmMtCor = (i) => CRM_MT_CORES[i % CRM_MT_CORES.length];
 
-/* cfg: { p, attr, titulo, rotEq, notaEq, execs:[{nome, sistemas, valor}], equipe, podeEditar, ref:{titulo, valores}|null, salvarTxt } */
+/* cfg: { p, attr, titulo, rotEq, notaEq, execs:[{nome, sistemas, valor, papel}], equipe, podeEditar, ref:{titulo, valores}|null, salvarTxt,
+          com:{pcts:[texto]}|null  (com = aba Mês a mês com % e valor da comissão) } */
 function crmMtTelaHtml(cfg) {
   const { p } = cfg;
   const dinheiro = (v) => v ? crmFmtInteiro(v) : "";
   const linhas = cfg.execs.map((e, i) => `
     <tr>
-      <td><span class="crm-mt-ponto" style="background:${crmMtCor(i)}"></span><b>${escapeHtml(e.nome)}</b></td>
+      <td><span class="crm-mt-ponto" style="background:${crmMtCor(i)}"></span><b>${escapeHtml(e.nome)}</b>${e.papel === "gestao" ? '<div class="muted sv-sub">Gestão com carteira própria</div>' : ""}</td>
       <td>${e.sistemas.length ? e.sistemas.map(s => `<span class="crm-selo crm-selo-tor">${escapeHtml(CRM_SISTEMAS[s] || s)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>
       <td><label class="crm-mt-campo" id="${p}Campo${i}"><span>R$</span><input type="text" inputmode="numeric" class="crm-meta-in" ${cfg.attr}="${i}" value="${dinheiro(e.valor)}" aria-label="${escapeAttr(cfg.ariaMeta)} de ${escapeAttr(e.nome)}" ${cfg.podeEditar ? "" : "disabled"}></label></td>
       <td><div class="crm-mt-parte"><div class="crm-mt-trilho"><i id="${p}Barra${i}" style="background:${crmMtCor(i)}"></i></div><b id="${p}Pct${i}"></b></div></td>
+      ${cfg.com ? `<td><label class="crm-mt-campo crm-mt-pct"><input type="text" inputmode="decimal" class="crm-com-in ${cfg.com.sug[i] ? "crm-com-sug" : ""}" data-crmcom="${i}" value="${escapeAttr(cfg.com.pcts[i])}" aria-label="Percentual de comissão de ${escapeAttr(e.nome)}" ${cfg.podeEditar ? "" : "disabled"}><span>%</span></label></td>
+        <td class="num mono"><b id="${p}ComVal${i}"></b></td>` : ""}
       ${cfg.ref ? `<td class="num crm-mt-ref">${cfg.ref.valores[i] ? crmFmtInteiro(cfg.ref.valores[i]) : "—"}</td>` : ""}
     </tr>`).join("");
   return `
-    <div class="crm-mt-resumo">
+    <div class="crm-mt-resumo ${cfg.com ? "crm-mt-resumo-4" : ""}">
       <div class="crm-mt-bloco"><div class="crm-mt-rot">${escapeHtml(cfg.rotEq)}</div>
         <label class="crm-mt-eq"><span>R$</span><input type="text" inputmode="numeric" id="${p}Equipe" class="crm-meta-in" value="${dinheiro(cfg.equipe)}" aria-label="${escapeAttr(cfg.rotEq)}" ${cfg.podeEditar ? "" : "disabled"}></label>
         <div class="crm-mt-sub">${escapeHtml(cfg.notaEq)}</div></div>
       <div class="crm-mt-bloco"><div class="crm-mt-rot">Distribuído aos executivos</div><div class="crm-mt-num" id="${p}Dist"></div><div class="crm-mt-sub" id="${p}DistPct"></div></div>
+      ${cfg.com ? `<div class="crm-mt-bloco"><div class="crm-mt-rot">Comissão prevista</div><div class="crm-mt-num" id="${p}ComSum"></div><div class="crm-mt-sub">se todos baterem a meta</div></div>` : ""}
       <div class="crm-mt-bloco"><div class="crm-mt-rot">Situação</div><div><span class="crm-mt-estado" id="${p}Estado"></span></div><div class="crm-mt-sub" id="${p}EstadoTxt"></div></div>
     </div>
     <div class="card crm-mt-barra"><div class="crm-mt-tit"><span>Divisão da meta entre os executivos</span><span id="${p}BarraPct"></span></div>
       <div class="crm-mt-pilha" id="${p}Pilha"></div><div class="crm-mt-leg" id="${p}Leg"></div></div>
-    <div class="card crm-mt-tab">
+    <div class="card crm-mt-tab ${cfg.com ? "crm-mt-com" : ""}">
       <div class="card-head"><h2>${escapeHtml(cfg.titulo)}</h2><div class="note">A soma das metas individuais tem que bater com a meta da equipe.</div></div>
       ${cfg.execs.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>Executivo</th><th>Sistemas</th><th>Meta</th><th>Parte da equipe</th>${cfg.ref ? `<th class="num">${escapeHtml(cfg.ref.titulo)}</th>` : ""}</tr></thead>
+        <thead><tr><th>Executivo</th><th>Sistemas</th><th>Meta</th><th>Parte da equipe</th>${cfg.com ? '<th>% de comissão</th><th class="num">Valor da comissão</th>' : ""}${cfg.ref ? `<th class="num">${escapeHtml(cfg.ref.titulo)}</th>` : ""}</tr></thead>
         <tbody>${linhas}</tbody>
-        <tfoot><tr><td colspan="2">Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td ${cfg.ref ? 'colspan="2"' : ""}><span class="crm-selo" id="${p}Status"></span></td></tr></tfoot>
+        <tfoot>${cfg.com
+          ? `<tr><td colspan="2">Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td><span class="crm-selo" id="${p}Status"></span></td><td></td><td class="num mono"><b id="${p}ComTot"></b></td>${cfg.ref ? "<td></td>" : ""}</tr>`
+          : `<tr><td colspan="2">Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td ${cfg.ref ? 'colspan="2"' : ""}><span class="crm-selo" id="${p}Status"></span></td></tr>`}</tfoot>
       </table></div>
+      ${cfg.com ? '<div class="note" style="margin-top:10px;">Valor da comissão = meta do mês × % de comissão. O percentual vale para o mês escolhido e é o mesmo que a Beth usa no lançamento de faturamento e no Relatório de comissão. Percentuais em cinza vieram do mês anterior e passam a valer neste mês quando você salvar.</div>' : ""}
       <div class="crm-mt-aviso" id="${p}Aviso" hidden></div>` : `<div class="empty-state">Nenhum executivo cadastrado. Marque o papel Executivo em Administração > Usuários.</div>`}
       <div class="crm-mt-acoes">
         <div class="note" id="${p}Nota"></div>
@@ -48,7 +55,7 @@ function crmMtTelaHtml(cfg) {
 }
 
 // atualiza números, barra, status e botão sem refazer os campos (o foco não se perde); devolve se a soma fecha
-function crmMtCalcular(cfg, equipe, valores, salvando) {
+function crmMtCalcular(cfg, equipe, valores, salvando, pcts) {
   const { p } = cfg;
   const soma = valores.reduce((a, b) => a + b, 0);
   const dif = equipe - soma;
@@ -58,6 +65,12 @@ function crmMtCalcular(cfg, equipe, valores, salvando) {
   set(p + "Dist", "R$ " + crmFmtInteiro(soma));
   set(p + "DistPct", equipe ? Math.round(soma / equipe * 100) + "% da meta da equipe" : "Informe a meta da equipe");
   set(p + "BarraPct", equipe ? Math.round(soma / equipe * 100) + "% distribuído" : "");
+  if (cfg.com && pcts) {
+    let totalCom = 0;
+    valores.forEach((v, i) => { const com = pcts[i] ? v * pcts[i] / 100 : 0; totalCom += com; set(p + "ComVal" + i, pcts[i] ? formatMoney(com) : "—"); });
+    set(p + "ComTot", formatMoney(totalCom));
+    set(p + "ComSum", formatMoney(totalCom));
+  }
   valores.forEach((v, i) => {
     const pc = equipe ? v / equipe * 100 : 0;
     const barra = document.getElementById(p + "Barra" + i);

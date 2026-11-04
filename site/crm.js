@@ -674,7 +674,7 @@ async function crmRenderMetas() {
   }
   const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
   const dados = {
-    execs: (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], valor: salvos.get(e.user_id) || 0 })),
+    execs: (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], papel: e.papel || "", valor: salvos.get(e.user_id) || 0 })),
     equipe: eq.data ? Number(eq.data.valor) : 0
   };
   crmMetas.cache.set(ano, dados);
