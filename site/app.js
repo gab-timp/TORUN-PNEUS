@@ -1005,6 +1005,7 @@ function viewPermitida(view) {
   if (view === "crm-faturamento") return typeof crmPodeVerFaturamento === "function" ? crmPodeVerFaturamento() : false;
   if (view === "crm-dashboard") return typeof crmPodeVerDashboard === "function" ? crmPodeVerDashboard() : false;
   if (view === "crm-desempenho") return typeof crmPodeVerDesempenho === "function" ? crmPodeVerDesempenho() : false;
+  if (view === "crm-ligacoes") return typeof crmPodeVerLigacoes === "function" ? crmPodeVerLigacoes() : false;
   if (view === "crm-metas") return typeof crmPodeVerMetas === "function" ? crmPodeVerMetas() : false;
   if (String(view).startsWith("crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
   if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;

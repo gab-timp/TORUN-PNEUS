@@ -409,3 +409,28 @@ tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
 .crm-dm-ating b{width:60px;text-align:right;font-size:12.5px;}
 .crm-dm-bem{color:var(--good);}
 .crm-dm-atras{color:var(--warning,#B45309);}
+
+/* ---------------- Ligações: kanban por contato, cotações, obs do cartão e Arquivados (crm-ligacoes.js) ---------------- */
+.crm-selo-contato{background:var(--indigo-pale);color:var(--indigo-deep);margin-left:6px;}
+.crm-step{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:9px;overflow:hidden;background:var(--surface);align-self:flex-start;}
+.crm-step button{width:38px;height:36px;border:0;background:var(--surface);color:var(--ink);font-size:18px;font-weight:700;cursor:pointer;}
+.crm-step button:disabled{opacity:.35;cursor:not-allowed;}
+.crm-step button:focus-visible{outline:2px solid var(--orange);outline-offset:-2px;}
+.crm-step span{min-width:44px;text-align:center;font-weight:700;font-size:15px;}
+.crm-lg-res{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+.crm-lg-pick{width:100%;box-sizing:border-box;text-align:left;font:inherit;color:inherit;cursor:pointer;}
+.crm-lg-pick:hover, .crm-lg-pick:focus-visible{border-color:var(--orange);outline:none;}
+.crm-lg-aviso{background:var(--indigo-pale);color:var(--indigo-deep);margin-bottom:12px;}
+.crm-lg-duplo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 4px;}
+.crm-lg-bloco{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;}
+.crm-lg-bloco b{font-size:24px;}
+.crm-cot-linha{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;flex-wrap:wrap;}
+.crm-cot-ok{color:var(--status-good);}
+.crm-cot-barra{height:5px;border-radius:3px;background:var(--paper-2);margin-top:6px;overflow:hidden;}
+.crm-cot-barra span{display:block;height:100%;background:var(--status-good);border-radius:3px;}
+.crm-obs{display:block;width:100%;box-sizing:border-box;text-align:left;font:inherit;font-size:11.5px;line-height:1.4;color:var(--ink);background:var(--paper);border:1px dashed var(--line-strong);border-radius:8px;padding:6px 8px;cursor:pointer;word-break:break-word;}
+.crm-obs:hover{border-color:var(--orange);}
+.crm-obs-ler{cursor:default;border-style:solid;}
+.crm-col-final .kanban-cards{min-height:60px;}
+.crm-chip-cliente .crm-selo-contato{margin-left:0;}
+@media (max-width:560px){.crm-lg-duplo{grid-template-columns:1fr;}}

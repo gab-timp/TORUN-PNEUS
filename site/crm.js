@@ -32,11 +32,10 @@ let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter 
 
 const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false, prospectsDisponivel: false, representantesDisponivel: false, fat: new Map(), fatDisponivel: false };
 let crmIdx = { lig: new Map(), cont: new Map(), hist: new Map() };
-const crmUi = { sistema: "atacado", modo: "lista", fichaId: null, fichaAba: "atividade", escopo: "todas" };
+const crmUi = { sistema: "atacado", fichaId: null, fichaAba: "atividade", escopo: "todas" };
 let crmUltimaCarga = 0;
 let crmJaCarregou = false; // true depois da primeira carga completa: a partir daí as telas abrem na hora e a recarga corre por trás
 let crmCargaEmAndamento = null;
-let crmSortables = [];
 
 /* ---------------- perfil e acesso ---------------- */
 
@@ -86,7 +85,6 @@ function crmTemKanban() { return true; }
 function crmEntrarNoSistema(sistema) {
   crmAplicarMenuGestao();
   crmUi.sistema = sistema;
-  crmUi.modo = "lista";
   crmUi.fichaId = null;
   ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliExecutivo", "crmCliRepresentante"].forEach(id => {
     const el = document.getElementById(id);
@@ -100,6 +98,10 @@ function crmAplicarMenuGestao() {
   if (metas) metas.style.display = crmPodeVerMetas() ? "" : "none";
   const acomp = document.getElementById("crmGrupoAcompanhamento");
   if (acomp) acomp.style.display = typeof crmPodeVerDashboard === "function" && crmPodeVerDashboard() ? "" : "none";
+  const navLig = document.getElementById("crmNavLigacoes");
+  if (navLig) navLig.style.display = crmEhExecutivo() ? "" : "none";
+  const desSeg = document.getElementById("crmDesVisaoSeg");
+  if (desSeg) desSeg.style.display = crmGestaoComCarteira() ? "" : "none";
   const navDes = document.getElementById("crmNavDesempenho");
   if (navDes) navDes.style.display = typeof crmPodeVerDesempenho === "function" && crmPodeVerDesempenho() ? "" : "none";
   const fin = document.getElementById("crmGrupoFinanceiro");
@@ -134,7 +136,8 @@ function crmLigacaoFromRow(r) {
   return {
     id: r.id, sistema: r.sistema, cliente: r.cliente, contatoNome: r.contato_nome || "", resultado: r.resultado,
     observacao: r.observacao || "", proximoFollowup: r.proximo_followup || null, etapaPara: r.etapa_para || null,
-    executivoId: r.executivo_user_id, executivoNome: r.executivo_nome || "", createdAt: r.created_at
+    executivoId: r.executivo_user_id, executivoNome: r.executivo_nome || "", createdAt: r.created_at,
+    negociacaoId: r.negociacao_id || null, cotacoesEnviadas: r.cotacoes_enviadas || 0
   };
 }
 // cadastro próprio do CRM (sql/crm_clientes.sql); os campos têm o mesmo nome dos clientes do Torun
@@ -193,6 +196,7 @@ function crmCarregar(forcar) {
     crmReindexar();
     await crmCarregarClientes();
     await crmCarregarPerfis();
+    if (typeof crmCarregarNegociacoes === "function") await crmCarregarNegociacoes();
     await crmCarregarFaturado();
     crmJaCarregou = true;
     return true;
@@ -400,7 +404,7 @@ function crmAtalhosHtml(ct) {
 
 // Telas que só desenham o que já está em crmState: depois da recarga em segundo plano, desenham de novo. As outras (faturamento,
 // dashboard, relatório, metas) buscam os próprios dados ao abrir; redesenhar de novo só repetiria essas buscas.
-const CRM_VIEWS_REDESENHAR = ["crm-hoje", "crm-clientes", "crm-cliente", "crm-desempenho"];
+const CRM_VIEWS_REDESENHAR = ["crm-hoje", "crm-clientes", "crm-cliente", "crm-desempenho", "crm-ligacoes"];
 
 // Com a carga já feita, a tela abre na hora com o que tem e o CRM atualiza por trás; na primeira abertura espera a carga.
 async function crmAoAbrirView(view) {
@@ -417,6 +421,7 @@ function crmRender() {
   if (id ==="view-crm-hoje") crmRenderHoje();
   else if (id === "view-crm-clientes") crmRenderClientes();
   else if (id === "view-crm-cliente") crmRenderFicha();
+  else if (id === "view-crm-ligacoes" && typeof crmRenderLigacoes === "function") crmRenderLigacoes();
   else if (id === "view-crm-metas") { crmRenderMetas(); if (typeof crmMetasMesRender === "function") crmMetasMesRender(); }
   else if (id === "view-crm-desempenho" && typeof crmRenderDesempenho === "function") crmRenderDesempenho();
   else if (id === "view-crm-dashboard" && typeof crmRenderDashboard === "function") crmRenderDashboard();
@@ -473,7 +478,7 @@ function crmRenderHoje() {
   document.getElementById("crmHojeParaHojeData").textContent = `follow-ups marcados para ${crmDataCurta(hoje)}`;
 }
 
-/* ---------------- Clientes: lista e kanban ---------------- */
+/* ---------------- Clientes: lista ---------------- */
 
 function crmItensFiltrados() {
   const s = crmSistemaAtual();
@@ -571,16 +576,12 @@ function crmAtualizarFiltroRepresentante() {
 
 function crmRenderClientes() {
   const comExecutivo = !crmEhExecutivo();
-  const kanban = crmTemKanban();
-  if (!kanban) crmUi.modo = "lista";
   const view = document.getElementById("view-crm-clientes");
   view.classList.toggle("crm-ve-todos", comExecutivo);
   document.getElementById("crmCliExecutivoCampo").style.display = comExecutivo ? "" : "none";
   if (!crmGestaoComCarteira()) crmUi.escopo = "todas";
   document.getElementById("crmEscopoSeg").style.display = crmGestaoComCarteira() ? "" : "none";
   document.querySelectorAll("#crmEscopoSeg button").forEach(b => b.classList.toggle("on", b.dataset.crmescopo === crmUi.escopo));
-  document.getElementById("crmModoSeg").style.display = kanban ? "" : "none";
-  document.querySelectorAll("#crmModoSeg button").forEach(b => b.classList.toggle("on", b.dataset.crmmodo === crmUi.modo));
   document.getElementById("crmBtnAdicionar").style.display = crmPodeGerirCarteira() ? "" : "none";
   document.getElementById("crmCliSub").textContent = comExecutivo
     ? "A carteira de cada executivo: contato, última ligação e próximo follow-up."
@@ -608,88 +609,13 @@ function crmRenderClientes() {
     ? (crmPodeGerirCarteira() ? "Nenhum cliente na carteira ainda. Use “+ Adicionar cliente”." : "Nenhum cliente na carteira ainda.")
     : "Nenhum cliente com esses filtros.";
 
-  const lista = crmUi.modo === "lista";
-  document.getElementById("crmListaWrap").style.display = lista ? "" : "none";
-  document.getElementById("crmKanbanWrap").style.display = lista ? "none" : "";
-  if (lista) document.getElementById("crmCliTbody").innerHTML = itens.map(crmLinhaCliente).join("");
-  else crmRenderKanban(itens.filter(x => !crmEhRepresentante(x.c.cliente)));
+  document.getElementById("crmCliTbody").innerHTML = itens.map(crmLinhaCliente).join("");
 }
 
-/* ---------- kanban (Atacado e Encomenda) ---------- */
-
-function crmMontarKanban() {
-  const board = document.getElementById("crmBoard");
-  board.innerHTML = CRM_ETAPAS.map((e, i) => `
-    <div class="kanban-col" style="--col-accent:${e.accent}; --col-deep:${e.deep}; --col-pale:${e.pale};">
-      <div class="kanban-col-head"><span>${escapeHtml(e.nome)}</span><span class="kanban-count" id="crmCount${i}">0</span></div>
-      <div class="kanban-cards" id="crmCol${i}" data-etapa="${escapeAttr(e.nome)}"></div>
-    </div>`).join("");
-  initKanbanBoardDragScroll("crmBoard");
-  const opcoes = { group: "crm-kanban", animation: 150, filter: "button, a", preventOnFilter: false, onEnd: crmMoverEtapa };
-  crmSortables = CRM_ETAPAS.map((_, i) => Sortable.create(document.getElementById("crmCol" + i), opcoes));
-  crmSortables.push(Sortable.create(document.getElementById("crmBandejaCards"), { ...opcoes, sort: false }));
-}
-
-function crmCartaoKanban(x) {
-  const { c, r } = x;
-  const ct = crmContatoRapido(c);
-  const diasEtapa = c.etapaDesde ? diasDesde(crmDiaLocal(c.etapaDesde)) : null;
-  const rodape = `${r.total} ${r.total === 1 ? "ligação" : "ligações"}` +
-    (c.etapa && diasEtapa !== null ? ` · há ${diasEtapa} ${diasEtapa === 1 ? "dia" : "dias"} nesta etapa` : "");
-  const acoes = [];
-  if (crmDigitos(ct.telefone)) acoes.push(crmAtalhoIcone("tel:" + crmDigitos(ct.telefone), "fone", "Ligar (copia o número)", ct, false, { texto: ct.telefone, rotulo: "Telefone", soCopia: true }));
-  if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
-  return `
-    <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""}" data-id="${escapeAttr(c.id)}">
-      <div><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button> ${crmTipoSelo(c.cliente)}</div>
-      <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${crmEhExecutivo() ? "" : " · " + escapeHtml(c.executivoNome || "—")}</div>
-      <div class="crm-cartao-contato">${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">sem contato</span>'}${ct.cargo ? ` <span class="muted">· ${escapeHtml(ct.cargo)}</span>` : ""}</div>
-      <div class="crm-cartao-linha"><span class="crm-rot">Última ligação</span><div>${crmUltimaHtml(r)}</div></div>
-      <div class="crm-cartao-linha"><span class="crm-rot">Próximo follow-up</span><div>${crmFollowupHtml(r.fu)}</div></div>
-      ${crmState.fatDisponivel && !crmEhProspect(c.cliente) ? `<div class="crm-cartao-linha"><span class="crm-rot">Faturamento do mês</span><div>${crmFaturado(c, crmMesRel(0)) > 0 ? `<b class="mono">${formatMoney(crmFaturado(c, crmMesRel(0)))}</b>` : '<span class="muted">sem faturamento</span>'}</div></div>` : ""}
-      <div class="crm-cartao-rodape">${escapeHtml(rodape)}</div>
-      ${acoes.length ? `<div class="crm-cartao-acoes">${acoes.join(" ")}</div>` : ""}
-    </div>`;
-}
-
-function crmRenderKanban(itens) {
-  if (!document.getElementById("crmCol0")) crmMontarKanban();
-  CRM_ETAPAS.forEach((e, i) => {
-    const daEtapa = itens.filter(x => x.c.etapa === e.nome);
-    document.getElementById("crmCount" + i).textContent = daEtapa.length;
-    const col = document.getElementById("crmCol" + i);
-    col.innerHTML = daEtapa.length
-      ? daEtapa.map(crmCartaoKanban).join("")
-      : (i === CRM_ETAPAS.length - 1 ? `<div class="crm-col-vazia">Ninguém declinou. Arraste para cá o cliente que disse não.</div>` : "");
-    col.classList.toggle("crm-col-com-aviso", !daEtapa.length);
-  });
-  const semEtapa = itens.filter(x => !x.c.etapa);
-  document.getElementById("crmBandejaCount").textContent = semEtapa.length;
-  document.getElementById("crmBandejaCards").innerHTML = semEtapa.map(x => {
-    const ct = crmContatoRapido(x.c);
-    return `<div class="crm-chip-cliente" data-id="${escapeAttr(x.c.id)}">
-      <button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(x.c.id)}">${escapeHtml(x.c.cliente)}</button>
-      <span class="muted sv-sub">${escapeHtml(crmCidadeUF(x.c.cliente))}${ct.nome ? " · " + escapeHtml(ct.nome) : ""}</span>
-      ${x.r.ultima ? crmPill(x.r.ultima.resultado) : '<span class="muted sv-sub">Nunca ligado</span>'}
-    </div>`;
-  }).join("");
-  const podeMover = crmPodeGerirCarteira();
-  crmSortables.forEach(s => s.option("disabled", !podeMover));
-}
-
-// Soltar o cartão em outra coluna = mudar a etapa. Soltar na bandeja "Sem etapa" não vale (a tela volta como estava).
-async function crmMoverEtapa(evt) {
-  const id = evt.item.dataset.id;
-  const nova = evt.to.dataset.etapa || null;
-  const antiga = evt.from.dataset.etapa || null;
-  if (nova === antiga) return;
-  const c = crmCarteiraPorId(id);
-  if (c && nova) await crmGravarEtapa(c, nova, "kanban");
-  crmRender();
-}
-
-// Muda a etapa do cliente e registra a mudança no histórico (data e quem mexeu). Devolve true se gravou.
+// Muda a etapa do contato aberto do cliente e registra no histórico. Com o SQL dos contatos (crm_negociacoes) vale a etapa do
+// contato; sem ele, a etapa antiga da carteira. Devolve true se gravou.
 async function crmGravarEtapa(c, nova, origem) {
+  if (crmState.negDisponivel) return crmGravarEtapaNeg(c, nova, origem);
   const quando = new Date().toISOString();
   const { data, error } = await sb.from("crm_carteira").update({ etapa: nova, etapa_desde: quando }).eq("id", c.id).select();
   if (error) { toast("Erro ao mudar a etapa: " + error.message); return false; }
@@ -832,20 +758,21 @@ function crmRenderFicha() {
   const hist = crmHistoricoDe(c);
   const atendidas = ligs.filter(l => l.resultado !== "Não atendeu").length;
   const fechamentos = ligs.filter(l => l.resultado === "Fechou negócio").length;
-  const diasEtapa = c.etapaDesde ? diasDesde(crmDiaLocal(c.etapaDesde)) : null;
+  const etapaAtual = crmEtapaAtual(c);
+  const diasEtapa = etapaAtual.desde ? diasDesde(crmDiaLocal(etapaAtual.desde)) : null;
   const kanban = crmTemKanban();
   const podeMover = crmPodeGerirCarteira();
 
   const etapaCampo = kanban
     ? `<label class="crm-etapa-campo">Etapa no kanban
         <select id="crmFichaEtapa" ${podeMover ? "" : "disabled"}>
-          ${c.etapa ? "" : `<option value="">Sem etapa</option>`}
-          ${CRM_ETAPAS.map(e => `<option value="${escapeAttr(e.nome)}" ${c.etapa === e.nome ? "selected" : ""}>${escapeHtml(e.nome)}</option>`).join("")}
+          ${etapaAtual.etapa ? "" : `<option value="">${etapaAtual.aberto ? "Sem etapa" : "Sem contato aberto"}</option>`}
+          ${CRM_ETAPAS.map(e => `<option value="${escapeAttr(e.nome)}" ${etapaAtual.etapa === e.nome ? "selected" : ""}>${escapeHtml(e.nome)}</option>`).join("")}
         </select></label>`
     : "";
 
   const kpiEtapa = kanban
-    ? `<div class="kpi"><div class="lbl">Etapa no kanban</div><div class="val crm-val-texto">${c.etapa ? escapeHtml(c.etapa) : "Sem etapa"}</div>${c.etapa && diasEtapa !== null ? `<div class="muted sv-sub">há ${diasEtapa} ${diasEtapa === 1 ? "dia" : "dias"}</div>` : ""}</div>`
+    ? `<div class="kpi"><div class="lbl">Etapa no kanban</div><div class="val crm-val-texto">${etapaAtual.etapa ? escapeHtml(etapaAtual.etapa) : (etapaAtual.aberto ? "Sem etapa" : "Sem contato aberto")}</div>${etapaAtual.etapa && diasEtapa !== null ? `<div class="muted sv-sub">há ${diasEtapa} ${diasEtapa === 1 ? "dia" : "dias"}</div>` : ""}</div>`
     : `<div class="kpi"><div class="lbl">Na carteira desde</div><div class="val crm-val-texto">${formatDateBR(crmDiaLocal(c.createdAt))}</div></div>`;
 
   raiz.innerHTML = `
@@ -1002,11 +929,48 @@ let crmLigCarteiraId = null;
 let crmLigResultado = null;
 let crmLigSalvando = false;
 
-function crmAbrirLigacao(id) {
+// id vazio + { escolher: true } = "Nova ligação": a pessoa escolhe o cliente da própria carteira dentro do modal
+function crmAbrirLigacao(id, opc) {
+  const escolher = !!(opc && opc.escolher);
+  const c = id ? crmCarteiraPorId(id) : null;
+  if (id && (!c || !crmPodeLigarPara(c))) return;
+  if (!id && !escolher) return;
+  crmLigCarteiraId = c ? c.id : null;
+  crmLigResultado = null;
+  document.getElementById("crmLigHeader").textContent = escolher ? "Nova ligação" : "Registrar ligação";
+  document.getElementById("crmLigClienteCampo").style.display = escolher ? "" : "none";
+  document.getElementById("crmLigCorpo").style.display = c ? "" : "none";
+  document.getElementById("crmLigSalvar").disabled = !c;
+  document.getElementById("crmLigErro").style.display = "none";
+  if (escolher) {
+    document.getElementById("crmLigBuscaCli").value = "";
+    document.getElementById("crmLigTitulo").textContent = "";
+    document.getElementById("crmLigSub").textContent = "Escolha o cliente da sua carteira e registre o que foi falado.";
+    crmLgRenderResCli();
+  }
+  if (c) crmLigPreencher(c);
+  const agora = new Date();
+  document.getElementById("crmLigRodape").textContent =
+    `Ligação de ${agora.toLocaleDateString("pt-BR")} · ${crmHoraLocal(agora)} · ${currentUserNome}`;
+  document.getElementById("crmLigOverlay").classList.add("show");
+  if (escolher) document.getElementById("crmLigBuscaCli").focus();
+}
+
+function crmLigEscolherCliente(id) {
   const c = crmCarteiraPorId(id);
   if (!c || !crmPodeLigarPara(c)) return;
   crmLigCarteiraId = id;
   crmLigResultado = null;
+  document.getElementById("crmLigBuscaCli").value = c.cliente;
+  document.getElementById("crmLigResCli").style.display = "none"; // lista some depois de escolher; digitar de novo mostra de novo
+  document.getElementById("crmLigCorpo").style.display = "";
+  document.getElementById("crmLigSalvar").disabled = false;
+  document.getElementById("crmLigErro").style.display = "none";
+  crmLigPreencher(c);
+}
+
+// preenche o modal para um cliente (contatos, resultado, etapa, cotações, follow-up)
+function crmLigPreencher(c) {
   document.getElementById("crmLigTitulo").textContent = c.cliente;
   document.getElementById("crmLigSub").textContent = [crmCidadeUF(c.cliente), CRM_SISTEMAS[c.sistema]].filter(Boolean).join(" · ");
 
@@ -1027,9 +991,10 @@ function crmAbrirLigacao(id) {
   const comEtapa = crmTemKanban();
   document.getElementById("crmLigEtapaCampo").style.display = comEtapa ? "" : "none";
   if (comEtapa) {
-    document.getElementById("crmLigEtapa").innerHTML = (c.etapa ? "" : `<option value="">Sem etapa</option>`) +
+    const etapaDoContato = crmEtapaAtual(c).etapa;
+    document.getElementById("crmLigEtapa").innerHTML = (etapaDoContato ? "" : `<option value="">Sem etapa</option>`) +
       CRM_ETAPAS.map(e => `<option value="${escapeAttr(e.nome)}">${escapeHtml(e.nome)}</option>`).join("");
-    document.getElementById("crmLigEtapa").value = c.etapa || "";
+    document.getElementById("crmLigEtapa").value = etapaDoContato || "";
   }
 
   document.getElementById("crmLigObs").value = "";
@@ -1038,11 +1003,7 @@ function crmAbrirLigacao(id) {
   document.getElementById("crmLigFuAtalhos").innerHTML = CRM_ATALHOS_FU.map(([rot, n]) =>
     `<button type="button" class="crm-chip" data-crmfudias="${n}" aria-pressed="false">${rot}</button>`).join("");
   crmMarcarAtalhoFu();
-  document.getElementById("crmLigErro").style.display = "none";
-  const agora = new Date();
-  document.getElementById("crmLigRodape").textContent =
-    `Ligação de ${agora.toLocaleDateString("pt-BR")} · ${crmHoraLocal(agora)} · ${currentUserNome}`;
-  document.getElementById("crmLigOverlay").classList.add("show");
+  crmLigDepoisDeAbrir(c);
 }
 
 function crmFecharLigacao() {
@@ -1080,6 +1041,7 @@ function crmEscolherResultado(resultado) {
   const fu = document.getElementById("crmLigFu");
   if (resultado === "Não atendeu" && !fu.value) fu.value = dataMaisDias(todayISO(), 1);
   crmMarcarAtalhoFu();
+  crmLigAoEscolherResultado(resultado);
   document.getElementById("crmLigAviso").textContent = CRM_EXIGE_RETORNO.includes(resultado)
     ? `A data do próximo follow-up é obrigatória para ${resultado}.` : "Nesse resultado a data do próximo follow-up pode ficar em branco.";
 }
@@ -1106,22 +1068,45 @@ async function crmSalvarLigacao() {
   else { const p = crmState.contatos.find(x => "c:" + x.id === escolha); contatoNome = p ? p.nome : null; }
 
   const etapaEscolhida = crmTemKanban() ? document.getElementById("crmLigEtapa").value : "";
-  const mudouEtapa = !!etapaEscolhida && etapaEscolhida !== (c.etapa || "");
+  const etapaDoContato = crmEtapaAtual(c).etapa || "";
+  const mudouEtapa = !!etapaEscolhida && etapaEscolhida !== etapaDoContato;
 
   crmLigSalvando = true;
   const botao = document.getElementById("crmLigSalvar");
   botao.disabled = true;
   try {
-    const { data, error } = await sb.from("crm_ligacoes").insert({
+    // com os contatos do kanban: a ligação pertence a um contato (o aberto; se não houver, esta ligação cria um novo)
+    const comNeg = crmState.negDisponivel;
+    let neg = comNeg ? crmLigNeg : null;
+    const obsCartao = comNeg ? document.getElementById("crmLigObsCartao").value.replace(/\s+/g, " ").trim() : "";
+    if (comNeg && !neg) {
+      neg = await crmCriarNeg(c, null, "ligacao", { obs: obsCartao });
+      if (!neg) { crmErroLigacao("Não foi possível criar o contato do cliente no kanban."); return; }
+    }
+    const linha = {
       sistema: c.sistema, cliente: c.cliente, contato_nome: contatoNome, resultado: crmLigResultado,
       observacao: document.getElementById("crmLigObs").value.trim() || null, proximo_followup: fu,
       etapa_para: mudouEtapa ? etapaEscolhida : null, executivo_user_id: currentUser.id, executivo_nome: currentUserNome
-    }).select();
+    };
+    if (comNeg) { linha.negociacao_id = neg.id; linha.cotacoes_enviadas = crmLigCot; }
+    const { data, error } = await sb.from("crm_ligacoes").insert(linha).select();
     if (error) { crmErroLigacao("Erro ao salvar a ligação: " + error.message); return; }
     if (!data || !data[0]) { crmErroLigacao("Não foi possível salvar a ligação (sem permissão)."); return; }
     crmState.ligacoes.push(crmLigacaoFromRow(data[0]));
     crmReindexar();
-    if (mudouEtapa) await crmGravarEtapa(c, etapaEscolhida, "ligacao");
+    if (comNeg) {
+      neg.cotEnviadas += crmLigCot; // o banco soma sozinho; aqui só acompanha
+      if (mudouEtapa) await crmMoverNeg(neg, c, etapaEscolhida, "ligacao");
+      const campos = {};
+      if (obsCartao !== neg.obs) campos.obs = obsCartao || null;
+      if (crmLigResultado === "Fechou negócio" && crmLigApr !== neg.cotAprovadas) campos.cot_aprovadas = crmLigApr;
+      if (Object.keys(campos).length) {
+        const falha = await crmAtualizarNeg(neg, campos);
+        if (falha) toast("A ligação foi salva, mas o cartão não foi atualizado: " + falha);
+      }
+    } else if (mudouEtapa) {
+      await crmGravarEtapa(c, etapaEscolhida, "ligacao");
+    }
     crmFecharLigacao();
     crmRender();
     toast("Ligação registrada.");
@@ -1309,14 +1294,9 @@ function initCrmTelas() {
     crmUi.escopo = b.dataset.crmescopo;
     crmRenderClientes();
   });
-  document.getElementById("crmModoSeg").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-crmmodo]");
-    if (!b) return;
-    crmUi.modo = b.dataset.crmmodo;
-    crmRenderClientes();
-  });
   document.getElementById("crmBtnAdicionar").addEventListener("click", crmAbrirAdicionar);
 
+  if (typeof crmLgInit === "function") crmLgInit();
   if (typeof crmFatInit === "function") crmFatInit();
   if (typeof crmDesInit === "function") crmDesInit();
   if (typeof crmDashInit === "function") crmDashInit();
@@ -1339,7 +1319,7 @@ function initCrmTelas() {
   document.getElementById("crmFicha").addEventListener("change", (e) => {
     if (e.target.id !== "crmFichaEtapa") return;
     const c = crmCarteiraPorId(crmUi.fichaId);
-    if (!c || !e.target.value || e.target.value === c.etapa) return;
+    if (!c || !e.target.value || e.target.value === crmEtapaAtual(c).etapa) return;
     crmGravarEtapa(c, e.target.value, "ficha").then(() => crmRender());
   });
 

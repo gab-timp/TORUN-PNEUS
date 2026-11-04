@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=178">
 <link rel="stylesheet" href="semvenda.css?v=31">
-<link rel="stylesheet" href="crm.css?v=27">
+<link rel="stylesheet" href="crm.css?v=28">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
@@ -361,6 +361,9 @@
       <!-- Acompanhamento: ligações e desempenho do time, só para a gestão. O grupo aparece pelo crmAplicarMenuGestao() -->
       <div class="nav-group" id="crmGrupoAcompanhamento" data-group="crm-acompanhamento" style="display:none;">
         <button type="button" class="nav-label">Acompanhamento <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" id="crmNavLigacoes" data-view="crm-ligacoes" data-label="Ligações" style="display:none;">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-fone"/></svg> Ligações
+        </button>
         <button class="nav-item" id="crmNavDesempenho" data-view="crm-desempenho" data-label="Ligações e desempenho">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-trend"/></svg> Ligações e desempenho
         </button>
@@ -962,9 +965,6 @@
           <div class="crm-seg" id="crmEscopoSeg" style="display:none;" role="group" aria-label="Quais carteiras">
             <button type="button" data-crmescopo="todas" class="on">Todas as carteiras</button><button type="button" data-crmescopo="minha">Só a minha</button>
           </div>
-          <div class="crm-seg" id="crmModoSeg" style="display:none;" role="group" aria-label="Forma de ver a carteira">
-            <button type="button" data-crmmodo="lista" class="on">Lista</button><button type="button" data-crmmodo="kanban">Kanban</button>
-          </div>
           <button type="button" class="btn primary sv-write" id="crmBtnAdicionar">+ Adicionar cliente</button>
         </div>
       </div>
@@ -988,13 +988,6 @@
             </table>
           </div>
         </div>
-        <div id="crmKanbanWrap" style="display:none;">
-          <div class="crm-bandeja">
-            <div class="crm-bandeja-head"><b>Sem etapa</b> <span class="kanban-count" id="crmBandejaCount">0</span> <span class="muted sv-sub">Ainda não entraram no funil. Arraste o cartão para uma coluna.</span></div>
-            <div class="crm-bandeja-cards" id="crmBandejaCards"></div>
-          </div>
-          <div class="kanban-board crm-board" id="crmBoard"></div>
-        </div>
         <div class="empty-state" id="crmCliVazio" style="display:none;"></div>
         <div class="note crm-rodape" id="crmCliRodape"></div>
       </div>
@@ -1004,6 +997,9 @@
       <div class="page-head">
         <div><h1>Relatório de comissão</h1><div class="sub" id="crmRelSub"></div></div>
         <div class="page-head-actions crm-des-filtros">
+          <div class="crm-seg" id="crmDesVisaoSeg" style="display:none;" role="group" aria-label="O que mostrar">
+            <button type="button" class="on" data-crmdesvisao="ind">Indicadores</button><button type="button" data-crmdesvisao="kanban">Meu kanban</button>
+          </div>
           <div class="field"><label for="crmRelMes">Mês</label><select id="crmRelMes"></select></div>
           <div class="field"><label for="crmRelExec">Executivo</label><select id="crmRelExec"></select></div>
           <button type="button" class="btn outline" id="crmRelCsv">Exportar planilha</button>
@@ -1045,6 +1041,38 @@
         </div>
       </div>
       <div id="crmDesCorpo"></div>
+    </section>
+
+    <section id="view-crm-ligacoes" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Ligações</h1><div class="sub" id="crmLgSub"></div></div>
+        <div class="page-head-actions crm-acoes-topo">
+          <div class="crm-seg" id="crmLgGestaoSeg" style="display:none;" role="group" aria-label="O que mostrar">
+            <button type="button" data-crmlggestao="ind">Indicadores</button><button type="button" class="on" data-crmlggestao="kanban">Meu kanban</button>
+          </div>
+          <div class="crm-seg" id="crmLgVisaoSeg" role="group" aria-label="Kanban ou arquivados">
+            <button type="button" class="on" data-crmlgvisao="kanban">Kanban</button><button type="button" data-crmlgvisao="arquivados">Arquivados</button>
+          </div>
+          <button type="button" class="btn primary sv-write" id="crmLgNova">+ Nova ligação</button>
+        </div>
+      </div>
+      <div class="kpis" id="crmLgKpis"></div>
+      <div class="card">
+        <div class="form-row crm-filtros">
+          <div class="field grow"><label for="crmLgBusca">Buscar</label><input type="text" id="crmLgBusca" placeholder="Nome do cliente, cidade, contato ou observação…" autocomplete="off"></div>
+          <div class="field"><label>&nbsp;</label><button type="button" class="crm-chip" id="crmLgAtrasados" aria-pressed="false">Só follow-up atrasado</button></div>
+        </div>
+        <div id="crmLgKanbanWrap">
+          <div class="crm-bandeja">
+            <div class="crm-bandeja-head"><b>Sem etapa</b> <span class="kanban-count" id="crmLgBandejaCount">0</span> <span class="muted sv-sub">Contatos que ainda não entraram no funil. Arraste o cartão para uma etapa.</span></div>
+            <div class="crm-bandeja-cards" id="crmLgBandeja"></div>
+          </div>
+          <div class="kanban-board crm-board" id="crmLgBoard"></div>
+        </div>
+        <div id="crmLgArquivadosWrap" style="display:none;"></div>
+        <div class="empty-state" id="crmLgVazio" style="display:none;"></div>
+        <div class="note crm-rodape" id="crmLgRodape"></div>
+      </div>
     </section>
 
     <section id="view-crm-metas" class="view crm-view">
@@ -3709,6 +3737,13 @@
       </div>
       <button type="button" class="crm-fechar" id="crmLigFechar" aria-label="Fechar">✕</button>
     </div>
+    <div class="field" id="crmLigClienteCampo" style="display:none;">
+      <label for="crmLigBuscaCli">Cliente</label>
+      <input type="text" id="crmLigBuscaCli" placeholder="Nome do cliente da sua carteira…" autocomplete="off">
+      <div class="crm-lg-res" id="crmLigResCli"></div>
+    </div>
+    <div id="crmLigCorpo">
+    <div class="note crm-lg-aviso" id="crmLigNegInfo" style="display:none;"></div>
     <div class="field">
       <label for="crmLigContato">Falou com</label>
       <select id="crmLigContato"></select>
@@ -3721,14 +3756,28 @@
       <label>Resultado da ligação</label>
       <div class="crm-chips" id="crmLigResultados"></div>
     </div>
+    <div class="field" id="crmLigCotCampo" style="display:none;">
+      <label>Cotações enviadas nesta ligação</label>
+      <div class="crm-step"><button type="button" id="crmLigCotMenos" aria-label="Menos uma cotação">−</button><span id="crmLigCotN" class="mono">0</span><button type="button" id="crmLigCotMais" aria-label="Mais uma cotação">+</button></div>
+      <div class="note" id="crmLigCotNota"></div>
+    </div>
+    <div class="field" id="crmLigAprCampo" style="display:none;">
+      <label>Cotações aprovadas / fechadas</label>
+      <div class="crm-step"><button type="button" id="crmLigAprMenos" aria-label="Menos uma aprovada">−</button><span id="crmLigAprN" class="mono">0</span><button type="button" id="crmLigAprMais" aria-label="Mais uma aprovada">+</button></div>
+      <div class="note" id="crmLigAprNota"></div>
+    </div>
     <div class="field" id="crmLigEtapaCampo">
       <label for="crmLigEtapa">Etapa no kanban</label>
       <select id="crmLigEtapa"></select>
       <div class="note">Não atendeu e Pediu retorno mantêm a etapa atual. Interesse sugere Em negociação, Estimativa enviada sugere Estimativa enviada, Fechou negócio sugere Fechado e Sem interesse sugere Declinou. Você pode mudar.</div>
     </div>
     <div class="field">
-      <label for="crmLigObs">Observação</label>
+      <label for="crmLigObs">Observação da ligação (fica no histórico)</label>
       <textarea id="crmLigObs" rows="3"></textarea>
+    </div>
+    <div class="field" id="crmLigObsCartaoCampo" style="display:none;">
+      <label for="crmLigObsCartao">Obs. do cartão (nota fixa deste contato)</label>
+      <input type="text" id="crmLigObsCartao" autocomplete="off">
     </div>
     <div class="field">
       <label for="crmLigFu">Próximo follow-up</label>
@@ -3738,6 +3787,7 @@
       </div>
       <div class="note" id="crmLigAviso">Obrigatório para Pediu retorno, Interesse e Estimativa enviada. Nos outros resultados pode ficar em branco.</div>
     </div>
+    </div>
     <div class="note crm-erro" id="crmLigErro" style="display:none;"></div>
     <div class="crm-modal-rodape">
       <span class="muted sv-sub" id="crmLigRodape"></span>
@@ -3745,6 +3795,40 @@
         <button type="button" class="btn outline" id="crmLigCancelar">Cancelar</button>
         <button type="button" class="btn primary" id="crmLigSalvar">Salvar ligação</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmCotOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmCotTitulo">
+    <h3 id="crmCotTitulo">Cotações aprovadas</h3>
+    <div class="muted sv-sub" id="crmCotSub"></div>
+    <div class="crm-lg-duplo">
+      <div class="crm-lg-bloco"><span class="crm-rot">Enviadas</span><b class="mono" id="crmCotEnv">0</b><span class="muted sv-sub">somadas das ligações deste contato</span></div>
+      <div class="crm-lg-bloco"><span class="crm-rot">Aprovadas / fechadas</span><b class="mono" id="crmCotAprTxt">0</b><span class="muted sv-sub" id="crmCotPct"></span></div>
+    </div>
+    <div class="field">
+      <label>Quantas foram aprovadas ou fechadas?</label>
+      <div class="crm-step"><button type="button" id="crmCotMenos" aria-label="Menos uma aprovada">−</button><span id="crmCotN" class="mono">0</span><button type="button" id="crmCotMais" aria-label="Mais uma aprovada">+</button></div>
+      <div class="note" id="crmCotNota"></div>
+    </div>
+    <div class="note crm-erro" id="crmCotErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmCotCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmCotSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmObsOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmObsTitulo">
+    <h3 id="crmObsTitulo">Obs. do cartão</h3>
+    <div class="muted sv-sub" id="crmObsSub"></div>
+    <div class="field"><label for="crmObsTexto">Nota fixa deste contato</label><textarea id="crmObsTexto" rows="4"></textarea></div>
+    <div class="note crm-erro" id="crmObsErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmObsCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmObsSalvar">Salvar</button>
     </div>
   </div>
 </div>
@@ -4618,7 +4702,8 @@
 </div>
 
 <script src="semvenda.js?v=36"></script>
-<script src="crm.js?v=38"></script>
+<script src="crm.js?v=39"></script>
+<script src="crm-ligacoes.js?v=1"></script>
 <script src="crm-perfil.js?v=9"></script>
 <script src="crm-faturamento.js?v=4"></script>
 <script src="crm-desempenho.js?v=1"></script>
