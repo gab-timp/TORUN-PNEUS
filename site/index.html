@@ -502,65 +502,7 @@
           <h1>Estoque Previsto</h1>
           <div class="sub">Processos de compra em andamento — arraste os cards entre as etapas e acompanhe em qual armazém cada processo vai entrar.</div>
         </div>
-      </div>
-
-      <div class="card sv-write card-collapsible collapsed" data-collapse-key="sv-prev-novo-processo">
-        <div class="card-head">
-          <h2 id="svPrevFormTitle">Novo processo previsto</h2>
-          <div class="note" id="svPrevEditBanner" style="display:none;">Editando processo · <a href="#" id="svPrevCancelEdit">cancelar edição</a></div>
-          <span class="card-toggle">⌄</span>
-        </div>
-        <div class="card-body">
-        <form id="svFormPrevisto">
-          <div class="form-row">
-            <div class="field">
-              <label>Nº do processo</label>
-              <input type="text" id="svPrevNumeroProcesso" placeholder="Ex: 3070-26" required>
-            </div>
-            <div class="field">
-              <label>Data de chegada (opcional)</label>
-              <input type="date" id="svPrevDataChegada">
-            </div>
-            <div class="field">
-              <label>Status</label>
-              <select id="svPrevStatus"></select>
-            </div>
-            <div class="field prev-dtc-field">
-              <label for="svPrevDtc">Etiqueta</label>
-              <label class="prev-dtc-caixa" for="svPrevDtc"><input type="checkbox" id="svPrevDtc"><span>DTC</span></label>
-            </div>
-            <div class="field">
-              <label>Armazém de destino</label>
-              <select id="svPrevArmazem"></select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="field sv-prev-custo">
-              <label for="svPrevCusto">Custo total (R$, opcional)</label>
-              <input type="number" id="svPrevCusto" min="0" step="0.01" placeholder="Ex: 486000,00">
-              <label class="prev-dtc-caixa" for="svPrevCustoFora" style="margin-top:8px;"><input type="checkbox" id="svPrevCustoFora"><span>Não considerar como valor investido parado</span></label>
-            </div>
-          </div>
-
-          <div class="field" style="margin-bottom:12px;">
-            <label>Medidas do processo</label>
-            <div id="svPrevItens" class="item-list"></div>
-            <div class="note" id="svPrevSemProdutos" style="display:none;">Cadastre os produtos em Produtos antes de montar um processo.</div>
-            <button type="button" class="btn small outline" id="svBtnAddItemPrevisto" style="margin-top:8px;">+ Adicionar medida</button>
-          </div>
-
-          <div class="form-row">
-            <div class="field grow">
-              <label>Observação (opcional)</label>
-              <input type="text" id="svPrevObs" placeholder="Ex: fornecedor, navio, contêiner...">
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn primary" id="svBtnSubmitPrevisto">Adicionar processo</button>
-          </div>
-        </form>
-        </div>
+        <div class="page-head-actions"><button type="button" class="btn primary sv-write" id="svBtnNovoPrevisto">+ Novo processo previsto</button></div>
       </div>
 
       <div class="search-row">
@@ -3381,6 +3323,69 @@
 <div id="toast"></div>
 <div id="estoqueBaixoAlerts" class="estoque-baixo-alerts"></div>
 <div id="propostaAlerts" class="estoque-baixo-alerts proposta-alerts"></div>
+
+<div class="modal-overlay" id="svPrevOverlay">
+  <div class="modal modal-popup-grande" role="dialog" aria-labelledby="svPrevFormTitle">
+    <div class="drawer-simple-head">
+      <h3 id="svPrevFormTitle">Novo processo previsto</h3>
+      <button type="button" class="drawer-simple-close" id="svPrevFechar" title="Fechar">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div class="sv-prev-popup-corpo">
+        <form id="svFormPrevisto">
+          <div class="form-row">
+            <div class="field">
+              <label>Nº do processo</label>
+              <input type="text" id="svPrevNumeroProcesso" placeholder="Ex: 3070-26" required>
+            </div>
+            <div class="field">
+              <label>Data de chegada (opcional)</label>
+              <input type="date" id="svPrevDataChegada">
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select id="svPrevStatus"></select>
+            </div>
+            <div class="field prev-dtc-field">
+              <label for="svPrevDtc">Etiqueta</label>
+              <label class="prev-dtc-caixa" for="svPrevDtc"><input type="checkbox" id="svPrevDtc"><span>DTC</span></label>
+            </div>
+            <div class="field">
+              <label>Armazém de destino</label>
+              <select id="svPrevArmazem"></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="field sv-prev-custo">
+              <label for="svPrevCusto">Custo total (R$, opcional)</label>
+              <input type="number" id="svPrevCusto" min="0" step="0.01" placeholder="Ex: 486000,00">
+              <label class="prev-dtc-caixa" for="svPrevCustoFora" style="margin-top:8px;"><input type="checkbox" id="svPrevCustoFora"><span>Não considerar como valor investido parado</span></label>
+            </div>
+          </div>
+
+          <div class="field" style="margin-bottom:12px;">
+            <label>Medidas do processo</label>
+            <div id="svPrevItens" class="item-list"></div>
+            <div class="note" id="svPrevSemProdutos" style="display:none;">Cadastre os produtos em Produtos antes de montar um processo.</div>
+            <button type="button" class="btn small outline" id="svBtnAddItemPrevisto" style="margin-top:8px;">+ Adicionar medida</button>
+          </div>
+
+          <div class="form-row">
+            <div class="field grow">
+              <label>Observação (opcional)</label>
+              <input type="text" id="svPrevObs" placeholder="Ex: fornecedor, navio, contêiner...">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn outline" id="svPrevCancelar">Cancelar</button>
+            <button type="submit" class="btn primary" id="svBtnSubmitPrevisto">Adicionar processo</button>
+          </div>
+        </form>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="prodEditOverlay">
   <div class="modal modal-popup-grande">

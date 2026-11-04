@@ -845,11 +845,18 @@ function svIniciarEdicaoPrevisto(id) {
   updateItemRemoveVisibility("svPrevItens");
 
   document.getElementById("svPrevFormTitle").textContent = "Editar processo previsto";
-  document.getElementById("svPrevEditBanner").style.display = "block";
   document.getElementById("svBtnSubmitPrevisto").textContent = "Salvar alterações";
-  const form = document.getElementById("svFormPrevisto");
-  form.closest(".card-collapsible")?.classList.remove("collapsed");
-  form.scrollIntoView({ behavior: "smooth", block: "center" });
+  svAbrirPopupPrevisto();
+}
+
+function svAbrirPopupPrevisto() {
+  document.getElementById("svPrevOverlay").classList.add("show");
+  document.getElementById("svPrevNumeroProcesso").focus();
+}
+
+function svNovoPrevisto() {
+  svCancelarEdicaoPrevisto(); // limpa qualquer edição que ficou pela metade
+  svAbrirPopupPrevisto();
 }
 
 function svCancelarEdicaoPrevisto() {
@@ -859,8 +866,8 @@ function svCancelarEdicaoPrevisto() {
   document.getElementById("svPrevStatus").value = PREVISTO_STATUS[0];
   svResetItens();
   document.getElementById("svPrevFormTitle").textContent = "Novo processo previsto";
-  document.getElementById("svPrevEditBanner").style.display = "none";
   document.getElementById("svBtnSubmitPrevisto").textContent = "Adicionar processo";
+  document.getElementById("svPrevOverlay").classList.remove("show");
 }
 
 async function svSalvarPrevisto(e) {
@@ -927,9 +934,7 @@ async function svSalvarPrevistoDados(e) {
   if (error) { toast("Erro ao adicionar processo: " + error.message); return; }
   if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
   svState.previsoes.unshift(svPrevistoFromRow(data[0]));
-  e.target.reset();
-  document.getElementById("svPrevStatus").value = PREVISTO_STATUS[0];
-  svResetItens();
+  svCancelarEdicaoPrevisto(); // limpa o formulário e fecha o popup
   svRenderPrevistos();
   toast("Processo previsto adicionado.");
 }
@@ -2913,11 +2918,9 @@ function initSemVendaTelas() {
   });
 
   document.getElementById("svFormPrevisto").addEventListener("submit", svSalvarPrevisto);
-  document.getElementById("svPrevCancelEdit").addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    svCancelarEdicaoPrevisto();
-  });
+  document.getElementById("svBtnNovoPrevisto").addEventListener("click", svNovoPrevisto);
+  ["svPrevCancelar", "svPrevFechar"].forEach(id => document.getElementById(id).addEventListener("click", svCancelarEdicaoPrevisto));
+  document.getElementById("svPrevOverlay").addEventListener("click", (e) => { if (e.target.id === "svPrevOverlay") svCancelarEdicaoPrevisto(); });
   document.getElementById("svBtnAddItemPrevisto").addEventListener("click", () => {
     document.getElementById("svPrevItens").appendChild(svCriarLinhaItem("svPrevItens"));
     updateItemRemoveVisibility("svPrevItens");
