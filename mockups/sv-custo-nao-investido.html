@@ -1,0 +1,89 @@
+<title>Custo fora do valor investido</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: duas telas com abas (formulário do processo e Valor investido), mesmo visual do sistema */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--onblack:#fff;--green:#15803D;
+--f:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--green:#4ADE80;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--green:#4ADE80;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:var(--f);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto;display:grid;gap:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button,.btn{font:inherit;padding:7px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--black);color:var(--onblack);border-color:var(--black)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px}
+h2{margin:0;font-size:17px}h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.note{font-size:12.5px;color:var(--soft)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+label{font-size:12px;color:var(--soft);display:block;margin-bottom:4px}
+input[type=text],input[type=number]{font:inherit;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.novo{outline:2px solid var(--orange);outline-offset:3px;border-radius:8px;padding:8px;background:var(--orange-pale)}
+.tag{display:inline-block;font-size:11px;background:var(--orange);color:#fff;border-radius:99px;padding:1px 8px;margin-left:6px}
+.caixa{display:flex;align-items:flex-start;gap:8px;font-size:13.5px;color:var(--ink);margin:8px 0 0;cursor:pointer}
+.caixa input{width:auto;margin-top:2px;accent-color:var(--orange)}
+.item{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kpi{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 14px}.kpi .l{font-size:12px;color:var(--soft)}.kpi .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi.acc{background:var(--orange-pale);border-color:var(--orange)}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:480px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--soft);font-weight:500}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--soft)}
+.out{color:var(--soft)}.out s{opacity:.8}
+.foot{display:flex;justify-content:flex-end;gap:8px}.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="tabs" role="group" aria-label="Tela">
+    <button data-t="a" aria-pressed="true">Cadastrar processo</button>
+    <button data-t="b" aria-pressed="false">Valor investido parado</button>
+  </div>
+
+  <div class="card" data-v="a">
+    <h2>Novo processo previsto</h2>
+    <div class="row">
+      <div><label>Nº do processo</label><input type="text" value="3071-26"></div>
+      <div><label>Data de chegada</label><input type="text" value="25/11/2026"></div>
+      <div><label>Armazém</label><input type="text" value="Nguedes"></div>
+    </div>
+    <div class="novo">
+      <label for="custo">Custo total (R$, opcional)</label>
+      <input type="number" id="custo" value="120000" step="0.01">
+      <label class="caixa" for="fora"><input type="checkbox" id="fora"><span><b>Não considerar como valor investido parado</b><br><span class="note">O custo fica salvo no processo, mas não entra na soma do Dashboard nem da Armazenagem. Dá para desmarcar depois.</span></span></label>
+    </div>
+    <h3>Medidas do processo</h3>
+    <div class="item"><span>SV-0142 · 295/80R22.5</span><b>200 un.</b></div>
+    <div class="foot"><button class="btn">Cancelar</button><button class="btn primary">Salvar processo</button></div>
+  </div>
+
+  <div class="card" data-v="b" hidden>
+    <h2>Valor investido parado</h2>
+    <div class="note">Marque ou desmarque a caixa do processo 3071-26 para ver o efeito.</div>
+    <div class="kpis">
+      <div class="kpi acc"><div class="l">Valor investido parado</div><div class="v" id="total">R$ 486.000,00</div><div class="note" id="nota"></div></div>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>Processo</th><th>Armazém</th><th class="n">Custo total</th><th>Situação</th></tr></thead>
+      <tbody>
+        <tr><td>3070-26</td><td>Nguedes</td><td class="n">R$ 486.000,00</td><td><span class="pill">Conta no valor</span></td></tr>
+        <tr id="linha"><td>3071-26</td><td>Nguedes</td><td class="n">R$ 120.000,00</td><td id="sit"><span class="pill">Conta no valor</span></td></tr>
+      </tbody></table></div>
+    <label class="caixa" for="fora2" style="margin:0"><input type="checkbox" id="fora2"><span>3071-26 fora do valor investido (mesma caixa do formulário)</span></label>
+  </div>
+</div>
+<script>
+const fmt=v=>v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function atualiza(fora){
+  document.getElementById("fora").checked=fora;document.getElementById("fora2").checked=fora;
+  document.getElementById("total").textContent=fmt(fora?486000:606000);
+  document.getElementById("nota").textContent=fora?"1 processo fora da soma":"";
+  document.getElementById("sit").innerHTML=fora?'<span class="pill">Fora do valor investido</span>':'<span class="pill">Conta no valor</span>';
+  document.getElementById("linha").className=fora?"out":"";
+}
+["fora","fora2"].forEach(id=>document.getElementById(id).addEventListener("change",e=>atualiza(e.target.checked)));
+atualiza(false);
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  document.querySelectorAll("[data-v]").forEach(c=>c.hidden=c.dataset.v!==b.dataset.t);
+}));
+</script>

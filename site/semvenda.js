@@ -184,7 +184,8 @@ function svPrevistoFromRow(r) {
     id: r.id, numeroProcesso: r.numero_processo, itens: Array.isArray(r.itens) ? r.itens.filter(it => it && typeof it === "object") : [], dataChegada: r.data_chegada || "",
     status: r.status, armazem: r.armazem || "", obs: r.obs || "", dtc: !!r.dtc,
     // custo total do processo (sql/sem_venda_custo_no_processo.sql); vazio = ainda não informado
-    custoTotal: r.custo_total === null || r.custo_total === undefined ? null : Number(r.custo_total), createdAt: r.created_at, updatedAt: r.updated_at
+    custoTotal: r.custo_total === null || r.custo_total === undefined ? null : Number(r.custo_total),
+    custoForaDoInvestido: !!r.custo_fora_do_investido, createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
 
@@ -192,7 +193,8 @@ function svPrevistoToRow(p) {
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [], data_chegada: p.dataChegada || null,
     status: p.status, armazem: p.armazem || null, obs: p.obs || null, dtc: !!p.dtc,
-    custo_total: p.custoTotal === null || p.custoTotal === undefined ? null : p.custoTotal
+    custo_total: p.custoTotal === null || p.custoTotal === undefined ? null : p.custoTotal,
+    custo_fora_do_investido: !!p.custoForaDoInvestido
   };
 }
 
@@ -700,7 +702,7 @@ function svAbrirPrevistoDetalhe(id) {
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Data de chegada</span>${
       p.dataChegada ? valor(`<span class="mono">${formatDateBR(p.dataChegada)}</span>`) : valor("Sem data de chegada", true)}</div>
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Custo total</span>${
-      p.custoTotal !== null ? valor(`<span class="mono">${escapeHtml(formatMoney(p.custoTotal))}</span>`) : valor("Custo não informado", true)}</div>
+      p.custoTotal !== null ? valor(`<span class="mono">${escapeHtml(formatMoney(p.custoTotal))}</span>${p.custoForaDoInvestido ? ' <span class="muted">(fora do valor investido)</span>' : ""}`) : valor("Custo não informado", true)}</div>
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Reservas ligadas</span>${
       ativas.length ? valor(`<span class="mono">${fmt(qtdReservada)}</span> un. em ${ativas.length} reserva${ativas.length > 1 ? "s" : ""}`) : valor("Nenhuma", true)}</div>`;
 
@@ -826,6 +828,7 @@ function svIniciarEdicaoPrevisto(id) {
   document.getElementById("svPrevArmazem").value = p.armazem;
   document.getElementById("svPrevObs").value = p.obs;
   document.getElementById("svPrevCusto").value = p.custoTotal === null ? "" : p.custoTotal;
+  document.getElementById("svPrevCustoFora").checked = !!p.custoForaDoInvestido;
 
   const container = document.getElementById("svPrevItens");
   container.innerHTML = "";
@@ -888,7 +891,8 @@ async function svSalvarPrevistoDados(e) {
     if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
     itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10) });
   }
-  const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs, dtc, custoTotal };
+  const custoForaDoInvestido = document.getElementById("svPrevCustoFora").checked;
+  const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs, dtc, custoTotal, custoForaDoInvestido };
 
   if (svEditandoPrevistoId) {
     // com dados atualizados: alguém pode ter reservado desse processo agora há pouco
@@ -2236,7 +2240,7 @@ function svArmazensDoEstoque(est) {
 // com um armazém ("" = sem armazém), só os processos dele. Não desconta o que já foi vendido.
 // semCusto = processos que chegaram mas ainda não têm o custo informado (ficam fora da soma).
 function svResumoValor(armazem) {
-  const chegados = svState.previsoes.filter(p => p.status === "FINALIZADO" && (armazem === undefined || (p.armazem || "") === armazem));
+  const chegados = svState.previsoes.filter(p => p.status === "FINALIZADO" && !p.custoForaDoInvestido && (armazem === undefined || (p.armazem || "") === armazem));
   const comCusto = chegados.filter(p => p.custoTotal !== null);
   return {
     total: comCusto.reduce((s, p) => s + p.custoTotal, 0),
