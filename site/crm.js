@@ -349,10 +349,14 @@ function crmFollowupHtml(fu) {
   return `<span class="mono ${diasDesde(fu) > 0 ? "crm-fu-atrasado" : ""}">${crmDataCurta(fu)}</span> ${crmFollowupSelo(fu)}`;
 }
 
-// contato principal; sem contato cadastrado no CRM, cai nos dados do cadastro do cliente no Torun
+// os atalhos (ligar, WhatsApp, e-mail) são sempre do contato marcado como comprador/fechador (campo "principal").
+// Com contatos cadastrados mas nenhum marcado, não há atalho (não pega outra pessoa); sem nenhum contato no CRM,
+// cai nos dados do cadastro do cliente
 function crmContatoRapido(c) {
-  const p = crmContatosDe(c)[0];
+  const lista = crmContatosDe(c);
+  const p = lista.find(x => x.principal);
   if (p) return { nome: p.nome, cargo: p.cargo, telefone: p.telefone, whatsapp: p.whatsapp, email: p.email };
+  if (lista.length) return { nome: "Sem comprador/fechador marcado", cargo: "", telefone: "", whatsapp: "", email: "" };
   const cli = crmInfoCliente(c.cliente);
   return { nome: cli.contato || "", cargo: "", telefone: cli.telefone || "", whatsapp: "", email: cli.email || "" };
 }
@@ -877,7 +881,7 @@ function crmRenderFicha() {
         <div class="card-head"><h2>Contatos</h2>${crmPodeGerirCarteira() ? `<button type="button" class="btn small outline" data-crmcontatonovo="${escapeAttr(c.id)}">+ Contato</button>` : ""}</div>
         ${contatos.length ? contatos.map(p => `
           <div class="crm-contato">
-            <div><b>${escapeHtml(p.nome)}</b>${p.principal ? ' <span class="status-pill pill-normal">Decisor</span>' : ""}</div>
+            <div><b>${escapeHtml(p.nome)}</b>${p.principal ? ' <span class="status-pill pill-normal">Comprador/fechador</span>' : ""}</div>
             <div class="muted sv-sub">${escapeHtml(p.cargo || "Sem função informada")}</div>
             ${p.telefone ? `<div class="mono sv-sub">${escapeHtml(p.telefone)}</div>` : ""}
             ${p.whatsapp && p.whatsapp !== p.telefone ? `<div class="mono sv-sub">WhatsApp ${escapeHtml(p.whatsapp)}</div>` : ""}
@@ -1010,7 +1014,7 @@ function crmAbrirLigacao(id) {
 
   // "Falou com": contatos do CRM; sem nenhum, o contato do cadastro do Torun; sempre "Outra pessoa"
   const contatos = crmContatosDe(c);
-  const opcoes = contatos.map(p => `<option value="c:${escapeAttr(p.id)}">${escapeHtml(p.nome)}${p.cargo ? " · " + escapeHtml(p.cargo) : ""}${p.principal ? " (principal)" : ""}</option>`);
+  const opcoes = contatos.map(p => `<option value="c:${escapeAttr(p.id)}">${escapeHtml(p.nome)}${p.cargo ? " · " + escapeHtml(p.cargo) : ""}${p.principal ? " (comprador/fechador)" : ""}</option>`);
   const cadastro = crmInfoCliente(c.cliente).contato;
   if (!contatos.length && cadastro) opcoes.push(`<option value="cad">${escapeHtml(cadastro)} (cadastro do Torun)</option>`);
   opcoes.push(`<option value="outro">Outra pessoa…</option>`);
