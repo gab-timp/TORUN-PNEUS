@@ -1362,10 +1362,10 @@ function svRenderReservaForm() {
   selForma.innerHTML = svOpcoesForma("");
   selForma.value = formaAnterior; // mantém a escolha quando a lista é refeita (por valor, não por "selected": o reset da janela não pode trazê-la de volta)
   const selUnidade = document.getElementById("svResUnidade");
-  const unidadeAnterior = selUnidade.value;
-  selUnidade.innerHTML = `<option value="">Selecione…</option>` +
-    Object.entries(SV_UNIDADES).map(([valor, rotulo]) => `<option value="${valor}">${escapeHtml(rotulo)}</option>`).join("");
-  selUnidade.value = unidadeAnterior;
+  // Reserva nova é sempre do Atacado: campo fixo, sem a opção Encomenda (reservas antigas continuam mostrando a unidade que tinham)
+  selUnidade.innerHTML = `<option value="ATACADO" selected>${escapeHtml(SV_UNIDADES.ATACADO)}</option>`;
+  selUnidade.value = "ATACADO";
+  selUnidade.disabled = true;
 
   const selTipo = document.getElementById("svResTipoTransporte");
   const tipoAnterior = selTipo.value;
@@ -2532,8 +2532,6 @@ function svAbrirClienteModal(id, daReserva) {
   } else if (daReserva) {
     const digitado = document.getElementById("svResCliente").value.trim();
     document.getElementById("svCliNome").value = digitado;
-    const un = document.getElementById("svResUnidade").value;
-    if (un) document.getElementById("svCliUnidade").value = un;
   }
   document.getElementById("svCliOverlay").classList.add("show");
   document.getElementById("svCliNome").focus();
@@ -2617,12 +2615,7 @@ async function svExcluirCliente(id) {
 
 // na Reserva: cliente de uma unidade só já preenche a Unidade de negócio ("Ambos" deixa a escolha com a pessoa)
 function svPreencherUnidadeDoCliente() {
-  const nome = document.getElementById("svResCliente").value.trim().toLowerCase();
-  const c = svClientes.find(x => x.nome.toLowerCase() === nome);
-  if (c && SV_UNIDADES[c.unidadeNegocio]) {
-    document.getElementById("svResUnidade").value = c.unidadeNegocio;
-    svLimparErroCampo("unidade");
-  }
+  // a unidade da Reserva é fixa (Atacado): o cliente não muda mais o campo
 }
 
 function svLigarClientes() {
