@@ -403,3 +403,5 @@ td.sv-num{font-family:'Space Mono',monospace;}
 
 /* Janela do processo: 4 informações (armazém, chegada, custo total, reservas) */
 #svPrevDetalheInfo{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
+
+.field.sv-prev-custo{flex:0 1 260px;}
