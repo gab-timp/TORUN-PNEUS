@@ -301,3 +301,92 @@ function crmRepPainelIniciar() {
   esc.addEventListener("change", () => { crmRep.escolhido = esc.value; crmRepPainelRender(); });
 }
 crmRepPainelIniciar();
+
+/* ---------------- Link do representante (ficha do representante) ---------------- */
+/* Gestão e executivo dono do representante geram o link que ele abre sem login (representante.html). O código só aparece na
+   hora de gerar; depois o banco guarda apenas uma versão embaralhada, então copiar de novo exige gerar um link novo.
+   Funções em sql/crm_representante_link.sql. */
+
+const crmRepLink = new Map(); // representante -> { estado: "carregando" | "sem" | "ativo" | "erro", info, url, erro }
+
+function crmPodeGerirLinkRep(c) {
+  return crmPodeEscrever() && (crmPapelEfetivo() === "gestao" || (crmEhExecutivo() && c.executivoId === crmMeuId()));
+}
+
+function crmRepLinkCartaoHtml(c) {
+  if (!crmPodeGerirLinkRep(c)) return "";
+  return `<div class="card crm-rep-link" id="crmRepLinkCard" data-replinkrep="${escapeAttr(c.cliente)}"></div>`;
+}
+
+function crmRepLinkDesenhar(rep) {
+  const card = document.getElementById("crmRepLinkCard");
+  if (!card || card.dataset.replinkrep !== rep) return;
+  const e = crmRepLink.get(rep) || { estado: "carregando" };
+  const primeiro = rep.split(/\s+/)[0];
+  let corpo;
+  if (e.estado === "carregando") corpo = `<div class="muted sv-sub">Verificando o link…</div>`;
+  else if (e.estado === "erro") corpo = `<div class="note">Não foi possível ler o link: rode o SQL <b>sql/crm_representante_link.sql</b> no Supabase. (${escapeHtml(e.erro || "")})</div>`;
+  else if (e.estado === "sem") corpo = `
+      <div class="crm-rep-link-aviso">Ainda não há link para ${escapeHtml(primeiro)}.</div>
+      <div class="crm-rep-link-acoes"><button type="button" class="btn primary" data-replinkacao="gerar">Gerar link</button></div>`;
+  else {
+    const i = e.info || {};
+    const acesso = i.ultimo_acesso ? `${crmDataCurta(crmDiaLocal(i.ultimo_acesso))} às ${crmHoraLocal(i.ultimo_acesso)}` : "ainda não abriu";
+    corpo = `
+      ${e.url ? `<div class="crm-rep-link-url"><input type="text" readonly id="crmRepLinkUrl" value="${escapeAttr(e.url)}" aria-label="Link do representante"><button type="button" class="btn primary" data-replinkacao="copiar">Copiar link</button></div>
+        <div class="note">Copie agora e mande para ${escapeHtml(primeiro)}. Por segurança, o link só aparece quando é gerado; depois, para copiar de novo, gere um link novo.</div>`
+        : `<div class="crm-rep-link-aviso">O link está ativo. Por segurança ele só aparece na hora de gerar: para mandar de novo, gere um novo link.</div>`}
+      <dl class="crm-rep-link-meta">
+        <div><dt>Gerado em</dt><dd>${i.criado_em ? `${crmDataCurta(crmDiaLocal(i.criado_em))} às ${crmHoraLocal(i.criado_em)}` : "—"}</dd></div>
+        <div><dt>Por</dt><dd>${escapeHtml(i.criado_por || "—")}</dd></div>
+        <div><dt>Último acesso</dt><dd>${escapeHtml(acesso)}</dd></div>
+      </dl>
+      <div class="crm-rep-link-acoes"><button type="button" class="btn outline" data-replinkacao="novo">Gerar novo link</button><button type="button" class="btn outline" data-replinkacao="desativar">Desativar link</button></div>
+      <div class="note">Quem tiver o link vê o painel de ${escapeHtml(primeiro)}. Gerar um novo link ou desativar faz o link antigo parar de funcionar na hora.</div>`;
+  }
+  card.innerHTML = `<div class="card-head"><h2>Link do representante</h2><div class="note">O representante abre o painel dele (faturamento e comissão) só com este link, sem usuário nem senha.</div></div>${corpo}`;
+}
+
+async function crmRepLinkIniciar(rep) {
+  if (!document.getElementById("crmRepLinkCard")) return;
+  if (!crmRepLink.get(rep)) crmRepLink.set(rep, { estado: "carregando" });
+  crmRepLinkDesenhar(rep);
+  const { data, error } = await sb.rpc("crm_link_representante_status", { p_representante: rep });
+  const e = crmRepLink.get(rep) || {};
+  if (error) crmRepLink.set(rep, { estado: "erro", erro: error.message });
+  else if (data && data.ativo) crmRepLink.set(rep, { estado: "ativo", info: data, url: e.estado === "ativo" ? e.url : "" });
+  else crmRepLink.set(rep, { estado: "sem" });
+  crmRepLinkDesenhar(rep);
+}
+
+async function crmRepLinkAcao(acao, rep) {
+  if (acao === "copiar") {
+    const campo = document.getElementById("crmRepLinkUrl");
+    if (!campo) return;
+    try { await navigator.clipboard.writeText(campo.value); toast("Link copiado. Mande para o representante."); }
+    catch (err) { campo.select(); toast("Selecionei o link: use Ctrl+C para copiar."); }
+    return;
+  }
+  if (acao === "novo" && !(await confirmModal("Gerar um novo link?", `O link atual de ${rep} deixa de funcionar na hora e ele precisa receber o novo.`))) return;
+  if (acao === "desativar" && !(await confirmModal("Desativar o link?", `${rep} deixa de ver o painel até você gerar outro link.`))) return;
+  if (acao === "desativar") {
+    const { error } = await sb.rpc("crm_desativar_link_representante", { p_representante: rep });
+    if (error) { toast("Erro ao desativar o link: " + error.message); return; }
+    crmRepLink.set(rep, { estado: "sem" });
+    crmRepLinkDesenhar(rep);
+    toast("Link desativado.");
+    return;
+  }
+  const { data, error } = await sb.rpc("crm_gerar_link_representante", { p_representante: rep });
+  if (error || !data) { toast("Erro ao gerar o link: " + (error ? error.message : "sem resposta")); return; }
+  const base = location.origin + location.pathname.replace(/[^/]*$/, "");
+  crmRepLink.set(rep, { estado: "ativo", info: { criado_em: new Date().toISOString(), criado_por: currentUserNome || "", ultimo_acesso: null }, url: `${base}representante.html#${data}` });
+  crmRepLinkDesenhar(rep);
+  toast("Link gerado.");
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest ? e.target.closest("[data-replinkacao]") : null;
+  const card = b && b.closest("#crmRepLinkCard");
+  if (card) crmRepLinkAcao(b.dataset.replinkacao, card.dataset.replinkrep);
+});

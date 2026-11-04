@@ -1,0 +1,98 @@
+<title>Link do representante</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: duas telas com abas: o cartão novo na ficha do representante e a página que o representante abre pelo link */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--onblack:#fff;--ok:#15803D;--danger:#B91C1C}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--ok:#4ADE80;--danger:#F87171;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--ok:#4ADE80;--danger:#F87171;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:grid;gap:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button,.btn{font:inherit;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--black);color:var(--onblack);border-color:var(--black)}
+.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.danger{color:var(--danger)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.exemplo{font-size:12px;color:var(--soft);border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+h1{margin:0;font-size:22px}h2{margin:0;font-size:15px}
+.sub,.note{font-size:12.5px;color:var(--soft)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.novo{outline:2px solid var(--orange);outline-offset:3px}
+.selo{display:inline-block;font-size:11px;background:#D8F1EE;color:#0E6560;border-radius:99px;padding:1px 8px;margin-left:6px}
+.link{display:flex;gap:8px;flex-wrap:wrap}
+.link input{flex:1;min-width:200px;font:12.5px ui-monospace,Menlo,Consolas,monospace;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink)}
+.acoes{display:flex;gap:8px;flex-wrap:wrap}
+.aviso{font-size:12.5px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:6px;padding:8px 10px;background:var(--paper)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}.meta span{display:block;font-size:11px;color:var(--soft)}.meta b{font-size:13px}
+.copiado{font-size:12.5px;color:var(--ok)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}.kpi .l{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);font-weight:700}.kpi .v{font-size:24px;font-weight:800;margin-top:6px;font-variant-numeric:tabular-nums}
+.kpi.acc{background:var(--orange-pale);border-color:var(--orange)}
+.topo{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line);padding-bottom:12px;flex-wrap:wrap}
+.marca{font-weight:800;letter-spacing:.06em}.marca small{display:block;font-weight:500;letter-spacing:0;color:var(--soft);font-size:12px}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:420px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--soft);font-weight:500}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="exemplo">Tela de exemplo, com nomes e valores inventados.</div>
+  <div class="tabs" role="group" aria-label="Tela"><button data-t="a" aria-pressed="true">Ficha do representante</button><button data-t="b" aria-pressed="false">O que o representante abre</button></div>
+
+  <div class="wrap" style="max-width:none;margin:0" data-v="a">
+    <div><h1>Ricardo Alves <span class="selo">Representante</span></h1><div class="sub">Campinas/SP · Atacado · Executivo: Marina Souza</div></div>
+
+    <div class="card novo">
+      <div><h2>Link do representante</h2><div class="sub">O representante abre o painel dele (faturamento e comissão) só com este link, sem usuário nem senha.</div></div>
+
+      <div id="semLink">
+        <div class="aviso">Ainda não há link para o Ricardo.</div>
+        <div class="acoes" style="margin-top:10px"><button class="btn primary" id="gerar">Gerar link</button></div>
+      </div>
+
+      <div id="comLink" hidden>
+        <div class="link"><input id="url" readonly value="https://torunpneus.tires.workers.dev/representante.html#k7Qm2xV9aLpR4tYw8uBn3cHd" aria-label="Link do representante"><button class="btn primary" id="copiar">Copiar link</button></div>
+        <div class="copiado" id="copiado" hidden>Link copiado. Mande para o Ricardo pelo WhatsApp.</div>
+        <div class="meta" style="margin-top:10px"><div><span>Gerado em</span><b id="gerado">04/11/2026 às 15:10</b></div><div><span>Por</span><b>Marina Souza</b></div><div><span>Último acesso</span><b id="acesso">ainda não abriu</b></div></div>
+        <div class="acoes" style="margin-top:10px"><button class="btn" id="novoLink">Gerar novo link</button><button class="btn danger" id="desativar">Desativar link</button></div>
+        <div class="note" style="margin-top:6px">Quem tiver este link vê o painel do Ricardo. Gerar um novo link ou desativar faz o link antigo parar de funcionar na hora.</div>
+      </div>
+
+      <div id="confirma" class="aviso" hidden>
+        <b id="confirmaTxt"></b>
+        <div class="acoes" style="margin-top:8px"><button class="btn primary" id="sim">Confirmar</button><button class="btn" id="nao">Cancelar</button></div>
+      </div>
+    </div>
+
+    <div class="card"><h2>Clientes deste representante</h2><div class="note">A lista de clientes e os dados continuam como estão hoje.</div></div>
+  </div>
+
+  <div class="wrap" style="max-width:none;margin:0" data-v="b" hidden>
+    <div class="card">
+      <div class="topo"><div class="marca">TORUN PNEUS<small>Painel do representante</small></div><div class="sub">Atacado · Mês: <b>Outubro/2026</b></div></div>
+      <div><h1>Olá, Ricardo</h1><div class="sub">Seu faturamento e a sua comissão, só com o que é seu.</div></div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Faturamento do mês</div><div class="v">R$ 168.000,00</div></div>
+        <div class="kpi"><div class="l">Percentual de comissão</div><div class="v">2,5%</div></div>
+        <div class="kpi acc"><div class="l">Comissão do mês</div><div class="v">R$ 4.200,00</div></div>
+      </div>
+      <div class="tbl"><table><thead><tr><th>Cliente</th><th class="n">Faturado</th><th class="n">Comissão</th></tr></thead>
+        <tbody><tr><td>Pneus Silva</td><td class="n">R$ 62.400,00</td><td class="n">R$ 1.560,00</td></tr><tr><td>Rodoviário Norte</td><td class="n">R$ 41.800,00</td><td class="n">R$ 1.045,00</td></tr></tbody></table></div>
+      <div class="note">Mesmas informações do painel que já existe, numa página própria: sem menu, sem login, só este representante. Mês a mês e lançamentos aparecem abaixo, como no painel.</div>
+    </div>
+    <div class="card"><h2>Se o link foi desativado ou trocado</h2><div class="aviso">Este link não vale mais. Peça um novo link ao seu executivo.</div></div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let acao=null;
+function mostra(ok){$("semLink").hidden=ok;$("comLink").hidden=!ok;$("confirma").hidden=true;$("copiado").hidden=true}
+$("gerar").onclick=()=>mostra(true);
+$("copiar").onclick=()=>{try{navigator.clipboard.writeText($("url").value).catch(()=>$("url").select())}catch(e){$("url").select()}$("copiado").hidden=false};
+$("novoLink").onclick=()=>{acao="novo";$("confirmaTxt").textContent="Gerar um novo link? O link atual deixa de funcionar e o Ricardo precisa receber o novo.";$("confirma").hidden=false};
+$("desativar").onclick=()=>{acao="off";$("confirmaTxt").textContent="Desativar o link? O Ricardo deixa de ver o painel até você gerar outro.";$("confirma").hidden=false};
+$("nao").onclick=()=>{$("confirma").hidden=true};
+$("sim").onclick=()=>{if(acao==="off")mostra(false);else{mostra(true);$("gerado").textContent="04/11/2026 às 15:42";$("acesso").textContent="ainda não abriu"}};
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  document.querySelectorAll("[data-v]").forEach(c=>c.hidden=c.dataset.v!==b.dataset.t);
+}));
+</script>

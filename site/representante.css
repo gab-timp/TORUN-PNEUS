@@ -1,0 +1,10 @@
+/* Página do representante (representante.html): o representante abre pelo link, sem login. Só a casca da página; os cartões,
+   KPIs e tabelas são os mesmos do sistema (styles.css e crm.css). */
+.rep-pagina{margin:0; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
+.rep-shell{max-width:980px; margin:0 auto; padding:0 20px 40px; min-height:100vh; display:flex; flex-direction:column; gap:6px;}
+.rep-topo{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 0; margin-bottom:14px; border-bottom:1px solid var(--line);}
+.rep-logo{height:34px; width:auto;}
+.rep-topo-txt{font-size:12px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-soft);}
+.rep-rodape{margin-top:auto; padding-top:24px; font-size:12px; color:var(--ink-soft);}
+.rep-pagina .card{margin-bottom:16px;}
+@media (max-width:600px){.rep-shell{padding:0 14px 32px;}}

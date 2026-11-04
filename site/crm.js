@@ -919,6 +919,7 @@ function crmRenderFichaRepresentante(raiz, c) {
         <p class="muted sv-sub" style="margin-top:12px;">O representante não recebe ligação nem follow-up e não aparece em Hoje. Os clientes dele são clientes normais da carteira de ${escapeHtml(c.executivoNome || "do executivo")}.</p>
       </div>
       <div class="crm-ficha-direita">
+        ${typeof crmRepLinkCartaoHtml === "function" ? crmRepLinkCartaoHtml(c) : ""}
         <div class="card">
           <div class="card-head"><h2>Clientes deste representante</h2><div class="note">${filhos.length} ${filhos.length === 1 ? "cliente" : "clientes"}</div></div>
           ${filhos.length ? `<div class="table-wrap"><table>
@@ -933,6 +934,7 @@ function crmRenderFichaRepresentante(raiz, c) {
         </div>
       </div>
     </div>`;
+  if (typeof crmRepLinkIniciar === "function") crmRepLinkIniciar(c.cliente);
 }
 
 /* ---------------- registrar ligação ---------------- */
