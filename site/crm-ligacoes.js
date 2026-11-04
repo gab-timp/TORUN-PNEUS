@@ -222,22 +222,27 @@ function crmLgCartao(x) {
   const podeEditar = crmLgEditavel(c);
   const acoes = [crmAtalhosHtml(ct)];
   if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
+  const quem = [crmCidadeUF(c.cliente), ct.nome, ct.cargo].filter(Boolean).map(escapeHtml).join(" · ");
+  const obs = podeEditar
+    ? `<button type="button" class="crm-obs" data-crmlgobs="${escapeAttr(n.id)}">${n.obs ? "Obs.: " + escapeHtml(n.obs) : '<span class="muted">Obs.: clique para escrever…</span>'}</button>`
+    : (n.obs ? `<div class="crm-obs crm-obs-ler">Obs.: ${escapeHtml(n.obs)}</div>` : "");
   return `
-    <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""} ${podeEditar ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${escapeAttr(n.id)}">
-      <div><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button> ${crmTipoSelo(c.cliente)}${crmLgTagContato(n)}</div>
-      ${crmLgDonoHtml(c)}
-      <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}</div>
-      <div class="crm-cartao-contato">${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">sem contato</span>'}${ct.cargo ? ` <span class="muted">· ${escapeHtml(ct.cargo)}</span>` : ""}</div>
-      <div class="crm-cartao-linha"><span class="crm-rot">Última ligação</span><div>${crmUltimaHtml({ ultima: ult })}</div></div>
-      <div class="crm-cartao-linha"><span class="crm-rot">Próximo follow-up</span><div>${crmFollowupHtml(fu)}</div></div>
-      <div class="crm-cartao-linha"><span class="crm-rot">Cotações</span>
-        <div class="crm-cot-linha"><span><b class="mono">${n.cotEnviadas}</b> enviadas · <b class="mono crm-cot-ok">${n.cotAprovadas}</b> aprovadas</span>
-          ${podeEditar ? `<button type="button" class="btn small outline" data-crmlgcot="${escapeAttr(n.id)}">Marcar aprovadas</button>` : ""}</div>
-        <div class="crm-cot-barra"><span style="width:${pct}%"></span></div></div>
-      <div class="crm-cartao-linha"><span class="crm-rot">Obs.</span>
-        ${podeEditar
-          ? `<button type="button" class="crm-obs" data-crmlgobs="${escapeAttr(n.id)}">${n.obs ? escapeHtml(n.obs) : '<span class="muted">Clique para escrever…</span>'}</button>`
-          : `<div class="crm-obs crm-obs-ler">${n.obs ? escapeHtml(n.obs) : '<span class="muted">—</span>'}</div>`}</div>
+    <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""} ${podeEditar ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${escapeAttr(n.id)}" data-crmlgabrir="${escapeAttr(n.id)}" tabindex="0" role="button" aria-label="Abrir o cartão de ${escapeAttr(c.cliente)}">
+      <div class="crm-cartao-topo">
+        <div><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button></div>
+        <div class="crm-cartao-chips">${crmTipoSelo(c.cliente)}${crmLgTagContato(n)}${crmLgDonoHtml(c)}</div>
+        ${quem ? `<div class="muted sv-sub">${quem}</div>` : ""}
+      </div>
+      <div class="crm-cartao-duas">
+        <div><span class="crm-rot">Última ligação</span><div>${crmUltimaHtml({ ultima: ult })}</div></div>
+        <div><span class="crm-rot">Próx. follow-up</span><div>${crmFollowupHtml(fu)}</div></div>
+      </div>
+      <div class="crm-cartao-cot">
+        <div class="crm-cot-topo"><span class="crm-rot">Cotações</span>${podeEditar ? `<button type="button" class="btn small outline" data-crmlgcot="${escapeAttr(n.id)}">Marcar aprovadas</button>` : ""}</div>
+        <div class="crm-cot-linha"><span><b class="mono">${n.cotEnviadas}</b> enviadas · <b class="mono crm-cot-ok">${n.cotAprovadas}</b> aprovadas</span></div>
+        <div class="crm-cot-barra"><span style="width:${pct}%"></span></div>
+      </div>
+      ${obs}
       <div class="crm-cartao-rodape">${escapeHtml(rodape)}</div>
       ${podeEditar || crmEhExecutivo() ? "" : `<div class="muted sv-sub">Só leitura: carteira de ${escapeHtml(String(c.executivoNome || "outro executivo").split(" ")[0])}</div>`}
       <div class="crm-cartao-acoes">${acoes.filter(Boolean).join(" ")}</div>
@@ -542,6 +547,125 @@ function crmLgRenderResCli() {
   }).join("");
 }
 
+/* ---------------- cartão grande (abre ao clicar no cartão) ---------------- */
+/* Tudo do contato num lugar só: dados, etapa, cotações, observação e histórico. Quem é dono do cartão edita (etapa, cotações
+   aprovadas e observação) e salva de uma vez; o cartão de outro executivo abre só para leitura. */
+
+const crmCg = { negId: null, apr: 0, salvando: false };
+
+function crmCgKv(rotulo, html) { return `<div class="crm-cg-kv"><span class="crm-rot">${rotulo}</span><span>${html}</span></div>`; }
+
+function crmLgAbrirCartao(negId) {
+  const n = crmNegPorId(negId);
+  const c = n ? crmState.carteira.find(x => x.sistema === n.sistema && x.cliente === n.cliente) : null;
+  if (!n || !c) return;
+  crmCg.negId = negId;
+  crmCg.apr = n.cotAprovadas;
+  const editavel = crmLgEditavel(c);
+  const ct = crmContatoRapido(c);
+  const ligs = crmLgLigsPorNeg().get(n.id) || [];
+  const ult = ligs[0] || null;
+  const fu = ult ? ult.proximoFollowup : (ligs.length ? null : c.primeiroFollowup);
+  const dias = n.etapaDesde ? diasDesde(crmDiaLocal(n.etapaDesde)) : null;
+
+  document.getElementById("crmCgTitulo").textContent = c.cliente;
+  document.getElementById("crmCgChips").innerHTML = `${crmTipoSelo(c.cliente)}${crmLgTagContato(n)}${crmLgDonoHtml(c)}`;
+  document.getElementById("crmCgSub").textContent = crmCidadeUF(c.cliente);
+  const aviso = document.getElementById("crmCgLeitura");
+  aviso.style.display = editavel ? "none" : "";
+  aviso.textContent = `Só leitura: este contato é da carteira de ${c.executivoNome || "outro executivo"}. Você acompanha, mas não edita.`;
+
+  const etapas = CRM_ETAPAS.map(e => `<option value="${escapeAttr(e.nome)}" ${e.nome === n.etapa ? "selected" : ""}>${escapeHtml(e.nome)}</option>`).join("");
+  document.getElementById("crmCgEsq").innerHTML = `
+    <div class="crm-cg-grupo"><div class="crm-cg-tit">Contato</div>
+      ${crmCgKv("Contato", ct.nome ? escapeHtml(ct.nome) + (ct.cargo ? ` <span class="muted">· ${escapeHtml(ct.cargo)}</span>` : "") : '<span class="muted">sem contato</span>')}
+      ${crmCgKv("Telefone", ct.telefone ? `<span class="mono">${escapeHtml(ct.telefone)}</span>` : '<span class="muted">—</span>')}
+      ${crmCgKv("E-mail", ct.email ? escapeHtml(ct.email) : '<span class="muted">—</span>')}
+      <div class="crm-cartao-acoes">${crmAtalhosHtml(ct)}</div>
+    </div>
+    <div class="crm-cg-grupo"><div class="crm-cg-tit">Andamento</div>
+      ${crmCgKv("Etapa", `<select id="crmCgEtapa" aria-label="Etapa do contato" ${editavel ? "" : "disabled"}>${n.etapa ? "" : '<option value="" selected>Sem etapa</option>'}${etapas}</select>`)}
+      ${crmCgKv("Última ligação", crmUltimaHtml({ ultima: ult }))}
+      ${crmCgKv("Próx. follow-up", crmFollowupHtml(fu))}
+      ${crmCgKv("Neste contato", `<span class="muted">${ligs.length} ${ligs.length === 1 ? "ligação" : "ligações"}${dias !== null ? ` · há ${dias} ${dias === 1 ? "dia" : "dias"} nesta etapa` : ""}</span>`)}
+    </div>`;
+  document.getElementById("crmCgDir").innerHTML = `
+    <div class="crm-cg-grupo"><div class="crm-cg-tit">Cotações</div>
+      ${crmCgKv("Enviadas", `<b class="mono">${n.cotEnviadas}</b>`)}
+      ${crmCgKv("Aprovadas", `<span class="crm-cg-passo"><span class="crm-step"><button type="button" id="crmCgMenos" aria-label="Menos uma aprovada">−</button><span id="crmCgN" class="mono">0</span><button type="button" id="crmCgMais" aria-label="Mais uma aprovada">+</button></span><span class="muted sv-sub" id="crmCgPct"></span></span>`)}
+      <div class="crm-cot-barra"><span id="crmCgBarra" style="width:0%"></span></div>
+    </div>
+    <div class="crm-cg-grupo"><div class="crm-cg-tit">Observação do cartão</div>
+      <textarea id="crmCgObs" rows="3" aria-label="Observação do cartão" placeholder="Escreva o que combinou com o cliente…" ${editavel ? "" : "readonly"}>${escapeHtml(n.obs || "")}</textarea>
+    </div>
+    <div class="crm-cg-grupo"><div class="crm-cg-tit">Ligações deste contato</div>
+      ${ligs.length ? `<div class="crm-cg-hist">${ligs.map(l => `<div><span class="mono">${crmDataCurta(crmDiaLocal(l.createdAt))} às ${crmHoraLocal(l.createdAt)}</span>${crmPill(l.resultado)}</div>`).join("")}</div>` : '<div class="muted sv-sub">Nenhuma ligação neste contato ainda.</div>'}
+    </div>`;
+
+  document.getElementById("crmCgSalvar").style.display = editavel ? "" : "none";
+  document.getElementById("crmCgLigar").style.display = crmPodeLigarPara(c) ? "" : "none";
+  document.getElementById("crmCgCancelar").textContent = editavel ? "Cancelar" : "Fechar";
+  document.getElementById("crmCgErro").style.display = "none";
+  document.getElementById("crmCgFicha").dataset.crmcgficha = c.id;
+  document.getElementById("crmCgLigar").dataset.crmcgligar = c.id;
+  const menos = document.getElementById("crmCgMenos"), mais = document.getElementById("crmCgMais");
+  menos.addEventListener("click", () => { if (crmCg.apr > 0) { crmCg.apr--; crmCgAtualizarApr(); } });
+  mais.addEventListener("click", () => { const x = crmNegPorId(crmCg.negId); if (x && crmCg.apr < x.cotEnviadas) { crmCg.apr++; crmCgAtualizarApr(); } });
+  crmCgAtualizarApr();
+  document.getElementById("crmCartaoOverlay").classList.add("show");
+  document.getElementById("crmCgFechar").focus();
+}
+
+function crmCgAtualizarApr() {
+  const n = crmNegPorId(crmCg.negId);
+  if (!n) return;
+  const editavel = !!n && (() => { const c = crmState.carteira.find(x => x.sistema === n.sistema && x.cliente === n.cliente); return c && crmLgEditavel(c); })();
+  document.getElementById("crmCgN").textContent = crmCg.apr;
+  document.getElementById("crmCgPct").textContent = n.cotEnviadas ? `${crmDesPct(crmCg.apr, n.cotEnviadas)} das enviadas` : "nenhuma cotação enviada ainda";
+  document.getElementById("crmCgBarra").style.width = (n.cotEnviadas ? Math.round(crmCg.apr / n.cotEnviadas * 100) : 0) + "%";
+  document.getElementById("crmCgMenos").disabled = !editavel || crmCg.apr <= 0;
+  document.getElementById("crmCgMais").disabled = !editavel || crmCg.apr >= n.cotEnviadas;
+}
+
+function crmCgFechar() {
+  document.getElementById("crmCartaoOverlay").classList.remove("show");
+  crmCg.negId = null;
+}
+
+async function crmCgSalvar() {
+  if (crmCg.salvando) return;
+  const n = crmNegPorId(crmCg.negId);
+  const c = n ? crmState.carteira.find(x => x.sistema === n.sistema && x.cliente === n.cliente) : null;
+  if (!n || !c || !crmLgEditavel(c)) return;
+  const erroEl = document.getElementById("crmCgErro");
+  const botao = document.getElementById("crmCgSalvar");
+  crmCg.salvando = true;
+  botao.disabled = true;
+  try {
+    const campos = {};
+    if (crmCg.apr !== n.cotAprovadas) campos.cot_aprovadas = crmCg.apr;
+    const obs = document.getElementById("crmCgObs").value.trim();
+    if (obs !== (n.obs || "")) campos.obs = obs || null;
+    if (Object.keys(campos).length) {
+      const erro = await crmAtualizarNeg(n, campos);
+      if (erro) { erroEl.textContent = "Não foi possível salvar: " + erro; erroEl.style.display = "block"; return; }
+    }
+    const nova = document.getElementById("crmCgEtapa").value;
+    let finalizou = false;
+    if (nova && nova !== (n.etapa || "")) {
+      const ok = await crmMoverNeg(n, c, nova, "kanban");
+      if (!ok) { erroEl.textContent = "Os dados foram salvos, mas a etapa não pôde ser mudada."; erroEl.style.display = "block"; crmRenderLigacoes(); return; }
+      finalizou = CRM_ETAPAS_FINAIS.includes(nova);
+    }
+    crmCgFechar();
+    crmRenderLigacoes();
+    toast(finalizou ? "Contato finalizado. Está em Arquivados." : "Cartão atualizado.");
+  } finally {
+    crmCg.salvando = false;
+    botao.disabled = false;
+  }
+}
+
 /* ---------------- ligações dos eventos ---------------- */
 
 function crmLgInit() {
@@ -549,7 +673,12 @@ function crmLgInit() {
   if (!g("view-crm-ligacoes")) return;
   g("view-crm-ligacoes").addEventListener("click", (e) => {
     const t = e.target.closest("[data-crmligar],[data-crmficha],[data-crmcopiar],[data-crmlgcot],[data-crmlgobs],[data-crmlgnovo],[data-crmlgvisao],[data-crmlggestao]");
-    if (!t) return;
+    if (!t) {
+      // clique no cartão (fora de botões e links) abre o cartão grande
+      const card = e.target.closest("[data-crmlgabrir]");
+      if (card && !e.target.closest("a,button,input,select,textarea,label")) crmLgAbrirCartao(card.dataset.crmlgabrir);
+      return;
+    }
     if (t.dataset.crmlgcot) crmLgAbrirCot(t.dataset.crmlgcot);
     else if (t.dataset.crmlgobs) crmLgAbrirObs(t.dataset.crmlgobs);
     else if (t.dataset.crmlgnovo) crmLgIniciarNovoContato(t.dataset.crmlgnovo);
@@ -557,6 +686,17 @@ function crmLgInit() {
     else if (t.dataset.crmlggestao) setView("crm-desempenho");
     else crmClickDelegado(e);
   });
+  g("view-crm-ligacoes").addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches("[data-crmlgabrir]")) { e.preventDefault(); crmLgAbrirCartao(e.target.dataset.crmlgabrir); }
+  });
+  // cartão grande
+  g("crmCgFechar").addEventListener("click", crmCgFechar);
+  g("crmCgCancelar").addEventListener("click", crmCgFechar);
+  g("crmCgSalvar").addEventListener("click", crmCgSalvar);
+  g("crmCgFicha").addEventListener("click", (e) => { const id = e.currentTarget.dataset.crmcgficha; crmCgFechar(); if (id) crmAbrirFicha(id); });
+  g("crmCgLigar").addEventListener("click", (e) => { const id = e.currentTarget.dataset.crmcgligar; crmCgFechar(); if (id) crmAbrirLigacao(id); });
+  g("crmCartaoOverlay").addEventListener("click", (e) => { if (e.target.id === "crmCartaoOverlay") crmCgFechar(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && g("crmCartaoOverlay").classList.contains("show")) crmCgFechar(); });
   g("crmLgBusca").addEventListener("input", (e) => { crmLg.busca = e.target.value; crmRenderLigacoes(); });
   g("crmLgExec").addEventListener("change", (e) => { crmLg.executivo = e.target.value; crmRenderLigacoes(); });
   g("crmLgAtrasados").addEventListener("click", () => { crmLg.atrasados = !crmLg.atrasados; crmRenderLigacoes(); });

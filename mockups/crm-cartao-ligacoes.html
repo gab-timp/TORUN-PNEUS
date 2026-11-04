@@ -1,0 +1,225 @@
+<title>Cartão de Ligações</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: o cartão atual ao lado da proposta, mesmas informações; depois a proposta em outros estados (carteira de outro, sem etapa, atrasado) */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-deep:#C64F0C;--orange-pale:#FFE7D6;--blue:#2B4C7E;--blue-pale:#DCE6F7;--green:#15803D;--danger:#B91C1C;--danger-pale:#FDE6E6;--black:#111;--onblack:#fff;--chip:#EFEEEA}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-deep:#FFA066;--orange-pale:#3A2515;--blue:#9DB8E8;--blue-pale:#1F2A3E;--green:#4ADE80;--danger:#F87171;--danger-pale:#3A1D1D;--black:#F1EFE9;--onblack:#161513;--chip:#2A2825;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-deep:#FFA066;--orange-pale:#3A2515;--blue:#9DB8E8;--blue-pale:#1F2A3E;--green:#4ADE80;--danger:#F87171;--danger-pale:#3A1D1D;--black:#F1EFE9;--onblack:#161513;--chip:#2A2825;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:grid;gap:18px}
+h1{margin:0;font-size:20px}h2{margin:0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft)}
+.exemplo,.nota{font-size:12.5px;color:var(--soft)}.exemplo{border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+.par{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,280px));gap:18px;align-items:start}
+.col{display:grid;gap:10px;min-width:0}
+/* ---- cartão atual ---- */
+.at{background:var(--surface);border:2px solid var(--orange);border-radius:14px;padding:14px;display:grid;gap:8px;font-size:13px}
+.at .selos{display:grid;gap:6px;justify-items:start}
+.at .rot{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);font-weight:700}
+.at .linha{display:grid;gap:3px}
+.at .btn{justify-self:start}
+/* ---- proposta ---- */
+.cart{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:10px;font-size:13px;min-width:0}
+.cart.minha{border:2px solid var(--orange)}
+.cart.ro{opacity:.97}
+.topo{display:grid;gap:4px}
+.nome{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.nome b{font-size:15px;line-height:1.2;overflow-wrap:anywhere}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 8px;background:var(--chip);color:var(--ink)}
+.chip.c2{background:var(--blue-pale);color:var(--blue)}
+.chip.dono{background:var(--blue-pale);color:var(--blue)}
+.chip.etapa{background:var(--orange-pale);color:var(--orange-deep)}
+.chip.atr{background:var(--danger-pale);color:var(--danger)}
+.sub{font-size:12px;color:var(--soft)}
+.sub .sep{opacity:.5;padding:0 3px}
+.duas{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.duas>div{min-width:0}
+.rot{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);font-weight:700;white-space:nowrap}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.dado{margin-top:3px;display:grid;gap:4px;justify-items:start}
+.cot{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.cot .l{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.barra{height:5px;border-radius:4px;background:var(--chip);overflow:hidden}.barra i{display:block;height:100%;background:var(--green)}
+.obs{border:1px dashed var(--line);border-radius:8px;padding:7px 10px;color:var(--soft);font-size:12.5px;background:var(--paper);text-align:left;font:inherit;font-size:12.5px;cursor:pointer;width:100%;box-sizing:border-box}
+.obs.tem{color:var(--ink);border-style:solid}
+.rodape{font-size:11.5px;color:var(--soft)}
+.acoes{display:flex;gap:6px;align-items:center}
+.ic{width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px}
+.btn{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+.btn.peq{padding:4px 8px;font-size:12px}
+.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700;margin-left:auto}
+.leitura{font-size:11.5px;color:var(--soft);margin-left:auto}
+button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.cart[data-abre]{cursor:pointer}
+.dica{font-size:12px;color:var(--orange-deep);font-weight:700}
+/* ---- cartão grande (abre ao clicar no cartão) ---- */
+.overlay{position:fixed;inset:0;background:rgba(10,10,10,.55);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;z-index:50}
+.modal{background:var(--surface);border-radius:16px;width:min(760px,100%);max-height:calc(100vh - 32px);overflow:auto;display:grid;gap:0;border-top:4px solid var(--orange)}
+.mh{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:20px 22px 14px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.mh h3{margin:0;font-size:19px}
+.fechar{font:inherit;border:0;background:none;color:var(--soft);font-size:22px;cursor:pointer;line-height:1}
+.mc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;padding:0 22px 20px}
+@media(max-width:640px){.mc{grid-template-columns:minmax(0,1fr)}}
+.bloco{display:grid;gap:10px;align-content:start;min-width:0}
+.grupo{display:grid;gap:8px;min-width:0}
+.grupo+.grupo{border-top:1px solid var(--line);padding-top:12px}
+.bloco+.bloco{}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px;font-size:13px;align-items:center}
+.kv .rot{font-size:10px}
+select,textarea{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:7px 9px;width:100%;box-sizing:border-box}
+textarea{min-height:84px;resize:vertical}
+.passo{display:flex;align-items:center;gap:8px}
+.passo button{width:30px;height:30px}
+.hist{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.hist div{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.hist div:last-child{border-bottom:0}
+.mf{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:12px 22px 18px;border-top:1px solid var(--line)}
+.lock{font-size:12px;color:var(--soft);padding:0 22px 8px}
+[hidden]{display:none!important}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 8px;background:var(--orange-pale);color:var(--orange-deep)}
+</style>
+<div class="wrap">
+  <div><h1>Cartão de Ligações</h1><div class="nota">Mesmas informações do cartão de hoje, em menos altura: nada some, só muda de lugar. Exemplos com nomes inventados.</div></div>
+
+  <div class="par">
+    <div class="col"><h2>Hoje</h2>
+      <div class="at">
+        <b style="font-size:15px">gggg</b>
+        <div class="selos"><span class="chip">Cliente</span><span class="chip c2">2º contato</span><span class="chip dono">Minha carteira</span></div>
+        <div class="sub">Curitiba/PE</div>
+        <div>gggggg · <span class="sub">Proprietário</span></div>
+        <div class="linha"><span class="rot">Última ligação</span><div class="mono">04/11 <span class="pill">● Estimativa enviada</span></div></div>
+        <div class="linha"><span class="rot">Próximo follow-up</span><div class="mono">05/11</div></div>
+        <div class="linha"><span class="rot">Cotações</span><div><b class="mono">0</b> enviadas · <b class="mono" style="color:var(--green)">0</b> aprovadas</div></div>
+        <button class="btn">Marcar aprovadas</button>
+        <div class="barra"><i style="width:0"></i></div>
+        <div class="linha"><span class="rot">Obs.</span><button class="obs">Clique para escrever…</button></div>
+        <div class="rodape"><b class="mono">1</b> ligação · há 0 dias nesta etapa</div>
+        <div class="acoes"><span class="ic">☎</span><span class="ic">💬</span><span class="ic">✉</span></div>
+        <button class="btn primary" style="margin-left:0;justify-self:start">Registrar ligação</button>
+      </div>
+    </div>
+
+    <div class="col"><h2>Proposta</h2><div class="dica">Clique no cartão para abrir o cartão grande</div>
+      <div class="cart minha" data-abre="meu" tabindex="0" role="button" aria-label="Abrir o cartão de gggg">
+        <div class="topo">
+          <div class="nome"><b>gggg</b></div>
+          <div class="chips"><span class="chip">Cliente</span><span class="chip c2">2º contato</span><span class="chip dono">Minha carteira</span></div>
+          <div class="sub">Curitiba/PE<span class="sep">·</span>gggggg<span class="sep">·</span>Proprietário</div>
+        </div>
+        <div class="duas">
+          <div><div class="rot">Última ligação</div><div class="dado"><span class="mono">04/11</span><span class="pill">● Estimativa enviada</span></div></div>
+          <div><div class="rot">Próx. follow-up</div><div class="dado"><span class="mono">05/11</span></div></div>
+        </div>
+        <div class="cot">
+          <div class="l"><span class="rot">Cotações</span><button class="btn peq">Marcar aprovadas</button></div>
+          <div><b class="mono">0</b> enviadas · <b class="mono" style="color:var(--green)">0</b> aprovadas</div>
+          <div class="barra"><i style="width:0"></i></div>
+        </div>
+        <button class="obs">Obs.: clique para escrever…</button>
+        <div class="rodape"><b class="mono">1</b> ligação · há 0 dias nesta etapa</div>
+        <div class="acoes"><span class="ic" title="Ligar">☎</span><span class="ic" title="WhatsApp">💬</span><span class="ic" title="E-mail">✉</span><button class="btn primary">Registrar ligação</button></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>A proposta em outros casos</h2>
+  <div class="par">
+    <div class="cart ro" data-abre="outro" tabindex="0" role="button" aria-label="Abrir o cartão de Rodoviário Norte">
+      <div class="topo">
+        <div class="nome"><b>Rodoviário Norte</b></div>
+        <div class="chips"><span class="chip">Cliente</span><span class="chip dono">Paulo Lima</span></div>
+        <div class="sub">Campinas/SP<span class="sep">·</span>Carlos<span class="sep">·</span>Comprador</div>
+      </div>
+      <div class="duas">
+        <div><div class="rot">Última ligação</div><div class="dado"><span class="mono">29/10</span><span class="pill">● Interesse</span></div></div>
+        <div><div class="rot">Próx. follow-up</div><div class="dado"><span class="mono">02/11</span><span class="chip atr">Atrasado 2 dias</span></div></div>
+      </div>
+      <div class="cot">
+        <div class="l"><span class="rot">Cotações</span></div>
+        <div><b class="mono">4</b> enviadas · <b class="mono" style="color:var(--green)">2</b> aprovadas</div>
+        <div class="barra"><i style="width:50%"></i></div>
+      </div>
+      <div class="obs tem" style="cursor:default">Obs.: Quer prazo de 60 dias nas próximas cotações.</div>
+      <div class="rodape"><b class="mono">5</b> ligações · há 6 dias nesta etapa</div>
+      <div class="acoes"><span class="ic">☎</span><span class="ic">💬</span><span class="ic">✉</span></div>
+      <div class="leitura" style="margin:0">🔒 Só leitura: carteira de Paulo</div>
+    </div>
+    <div class="col"><div class="nota">Carteira de outro executivo (visão da gestão): mesmos dados, sem os botões de editar; o dono aparece como chip azul no lugar de "Minha carteira". O atraso do follow-up ganha um chip vermelho ao lado da data. Clique nele para ver o cartão grande em modo leitura.</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov" hidden>
+  <div class="modal" role="dialog" aria-labelledby="mt">
+    <div class="mh">
+      <div>
+        <h3 id="mt"></h3>
+        <div class="chips" id="mchips" style="margin-top:6px"></div>
+        <div class="sub" id="msub" style="margin-top:6px"></div>
+      </div>
+      <button class="fechar" id="fechar" aria-label="Fechar">×</button>
+    </div>
+    <div class="lock" id="lock" hidden>🔒 Só leitura: este contato é da carteira de Paulo. Você acompanha, mas não edita.</div>
+    <div class="mc">
+      <div class="bloco">
+        <div class="grupo"><h2>Contato</h2>
+        <div class="kv"><span class="rot">Contato</span><span id="mcont"></span></div>
+        <div class="kv"><span class="rot">Telefone</span><span class="mono" id="mtel"></span></div>
+        <div class="kv"><span class="rot">E-mail</span><span id="mmail"></span></div>
+        <div class="acoes"><span class="ic" title="Ligar">☎</span><span class="ic" title="WhatsApp">💬</span><span class="ic" title="E-mail">✉</span></div></div>
+        <div class="grupo"><h2>Andamento</h2>
+        <div class="kv"><span class="rot">Etapa</span>
+          <select id="metapa" aria-label="Etapa do contato"><option>Estimativa enviada</option><option>Em negociação</option><option>Fechamento</option><option>Fechado</option><option>Declinou</option></select></div>
+        <div class="kv"><span class="rot">Última ligação</span><span><span class="mono" id="multd"></span> <span class="pill" id="multr"></span></span></div>
+        <div class="kv"><span class="rot">Próx. follow-up</span><span class="mono" id="mfu"></span></div>
+        <div class="kv"><span class="rot">Neste contato</span><span class="sub" id="mrod"></span></div></div>
+      </div>
+      <div class="bloco">
+        <div class="grupo"><h2>Cotações</h2>
+        <div class="kv"><span class="rot">Enviadas</span><b class="mono" id="menv"></b></div>
+        <div class="kv"><span class="rot">Aprovadas</span>
+          <span class="passo"><button class="ic" id="menos" aria-label="Menos uma">−</button><b class="mono" id="mapr"></b><button class="ic" id="mais" aria-label="Mais uma">+</button><span class="sub" id="mpct"></span></span></div>
+        <div class="barra"><i id="mbar"></i></div></div>
+        <div class="grupo"><h2>Observação do cartão</h2>
+        <textarea id="mobs" aria-label="Observação do cartão" placeholder="Escreva o que combinou com o cliente…"></textarea></div>
+        <div class="grupo"><h2>Ligações deste contato</h2>
+        <div class="hist" id="mhist"></div></div>
+      </div>
+    </div>
+    <div class="mf" id="mfoot">
+      <button class="btn" id="mficha">Abrir ficha do cliente</button>
+      <button class="btn" id="mcancel">Cancelar</button>
+      <button class="btn" id="msalvar">Salvar alterações</button>
+      <button class="btn primary" id="mliga" style="margin-left:0">Registrar ligação</button>
+    </div>
+  </div>
+</div>
+<script>
+const CARTOES={
+  meu:{t:"gggg",chips:'<span class="chip">Cliente</span><span class="chip c2">2º contato</span><span class="chip dono">Minha carteira</span>',sub:"Curitiba/PE",cont:"gggggg · Proprietário",tel:"(41) 99999-0000",mail:"contato@gggg.com.br",etapa:0,ult:"04/11",ultr:"● Estimativa enviada",fu:"05/11",rod:"1 ligação · há 0 dias nesta etapa",env:3,apr:1,obs:"",ro:false,hist:[["04/11 às 10:20","Estimativa enviada"]]},
+  outro:{t:"Rodoviário Norte",chips:'<span class="chip">Cliente</span><span class="chip dono">Paulo Lima</span>',sub:"Campinas/SP",cont:"Carlos · Comprador",tel:"(19) 98888-1111",mail:"carlos@rodnorte.com.br",etapa:1,ult:"29/10",ultr:"● Interesse",fu:"02/11 (atrasado 2 dias)",rod:"5 ligações · há 6 dias nesta etapa",env:4,apr:2,obs:"Quer prazo de 60 dias nas próximas cotações.",ro:true,hist:[["29/10 às 15:02","Interesse"],["24/10 às 11:40","Pediu retorno"],["18/10 às 09:15","Não atendeu"]]}
+};
+const $=id=>document.getElementById(id);
+let atual=null,apr=0;
+function pinta(){const c=CARTOES[atual];$("mapr").textContent=apr;$("mpct").textContent=c.env?Math.round(apr/c.env*100)+"% das enviadas":"";$("mbar").style.width=(c.env?apr/c.env*100:0)+"%";$("menos").disabled=c.ro||apr<=0;$("mais").disabled=c.ro||apr>=c.env}
+function abrir(k){
+  const c=CARTOES[k];atual=k;apr=c.apr;
+  $("mt").textContent=c.t;$("mchips").innerHTML=c.chips;$("msub").textContent=c.sub;
+  $("mcont").textContent=c.cont;$("mtel").textContent=c.tel;$("mmail").textContent=c.mail;
+  $("metapa").selectedIndex=c.etapa;$("multd").textContent=c.ult;$("multr").textContent=c.ultr;$("mfu").textContent=c.fu;$("mrod").textContent=c.rod;
+  $("menv").textContent=c.env;$("mobs").value=c.obs;
+  $("mhist").innerHTML=c.hist.map(h=>"<div><span>"+h[0]+"</span><span class='pill'>"+h[1]+"</span></div>").join("");
+  $("lock").hidden=!c.ro;$("metapa").disabled=c.ro;$("mobs").readOnly=c.ro;
+  ["msalvar","mcancel","mliga"].forEach(i=>$(i).hidden=c.ro);
+  pinta();$("ov").hidden=false;$("fechar").focus();
+}
+function fechar(){$("ov").hidden=true}
+document.querySelectorAll("[data-abre]").forEach(el=>{
+  el.addEventListener("click",e=>{if(e.target.closest("button,.ic"))return;abrir(el.dataset.abre)});
+  el.addEventListener("keydown",e=>{if(e.key==="Enter")abrir(el.dataset.abre)});
+});
+$("fechar").onclick=fechar;$("mcancel").onclick=fechar;$("msalvar").onclick=fechar;$("mficha").onclick=fechar;$("mliga").onclick=fechar;
+$("ov").addEventListener("click",e=>{if(e.target===$("ov"))fechar()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ov").hidden)fechar()});
+$("menos").onclick=()=>{apr--;pinta()};$("mais").onclick=()=>{apr++;pinta()};
+</script>
