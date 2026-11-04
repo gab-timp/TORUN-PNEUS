@@ -3264,6 +3264,28 @@
         <div class="empty-state" id="svVendEmpty" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
       </div>
 
+      <div class="card" id="svRepresentantesCard">
+        <div class="card-head"><h2>Representantes do Sem Venda</h2><span class="sv-tag-sistema">Sem Venda</span></div>
+        <div class="note">Representantes que não têm login. Eles aparecem em "Representante" na Reserva do Sem Venda, junto com os que já têm login de representante. Tirar um nome daqui não muda as reservas que já foram feitas com ele.</div>
+        <form id="svFormRepresentante" class="form-row sv-vend-form">
+          <div class="field grow">
+            <label>Nome do representante</label>
+            <input type="text" id="svRepNome" maxlength="80" placeholder="Ex: André Cabral" autocomplete="off">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="svBtnAddRepresentante">Adicionar</button>
+          </div>
+        </form>
+        <div class="note" id="svRepCount"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th></th></tr></thead>
+            <tbody id="svRepTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="svRepEmpty" style="display:none;">Nenhum representante cadastrado ainda.</div>
+      </div>
+
       <div class="card" id="svTransportadorasCard">
         <div class="card-head"><h2>Transportadoras</h2><span class="sv-tag-sistema">Sem Venda</span></div>
         <div class="note">É a lista que aparece em "Transportadora" na Reserva e na janela de Confirmar venda. Tirar uma transportadora daqui não muda as reservas que já foram feitas com ela.</div>
@@ -4726,7 +4748,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=38"></script>
+<script src="semvenda.js?v=39"></script>
 <script src="crm.js?v=42"></script>
 <script src="crm-ligacoes.js?v=1"></script>
 <script src="crm-perfil.js?v=9"></script>

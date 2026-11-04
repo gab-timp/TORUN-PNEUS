@@ -239,7 +239,7 @@ async function svAoAbrirView(view) {
   // o cadastro de clientes tem carga própria (tabela sv_clientes): só as telas que o usam dependem dele
   if (["sv-clientes", "sv-reserva", "sv-relatoriopreco"].includes(view) && !(await svCarregarClientes(view === "sv-clientes"))) return;
   // as listas de vendedores e de condições de pagamento têm carga própria: se a tabela não existir, só a Reserva reclama
-  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarTransportadoras()]);
+  if (view === "sv-reserva") await Promise.all([svCarregarVendedores(), svCarregarTransportadoras(), svCarregarRepresentantes()]);
   if (view === "sv-produtos") svRenderProdutos();
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
@@ -1451,7 +1451,8 @@ function svRenderReservaForm() {
 
   const selRep = document.getElementById("svResRepresentante");
   const repAnterior = selRep.value;
-  const representantes = [...new Set(state.representantes || [])].sort((a, b) => a.localeCompare(b));
+  // os com login de representante e os cadastrados à parte em Administração (sem login), numa lista só
+  const representantes = [...new Set([...(state.representantes || []), ...svRepresentantes.map(r => r.nome)])].sort((a, b) => a.localeCompare(b, "pt-BR"));
   selRep.innerHTML = `<option value="">Selecione…</option><option value="${SV_SEM_REPRESENTANTE}">Sem representante</option>` +
     representantes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
   if ([...selRep.options].some(o => o.value === repAnterior)) selRep.value = repAnterior;
@@ -2466,6 +2467,7 @@ function svCarregarVendedores() {
 async function svAoAbrirAdministracao() {
   const tarefas = [];
   if (document.getElementById("svVendedoresCard")) tarefas.push(svCarregarVendedores().then(ok => { if (ok) svRenderVendedoresAdmin(); }));
+  if (document.getElementById("svRepresentantesCard")) tarefas.push(svCarregarRepresentantes().then(() => svRenderRepresentantesAdmin()));
   if (document.getElementById("svTransportadorasCard")) tarefas.push(svCarregarTransportadoras().then(ok => { if (ok) svRenderTransportadorasAdmin(); }));
   await Promise.all(tarefas);
 }
@@ -2517,6 +2519,75 @@ async function svExcluirVendedor(id) {
   svVendedores = svVendedores.filter(x => x.id !== id);
   svRenderVendedoresAdmin();
   toast("Vendedor removido.");
+}
+
+/* ---------- Representantes sem login (lista que a Reserva usa junto com os de login; cadastro na Administração) ---------- */
+
+// mesma ideia dos vendedores: carga própria, para a falta da tabela (sql/sem_venda_representantes_extras.sql) não derrubar o resto
+let svRepresentantes = [];
+let svRepresentantesEmAndamento = null;
+
+function svCarregarRepresentantes() {
+  if (svRepresentantesEmAndamento) return svRepresentantesEmAndamento;
+  svRepresentantesEmAndamento = (async () => {
+    const { data, error } = await sb.from("sv_representantes").select("*").order("nome");
+    if (error) {
+      svRepresentantes = [];
+      return false; // sem a tabela a Reserva só mostra os representantes com login, como antes
+    }
+    svRepresentantes = (data || []).map(r => ({ id: r.id, nome: r.nome })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return true;
+  })().finally(() => { svRepresentantesEmAndamento = null; });
+  return svRepresentantesEmAndamento;
+}
+
+function svRenderRepresentantesAdmin() {
+  const n = svRepresentantes.length;
+  document.getElementById("svRepCount").textContent = n === 0 ? "" : `${n} ${n === 1 ? "representante cadastrado" : "representantes cadastrados"}`;
+  document.getElementById("svRepEmpty").style.display = n === 0 ? "block" : "none";
+  const tbody = document.getElementById("svRepTbody");
+  tbody.innerHTML = svRepresentantes.map(r => `
+    <tr>
+      <td>${escapeHtml(r.nome)}</td>
+      <td class="sv-acoes"><button type="button" class="sv-link" data-svrepdel="${escapeAttr(r.id)}">Excluir</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("[data-svrepdel]").forEach(btn => {
+    btn.addEventListener("click", () => svExcluirRepresentante(btn.dataset.svrepdel));
+  });
+}
+
+async function svAdicionarRepresentante(e) {
+  e.preventDefault();
+  const botao = document.getElementById("svBtnAddRepresentante");
+  if (botao.disabled) return;
+  botao.disabled = true;
+  try {
+    const campo = document.getElementById("svRepNome");
+    const nome = campo.value.replace(/\s+/g, " ").trim();
+    if (!nome) { toast("Informe o nome do representante."); return; }
+    if (svRepresentantes.some(r => r.nome.toLowerCase() === nome.toLowerCase()) || (state.representantes || []).some(n => n.toLowerCase() === nome.toLowerCase())) { toast("Esse representante já está na lista."); return; }
+    const { data, error } = await sb.from("sv_representantes").insert({ id: uid("svrep"), nome, created_by: currentUser ? currentUser.id : null }).select();
+    if (error) { toast("Erro ao adicionar o representante: " + error.message); return; }
+    if (!data || data.length === 0) { toast("Não foi possível adicionar (sem permissão)."); return; }
+    svRepresentantes.push({ id: data[0].id, nome: data[0].nome });
+    svRepresentantes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    campo.value = "";
+    svRenderRepresentantesAdmin();
+    toast("Representante adicionado.");
+  } finally { botao.disabled = false; }
+}
+
+async function svExcluirRepresentante(id) {
+  const r = svRepresentantes.find(x => x.id === id);
+  if (!r) return;
+  const ok = await confirmModal("Excluir representante?", `Remove "${r.nome}" da lista de representantes do Sem Venda. As reservas que já foram feitas com esse nome continuam como estão.`);
+  if (!ok) return;
+  const { data, error } = await sb.from("sv_representantes").delete().eq("id", id).select();
+  if (error) { toast("Erro ao excluir o representante: " + error.message); return; }
+  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removido)."); return; }
+  svRepresentantes = svRepresentantes.filter(x => x.id !== id);
+  svRenderRepresentantesAdmin();
+  toast("Representante removido.");
 }
 
 /* ---------- Transportadoras (lista que a Reserva usa; cadastro na Administração) ---------- */
@@ -2946,6 +3017,7 @@ function initSemVendaTelas() {
     svRenderDashboardVendas();
   });
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
+  document.getElementById("svFormRepresentante").addEventListener("submit", svAdicionarRepresentante);
   document.getElementById("svFormTransportadora").addEventListener("submit", svAdicionarTransportadora);
   svLigarReserva();
   svLigarClientes();
