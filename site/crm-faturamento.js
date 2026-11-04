@@ -167,6 +167,7 @@ function crmFatDesenhar() {
   corpo.innerHTML = crmFatHtml();
   crmFatAtualizarPeriodo();
   crmFatCalcular();
+  if (typeof crmRepComDesenhar === "function") crmRepComDesenhar(); // comissão dos representantes (crm-representante.js)
 }
 
 // "Depois do último lançamento": De = dia seguinte ao último lançado; Até = hoje (ou o fim do mês)

@@ -14,6 +14,8 @@ const SISTEMAS_CRM = ["atacado", "encomenda"];
 
 // sistemas que este usuário pode abrir (o varejo é de todos), na ordem dos cartões da tela de escolha
 function sistemasDisponiveis() {
+  // login de representante (sem papel no CRM): só o sistema dele, com o painel dele; nada do varejo nem do Sem Venda
+  if (typeof crmRepresentante !== "undefined" && crmRepresentante && !currentUserIsAdmin) return crmSistemasVisiveis();
   const lista = ["varejo"];
   if (temAcessoSemVenda()) lista.push("semvenda");
   const crm = crmSistemasVisiveis();
@@ -76,6 +78,7 @@ function entrarNoSistema() {
   const disponiveis = sistemasDisponiveis();
   if (disponiveis.length <= 1) {
     shell.style.display = "flex";
+    if (disponiveis[0] && disponiveis[0] !== "varejo") aplicarSistema(disponiveis[0]); // representante: abre direto o sistema dele
     return;
   }
   const lembrado = sistemaLembrado();

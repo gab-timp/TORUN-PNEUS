@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=178">
 <link rel="stylesheet" href="semvenda.css?v=31">
-<link rel="stylesheet" href="crm.css?v=29">
+<link rel="stylesheet" href="crm.css?v=30">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
@@ -379,6 +379,13 @@
         </button>
         <button class="nav-item" data-view="crm-relatorio" data-label="Relatório de comissão">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatório de comissão
+        </button>
+      </div>
+      <!-- Painel do representante: o login do representante só vê este grupo; financeiro e gestão abrem o de qualquer um. Aparece pelo crmAplicarMenuGestao() -->
+      <div class="nav-group" id="crmGrupoMeuPainel" data-group="crm-meu-painel" style="display:none;">
+        <button type="button" class="nav-label">Representante <svg class="ic nav-label-chevron" viewBox="0 0 20 20"><use href="#i-chevron"/></svg></button>
+        <button class="nav-item" data-view="crm-meu-painel" data-label="Painel do representante">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-coins"/></svg> Painel do representante
         </button>
       </div>
       <!-- Gestão: Metas é da gestão do CRM (inclusive sem ser admin); Administração continua só do admin. O grupo aparece pelo crmAplicarMenuGestao() -->
@@ -950,6 +957,17 @@
         </div>
       </div>
       <div id="crmRelCorpo"></div>
+    </section>
+
+    <section id="view-crm-meu-painel" class="view crm-view">
+      <div class="page-head">
+        <div><h1 id="crmRepTitulo">Painel do representante</h1><div class="sub" id="crmRepSub"></div></div>
+        <div class="page-head-actions">
+          <div class="field" id="crmRepEscolhaCampo" style="display:none;"><label for="crmRepEscolha">Representante</label><select id="crmRepEscolha"></select></div>
+          <div class="field crm-meta-ano"><label for="crmRepMes">Mês</label><select id="crmRepMes"></select></div>
+        </div>
+      </div>
+      <div id="crmRepCorpo"></div>
     </section>
 
     <section id="view-crm-faturamento" class="view crm-view">
@@ -4707,18 +4725,19 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=36"></script>
-<script src="crm.js?v=40"></script>
+<script src="semvenda.js?v=37"></script>
+<script src="crm.js?v=41"></script>
 <script src="crm-ligacoes.js?v=1"></script>
 <script src="crm-perfil.js?v=9"></script>
-<script src="crm-faturamento.js?v=4"></script>
+<script src="crm-faturamento.js?v=5"></script>
+<script src="crm-representante.js?v=1"></script>
 <script src="crm-desempenho.js?v=1"></script>
 <script src="crm-dashboard.js?v=4"></script>
 <script src="crm-metas-visual.js?v=2"></script>
 <script src="crm-metas-mes.js?v=5"></script>
 <script src="crm-relatorio.js?v=2"></script>
 <script src="crm-editar.js?v=2"></script>
-<script src="usuarios.js?v=6"></script>
-<script src="app.js?v=289"></script>
+<script src="usuarios.js?v=7"></script>
+<script src="app.js?v=290"></script>
 </body>
 </html>

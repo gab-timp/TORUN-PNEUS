@@ -28,6 +28,7 @@ const CRM_ATALHOS_FU = [["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7], ["
 
 let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastro do usuário)
 let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
+let crmRepresentante = null; // login de representante: nome do cadastro tipo representante (user_roles.crm_representante); sem papel no CRM
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
 const crmState = { carteira: [], contatos: [], ligacoes: [], historico: [], perfis: new Map(), filiais: [], pneus: [], perfilIndisponivel: false, clientes: new Map(), clientesIndisponivel: false, prospectsDisponivel: false, representantesDisponivel: false, fat: new Map(), fatDisponivel: false };
@@ -42,6 +43,7 @@ let crmCargaEmAndamento = null;
 function crmDefinirPerfil(r) {
   crmPapel = (r && r.crm_papel) || null;
   crmTemCarteira = !!(r && r.crm_tem_carteira);
+  crmRepresentante = (r && r.crm_representante) || null;
   // a lista nova (user_roles.crm_sistemas); sem ela vale o sistema único de antes
   const lista = r && Array.isArray(r.crm_sistemas) ? r.crm_sistemas : (r && r.crm_sistema ? [r.crm_sistema] : []);
   crmSistemas = Object.keys(CRM_SISTEMAS).filter(k => lista.includes(k));
@@ -68,7 +70,7 @@ function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPap
 function crmSistemasVisiveis() {
   const p = crmPapelEfetivo();
   if (currentUserIsAdmin) return ["atacado", "encomenda"]; // administrador abre os dois sistemas, mesmo com um papel marcado para teste
-  if (p === "executivo") return crmSistemas.slice();
+  if (p === "executivo" || (crmRepresentante && !p)) return crmSistemas.slice();
   return p ? ["atacado", "encomenda"] : [];
 }
 
@@ -108,10 +110,17 @@ function crmAplicarMenuGestao() {
   if (fin) fin.style.display = typeof crmPodeVerFaturamento === "function" && crmPodeVerFaturamento() ? "" : "none";
   const grupo = document.getElementById("crmGrupoGestao");
   if (grupo) grupo.style.display = crmPodeVerMetas() || currentUserIsAdmin ? "" : "none";
+  // painel do representante: o representante só vê este grupo; financeiro e gestão abrem o painel de qualquer um
+  const repGrupo = document.getElementById("crmGrupoMeuPainel");
+  if (repGrupo) repGrupo.style.display = typeof crmPodeVerPainelRep === "function" && crmPodeVerPainelRep() ? "" : "none";
+  if (crmRepresentante && !currentUserIsAdmin) {
+    document.querySelectorAll("#navCrm > .nav-group").forEach(g => { if (g.id !== "crmGrupoMeuPainel") g.style.display = "none"; });
+  }
 }
 
 // quem tem carteira própria começa em Hoje; gestão e financeiro, na lista de clientes
 function crmViewInicial() {
+  if (crmRepresentante && !currentUserIsAdmin) return "crm-meu-painel";
   return crmTemCarteiraPropria() ? "crm-hoje" : "crm-clientes";
 }
 
@@ -409,6 +418,8 @@ const CRM_VIEWS_REDESENHAR = ["crm-hoje", "crm-clientes", "crm-cliente", "crm-de
 // Com a carga já feita, a tela abre na hora com o que tem e o CRM atualiza por trás; na primeira abertura espera a carga.
 async function crmAoAbrirView(view) {
   const tinha = crmJaCarregou;
+  // o login do representante não lê o CRM: o painel dele busca só o que é dele
+  if (view === "crm-meu-painel" && crmRepresentante && !currentUserIsAdmin) { crmRepPainelRender(); return; }
   if (tinha) crmRender();
   await crmCarregar(view !== "crm-cliente");
   const ativa = document.querySelector(".view.active");
@@ -427,6 +438,7 @@ function crmRender() {
   else if (id === "view-crm-dashboard" && typeof crmRenderDashboard === "function") crmRenderDashboard();
   else if (id === "view-crm-relatorio" && typeof crmRenderRelatorio === "function") crmRenderRelatorio();
   else if (id === "view-crm-faturamento" && typeof crmRenderFaturamento === "function") crmRenderFaturamento();
+  else if (id === "view-crm-meu-painel" && typeof crmRepPainelRender === "function") crmRepPainelRender();
 }
 
 /* ---------------- Hoje ---------------- */
