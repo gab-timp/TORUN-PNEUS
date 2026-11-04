@@ -527,14 +527,19 @@ function svCriarLinhaItem(containerId) {
   row.innerHTML = `
     <select class="item-produto" required>${svProdutoOptionsHTML()}</select>
     <input type="number" class="item-qtd" min="1" step="1" placeholder="Qtd" required>
+    <input type="number" class="item-custo" min="0" step="0.01" placeholder="Custo unit." aria-label="Custo unitário em reais" inputmode="decimal">
+    <span class="item-subtotal mono">—</span>
     <button type="button" class="btn small danger item-remove" title="Remover medida">✕</button>
   `;
   produtoComboAprimorar(row.querySelector(".item-produto"));
+  row.querySelector(".item-qtd").addEventListener("input", svAtualizarCustoForm);
+  row.querySelector(".item-custo").addEventListener("input", svAtualizarCustoForm);
   row.querySelector(".item-remove").addEventListener("click", () => {
     const container = document.getElementById(containerId);
     if (container.children.length > 1) {
       row.remove();
       updateItemRemoveVisibility(containerId);
+      if (containerId === "svPrevItens") svAtualizarCustoForm();
     }
   });
   return row;
@@ -700,26 +705,34 @@ function svAbrirPrevistoDetalhe(id) {
   const ativas = svState.reservas.filter(r => r.previsaoId === p.id && r.situacao !== "CANCELADA");
   const qtdReservada = ativas.reduce((a, r) => a + (Number(r.quantidade) || 0), 0);
   const valor = (html, vazio) => `<div class="prev-detalhe-valor${vazio ? " vazio" : ""}">${html}</div>`;
+  const custoProc = svCustoDoProcesso(p);
   document.getElementById("svPrevDetalheInfo").innerHTML = `
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Armazém</span>${
       p.armazem ? valor(escapeHtml(svPrevTextoArmazem(p))) : valor("Sem armazém", true)}</div>
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Data de chegada</span>${
       p.dataChegada ? valor(`<span class="mono">${formatDateBR(p.dataChegada)}</span>`) : valor("Sem data de chegada", true)}</div>
-    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Custo total</span>${
-      p.custoTotal !== null ? valor(`<span class="mono">${escapeHtml(formatMoney(p.custoTotal))}</span>${p.custoForaDoInvestido ? ' <span class="muted">(fora do valor investido)</span>' : ""}`) : valor("Custo não informado", true)}</div>
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">${custoProc.antigo ? "Custo total antigo" : "Custo do processo"}</span>${
+      custoProc.temCusto ? valor(`<span class="mono">${escapeHtml(formatMoney(custoProc.total))}</span>${p.custoForaDoInvestido ? ' <span class="muted">(fora do valor investido)</span>' : ""}`) : valor("Custo não informado", true)}</div>
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Reservas ligadas</span>${
       ativas.length ? valor(`<span class="mono">${fmt(qtdReservada)}</span> un. em ${ativas.length} reserva${ativas.length > 1 ? "s" : ""}`) : valor("Nenhuma", true)}</div>`;
 
   const total = p.itens.reduce((a, it) => a + (Number(it.quantidade) || 0), 0);
   document.getElementById("svPrevDetalheMedidas").innerHTML = p.itens.length ? `
     <table class="prev-detalhe-tabela">
-      <thead><tr><th style="width:20%;">Código</th><th>Medida</th><th class="num" style="width:14%;">Qtd.</th></tr></thead>
+      <thead><tr><th style="width:16%;">Código</th><th>Medida</th><th class="num" style="width:11%;">Qtd.</th><th class="num" style="width:17%;">Custo unit.</th><th class="num" style="width:19%;">Subtotal</th></tr></thead>
       <tbody>
-        ${p.itens.map(it => { const prod = svGetProduto(it.codigo); return `
-          <tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td></tr>`; }).join("")}
-        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td></tr>
+        ${p.itens.map(it => {
+          const prod = svGetProduto(it.codigo);
+          const temUnit = it.custoUnitario !== null && it.custoUnitario !== undefined;
+          const celulas = temUnit
+            ? `<td class="num mono">${escapeHtml(formatMoney(it.custoUnitario))}</td><td class="num mono">${escapeHtml(formatMoney((Number(it.quantidade) || 0) * Number(it.custoUnitario)))}</td>`
+            : `<td class="num">${custoProc.antigo ? "—" : '<span class="muted">Custo não informado</span>'}</td><td class="num">—</td>`;
+          return `<tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td>${celulas}</tr>`; }).join("")}
+        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td><td></td><td class="num mono">${custoProc.temCusto ? escapeHtml(formatMoney(custoProc.total)) : "—"}</td></tr>
       </tbody>
-    </table>` : `<div class="prev-detalhe-obs">Nenhuma medida cadastrada.</div>`;
+    </table>
+    ${custoProc.antigo ? `<div class="prev-detalhe-obs">Este processo foi lançado com o custo total. Ele segue contando no valor investido até você informar o custo unitário dos itens (em Editar).</div>`
+      : custoProc.temCusto && custoProc.itensSemCusto > 0 ? `<div class="prev-detalhe-obs">${custoProc.itensSemCusto} ${custoProc.itensSemCusto === 1 ? "item sem custo informado" : "itens sem custo informado"}. Edite o processo para preencher o custo unitário.</div>` : ""}` : `<div class="prev-detalhe-obs">Nenhuma medida cadastrada.</div>`;
 
   document.getElementById("svPrevDetalheObs").textContent = p.obs || "Sem observação.";
 
@@ -831,7 +844,6 @@ function svIniciarEdicaoPrevisto(id) {
   document.getElementById("svPrevDtc").checked = !!p.dtc;
   document.getElementById("svPrevArmazem").value = p.armazem;
   document.getElementById("svPrevObs").value = p.obs;
-  document.getElementById("svPrevCusto").value = p.custoTotal === null ? "" : p.custoTotal;
   document.getElementById("svPrevCustoFora").checked = !!p.custoForaDoInvestido;
 
   const container = document.getElementById("svPrevItens");
@@ -845,8 +857,10 @@ function svIniciarEdicaoPrevisto(id) {
       sel.value = it.codigo;
     }
     row.querySelector(".item-qtd").value = it.quantidade;
+    if (it.custoUnitario !== null && it.custoUnitario !== undefined) row.querySelector(".item-custo").value = it.custoUnitario;
   });
   updateItemRemoveVisibility("svPrevItens");
+  svAtualizarCustoForm();
 
   document.getElementById("svPrevFormTitle").textContent = "Editar processo previsto";
   document.getElementById("svBtnSubmitPrevisto").textContent = "Salvar alterações";
@@ -869,6 +883,7 @@ function svCancelarEdicaoPrevisto() {
   document.getElementById("svFormPrevisto").reset();
   document.getElementById("svPrevStatus").value = PREVISTO_STATUS[0];
   svResetItens();
+  svAtualizarCustoForm();
   document.getElementById("svPrevFormTitle").textContent = "Novo processo previsto";
   document.getElementById("svBtnSubmitPrevisto").textContent = "Adicionar processo";
   document.getElementById("svPrevOverlay").classList.remove("show");
@@ -890,9 +905,6 @@ async function svSalvarPrevistoDados(e) {
   const armazem = document.getElementById("svPrevArmazem").value;
   const obs = document.getElementById("svPrevObs").value.trim();
   if (!numeroProcesso) { toast("Informe o número do processo."); return; }
-  const custoTexto = document.getElementById("svPrevCusto").value.trim();
-  const custoTotal = custoTexto === "" ? null : Number(custoTexto);
-  if (custoTotal !== null && !(custoTotal >= 0)) { toast("O custo total precisa ser um valor de zero em diante."); return; }
 
   const itens = [];
   for (const row of document.querySelectorAll("#svPrevItens .item-row")) {
@@ -900,8 +912,13 @@ async function svSalvarPrevistoDados(e) {
     const quantidadeRaw = row.querySelector(".item-qtd").value;
     if (!codigo && !quantidadeRaw) continue;
     if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
-    itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10) });
+    const custoUnitario = svLerCustoUnitario(row.querySelector(".item-custo").value);
+    if (Number.isNaN(custoUnitario)) { toast("O custo unitário precisa ser um valor de zero em diante."); return; }
+    itens.push(custoUnitario === null ? { codigo, quantidade: parseInt(quantidadeRaw, 10) } : { codigo, quantidade: parseInt(quantidadeRaw, 10), custoUnitario });
   }
+  // o custo total antigo (de antes do custo unitário) continua guardado no processo; só deixa de valer quando há custo unitário
+  const atual = svEditandoPrevistoId ? svState.previsoes.find(x => x.id === svEditandoPrevistoId) : null;
+  const custoTotal = atual && atual.custoTotal !== undefined ? atual.custoTotal : null;
   const custoForaDoInvestido = document.getElementById("svPrevCustoFora").checked;
   const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs, dtc, custoTotal, custoForaDoInvestido };
 
@@ -2248,21 +2265,67 @@ function svArmazensDoEstoque(est) {
 
 // Valor investido: soma do custo total dos processos que já chegaram (FINALIZADO). Sem argumento soma todos;
 // com um armazém ("" = sem armazém), só os processos dele. Não desconta o que já foi vendido.
-// semCusto = processos que chegaram mas ainda não têm o custo informado (ficam fora da soma).
+// semCusto = processos que chegaram com algum item (ou todos) sem custo informado: o que não foi informado fica fora da soma.
+// Custo do processo: quantidade x custo unitário dos itens que têm custo. Processo antigo, que só tem o custo total e nenhum
+// custo unitário, segue valendo pelo total antigo até alguém informar o custo unitário dos itens.
+// itensSemCusto = itens sem custo unitário (só conta quando o processo já usa custo unitário).
+function svCustoDoProcesso(p) {
+  const itens = Array.isArray(p.itens) ? p.itens : [];
+  const comCusto = itens.filter(it => it.custoUnitario !== null && it.custoUnitario !== undefined && Number.isFinite(Number(it.custoUnitario)));
+  if (comCusto.length) {
+    return { total: comCusto.reduce((s, it) => s + (Number(it.quantidade) || 0) * Number(it.custoUnitario), 0), temCusto: true, itensSemCusto: itens.length - comCusto.length, antigo: false };
+  }
+  if (p.custoTotal !== null && p.custoTotal !== undefined) return { total: p.custoTotal, temCusto: true, itensSemCusto: 0, antigo: true };
+  return { total: 0, temCusto: false, itensSemCusto: itens.length, antigo: false };
+}
+
+// lê o custo unitário digitado: vazio = sem custo (null); texto que não é número de zero em diante = NaN
+function svLerCustoUnitario(texto) {
+  const t = String(texto || "").trim();
+  if (t === "") return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+}
+
+// subtotal de cada linha e custo do processo, ao vivo, no formulário do processo
+function svAtualizarCustoForm() {
+  let total = 0, temCusto = false;
+  document.querySelectorAll("#svPrevItens .item-row").forEach(row => {
+    const qtd = parseInt(row.querySelector(".item-qtd").value, 10) || 0;
+    const custo = svLerCustoUnitario(row.querySelector(".item-custo").value);
+    const sub = row.querySelector(".item-subtotal");
+    if (custo !== null && !Number.isNaN(custo)) { total += qtd * custo; temCusto = true; sub.textContent = formatMoney(qtd * custo); }
+    else sub.textContent = "—";
+    row.querySelector(".item-custo").classList.toggle("invalido", Number.isNaN(custo));
+  });
+  const alvo = document.getElementById("svPrevCustoTotal");
+  if (alvo) alvo.textContent = temCusto ? formatMoney(total) : "—";
+  const antigo = document.getElementById("svPrevCustoAntigo");
+  if (antigo) {
+    const p = svEditandoPrevistoId ? svState.previsoes.find(x => x.id === svEditandoPrevistoId) : null;
+    const tem = !!p && p.custoTotal !== null && p.custoTotal !== undefined;
+    antigo.style.display = tem ? "" : "none";
+    if (tem) antigo.textContent = temCusto
+      ? `Este processo tinha o custo total de ${formatMoney(p.custoTotal)}. Com o custo unitário dos itens, o unitário passa a valer no lugar dele.`
+      : `Este processo foi lançado com o custo total de ${formatMoney(p.custoTotal)}. Ele segue contando no valor investido até você informar o custo unitário dos itens.`;
+  }
+}
+
 function svResumoValor(armazem) {
   const chegados = svState.previsoes.filter(p => p.status === "FINALIZADO" && !p.custoForaDoInvestido && (armazem === undefined || (p.armazem || "") === armazem));
-  const comCusto = chegados.filter(p => p.custoTotal !== null);
+  const custos = chegados.map(svCustoDoProcesso);
   return {
-    total: comCusto.reduce((s, p) => s + p.custoTotal, 0),
-    temCusto: comCusto.length > 0,
-    semCusto: chegados.length - comCusto.length
+    total: custos.reduce((s, c) => s + (c.temCusto ? c.total : 0), 0),
+    temCusto: custos.some(c => c.temCusto),
+    // processos com algum item sem custo unitário (ou sem custo nenhum): a soma só tem o que foi informado
+    semCusto: custos.filter(c => !c.temCusto || c.itensSemCusto > 0).length
   };
 }
 
 function svNotaSemCusto(resumo) {
   if (resumo.semCusto === 0) return "";
   return resumo.temCusto
-    ? `${resumo.semCusto} ${resumo.semCusto === 1 ? "processo sem custo informado" : "processos sem custo informado"}`
+    ? `${resumo.semCusto} ${resumo.semCusto === 1 ? "processo com item sem custo informado" : "processos com item sem custo informado"}`
     : "Informe o custo nos processos (Estoque Previsto)";
 }
 

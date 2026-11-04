@@ -1,0 +1,120 @@
+<title>Custo unitário por item</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: três telas do Estoque Previsto com o custo por item: o formulário do processo, o detalhe do card e um processo antigo com custo total */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-deep:#C64F0C;--orange-pale:#FFE7D6;--black:#111;--onblack:#fff;--tint:#FFF4EC;--warn:#92650A;--warn-pale:#FBF3D5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-deep:#FFA066;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--tint:#2A1D14;--warn:#E8C26A;--warn-pale:#3A3015;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-deep:#FFA066;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--tint:#2A1D14;--warn:#E8C26A;--warn-pale:#3A3015;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:820px;margin:0 auto;display:grid;gap:14px}
+.exemplo,.note{font-size:12.5px;color:var(--soft)}.exemplo{border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{font:inherit;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}.tabs button[aria-pressed="true"]{background:var(--black);color:var(--onblack);border-color:var(--black)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.modal{background:var(--surface);border-radius:16px;border-top:4px solid var(--orange);padding:0;display:grid;box-shadow:0 12px 28px -10px rgba(0,0,0,.35);overflow:hidden}
+.mh{padding:18px 22px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.mh h3{margin:0;font-size:18px}
+.mb{padding:16px 22px;display:grid;gap:14px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label,.lbl{font-size:12px;color:var(--soft);display:block;margin-bottom:4px}
+input[type=text],input[type=number]{font:inherit;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink)}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink)}.chk input{width:auto}
+.novo{outline:2px solid var(--orange);outline-offset:3px;border-radius:8px}
+.itens{display:grid;gap:8px}
+.cab,.linha{display:grid;grid-template-columns:minmax(0,1.6fr) 90px 130px 120px 28px;gap:8px;align-items:center}
+.cab{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft);font-weight:700}
+.sub-linha{font:600 13px ui-monospace,Menlo,Consolas,monospace;text-align:right}
+.rem{border:1px solid var(--line);background:var(--surface);color:var(--soft);border-radius:7px;height:30px;cursor:pointer}
+.add{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:7px;padding:6px 10px;cursor:pointer;justify-self:start}
+.tot{display:flex;justify-content:flex-end;gap:18px;border-top:1px solid var(--line);padding-top:10px;font-size:13px}.tot b{font:700 15px ui-monospace,Menlo,Consolas,monospace}
+.mf{padding:12px 22px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 14px;cursor:pointer}.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.cels{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.cel .l{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);font-weight:700}.cel .v{margin-top:4px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}th{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft)}.num{text-align:right;font-variant-numeric:tabular-nums}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+tr.total td{border-top:2px solid var(--ink);font-weight:800;background:var(--tint);border-bottom:0}
+.aviso{font-size:12.5px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:8px;padding:9px 12px;background:var(--paper)}
+.aviso.warn{border-left-color:var(--warn);background:var(--warn-pale);color:var(--ink)}
+.kpi{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surface);max-width:320px}.kpi .l{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);font-weight:700}.kpi .v{font:800 24px ui-monospace,Menlo,Consolas,monospace;margin-top:6px}.kpi .s{font-size:12px;color:var(--soft);margin-top:4px}
+@media(max-width:620px){.cab{display:none}.linha{grid-template-columns:1fr 1fr}.linha .rem{width:100%}}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="exemplo">Telas de exemplo, com nomes e valores inventados. O custo total do processo vira o custo unitário de cada item.</div>
+  <div class="tabs" role="group" aria-label="Tela"><button data-t="a" aria-pressed="true">Formulário do processo</button><button data-t="b" aria-pressed="false">Detalhe do card</button><button data-t="c" aria-pressed="false">Processo antigo</button><button data-t="d" aria-pressed="false">Valor investido</button></div>
+
+  <div class="modal" data-v="a">
+    <div class="mh"><h3>Novo processo previsto</h3><span class="note">×</span></div>
+    <div class="mb">
+      <div class="row">
+        <div><label>Nº do processo</label><input type="text" value="3071-26"></div>
+        <div><label>Data de chegada (opcional)</label><input type="text" value="25/11/2026"></div>
+        <div><label>Status</label><input type="text" value="Processo em água"></div>
+        <div><label>Armazém de destino</label><input type="text" value="Nguedes"></div>
+      </div>
+      <div class="chk"><input type="checkbox" id="fora"><label for="fora" style="margin:0;color:var(--ink)">Não considerar como valor investido parado</label></div>
+      <div>
+        <div class="lbl">Medidas do processo</div>
+        <div class="itens novo" style="padding:10px">
+          <div class="cab"><span>Medida</span><span>Quantidade</span><span>Custo unit. (R$)</span><span style="text-align:right">Subtotal</span><span></span></div>
+          <div class="linha"><input type="text" value="SV-0142 · 295/80R22.5 18PR"><input type="number" class="q" value="400"><input type="number" class="c" value="1180" step="0.01"><div class="sub-linha s">R$ 472.000,00</div><button class="rem" aria-label="Remover">✕</button></div>
+          <div class="linha"><input type="text" value="SV-0087 · 11R22.5 16PR"><input type="number" class="q" value="240"><input type="number" class="c" value="" step="0.01" placeholder="0,00"><div class="sub-linha s">—</div><button class="rem" aria-label="Remover">✕</button></div>
+          <button class="add">+ Adicionar medida</button>
+        </div>
+        <div class="tot"><span>Custo do processo <span class="note">(só dos itens com custo)</span></span><b id="totForm">R$ 472.000,00</b></div>
+        <div class="note" style="margin-top:6px">O custo unitário é opcional em cada item. Os itens sem custo ficam fora da soma e entram no aviso do Dashboard.</div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn">Cancelar</button><button class="btn primary">Adicionar processo</button></div>
+  </div>
+
+  <div class="modal" data-v="b" hidden>
+    <div class="mh"><h3>Processo 3071-26</h3><span class="note">Processo em água</span></div>
+    <div class="mb">
+      <div class="cels">
+        <div class="cel"><div class="l">Armazém</div><div class="v">Nguedes</div></div>
+        <div class="cel"><div class="l">Data de chegada</div><div class="v mono">25/11/2026</div></div>
+        <div class="cel"><div class="l">Custo do processo</div><div class="v mono">R$ 472.000,00</div></div>
+        <div class="cel"><div class="l">Reservas ligadas</div><div class="v">Nenhuma</div></div>
+      </div>
+      <table><thead><tr><th>Código</th><th>Medida</th><th class="num">Qtd.</th><th class="num">Custo unit.</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">SV-0142</td><td>295/80R22.5 18PR</td><td class="num mono">400</td><td class="num mono">R$ 1.180,00</td><td class="num mono">R$ 472.000,00</td></tr>
+          <tr><td class="mono">SV-0087</td><td>11R22.5 16PR</td><td class="num mono">240</td><td class="num"><span class="note">Custo não informado</span></td><td class="num">—</td></tr>
+          <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">640</td><td></td><td class="num mono">R$ 472.000,00</td></tr>
+        </tbody></table>
+      <div class="aviso warn">1 item sem custo informado. Edite o processo para preencher o custo unitário dele.</div>
+    </div>
+    <div class="mf"><button class="btn">Excluir</button><button class="btn primary">Editar</button></div>
+  </div>
+
+  <div class="modal" data-v="c" hidden>
+    <div class="mh"><h3>Processo 3055-26</h3><span class="note">Finalizado</span></div>
+    <div class="mb">
+      <div class="cels">
+        <div class="cel"><div class="l">Armazém</div><div class="v">RF</div></div>
+        <div class="cel novo"><div class="l">Custo total antigo</div><div class="v mono">R$ 486.000,00</div></div>
+      </div>
+      <table><thead><tr><th>Código</th><th>Medida</th><th class="num">Qtd.</th><th class="num">Custo unit.</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">SV-0142</td><td>295/80R22.5 18PR</td><td class="num mono">400</td><td class="num"><span class="note">Custo não informado</span></td><td class="num">—</td></tr>
+          <tr><td class="mono">SV-0087</td><td>11R22.5 16PR</td><td class="num mono">240</td><td class="num"><span class="note">Custo não informado</span></td><td class="num">—</td></tr>
+          <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">640</td><td></td><td class="num mono">R$ 486.000,00</td></tr>
+        </tbody></table>
+      <div class="aviso">Este processo foi lançado com o custo total. Ele segue contando no valor investido até você informar o custo unitário dos itens; quando informar, o unitário passa a valer no lugar do total antigo.</div>
+    </div>
+    <div class="mf"><button class="btn primary">Editar</button></div>
+  </div>
+
+  <div data-v="d" hidden class="mb" style="padding:0">
+    <div class="kpi"><div class="l">Valor investido parado</div><div class="v">R$ 958.000,00</div><div class="s">1 processo com item sem custo informado</div></div>
+    <div class="note" style="margin-top:8px">Soma quantidade × custo unitário dos itens dos processos já chegados (Finalizado), mais o custo total antigo dos processos que ainda não ganharam custo unitário. Processos marcados "Não considerar como valor investido parado" ficam de fora. O aviso conta processos que têm algum item sem custo.</div>
+  </div>
+</div>
+<script>
+const fmt=v=>v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function recalc(){let t=0;document.querySelectorAll('[data-v="a"] .linha').forEach(l=>{const q=Number(l.querySelector(".q").value)||0,c=Number(l.querySelector(".c").value);const s=l.querySelector(".s");if(c>0){s.textContent=fmt(q*c);t+=q*c}else s.textContent="—"});document.getElementById("totForm").textContent=fmt(t)}
+document.querySelectorAll('[data-v="a"] input').forEach(i=>i.addEventListener("input",recalc));
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  document.querySelectorAll("[data-v]").forEach(c=>c.hidden=c.dataset.v!==b.dataset.t);
+}));
+recalc();
+</script>

@@ -298,6 +298,39 @@ grupo('igualdade Atacado x Encomenda', () => {
   iguais((html.match(/\sid="[^"]*(?:Atacado|Encomenda)[^"]*"/g) || []).length, 0, 'telas: nenhum elemento do CRM é exclusivo de um dos sistemas (id com o nome do sistema)');
 });
 
+grupo('Sem Venda: custo unitário por item e valor investido', () => {
+  const { run } = contexto();
+  run('const svState = { previsoes: [] };\n' + funcao('semvenda.js', 'svCustoDoProcesso') + '\n' + funcao('semvenda.js', 'svResumoValor') + '\n' + funcao('semvenda.js', 'svNotaSemCusto'));
+  const custo = (p) => run('svCustoDoProcesso(' + JSON.stringify(p) + ')');
+  iguais(custo({ itens: [{ codigo: 'A', quantidade: 400, custoUnitario: 1180 }, { codigo: 'B', quantidade: 240, custoUnitario: 1000 }], custoTotal: null }),
+    { total: 712000, temCusto: true, itensSemCusto: 0, antigo: false }, 'custo do processo: soma quantidade x custo unitário de cada item');
+  iguais(custo({ itens: [{ codigo: 'A', quantidade: 400, custoUnitario: 1180 }, { codigo: 'B', quantidade: 240 }], custoTotal: null }),
+    { total: 472000, temCusto: true, itensSemCusto: 1, antigo: false }, 'custo do processo: item sem custo fica fora da soma e é contado');
+  iguais(custo({ itens: [{ codigo: 'A', quantidade: 10, custoUnitario: 0 }], custoTotal: null }),
+    { total: 0, temCusto: true, itensSemCusto: 0, antigo: false }, 'custo do processo: custo unitário zero vale (não é "sem custo")');
+  iguais(custo({ itens: [{ codigo: 'A', quantidade: 400 }, { codigo: 'B', quantidade: 240 }], custoTotal: 486000 }),
+    { total: 486000, temCusto: true, itensSemCusto: 0, antigo: true }, 'processo antigo: sem custo unitário vale o custo total antigo');
+  iguais(custo({ itens: [{ codigo: 'A', quantidade: 400, custoUnitario: 1000 }], custoTotal: 486000 }),
+    { total: 400000, temCusto: true, itensSemCusto: 0, antigo: false }, 'processo antigo: com custo unitário, o unitário vale no lugar do total antigo');
+  iguais(custo({ itens: [{ codigo: 'A', quantidade: 400 }], custoTotal: null }),
+    { total: 0, temCusto: false, itensSemCusto: 1, antigo: false }, 'sem custo nenhum: não tem custo');
+
+  const resumo = (previsoes, arm) => { run('svState.previsoes = ' + JSON.stringify(previsoes)); return run('svResumoValor(' + (arm === undefined ? '' : JSON.stringify(arm)) + ')'); };
+  const base = (extra) => Object.assign({ status: 'FINALIZADO', armazem: 'Nguedes', custoForaDoInvestido: false, custoTotal: null, itens: [] }, extra);
+  iguais(resumo([base({ itens: [{ quantidade: 10, custoUnitario: 100 }] }), base({ itens: [{ quantidade: 5, custoUnitario: 200 }] })]),
+    { total: 2000, temCusto: true, semCusto: 0 }, 'valor investido: soma dos processos finalizados');
+  iguais(resumo([base({ itens: [{ quantidade: 10, custoUnitario: 100 }] }), base({ status: 'EM_AGUA', itens: [{ quantidade: 5, custoUnitario: 200 }] })]),
+    { total: 1000, temCusto: true, semCusto: 0 }, 'valor investido: processo que ainda não chegou não entra');
+  iguais(resumo([base({ itens: [{ quantidade: 10, custoUnitario: 100 }], custoForaDoInvestido: true })]),
+    { total: 0, temCusto: false, semCusto: 0 }, 'valor investido: processo marcado "não considerar" fica fora, sem aviso');
+  iguais(resumo([base({ itens: [{ quantidade: 10, custoUnitario: 100 }, { quantidade: 4 }] })]),
+    { total: 1000, temCusto: true, semCusto: 1 }, 'valor investido: processo com item sem custo soma o que tem e entra no aviso');
+  iguais(resumo([base({ itens: [{ quantidade: 10 }], custoTotal: 5000 })]),
+    { total: 5000, temCusto: true, semCusto: 0 }, 'valor investido: processo antigo com custo total segue contando, sem aviso');
+  iguais(resumo([base({ itens: [{ quantidade: 10, custoUnitario: 100 }] }), base({ armazem: 'RF', itens: [{ quantidade: 1, custoUnitario: 50 }] })], 'RF'),
+    { total: 50, temCusto: true, semCusto: 0 }, 'valor investido: por armazém só soma os processos dele');
+});
+
 /* ---------------- resultado ---------------- */
 console.log('\n' + (total - falhas) + ' de ' + total + ' conferências passaram.');
 if (falhas) {
