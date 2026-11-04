@@ -2057,7 +2057,6 @@ function svLigarReserva() {
     const b = e.target.closest("[data-svpedido]");
     if (b) svEscolherPedidoReserva(b.dataset.svpedido);
   });
-  $("svResNovoCliente").addEventListener("click", () => svAbrirClienteModal(null, true));
   $("svResFechar").addEventListener("click", svFecharNovaReserva);
   $("svResCancelar").addEventListener("click", svFecharNovaReserva);
   $("svResOverlay").addEventListener("keydown", (e) => {
@@ -2584,24 +2583,13 @@ let svClientes = [];
 let svClientesEmAndamento = null;
 let svClientesCarregados = false;
 let svCliSelecionadoId = null;
-let svCliEditandoId = null;
-let svCliDaReserva = false; // a janela foi aberta pelo atalho da Reserva: ao salvar, o cliente já volta preenchido lá
 let svCliUnidadeAtual = "";
-let svCliSalvando = false;
 
 function svClienteFromRow(r) {
   return {
-    id: r.id, nome: r.nome, tipoPessoa: r.tipo_pessoa || "PJ", documento: r.documento || "", contato: r.contato || "",
-    telefone: r.telefone || "", email: r.email || "", cidade: r.cidade || "", estado: r.estado || "",
-    unidadeNegocio: r.unidade_negocio || "AMBOS", obs: r.obs || "", createdAt: r.created_at || ""
-  };
-}
-
-function svClienteToRow(c) {
-  return {
-    id: c.id, nome: c.nome, tipo_pessoa: c.tipoPessoa, documento: c.documento || null, contato: c.contato || null,
-    telefone: c.telefone || null, email: c.email || null, cidade: c.cidade || null, estado: c.estado,
-    unidade_negocio: c.unidadeNegocio, obs: c.obs || null
+    id: r.id, nome: r.nome, tipoPessoa: r.tipo_pessoa || "PJ", documento: r.documento || "", razaoSocial: r.razao_social || "", contato: r.contato || "",
+    telefone: r.telefone || "", email: r.email || "", cep: r.cep || "", endereco: r.endereco || "", cidade: r.cidade || "", estado: r.estado || "",
+    unidadeNegocio: r.unidade_negocio || "AMBOS", sistemaCrm: r.sistema_crm || "", obs: r.obs || "", createdAt: r.created_at || ""
   };
 }
 
@@ -2610,9 +2598,9 @@ function svCarregarClientes(forcar) {
   if (svClientesEmAndamento) return svClientesEmAndamento;
   if (svClientesCarregados && !forcar) return Promise.resolve(true);
   svClientesEmAndamento = (async () => {
-    const { data, error } = await sb.from("sv_clientes").select("*").order("nome");
+    const { data, error } = await sb.rpc("sv_clientes_do_crm");
     if (error) {
-      toast("Erro ao carregar os clientes do Sem Venda: " + error.message);
+      toast("Erro ao carregar os clientes (cadastro do CRM): " + error.message);
       return false;
     }
     svClientes = (data || []).map(svClienteFromRow).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
@@ -2686,17 +2674,13 @@ function svRenderClienteDetalhe() {
   const ultima = reservas.length ? reservas[0].data : null;
   const campos = [
     ["CNPJ/CPF", c.documento], ["Contato", c.contato], ["Telefone", c.telefone], ["E-mail", c.email],
-    ["Cidade/UF", [c.cidade, c.estado].filter(Boolean).join(" / ")]
+    ["Razão social", c.razaoSocial], ["CEP", c.cep], ["Endereço", c.endereco],
+    ["Cidade/UF", [c.cidade, c.estado].filter(Boolean).join(" / ")], ["Carteira no CRM", c.sistemaCrm]
   ].map(([l, v]) => `<div><div class="lbl">${l}</div><div class="val">${escapeHtml(v || "—")}</div></div>`).join("")
     + `<div><div class="lbl">Unidade de negócio</div><div class="val">${svSeloUnidadeCliente(c.unidadeNegocio)}</div></div>`;
-  const podeExcluir = currentUserIsAdmin && reservas.length === 0;
   box.innerHTML = `
     <div class="cliente-modal-head">
       <div class="cliente-modal-titulo"><h3>${escapeHtml(c.nome)}</h3><span class="cli-tp-selo">${escapeHtml(c.tipoPessoa)}</span></div>
-      <div class="cliente-modal-head-actions">
-        <button type="button" class="btn small outline sv-write" id="svCliBtnEditar">✎ Editar dados</button>
-        ${currentUserIsAdmin ? `<button type="button" class="btn small danger sv-write" id="svCliBtnExcluir" ${podeExcluir ? "" : `disabled title="Só dá para excluir cliente sem reservas"`}>🗑 Excluir</button>` : ""}
-      </div>
     </div>
     <div class="cliente-modal-info">${campos}</div>
     ${c.obs ? `<div class="note" style="margin:10px 0;"><b>Observações:</b> ${escapeHtml(c.obs)}</div>` : ""}
@@ -2714,128 +2698,10 @@ function svRenderClienteDetalhe() {
         return `<tr><td class="mono">${r.data ? formatDateBR(r.data) : "—"}</td><td><span class="mono">${escapeHtml(r.codigo)}</span> ${escapeHtml(p ? p.medida : "")}</td><td>${r.unidadeNegocio ? escapeHtml(SV_UNIDADES[r.unidadeNegocio] || r.unidadeNegocio) : "—"}</td><td class="mono">${fmt(r.quantidade)}</td><td><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span></td></tr>`;
       }).join("") : `<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">Nenhuma reserva ainda.</td></tr>`}</tbody>
     </table></div>`;
-  document.getElementById("svCliBtnEditar").addEventListener("click", () => svAbrirClienteModal(c.id, false));
-  const ex = document.getElementById("svCliBtnExcluir");
-  if (ex && !ex.disabled) ex.addEventListener("click", () => svExcluirCliente(c.id));
-}
-
-function svAbrirClienteModal(id, daReserva) {
-  const c = id ? svClientes.find(x => x.id === id) : null;
-  svCliEditandoId = c ? c.id : null;
-  svCliDaReserva = !!daReserva;
-  document.getElementById("svFormCliente").reset();
-  document.getElementById("svCliErro").textContent = "";
-  document.getElementById("svCliModalTitulo").textContent = c ? "Editar cliente" : "Novo cliente";
-  document.getElementById("svBtnSubmitCliente").textContent = c ? "Salvar" : "Adicionar cliente";
-  // selects montados por valor (não por "selected"), para o reset da janela não trazer a escolha anterior
-  document.getElementById("svCliEstado").innerHTML = `<option value="">Selecione…</option>` + UF_LIST.map(uf => `<option value="${uf}">${uf}</option>`).join("");
-  document.getElementById("svCliUnidade").innerHTML = `<option value="">Selecione…</option>` +
-    Object.entries(SV_UNIDADES_CLIENTE).map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join("");
-  if (c) {
-    document.getElementById("svCliNome").value = c.nome;
-    document.getElementById("svCliTipoPessoa").value = c.tipoPessoa;
-    document.getElementById("svCliDocumento").value = c.documento;
-    document.getElementById("svCliContato").value = c.contato;
-    document.getElementById("svCliTelefone").value = c.telefone;
-    document.getElementById("svCliEmail").value = c.email;
-    document.getElementById("svCliCidade").value = c.cidade;
-    document.getElementById("svCliEstado").value = c.estado;
-    document.getElementById("svCliUnidade").value = c.unidadeNegocio;
-    document.getElementById("svCliObs").value = c.obs;
-  } else if (daReserva) {
-    const digitado = document.getElementById("svResCliente").value.trim();
-    document.getElementById("svCliNome").value = digitado;
-  }
-  document.getElementById("svCliOverlay").classList.add("show");
-  document.getElementById("svCliNome").focus();
-}
-
-function svFecharClienteModal() {
-  document.getElementById("svCliOverlay").classList.remove("show");
-}
-
-async function svSalvarCliente(e) {
-  e.preventDefault();
-  if (svCliSalvando) return;
-  svCliSalvando = true;
-  const botao = document.getElementById("svBtnSubmitCliente");
-  botao.disabled = true;
-  try { await svSalvarClienteDados(); } finally { svCliSalvando = false; botao.disabled = false; }
-}
-
-async function svSalvarClienteDados() {
-  const v = (id) => document.getElementById(id).value.replace(/\s+/g, " ").trim();
-  const dados = {
-    nome: v("svCliNome"), tipoPessoa: document.getElementById("svCliTipoPessoa").value, documento: v("svCliDocumento"),
-    contato: v("svCliContato"), telefone: v("svCliTelefone"), email: v("svCliEmail"), cidade: v("svCliCidade"),
-    estado: document.getElementById("svCliEstado").value, unidadeNegocio: document.getElementById("svCliUnidade").value, obs: v("svCliObs")
-  };
-  const erro = document.getElementById("svCliErro");
-  const falha = !dados.nome ? "Informe o nome do cliente."
-    : !dados.estado ? "Escolha o estado (UF)."
-    : !dados.unidadeNegocio ? "Escolha a unidade de negócio."
-    : svClientes.some(c => c.id !== svCliEditandoId && c.nome.toLowerCase() === dados.nome.toLowerCase()) ? "Já existe um cliente com esse nome."
-    : "";
-  erro.textContent = falha;
-  if (falha) return;
-
-  const antigo = svCliEditandoId ? svClientes.find(c => c.id === svCliEditandoId) : null;
-  let salvo;
-  if (antigo) {
-    const { data, error } = await sb.from("sv_clientes").update(svClienteToRow({ ...dados, id: antigo.id })).eq("id", antigo.id).select();
-    if (error) { erro.textContent = "Erro ao salvar: " + error.message; return; }
-    if (!data || data.length === 0) { erro.textContent = "Não foi possível salvar (sem permissão)."; return; }
-    salvo = svClienteFromRow(data[0]);
-    svClientes[svClientes.indexOf(antigo)] = salvo;
-    // renomear atualiza as reservas no banco (on update cascade): recarrega para a lista não ficar com o nome velho
-    if (antigo.nome !== salvo.nome) await svCarregarDados(true);
-  } else {
-    const { data, error } = await sb.from("sv_clientes").insert({ ...svClienteToRow({ ...dados, id: uid("svcli") }), created_by: currentUser ? currentUser.id : null }).select();
-    if (error) { erro.textContent = "Erro ao adicionar: " + error.message; return; }
-    if (!data || data.length === 0) { erro.textContent = "Não foi possível adicionar (sem permissão)."; return; }
-    salvo = svClienteFromRow(data[0]);
-    svClientes.push(salvo);
-  }
-  svClientes.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  svFecharClienteModal();
-  if (svCliDaReserva) {
-    // volta para a Reserva com o cliente já escolhido
-    svRenderReservaForm();
-    document.getElementById("svResCliente").value = salvo.nome;
-    svAtualizarResumoReserva();
-    svLimparErroCampo("cliente");
-  } else {
-    svCliSelecionadoId = salvo.id;
-    svRenderClientes();
-  }
-  toast(antigo ? "Cliente atualizado." : "Cliente adicionado.");
-}
-
-async function svExcluirCliente(id) {
-  const c = svClientes.find(x => x.id === id);
-  if (!c) return;
-  if (svReservasDoCliente(c.nome).length) { toast("Esse cliente tem reservas e não pode ser excluído."); return; }
-  if (!(await confirmModal("Excluir cliente?", `Remove "${c.nome}" do cadastro do Sem Venda.`))) return;
-  const { data, error } = await sb.from("sv_clientes").delete().eq("id", id).select();
-  if (error) { toast("Erro ao excluir o cliente: " + error.message); return; }
-  if (!data || data.length === 0) { toast("Não foi possível excluir (sem permissão ou já removido)."); return; }
-  svClientes = svClientes.filter(x => x.id !== id);
-  svCliSelecionadoId = null;
-  svRenderClientes();
-  toast("Cliente removido.");
 }
 
 function svLigarClientes() {
   const $ = (id) => document.getElementById(id);
-  $("svBtnNovoCliente").addEventListener("click", () => svAbrirClienteModal(null, false));
-  $("svFormCliente").addEventListener("submit", svSalvarCliente);
-  $("svCliFechar").addEventListener("click", svFecharClienteModal);
-  $("svCliCancelar").addEventListener("click", svFecharClienteModal);
-  $("svCliOverlay").addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    e.stopPropagation();
-    svFecharClienteModal();
-  });
   $("svCliSearch").addEventListener("input", svRenderClientes);
   $("svCliChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-svcliun]");

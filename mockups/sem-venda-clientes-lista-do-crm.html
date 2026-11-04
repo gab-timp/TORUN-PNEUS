@@ -1,0 +1,71 @@
+<title>Sem Venda Clientes do CRM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f3efe9;--card:#fff;--ink:#2a2622;--soft:#7a7068;--line:#ddd5cb;--acc:#e8660d;--accpale:#fdeedd;--ok:#1d7a46;--okbg:#e3f4ea;--note:#eef3fb;--notei:#2c4e87;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--ok:#7fd8a4;--okbg:#18362a;--note:#1c2638;--notei:#9cb9ee;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--ok:#7fd8a4;--okbg:#18362a;--note:#1c2638;--notei:#9cb9ee;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));font-size:14px}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.sub{color:var(--soft);font-size:13px;margin:0 0 20px;max-width:75ch}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 24px;font-size:13px}
+.flow span.b{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+.flow span.b.on{background:var(--accpale);border-color:var(--acc);font-weight:700}
+.screen{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:28px;min-width:0}
+.head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.head h3{margin:0;font-size:18px}.head .s{color:var(--soft);font-size:13px}
+.info{background:var(--note);color:var(--notei);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+.btn{font:inherit;font-size:13px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--ink)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px}
+@media(max-width:700px){.split{grid-template-columns:1fr}}
+.lista{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.lista input{width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;border:0;border-bottom:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.row{padding:9px 12px;border-bottom:1px solid var(--line)}.row:last-child{border:0}
+.row.on{background:var(--accpale)}.row b{display:block}.row span{color:var(--soft);font-size:12px}
+.det{border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.det h4{margin:0 0 10px;font-size:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.pill{display:inline-block;font-size:11px;border-radius:99px;padding:2px 8px;background:var(--okbg);color:var(--ok)}
+.rm{text-decoration:line-through;opacity:.55}
+.leg{font-size:12.5px;color:var(--soft);margin-top:10px}
+</style>
+<h1>Cadastro único: CRM cadastra, Sem Venda só lista</h1>
+<p class="sub">Todo cliente cadastrado no CRM aparece na lista de Clientes do Sem Venda, com todos os dados. O Sem Venda deixa de ter cadastro próprio. Os clientes do Torun saem dos dois sistemas; se voltarem, entram pelo cadastro do CRM desde o início.</p>
+
+<div class="flow"><span class="b on">Cadastra no CRM</span>→<span class="b">Aparece em Clientes do Sem Venda</span>→<span class="b">Escolhido na Reserva</span></div>
+
+<div class="screen">
+  <h2>Sem Venda · tela Clientes (depois)</h2>
+  <div class="head"><div><h3>Clientes</h3><div class="s">Lista dos clientes cadastrados no CRM. Para cadastrar ou editar, use o CRM.</div></div>
+    <div><span class="btn rm">+ Novo cliente</span></div></div>
+  <div class="info">Cadastro feito no CRM (Atacado e Encomenda). Aqui só consulta e reservas.</div>
+  <div class="split">
+    <div class="lista"><input placeholder="Buscar por nome, CNPJ, cidade ou contato…" aria-label="Buscar">
+      <div class="row on"><b>TRUCK CENTER TRANSPORTES</b><span>Timbó/SC · Atacado</span></div>
+      <div class="row"><b>PNEUS DO VALE LTDA</b><span>Blumenau/SC · Encomenda</span></div>
+      <div class="row"><b>AUTO CENTER SUL</b><span>Joinville/SC · Atacado e Encomenda</span></div>
+    </div>
+    <div class="det">
+      <h4>TRUCK CENTER TRANSPORTES <span class="pill">PJ</span></h4>
+      <div class="grid">
+        <div><div class="lbl">CNPJ/CPF</div>00.000.000/0001-00</div><div><div class="lbl">Razão social</div>Truck Center Ltda</div>
+        <div><div class="lbl">Contato</div>João da Silva</div><div><div class="lbl">Telefone</div>(47) 99999-9999</div>
+        <div><div class="lbl">E-mail</div>contato@truck.com.br</div><div><div class="lbl">Cidade/UF</div>Timbó / SC</div>
+        <div><div class="lbl">CEP / Endereço</div>89120-000 · Rua Exemplo, 100</div><div><div class="lbl">Sistema no CRM</div>Atacado</div>
+      </div>
+      <p class="leg"><span class="rm">✎ Editar dados</span> &nbsp; <span class="rm">🗑 Excluir</span> &nbsp; saem daqui. Continua abaixo: reservas ativas, pneus reservados, última reserva e a tabela de reservas do cliente.</p>
+    </div>
+  </div>
+</div>
+
+<div class="screen">
+  <h2>Sem Venda · Nova reserva (depois)</h2>
+  <p style="margin:0 0 6px">Cliente: <b>TRUCK CENTER TRANSPORTES</b> (lista de clientes do CRM)</p>
+  <p class="leg" style="margin:0"><span class="rm">Não achou? Cadastrar cliente</span> sai. No lugar: "Cliente não aparece? Cadastre no CRM primeiro."</p>
+</div>
+
+<div class="screen">
+  <h2>O que sai</h2>
+  <p style="margin:0">CRM: importar cliente do Torun. Sem Venda: cadastro e edição de cliente, atalho de cadastrar na reserva, e o cadastro próprio (<code>sv_clientes</code>).</p>
+</div>

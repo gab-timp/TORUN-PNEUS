@@ -817,10 +817,7 @@
       <div class="page-head">
         <div>
           <h1>Clientes</h1>
-          <div class="sub">Cadastro próprio do Sem Venda, separado do cadastro do Torun.</div>
-        </div>
-        <div class="page-head-actions">
-          <button type="button" class="btn primary sv-write" id="svBtnNovoCliente">+ Novo cliente</button>
+          <div class="sub">Clientes cadastrados no CRM. Para cadastrar ou editar um cliente, use o CRM.</div>
         </div>
       </div>
       <div class="kpis" id="svCliKpis"></div>
@@ -3882,9 +3879,9 @@
       <div class="sv-res-linha">
         <div class="field sv-f-cliente" id="svResCampo_cliente">
           <label for="svResCliente">Cliente</label>
-          <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente cadastrado no Sem Venda…" autocomplete="off">
+          <input type="text" id="svResCliente" list="svListaClientes" placeholder="Buscar cliente cadastrado no CRM…" autocomplete="off">
           <datalist id="svListaClientes"></datalist>
-          <button type="button" class="sv-link sv-write" id="svResNovoCliente">Não achou? Cadastrar cliente</button>
+          <div class="note">Cliente não aparece? Cadastre no CRM primeiro.</div>
           <div class="sv-erro-msg" id="svResErro_cliente" role="alert"></div>
         </div>
         <div class="field" id="svResCampo_unidade">
@@ -3958,49 +3955,6 @@
         <div class="form-actions">
           <button type="button" class="btn outline" id="svResCancelar">Cancelar</button>
           <button type="submit" class="btn primary" id="svBtnSubmitReserva">Reservar</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
-
-<div class="modal-overlay" id="svCliOverlay">
-  <div class="modal sv-res-modal" role="dialog" aria-modal="true" aria-labelledby="svCliModalTitulo">
-    <div class="sv-res-modal-topo">
-      <div>
-        <h3 id="svCliModalTitulo">Novo cliente</h3>
-        <div class="muted sv-sub">Só vale para o Sem Venda. O cadastro do Torun não muda.</div>
-      </div>
-      <button type="button" class="sv-fechar" id="svCliFechar" aria-label="Fechar">✕</button>
-    </div>
-    <form id="svFormCliente" novalidate autocomplete="off">
-      <div class="sv-res-linha">
-        <div class="field sv-f-cliente"><label for="svCliNome">Nome do cliente</label><input type="text" id="svCliNome" placeholder="Ex: Truck Center Transportes"></div>
-        <div class="field"><label for="svCliTipoPessoa">Tipo de pessoa</label><select id="svCliTipoPessoa"><option value="PJ">Pessoa Jurídica (PJ)</option><option value="PF">Pessoa Física (PF)</option></select></div>
-      </div>
-      <div class="sv-res-linha">
-        <div class="field"><label for="svCliDocumento">CNPJ/CPF (opcional)</label><input type="text" id="svCliDocumento" placeholder="00.000.000/0001-00"></div>
-        <div class="field"><label for="svCliContato">Contato responsável (opcional)</label><input type="text" id="svCliContato" placeholder="Ex: João da Silva"></div>
-      </div>
-      <div class="sv-res-linha">
-        <div class="field"><label for="svCliTelefone">Telefone (opcional)</label><input type="text" id="svCliTelefone" placeholder="(47) 99999-9999"></div>
-        <div class="field"><label for="svCliEmail">E-mail (opcional)</label><input type="email" id="svCliEmail" placeholder="contato@cliente.com.br"></div>
-      </div>
-      <div class="sv-res-linha">
-        <div class="field sv-f-cliente"><label for="svCliCidade">Cidade (opcional)</label><input type="text" id="svCliCidade" placeholder="Ex: Timbó"></div>
-        <div class="field"><label for="svCliEstado">Estado (UF)</label><select id="svCliEstado"></select></div>
-        <div class="field"><label for="svCliUnidade">Unidade de negócio</label><select id="svCliUnidade"></select></div>
-      </div>
-      <div class="field">
-        <label for="svCliObs">Observações (opcional)</label>
-        <input type="text" id="svCliObs" placeholder="Ex: prefere retirada na sexta">
-      </div>
-      <div class="sv-erro-msg" id="svCliErro" role="alert"></div>
-      <div class="sv-res-rodape">
-        <div></div>
-        <div class="form-actions">
-          <button type="button" class="btn outline" id="svCliCancelar">Cancelar</button>
-          <button type="submit" class="btn primary" id="svBtnSubmitCliente">Adicionar cliente</button>
         </div>
       </div>
     </form>
@@ -4663,9 +4617,9 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=35"></script>
+<script src="semvenda.js?v=36"></script>
 <script src="crm.js?v=36"></script>
-<script src="crm-perfil.js?v=7"></script>
+<script src="crm-perfil.js?v=8"></script>
 <script src="crm-faturamento.js?v=4"></script>
 <script src="crm-desempenho.js?v=1"></script>
 <script src="crm-dashboard.js?v=4"></script>

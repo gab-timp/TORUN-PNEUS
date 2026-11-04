@@ -412,7 +412,7 @@ function crmWizPassoHtml(chave) {
         <div class="field"><label for="crmWizNDoc">CNPJ ou CPF</label><input type="text" id="crmWizNDoc" data-wn="documento" value="${escapeAttr(n.documento)}" placeholder="00.000.000/0000-00" inputmode="numeric" autocomplete="off"></div>
         <div class="field"><label for="crmWizNNome">Razão social ou nome</label><input type="text" id="crmWizNNome" data-wn="nome" value="${escapeAttr(n.nome)}" autocomplete="off"></div>
       </div>
-      <p class="muted sv-sub">${soNovo ? `O sistema avisa se a empresa já existe no CRM ou no Torun. O CNPJ é opcional, mas ajuda a achar repetidos. Depois clique em “Cadastrar … como ${tp === "representante" ? "representante novo" : "prospect novo"}”.` : ""}${soNovo ? "" : (legado ? "O cadastro próprio do CRM ainda não foi criado no banco; por enquanto só dá para escolher cliente do Torun. " : "O sistema procura no CRM e no Torun enquanto você digita. O CNPJ vale mais que o nome. ") + "Clique na linha do cliente para escolher."}</p>
+      <p class="muted sv-sub">${soNovo ? `O sistema avisa se a empresa já existe no CRM. O CNPJ é opcional, mas ajuda a achar repetidos. Depois clique em “Cadastrar … como ${tp === "representante" ? "representante novo" : "prospect novo"}”.` : ""}${soNovo ? "" : (legado ? "O cadastro próprio do CRM ainda não foi criado no banco; por enquanto só dá para escolher cliente do Torun. " : "O sistema procura no CRM enquanto você digita. O CNPJ vale mais que o nome. ") + "Clique na linha do cliente para escolher."}</p>
       <div class="crm-add-resultados" id="crmWizResultados" role="listbox" aria-label="Clientes encontrados" aria-live="polite"></div>
       <div id="crmWizNovoCampos"></div>
       ${crmEhExecutivo() ? "" : `<div class="field"><label>Executivo responsável</label><select id="crmWizExec" ${crmWiz.rep ? "disabled" : ""}>${crmWiz.execs.length
@@ -561,6 +561,7 @@ function crmAcharNoCrm(nome, documento) {
 }
 function crmAcharNoTorun(nome, documento) {
   const n = crmNorm(nome), d = crmDigitos(documento);
+  if (!crmState.clientesIndisponivel) return null; // cadastro do CRM é independente do Torun: só vale como fonte no modo legado
   return (state.clientes || []).find(c => crmMesmoCliente(c, n, d)) || null;
 }
 // só sugestão: um nome contido no outro (a partir de 4 letras)
@@ -579,7 +580,7 @@ function crmParecidos(nome) {
     }
   };
   olhar(crmState.clientes.values(), "CRM");
-  if (achados.length < 5) olhar(state.clientes || [], "Torun");
+  if (achados.length < 5 && crmState.clientesIndisponivel) olhar(state.clientes || [], "Torun");
   return achados;
 }
 
@@ -596,11 +597,8 @@ function crmWizItens() {
   };
   const itens = [];
   if (!crmState.clientesIndisponivel) crmState.clientes.forEach(c => { if (crmWiz.tipo === "cliente" && c.tipo === "representante") return; if (casa(c)) itens.push({ fonte: "crm", c }); });
-  (state.clientes || []).forEach(c => {
-    // quem já foi copiado para o CRM aparece uma vez só, como cliente do CRM
-    if (!crmState.clientesIndisponivel && crmAcharNoCrm(c.nome, c.documento)) return;
-    if (casa(c)) itens.push({ fonte: "torun", c });
-  });
+  // clientes do Torun só entram na lista no modo legado (cadastro do CRM ainda não criado no banco)
+  if (crmState.clientesIndisponivel) (state.clientes || []).forEach(c => { if (casa(c)) itens.push({ fonte: "torun", c }); });
   itens.sort((a, b) => (a.fonte === b.fonte ? 0 : a.fonte === "crm" ? -1 : 1) || a.c.nome.localeCompare(b.c.nome));
   return itens;
 }
@@ -633,9 +631,9 @@ function crmWizRenderBusca() {
   // não achou: oferece cadastrar o nome digitado (só se não existe no CRM nem no Torun, nem pelo CNPJ)
   if (!legado && nome && !crmAcharNoCrm(nome, crmWiz.novo.documento) && !crmAcharNoTorun(nome, crmWiz.novo.documento)) {
     const on = crmWiz.fonte === "novo";
-    html += `<button type="button" class="crm-add-res crm-add-linha crm-add-novo ${on ? "on" : ""}" role="option" aria-selected="${on}" data-wiznovo="1"><span><b>Cadastrar “${escapeHtml(nome)}” como ${prospect ? rotuloNovo : "cliente novo"}</b><div class="muted sv-sub">Não existe no CRM nem no Torun${crmDigitos(crmWiz.novo.documento).length >= 11 ? " (nem pelo CNPJ)" : ""}.</div></span><span class="crm-selo ${crmWiz.tipo === "representante" ? "crm-selo-rep" : prospect ? "crm-selo-pro" : "crm-selo-novo"}">${prospect ? rotuloNovo.charAt(0).toUpperCase() + rotuloNovo.slice(1) : "Cliente novo"}</span></button>`;
+    html += `<button type="button" class="crm-add-res crm-add-linha crm-add-novo ${on ? "on" : ""}" role="option" aria-selected="${on}" data-wiznovo="1"><span><b>Cadastrar “${escapeHtml(nome)}” como ${prospect ? rotuloNovo : "cliente novo"}</b><div class="muted sv-sub">Não existe no CRM${crmDigitos(crmWiz.novo.documento).length >= 11 ? " (nem pelo CNPJ)" : ""}.</div></span><span class="crm-selo ${crmWiz.tipo === "representante" ? "crm-selo-rep" : prospect ? "crm-selo-pro" : "crm-selo-novo"}">${prospect ? rotuloNovo.charAt(0).toUpperCase() + rotuloNovo.slice(1) : "Cliente novo"}</span></button>`;
   }
-  if (!html && prospect) html = `<div class="muted sv-sub">Digite o nome da empresa. O sistema avisa se ela já existe no CRM ou no Torun.</div>`;
+  if (!html && prospect) html = `<div class="muted sv-sub">Digite o nome da empresa. O sistema avisa se ela já existe no CRM.</div>`;
   if (!html) html = `<div class="muted sv-sub">${legado ? "Nenhum cliente do Torun com esse nome ou CNPJ." : "Nenhum cliente com esse CNPJ. Informe também a razão social para cadastrar como cliente novo."}</div>`;
   lista.innerHTML = html;
   crmWizRenderNovoCampos();
