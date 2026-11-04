@@ -1,0 +1,96 @@
+<title>Reserva com vários produtos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--bar:#EDEBE4;--danger:#B91C1C;--ok:#1E7A46;
+--f:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light}
+body{background:var(--paper);color:var(--ink);font-family:var(--f);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:760px;margin:0 auto;display:grid;gap:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button,.btn{font:inherit;padding:7px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--black);color:#fff;border-color:var(--black)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.note{font-size:12.5px;color:var(--soft)}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px}
+.modal h3{margin:0;font-size:18px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.row2{grid-template-columns:1fr}}
+label{font-size:12px;color:var(--soft);display:block;margin-bottom:4px}
+input,select{font:inherit;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+select:disabled{background:var(--bar)}
+.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);margin:0}
+.itens{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:1fr 130px 32px;gap:10px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--paper)}
+@media(max-width:560px){.item{grid-template-columns:1fr 90px 32px}}
+.item .prod{min-width:0}.item .prod b{font-size:14px}.item .prod span{display:block;font-size:12px;color:var(--soft);margin-top:2px}
+.disp{font-size:11.5px;color:var(--ok);margin-top:4px}
+.disp.x{color:var(--danger)}
+.rm{border:1px solid var(--line);background:var(--surface);border-radius:6px;height:34px;cursor:pointer;color:var(--soft);font-size:15px}
+.add{justify-self:start;color:var(--orange);border-color:var(--orange);background:var(--surface);font-weight:600}
+.total{display:flex;justify-content:space-between;font-size:13px;padding-top:6px;border-top:1px solid var(--line)}
+.foot{display:flex;justify-content:flex-end;gap:8px}
+.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--soft);font-weight:500}
+.pill{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--orange-pale);color:#9A4310}
+[hidden]{display:none!important}
+.ped{cursor:pointer}.ped:hover{background:var(--paper)}.ped:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}.car{width:18px;color:var(--soft)}.pill.ok{background:#DDF3E6;color:var(--ok)}.sub2{display:grid;gap:6px;padding:4px 0}.li{display:grid;grid-template-columns:1fr 70px 110px auto;gap:10px;align-items:center;font-size:13px}.ac{color:var(--orange);font-weight:600;font-size:12.5px;text-align:right}
+</style>
+<div class="wrap">
+  <div class="tabs" role="group" aria-label="Tela">
+    <button id="t1" aria-pressed="true">Janela Nova reserva</button>
+    <button id="t2" aria-pressed="false">Como fica na lista</button>
+  </div>
+
+  <div id="v1" class="modal">
+    <h3>Nova reserva</h3>
+    <div class="row2">
+      <div><label>Cliente</label><input value="ROMEU PNEUS LTDA"></div>
+      <div><label>Unidade de negócio</label><select disabled><option>Atacado</option></select></div>
+      <div><label>Vendedor interno</label><select><option>Carlos</option></select></div>
+      <div><label>Representante</label><select><option>Sem representante</option></select></div>
+      <div><label>Forma de pagamento</label><select><option>PIX</option></select></div>
+      <div><label>Data</label><input type="date" value="2026-11-04"></div>
+    </div>
+
+    <p class="sec">Produtos da reserva</p>
+    <div class="itens" id="itens"></div>
+    <button class="btn add" id="add" type="button">+ Adicionar outro produto</button>
+    <div class="total"><span id="resumo"></span><span class="note">Vira um pedido só na lista; cada produto segue com situação própria.</span></div>
+
+    <div class="row2">
+      <div><label>Pedido</label><select><option>Total: cliente leva tudo de uma vez</option><option>Parcial</option></select></div>
+      <div><label>Tipo de transporte</label><select><option>Cliente</option></select></div>
+    </div>
+    <div class="foot"><button class="btn" type="button">Cancelar</button><button class="btn primary" type="button">Reservar</button></div>
+  </div>
+
+  <div id="v2" class="modal" hidden>
+    <h3>Lista de Reservas</h3>
+    <div class="note">Uma linha por pedido. Clique na linha pra abrir os produtos; Confirmar venda e Cancelar ficam em cada produto.</div>
+    <div class="tbl"><table>
+      <thead><tr><th></th><th>Data</th><th>Cliente</th><th>Produtos</th><th>Qtd.</th><th>Situação</th></tr></thead>
+      <tbody>
+        <tr class="ped" data-p="1" tabindex="0" role="button" aria-expanded="false"><td class="car">▸</td><td>04/11</td><td>ROMEU PNEUS LTDA</td><td>3 produtos</td><td>76</td><td><span class="pill">2 ativas · 1 vendida</span></td></tr>
+        <tr class="det" data-d="1" hidden><td></td><td colspan="5"><div class="sub2">
+          <div class="li"><span><b>SV-0142</b> · 295/80R22.5</span><span>40 un.</span><span class="pill">ATIVA</span><span class="ac">Confirmar venda · Cancelar</span></div>
+          <div class="li"><span><b>SV-0087</b> · 11R22.5</span><span>24 un.</span><span class="pill">ATIVA</span><span class="ac">Confirmar venda · Cancelar</span></div>
+          <div class="li"><span><b>SV-0210</b> · 275/80R22.5</span><span>12 un.</span><span class="pill ok">VENDIDA</span><span class="ac"></span></div>
+        </div></td></tr>
+        <tr class="ped" data-p="2" tabindex="0" role="button" aria-expanded="false"><td class="car">▸</td><td>03/11</td><td>PNEUS DO VALE</td><td>SV-0055 · 295/80R22.5</td><td>16</td><td><span class="pill">ATIVA</span></td></tr>
+      </tbody></table></div>
+    <div class="note">Reserva de um produto só (e as antigas) aparece direto com o produto, sem abrir.</div>
+  </div>
+
+  <div class="note">Números e nomes de exemplo. Reservar só funciona se todos os produtos tiverem saldo: se um faltar, nada é reservado e a janela mostra qual.</div>
+</div>
+<script>
+const dados=[{c:'SV-0142',m:'295/80R22.5 · Nguedes',q:40,max:120},{c:'SV-0087',m:'11R22.5 · RF',q:24,max:60},{c:'SV-0210',m:'275/80R22.5 · ZR',q:12,max:80}];
+const box=document.getElementById('itens');
+function draw(){box.innerHTML=dados.map((d,i)=>`<div class="item"><div class="prod"><b>${d.c}</b><span>${d.m}</span><div class="disp ${d.q>d.max?'x':''}">${d.q>d.max?'Passa do saldo: ':'Disponível: '}${d.max} un.</div></div><div><label>Quantidade</label><input type="number" min="1" value="${d.q}" data-i="${i}"></div><button type="button" class="rm" data-r="${i}" aria-label="Remover produto" ${dados.length<2?'disabled':''}>✕</button></div>`).join('');
+document.getElementById('resumo').textContent=dados.length+' produtos · '+dados.reduce((s,d)=>s+d.q,0)+' pneus no total';}
+box.addEventListener('input',e=>{const i=e.target.dataset.i;if(i!==undefined){dados[i].q=+e.target.value||0;const k=box.querySelectorAll('.disp')[i];k.className='disp '+(dados[i].q>dados[i].max?'x':'');k.textContent=(dados[i].q>dados[i].max?'Passa do saldo: ':'Disponível: ')+dados[i].max+' un.';document.getElementById('resumo').textContent=dados.length+' produtos · '+dados.reduce((s,d)=>s+d.q,0)+' pneus no total';}});
+box.addEventListener('click',e=>{const r=e.target.closest('[data-r]');if(r&&dados.length>1){dados.splice(+r.dataset.r,1);draw();}});
+document.getElementById('add').onclick=()=>{dados.push({c:'SV-0301',m:'Escolher produto…',q:1,max:50});draw();};
+function tab(a){v1.hidden=!a;v2.hidden=a;t1.setAttribute('aria-pressed',a);t2.setAttribute('aria-pressed',!a)}
+document.querySelectorAll(".ped[data-p=\"1\"]").forEach(r=>{const go=()=>{const d=document.querySelector(".det[data-d=\"1\"]");d.hidden=!d.hidden;r.setAttribute("aria-expanded",!d.hidden);r.querySelector(".car").textContent=d.hidden?"▸":"▾"};r.onclick=go;r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}}});
+t1.onclick=()=>tab(true);t2.onclick=()=>tab(false);draw();
+</script>

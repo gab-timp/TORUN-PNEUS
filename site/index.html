@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=177">
-<link rel="stylesheet" href="semvenda.css?v=27">
+<link rel="stylesheet" href="semvenda.css?v=28">
 <link rel="stylesheet" href="crm.css?v=26">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -3868,6 +3868,8 @@
         </div>
         <div class="sv-aviso" id="svResDisp" style="display:none;"></div>
         <div class="sv-erro-msg" id="svResErro_produto" role="alert"></div>
+        <div class="sv-res-extras" id="svResExtras"></div>
+        <button type="button" class="sv-link sv-write" id="svResAddProduto">+ Adicionar outro produto</button>
       </div>
       <div class="sv-res-linha">
         <div class="field sv-f-cliente" id="svResCampo_cliente">
@@ -3903,7 +3905,7 @@
           <div class="sv-erro-msg" id="svResErro_forma" role="alert"></div>
         </div>
         <div class="field" id="svResCampo_quantidade">
-          <label for="svResQuantidade">Quantidade</label>
+          <label for="svResQuantidade" id="svResQuantidadeRotulo">Quantidade</label>
           <div class="sv-qtd-wrap">
             <input type="number" id="svResQuantidade" min="1" step="1" placeholder="0">
             <span class="sv-qtd-max" id="svResQuantMax"></span>
@@ -4653,7 +4655,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=32"></script>
+<script src="semvenda.js?v=33"></script>
 <script src="crm.js?v=36"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=4"></script>

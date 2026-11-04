@@ -380,3 +380,23 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .field label.sv-opcao:has(input:checked){border-color:var(--ink);box-shadow:0 0 0 1px var(--ink);}
 .sv-pedido-barra{height:6px;border-radius:99px;background:var(--paper-2);overflow:hidden;margin-top:6px;min-width:70px;}
 .sv-pedido-barra i{display:block;height:100%;background:var(--orange);}
+
+/* Reserva com vários produtos: linha do pedido que abre, e os produtos extras na janela */
+.sv-ped-linha{cursor:pointer;}
+.sv-ped-linha:hover{background:var(--tint-orange,#FFF4EC);}
+.sv-ped-linha:focus-visible{outline:2px solid var(--orange);outline-offset:-2px;}
+.sv-ped-car{display:inline-block;width:14px;color:var(--ink-soft);}
+.sv-ped-det>td{background:var(--paper);padding:6px 10px 10px 28px;}
+.sv-ped-itens{display:grid;gap:6px;}
+.sv-ped-item{display:grid;grid-template-columns:minmax(180px,2fr) 80px minmax(120px,1fr) minmax(150px,auto);gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;}
+.sv-res-extras{display:grid;gap:8px;margin-top:8px;}
+.sv-res-extras:empty{display:none;}
+.sv-extra{display:grid;grid-template-columns:1fr 90px 34px;gap:8px;align-items:start;}
+.sv-extra select,.sv-extra input{width:100%;box-sizing:border-box;}
+.sv-extra-prod{min-width:0;}
+.sv-extra-prod select{text-overflow:ellipsis;}
+.sv-extra-rm{height:38px;border:1px solid var(--line);background:var(--surface);border-radius:6px;cursor:pointer;color:var(--ink-soft);}
+.sv-extra-rm:hover{color:var(--danger);border-color:var(--danger);}
+.sv-extra-erro{grid-column:1 / -1;}
+#svResAddProduto{margin-top:8px;}
+@media (max-width: 760px){.sv-ped-item{grid-template-columns:1fr;}}
