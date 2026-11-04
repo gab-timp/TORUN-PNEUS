@@ -1504,7 +1504,6 @@ function svFecharNovaReserva() {
 function svAoMudarFormReserva(e) {
   const campo = e.target.closest("[id^='svResCampo_']");
   if (campo) svLimparErroCampo(campo.id.replace("svResCampo_", ""));
-  if (e.target.id === "svResCliente") svPreencherUnidadeDoCliente();
   if (e.target.id === "svResQuantidade" || e.target.id === "svResCliente") svAtualizarResumoReserva();
 }
 
@@ -1612,7 +1611,7 @@ function svLinhaPedido(membros) {
   const itens = membros.map(r => {
     const { sit, sitExtra, dataExtra, acoes } = svPartesReserva(r);
     return `<div class="sv-ped-item">
-        <div class="sv-ped-item-prod">${svProdutoCelula(r)}</div>
+        <div>${svProdutoCelula(r)}</div>
         <div class="mono">${fmt(r.quantidade)} un.</div>
         <div><span class="status-pill ${sit.pill}">${escapeHtml(sit.rotulo)}</span>${sitExtra}${dataExtra ? `<div class="muted sv-sub">${escapeHtml(dataExtra)}</div>` : ""}</div>
         <div class="sv-acoes">${acoes}</div>
@@ -2794,7 +2793,6 @@ async function svSalvarClienteDados() {
     // volta para a Reserva com o cliente já escolhido
     svRenderReservaForm();
     document.getElementById("svResCliente").value = salvo.nome;
-    svPreencherUnidadeDoCliente();
     svAtualizarResumoReserva();
     svLimparErroCampo("cliente");
   } else {
@@ -2816,11 +2814,6 @@ async function svExcluirCliente(id) {
   svCliSelecionadoId = null;
   svRenderClientes();
   toast("Cliente removido.");
-}
-
-// na Reserva: cliente de uma unidade só já preenche a Unidade de negócio ("Ambos" deixa a escolha com a pessoa)
-function svPreencherUnidadeDoCliente() {
-  // a unidade da Reserva é fixa (Atacado): o cliente não muda mais o campo
 }
 
 function svLigarClientes() {
