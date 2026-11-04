@@ -1,0 +1,72 @@
+<title>Novo processo em popup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: página do Estoque Previsto com botão no topo; o formulário abre em popup por cima do kanban */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--onblack:#fff;--scrim:rgba(17,17,17,.5)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--scrim:rgba(0,0,0,.65);color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--scrim:rgba(0,0,0,.65);color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;display:grid;gap:14px}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}h2{margin:0;font-size:17px}
+.note{font-size:12.5px;color:var(--soft)}
+.btn{font:inherit;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.novo{outline:2px solid var(--orange);outline-offset:3px}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.col{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px;align-content:start}
+.col h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.cardp{border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper)}
+.overlay{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;width:min(620px,100%);padding:18px;display:grid;gap:14px;max-height:calc(100vh - 32px);overflow:auto}
+.mh{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.x{font:inherit;border:0;background:none;color:var(--soft);font-size:22px;cursor:pointer;line-height:1}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{font-size:12px;color:var(--soft);display:block;margin-bottom:4px}
+input,select{font:inherit;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+input[type=checkbox]{width:auto}
+.item{display:flex;justify-content:space-between;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper)}
+.foot{display:flex;justify-content:flex-end;gap:8px}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="head">
+    <div><h1>Estoque Previsto</h1><div class="note">Processos de compra em andamento. Arraste os cards entre as etapas.</div></div>
+    <button class="btn primary novo" id="abrir">+ Novo processo previsto</button>
+  </div>
+  <div class="board">
+    <div class="col"><h3>Processo em água</h3><div class="cardp">3070-26 · Nguedes<br><span class="note">640 un. · chega 20/11</span></div></div>
+    <div class="col"><h3>Em desembaraço</h3><div class="cardp">3068-26 · Nguedes<br><span class="note">400 un.</span></div></div>
+    <div class="col"><h3>Finalizado</h3><div class="cardp">3061-26 · Nguedes<br><span class="note">800 un.</span></div></div>
+  </div>
+  <div class="note">Editar um processo (clicando no card) abre este mesmo popup, já preenchido, com o título "Editar processo previsto".</div>
+
+  <div class="overlay" id="pop" hidden>
+    <div class="modal" role="dialog" aria-labelledby="t">
+      <div class="mh"><h2 id="t">Novo processo previsto</h2><button class="x" id="fechar" aria-label="Fechar">×</button></div>
+      <div class="row">
+        <div><label for="n">Nº do processo</label><input id="n" placeholder="Ex: 3070-26"></div>
+        <div><label for="d">Data de chegada (opcional)</label><input id="d" type="date"></div>
+        <div><label for="s">Status</label><select id="s"><option>Processo em água</option></select></div>
+        <div><label for="a">Armazém de destino</label><select id="a"><option>Nguedes</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="c">Custo total (R$, opcional)</label><input id="c" type="number" placeholder="Ex: 486000,00"><label style="display:flex;gap:6px;margin-top:8px;color:var(--ink);font-size:13px"><input type="checkbox">Não considerar como valor investido parado</label></div>
+        <div><label>Etiqueta</label><label style="display:flex;gap:6px;color:var(--ink);font-size:13px"><input type="checkbox">DTC</label></div>
+      </div>
+      <div><label>Medidas do processo</label><div class="item"><span>Escolha o produto</span><span class="note">quantidade</span></div><button class="btn" style="margin-top:8px">+ Adicionar medida</button></div>
+      <div><label for="o">Observação (opcional)</label><input id="o" placeholder="Ex: fornecedor, navio, contêiner..."></div>
+      <div class="foot"><button class="btn" id="cancelar">Cancelar</button><button class="btn primary">Adicionar processo</button></div>
+    </div>
+  </div>
+</div>
+<script>
+const pop=document.getElementById("pop");
+const abre=()=>{pop.hidden=false;document.getElementById("n").focus()};
+const fecha=()=>{pop.hidden=true;document.getElementById("abrir").focus()};
+document.getElementById("abrir").addEventListener("click",abre);
+["fechar","cancelar"].forEach(i=>document.getElementById(i).addEventListener("click",fecha));
+pop.addEventListener("click",e=>{if(e.target===pop)fecha()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!pop.hidden)fecha()});
+</script>
