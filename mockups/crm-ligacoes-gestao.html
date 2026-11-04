@@ -1,0 +1,83 @@
+<title>Ligações para a gestão</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a tela Ligações como a gestão vê: filtro de executivo no topo e cartões dos outros só para leitura */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--onblack:#fff;--col:#EFEEEA}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--col:#252320;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--col:#252320;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1000px;margin:0 auto;display:grid;gap:14px}
+.exemplo{font-size:12px;color:var(--soft);border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:22px}.sub,.note{font-size:12.5px;color:var(--soft)}
+.acoes{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+label{font-size:12px;color:var(--soft);display:block;margin-bottom:4px}
+select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:200px}
+select:focus-visible,button:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.novo{outline:2px solid var(--orange);outline-offset:3px;border-radius:8px;padding:8px;background:var(--orange-pale)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}.seg button{font:inherit;border:0;background:var(--surface);color:var(--ink);padding:8px 14px;cursor:pointer}.seg .on{background:var(--black);color:var(--onblack)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}.kpi .l{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);font-weight:700}.kpi .v{font-size:22px;font-weight:800;margin-top:4px}
+.board{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:10px;overflow-x:auto}
+.coluna{background:var(--col);border-radius:10px;padding:10px;display:grid;gap:8px;align-content:start;min-width:0}
+.coluna h3{margin:0;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);display:flex;justify-content:space-between}
+.cartao{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:6px;font-size:13px}
+.cartao b{font-size:13.5px}
+.dono{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--soft);justify-self:start}
+.dono.meu{border-color:var(--orange);color:var(--orange);font-weight:700}
+.so{font-size:11.5px;color:var(--soft);display:flex;align-items:center;gap:5px}
+.btn{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 10px;cursor:pointer}.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.ro{opacity:.96}
+</style>
+<div class="wrap">
+  <div class="exemplo">Tela de exemplo, com nomes e valores inventados. Escolha uma opção em "Executivo" para ver como muda.</div>
+  <div class="top">
+    <div><h1>Ligações</h1><div class="sub" id="sub">Cartões de todos os executivos. Você só mexe nos da sua carteira; os dos outros são para acompanhar.</div></div>
+    <div class="acoes">
+      <div class="novo"><label for="exec">Executivo</label>
+        <select id="exec">
+          <option value="minha">Minha carteira</option>
+          <option value="todos" selected>Todos os executivos</option>
+          <option value="marina">Marina Souza</option>
+          <option value="paulo">Paulo Lima</option>
+        </select></div>
+      <div class="seg"><button class="on">Kanban</button><button>Arquivados</button></div>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="board">
+    <div class="coluna"><h3><span>Estimativa enviada</span><span id="c1"></span></h3><div id="col1" style="display:grid;gap:8px"></div></div>
+    <div class="coluna"><h3><span>Em negociação</span><span id="c2"></span></h3><div id="col2" style="display:grid;gap:8px"></div></div>
+    <div class="coluna"><h3><span>Fechamento</span><span id="c3"></span></h3><div id="col3" style="display:grid;gap:8px"></div></div>
+  </div>
+  <div class="note" id="rodape"></div>
+</div>
+<script>
+const D=[
+ {c:"Pneus Silva",e:"marina",n:"Marina Souza",col:1,fu:"amanhã",lig:3,ct:"2 enviadas · 1 aprovada",meu:false},
+ {c:"Rodoviário Norte",e:"paulo",n:"Paulo Lima",col:2,fu:"hoje",lig:5,ct:"4 enviadas · 2 aprovadas",meu:false},
+ {c:"TransLog Cargas",e:"gestao",n:"Você",col:2,fu:"em 3 dias",lig:2,ct:"1 enviada · 0 aprovadas",meu:true},
+ {c:"Borracharia Central",e:"marina",n:"Marina Souza",col:3,fu:"atrasado 2 dias",lig:7,ct:"5 enviadas · 3 aprovadas",meu:false},
+ {c:"Auto Peças Sul",e:"gestao",n:"Você",col:1,fu:"em 1 semana",lig:1,ct:"1 enviada · 0 aprovadas",meu:true}
+];
+const KP={minha:[12,"58%",3,1,0],todos:[96,"61%",31,14,3],marina:[44,"64%",12,7,2],paulo:[40,"57%",16,6,1]};
+function desenhar(){
+  const v=document.getElementById("exec").value;
+  const lista=D.filter(x=>v==="todos"||(v==="minha"&&x.meu)||x.e===v);
+  [1,2,3].forEach(i=>{
+    const itens=lista.filter(x=>x.col===i);
+    document.getElementById("c"+i).textContent=itens.length;
+    document.getElementById("col"+i).innerHTML=itens.map(x=>'<div class="cartao"><div><b>'+x.c+'</b></div>'+
+      '<span class="dono '+(x.meu?'meu':'')+'">'+(x.meu?'Minha carteira':x.n)+'</span>'+
+      '<div class="sub">Próximo follow-up: '+x.fu+' · '+x.lig+' ligações</div><div class="sub">'+x.ct+'</div>'+
+      (x.meu?'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary">Registrar ligação</button><button class="btn">Marcar aprovadas</button></div>'
+            :'<div class="so">🔒 Só leitura: carteira de '+x.n.split(" ")[0]+'</div>')+'</div>').join("")||'<div class="note">Nenhum contato.</div>';
+  });
+  const k=KP[v];
+  document.getElementById("kpis").innerHTML=["Ligações no mês","Taxa de contato","Cotações enviadas","Cotações aprovadas","Follow-ups atrasados"].map((t,i)=>'<div class="kpi"><div class="l">'+t+'</div><div class="v">'+k[i]+'</div></div>').join("");
+  document.getElementById("rodape").textContent=lista.length+" contatos abertos no exemplo · indicadores de "+({minha:"você",todos:"todos os executivos",marina:"Marina",paulo:"Paulo"})[v];
+}
+document.getElementById("exec").addEventListener("change",desenhar);desenhar();
+</script>

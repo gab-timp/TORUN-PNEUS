@@ -4,7 +4,7 @@
    Sem o SQL rodado, esta tela avisa e o resto do CRM segue como antes (a etapa volta a ser a da carteira). */
 
 const CRM_ETAPAS_FINAIS = ["Fechado", "Declinou"];
-const crmLg = { visao: "kanban", busca: "", atrasados: false, montado: false, sortables: [] };
+const crmLg = { visao: "kanban", busca: "", atrasados: false, montado: false, sortables: [], executivo: "" }; // executivo: só a gestão (minha | todos | id do executivo)
 let crmLgCotNegId = null;
 let crmLgCotValor = 0;
 let crmLgObsNegId = null;
@@ -13,8 +13,29 @@ crmState.negociacoes = [];
 crmState.negDisponivel = false;
 crmIdx.neg = new Map();
 
-// quem tem carteira própria (executivo; gestão que ligou a carteira dela) abre a tela Ligações
-function crmPodeVerLigacoes() { return currentUserIsAdmin || crmTemCarteiraPropria(); }
+// executivo, gestão (com ou sem carteira própria) e administrador abrem a tela Ligações. A gestão vê a carteira de todos os executivos
+// (cartões dos outros só para leitura) e, se tiver carteira própria, mexe nos cartões da dela.
+function crmPodeVerLigacoes() { return currentUserIsAdmin || crmPapelEfetivo() === "gestao" || crmTemCarteiraPropria(); }
+
+// o cartão é meu? executivo mexe em todos os que enxerga (o banco só entrega os dele); a gestão só nos da carteira própria
+function crmLgEditavel(c) { return crmPodeGerirCarteira() && (crmEhExecutivo() || crmEhMinha(c)); }
+
+// de quem a gestão está vendo as ligações: a própria carteira, todos os executivos ou um executivo
+function crmLgEscopo() {
+  if (crmEhExecutivo()) return "minha";
+  if (!crmLg.executivo) crmLg.executivo = crmGestaoComCarteira() ? "minha" : "todos";
+  if (crmLg.executivo === "minha" && !crmGestaoComCarteira()) crmLg.executivo = "todos";
+  return crmLg.executivo;
+}
+
+// executivos que aparecem no filtro da gestão (os do sistema aberto, sem repetir a própria carteira, que já é "Minha carteira")
+function crmLgExecutivos() {
+  const s = crmSistemaAtual();
+  const mapa = new Map();
+  crmState.carteira.filter(c => c.sistema === s && !crmEhRepresentante(c.cliente) && c.executivoId && !(crmGestaoComCarteira() && c.executivoId === crmMeuId()))
+    .forEach(c => { if (!mapa.has(c.executivoId)) mapa.set(c.executivoId, c.executivoNome || "(sem nome)"); });
+  return [...mapa.entries()].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
 
 /* ---------------- dados ---------------- */
 
@@ -132,7 +153,12 @@ async function crmAtualizarNeg(n, campos) {
 
 function crmLgMeusClientes() {
   const s = crmSistemaAtual();
-  return crmState.carteira.filter(c => c.sistema === s && !crmEhRepresentante(c.cliente) && (crmEhExecutivo() || crmEhMinha(c)));
+  const base = crmState.carteira.filter(c => c.sistema === s && !crmEhRepresentante(c.cliente));
+  if (crmEhExecutivo()) return base;
+  const esc = crmLgEscopo();
+  if (esc === "todos") return base;
+  if (esc === "minha") return base.filter(c => crmEhMinha(c));
+  return base.filter(c => c.executivoId === esc);
 }
 
 function crmLgLigsPorNeg() {
@@ -159,7 +185,9 @@ function crmLgFiltro(c) {
 
 function crmLgKpis(meus) {
   const mes = todayISO().slice(0, 7);
-  const ligsMes = crmState.ligacoes.filter(l => l.sistema === crmSistemaAtual() && l.executivoId === crmMeuId() && crmDiaLocal(l.createdAt).slice(0, 7) === mes);
+  const esc = crmEhExecutivo() ? "minha" : crmLgEscopo();
+  const deQuem = esc === "minha" ? crmMeuId() : (esc === "todos" ? null : esc);
+  const ligsMes = crmState.ligacoes.filter(l => l.sistema === crmSistemaAtual() && (deQuem === null || l.executivoId === deQuem) && crmDiaLocal(l.createdAt).slice(0, 7) === mes);
   const hoje = todayISO();
   const atrasados = meus.filter(c => { const fu = crmResumo(c).fu; return fu && fu < hoje; }).length;
   const r = crmDesResumo(ligsMes, atrasados);
@@ -177,6 +205,12 @@ function crmLgKpis(meus) {
 
 function crmLgTagContato(n) { return n && n.numero > 1 ? `<span class="crm-selo crm-selo-contato">${n.numero}º contato</span>` : ""; }
 
+// de quem é o cartão (a gestão vê vários executivos): "Minha carteira" ou o nome do executivo
+function crmLgDonoHtml(c) {
+  if (crmEhExecutivo()) return "";
+  return crmEhMinha(c) ? '<span class="crm-selo crm-selo-tor">Minha carteira</span>' : `<span class="crm-selo">${escapeHtml(c.executivoNome || "—")}</span>`;
+}
+
 function crmLgCartao(x) {
   const { c, n, ligs } = x;
   const ct = crmContatoRapido(c);
@@ -185,12 +219,13 @@ function crmLgCartao(x) {
   const dias = n.etapaDesde ? diasDesde(crmDiaLocal(n.etapaDesde)) : null;
   const rodape = `${ligs.length} ${ligs.length === 1 ? "ligação" : "ligações"}` + (dias !== null ? ` · há ${dias} ${dias === 1 ? "dia" : "dias"} nesta etapa` : "");
   const pct = n.cotEnviadas ? Math.round(n.cotAprovadas / n.cotEnviadas * 100) : 0;
-  const podeEditar = crmPodeGerirCarteira();
+  const podeEditar = crmLgEditavel(c);
   const acoes = [crmAtalhosHtml(ct)];
   if (crmPodeLigarPara(c)) acoes.push(`<button type="button" class="btn small primary" data-crmligar="${escapeAttr(c.id)}">Registrar ligação</button>`);
   return `
-    <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""}" data-id="${escapeAttr(c.id)}" data-neg="${escapeAttr(n.id)}">
+    <div class="kanban-card crm-cartao ${crmEhMinha(c) ? "crm-minha-cartao" : ""} ${podeEditar ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${escapeAttr(n.id)}">
       <div><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button> ${crmTipoSelo(c.cliente)}${crmLgTagContato(n)}</div>
+      ${crmLgDonoHtml(c)}
       <div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}</div>
       <div class="crm-cartao-contato">${ct.nome ? escapeHtml(ct.nome) : '<span class="muted">sem contato</span>'}${ct.cargo ? ` <span class="muted">· ${escapeHtml(ct.cargo)}</span>` : ""}</div>
       <div class="crm-cartao-linha"><span class="crm-rot">Última ligação</span><div>${crmUltimaHtml({ ultima: ult })}</div></div>
@@ -204,6 +239,7 @@ function crmLgCartao(x) {
           ? `<button type="button" class="crm-obs" data-crmlgobs="${escapeAttr(n.id)}">${n.obs ? escapeHtml(n.obs) : '<span class="muted">Clique para escrever…</span>'}</button>`
           : `<div class="crm-obs crm-obs-ler">${n.obs ? escapeHtml(n.obs) : '<span class="muted">—</span>'}</div>`}</div>
       <div class="crm-cartao-rodape">${escapeHtml(rodape)}</div>
+      ${podeEditar || crmEhExecutivo() ? "" : `<div class="muted sv-sub">Só leitura: carteira de ${escapeHtml(String(c.executivoNome || "outro executivo").split(" ")[0])}</div>`}
       <div class="crm-cartao-acoes">${acoes.filter(Boolean).join(" ")}</div>
     </div>`;
 }
@@ -212,8 +248,8 @@ function crmLgChip(x) {
   const { c, n, ligs } = x;
   const ct = crmContatoRapido(c);
   const ult = ligs[0] || null;
-  return `<div class="crm-chip-cliente" data-id="${escapeAttr(c.id)}" data-neg="${n ? escapeAttr(n.id) : ""}">
-      <button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>${crmLgTagContato(n)}
+  return `<div class="crm-chip-cliente ${crmLgEditavel(c) ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${n ? escapeAttr(n.id) : ""}">
+      <button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>${crmLgTagContato(n)}${crmLgDonoHtml(c)}
       <span class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${ct.nome ? " · " + escapeHtml(ct.nome) : ""}</span>
       ${ult ? crmPill(ult.resultado) : '<span class="muted sv-sub">Nunca ligado</span>'}
     </div>`;
@@ -230,7 +266,7 @@ function crmLgMontar() {
     </div>`;
   }).join("");
   initKanbanBoardDragScroll("crmLgBoard");
-  const opcoes = { group: "crm-lg-kanban", animation: 150, filter: "button, a", preventOnFilter: false, onEnd: crmLgSoltar };
+  const opcoes = { group: "crm-lg-kanban", animation: 150, filter: "button, a, .crm-so-leitura", preventOnFilter: false, onEnd: crmLgSoltar };
   crmLg.sortables = CRM_ETAPAS.map((_, i) => Sortable.create(document.getElementById("crmLgCol" + i), opcoes));
   crmLg.sortables.push(Sortable.create(document.getElementById("crmLgBandeja"), { ...opcoes, sort: false }));
   crmLg.montado = true;
@@ -242,10 +278,26 @@ function crmRenderLigacoes() {
   const gestaoComCarteira = crmGestaoComCarteira();
   document.getElementById("crmLgGestaoSeg").style.display = gestaoComCarteira ? "" : "none";
   document.querySelectorAll("#crmLgVisaoSeg button").forEach(b => b.classList.toggle("on", b.dataset.crmlgvisao === crmLg.visao));
-  document.getElementById("crmLgNova").style.display = crmPodeGerirCarteira() ? "" : "none";
+  // a gestão escolhe de quem ver as ligações; "Nova ligação" só existe para quem tem carteira própria
+  const campoExec = document.getElementById("crmLgExecCampo");
+  const veTodos = !crmEhExecutivo();
+  campoExec.style.display = veTodos ? "" : "none";
+  if (veTodos) {
+    const esc = crmLgEscopo();
+    const execs = crmLgExecutivos();
+    if (!["minha", "todos"].includes(esc) && !execs.some(e => e.id === esc)) crmLg.executivo = crmGestaoComCarteira() ? "minha" : "todos";
+    const atual = crmLgEscopo();
+    document.getElementById("crmLgExec").innerHTML =
+      (crmGestaoComCarteira() ? `<option value="minha">Minha carteira</option>` : "") +
+      `<option value="todos">Todos os executivos</option>` +
+      execs.map(e => `<option value="${escapeAttr(e.id)}">${escapeHtml(e.nome)}</option>`).join("");
+    document.getElementById("crmLgExec").value = atual;
+  }
+  document.getElementById("crmLgNova").style.display = crmPodeGerirCarteira() && crmTemCarteiraPropria() ? "" : "none";
   document.getElementById("crmLgSub").textContent = crmLg.visao === "arquivados"
     ? "Contatos que terminaram em Fechado ou Declinou. Ficam guardados aqui, com cotações e observações."
-    : "Arraste o cartão para mudar a etapa. Cada cartão é um contato com o cliente; quando ele termina, vai para Arquivados e o cliente pode ter um novo contato depois.";
+    : "Arraste o cartão para mudar a etapa. Cada cartão é um contato com o cliente; quando ele termina, vai para Arquivados e o cliente pode ter um novo contato depois."
+      + (veTodos ? " Os cartões de outros executivos são só para acompanhar." : "");
 
   const quadro = document.getElementById("crmLgKanbanWrap");
   const arq = document.getElementById("crmLgArquivadosWrap");
@@ -306,7 +358,7 @@ function crmRenderLigacoes() {
   const semEtapa = abertos.filter(x => !x.n.etapa).concat(semNeg);
   document.getElementById("crmLgBandejaCount").textContent = semEtapa.length;
   document.getElementById("crmLgBandeja").innerHTML = semEtapa.map(crmLgChip).join("");
-  const podeMover = crmPodeGerirCarteira();
+  const podeMover = crmPodeGerirCarteira() && crmTemCarteiraPropria();
   crmLg.sortables.forEach(s => s.option("disabled", !podeMover));
   if (totalAbertos === 0 && meus.length) { vazio.style.display = "block"; vazio.textContent = "Nenhum contato com esses filtros."; }
 }
@@ -317,7 +369,7 @@ async function crmLgSoltar(evt) {
   const antiga = evt.from.dataset.etapa || null;
   if (!nova || nova === antiga) { crmRenderLigacoes(); return; }
   const c = crmCarteiraPorId(evt.item.dataset.id);
-  if (!c) { crmRenderLigacoes(); return; }
+  if (!c || !crmLgEditavel(c)) { crmRenderLigacoes(); return; }
   const n = evt.item.dataset.neg ? crmNegPorId(evt.item.dataset.neg) : null;
   let ok;
   if (n) ok = await crmMoverNeg(n, c, nova, "kanban");
@@ -343,7 +395,7 @@ function crmLgRenderArquivados(arquivados) {
         <td><b class="mono">${n.cotEnviadas}</b> enviadas · <b class="mono crm-cot-ok">${n.cotAprovadas}</b> aprovadas</td>
         <td>${n.obs ? escapeHtml(n.obs) : '<span class="muted">—</span>'}</td>
         <td class="num mono">${ligs.length}</td>
-        <td class="crm-acoes">${crmPodeGerirCarteira() ? `<button type="button" class="btn small outline" data-crmlgnovo="${escapeAttr(c.id)}" ${temAberto ? 'disabled title="Este cliente já tem um contato aberto"' : ""}>Iniciar novo contato</button>` : ""}</td>
+        <td class="crm-acoes">${crmLgEditavel(c) ? `<button type="button" class="btn small outline" data-crmlgnovo="${escapeAttr(c.id)}" ${temAberto ? 'disabled title="Este cliente já tem um contato aberto"' : ""}>Iniciar novo contato</button>` : ""}</td>
       </tr>`;
     }).join("")}</tbody></table></div>`;
 }
@@ -506,6 +558,7 @@ function crmLgInit() {
     else crmClickDelegado(e);
   });
   g("crmLgBusca").addEventListener("input", (e) => { crmLg.busca = e.target.value; crmRenderLigacoes(); });
+  g("crmLgExec").addEventListener("change", (e) => { crmLg.executivo = e.target.value; crmRenderLigacoes(); });
   g("crmLgAtrasados").addEventListener("click", () => { crmLg.atrasados = !crmLg.atrasados; crmRenderLigacoes(); });
   g("crmLgNova").addEventListener("click", () => crmAbrirLigacao(null, { escolher: true }));
   const desSeg = g("crmDesVisaoSeg");

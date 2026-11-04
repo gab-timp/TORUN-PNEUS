@@ -101,7 +101,7 @@ function crmAplicarMenuGestao() {
   const acomp = document.getElementById("crmGrupoAcompanhamento");
   if (acomp) acomp.style.display = typeof crmPodeVerDashboard === "function" && crmPodeVerDashboard() ? "" : "none";
   const navLig = document.getElementById("crmNavLigacoes");
-  if (navLig) navLig.style.display = crmEhExecutivo() ? "" : "none";
+  if (navLig) navLig.style.display = typeof crmPodeVerLigacoes === "function" && crmPodeVerLigacoes() ? "" : "none";
   const desSeg = document.getElementById("crmDesVisaoSeg");
   if (desSeg) desSeg.style.display = crmGestaoComCarteira() ? "" : "none";
   const navDes = document.getElementById("crmNavDesempenho");

@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=179">
 <link rel="stylesheet" href="semvenda.css?v=31">
-<link rel="stylesheet" href="crm.css?v=31">
+<link rel="stylesheet" href="crm.css?v=32">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
@@ -1008,6 +1008,7 @@
       <div class="page-head">
         <div><h1>Ligações</h1><div class="sub" id="crmLgSub"></div></div>
         <div class="page-head-actions crm-acoes-topo">
+          <div class="field" id="crmLgExecCampo" style="display:none;"><label for="crmLgExec">Executivo</label><select id="crmLgExec"></select></div>
           <div class="crm-seg" id="crmLgGestaoSeg" style="display:none;" role="group" aria-label="O que mostrar">
             <button type="button" data-crmlggestao="ind">Indicadores</button><button type="button" class="on" data-crmlggestao="kanban">Meu kanban</button>
           </div>
@@ -4749,8 +4750,8 @@
 </div>
 
 <script src="semvenda.js?v=39"></script>
-<script src="crm.js?v=42"></script>
-<script src="crm-ligacoes.js?v=1"></script>
+<script src="crm.js?v=43"></script>
+<script src="crm-ligacoes.js?v=2"></script>
 <script src="crm-perfil.js?v=9"></script>
 <script src="crm-faturamento.js?v=5"></script>
 <script src="crm-representante.js?v=2"></script>
