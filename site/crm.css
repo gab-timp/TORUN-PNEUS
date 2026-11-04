@@ -98,11 +98,6 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-erro{color:var(--danger);font-weight:600;margin-bottom:10px;}
 .crm-modal-rodape{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
 .crm-modal-rodape .form-actions{margin-top:0;}
-
-.crm-add-layout{display:grid;grid-template-columns:290px minmax(0,1fr);border-top:1px solid var(--line);margin:0 -22px;}
-.crm-add-esq{background:var(--paper);border-right:1px solid var(--line);padding:16px 20px;}
-.crm-add-dir{padding:16px 22px;min-width:0;}
-.crm-add-passo{font-size:12px;font-weight:800;margin-bottom:12px;}
 .crm-add-resultados{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;margin-bottom:12px;}
 .crm-add-res{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;}
 .crm-add-res b{font-size:12.5px;}
@@ -110,17 +105,8 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-add-res.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink);}
 .crm-add-ocupado{cursor:not-allowed;opacity:.75;background:var(--paper-2);}
 .crm-add-ocupado:hover{border-color:var(--line);}
-.crm-add-aviso{font-size:11px;font-weight:700;color:var(--warning);margin-top:6px;}
-.crm-add-selecionado{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;}
 .crm-add-outro{display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:16px;cursor:pointer;}
-.crm-add-contatos-topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;}
-.crm-add-contato{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
-.crm-add-contato .field{margin-bottom:0;}
-.crm-add-principal{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;cursor:pointer;}
-@media (max-width:760px){
-  .crm-add-layout{grid-template-columns:minmax(0,1fr);}
-  .crm-add-esq{border-right:0;border-bottom:1px solid var(--line);}
-}
+
 
 /* ---------------- assistente de cadastro e aba do perfil ---------------- */
 .crm-wiz{max-width:940px;}
@@ -218,16 +204,7 @@ body.sistema-crm .sidebar-divider{display:none;}
 
 /* metas */
 .crm-meta-ano{min-width:120px;}
-.crm-meta-topo{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;}
-.crm-meta-money{display:flex;align-items:center;gap:8px;}
-.crm-meta-money > span{color:var(--ink-soft);font-weight:700;}
-.crm-meta-money input{text-align:right;font-family:'Space Mono',monospace;width:170px;}
-.crm-meta-grande input{font-size:22px;font-weight:700;width:240px;min-height:46px;}
-.crm-meta-rodape{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;}
 .crm-selo-warn{background:#FEF3C7;color:#B45309;}
-.crm-meta-money input{border:1px solid var(--line);border-radius:7px;padding:9px 10px;font-size:13.5px;background:var(--paper);color:var(--ink);}
-.crm-meta-money input:focus{outline:0;border-color:var(--orange);background:var(--surface);box-shadow:0 0 0 3px var(--orange-pale);}
-.crm-meta-money input:disabled{opacity:.6;}
 
 /* representantes */
 .crm-selo-rep{background:#D8F1EE;color:#0E6560;}

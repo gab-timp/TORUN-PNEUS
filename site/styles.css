@@ -1283,8 +1283,6 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .report-marca-panel, .report-codigo-panel, .report-status-panel, .prev-rep-panel{left:0; right:auto; width:100%; min-width:230px; box-sizing:border-box;}
 /* o painel de representantes fica dentro de um .field, cujo label vira "MAIÚSCULA PEQUENA"; aqui os nomes ficam normais */
 .report-status-panel .dash-filter-item, .prev-rep-panel .dash-filter-item{text-transform:none; letter-spacing:0; font-size:12.5px; font-weight:400; color:var(--ink);}
-/* várias tags de representante no cartão do processo: quebram por tag inteira, não no meio do nome */
-.prev-card-head .kanban-card-tag{white-space:nowrap;}
 
 /* ---------------- ranking (formas de pagamento no Faturamento) ---------------- */
 .rank-list{display:flex; flex-direction:column; gap:10px;}
@@ -1703,44 +1701,6 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
      toda em vez disso. */
   .dash-stat-grid .dash-stat-tile:nth-child(5):last-child{grid-column:1/-1;}
 }
-
-/* ---------------- estoque previsto ---------------- */
-.prev-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
-  gap:16px;
-}
-.prev-card{
-  background:var(--surface);
-  color:var(--ink);
-  border:1px solid var(--line);
-  border-left:3px solid var(--line-strong);
-  border-radius:16px;
-  padding:16px 18px;
-  display:flex;
-  flex-direction:column;
-  gap:11px;
-  box-shadow:var(--shadow-card);
-  transition:transform .14s ease, box-shadow .14s ease, border-left-color .14s ease;
-}
-.prev-card:hover{
-  transform:translateY(-2px);
-  box-shadow:var(--shadow-modal);
-}
-.prev-card.st-aguardando{border-left-color:var(--danger-border);}
-.prev-card.st-porto{border-left-color:var(--orange);}
-.prev-card.st-agua{border-left-color:var(--blue);}
-.prev-card.st-presenca{border-left-color:var(--pink);}
-.prev-card.st-atracado{border-left-color:var(--indigo);}
-.prev-card.st-chegou{border-left-color:var(--status-good-border);}
-.prev-card-head{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:8px;
-  padding-bottom:11px;
-  border-bottom:1px solid var(--line);
-}
 .prev-card-eyebrow{
   display:block;
   font-size:9.5px;
@@ -1750,8 +1710,6 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
   color:var(--ink-soft);
   margin-bottom:2px;
 }
-.prev-card-title{font-size:17px;font-weight:800;color:var(--ink);letter-spacing:-0.01em;}
-.prev-card-actions{display:flex;gap:6px;flex-shrink:0;}
 .prev-status-badge{
   display:inline-block;
   margin-top:6px;
@@ -1769,42 +1727,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .prev-status-badge.st-presenca{background:var(--pink-pale); color:var(--pink-deep); border:1px solid var(--pink);}
 .prev-status-badge.st-atracado{background:var(--indigo-pale); color:var(--indigo-deep); border:1px solid var(--indigo);}
 .prev-status-badge.st-chegou{background:var(--status-good-pale); color:var(--status-good); border:1px solid var(--status-good-border);}
-.prev-itens-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; font-size:12.5px;}
-.prev-itens-list li{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);}
-.prev-itens-list li:last-child{border-bottom:none;}
-.prev-itens-list .medida-txt{color:var(--ink-soft); flex:1; min-width:0;}
-.prev-itens-list .num{font-weight:700;}
-.prev-card-obs{font-size:11.5px; font-style:italic; color:var(--ink-soft) !important;}
-.prev-card-footer{
-  display:flex;
-  gap:10px;
-  padding-top:11px;
-  border-top:1px solid var(--line);
-}
-.prev-card-footer .field{flex:1;}
-.prev-card-footer label{font-size:9.5px;color:var(--ink-soft);}
-.prev-card-footer input, .prev-card-footer select{
-  width:100%;
-  border:1px solid var(--line);
-  border-radius:7px;
-  padding:7px 8px;
-  font-size:12.5px;
-  background:var(--paper);
-  color:var(--ink);
-}
-.prev-card-footer select option{
-  background:var(--paper);
-  color:var(--ink);
-}
-.prev-card-footer input:focus, .prev-card-footer select:focus{
-  border-color:var(--orange); background:var(--surface); outline:none;
-  box-shadow:0 0 0 3px var(--orange-pale);
-}
-.prev-card-footer input:disabled, .prev-card-footer select:disabled{opacity:.5;}
 
 /* Estoque Previsto em kanban (mesmas classes .kanban-* do Entregas; a cor de cada coluna vem do
-   --col-accent/--col-deep/--col-pale definidos na própria coluna, por status). As regras .prev-card* e
-   .prev-grid acima continuam porque o Estoque Previsto do Sem Venda ainda usa esse visual. */
+   --col-accent/--col-deep/--col-pale definidos na própria coluna, por status). */
 .kanban-card-tag.containers{background:var(--ink); color:var(--surface); border-color:var(--ink);}
 .kanban-card-tag.sem-data{background:transparent; color:var(--ink-soft); border-style:dashed; border-color:var(--ink-soft);}
 .kanban-card-obs{font-size:10.5px; font-style:italic; color:var(--ink-soft); margin-top:6px; line-height:1.35;}
@@ -1872,14 +1797,6 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .prev-stepper input::-webkit-outer-spin-button,
 .prev-stepper input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
 .prev-stepper input:focus{outline:none; box-shadow:none;}
-.prev-carga{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:-4px;}
-.prev-carga-eyebrow{
-  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:var(--ink-soft);
-}
-.prev-container-pill{
-  display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 8px; border-radius:999px;
-  background:var(--ink); color:var(--surface); font-size:11px; font-weight:700;
-}
 
 /* ---------------- relatórios ---------------- */
 .report-grid{
@@ -2598,7 +2515,6 @@ body.rom-popup-aberto #confirmOverlay, body.rom-popup-aberto #toast{z-index:130;
 .cli-arq-estado{font-size:12px; font-weight:700; color:var(--ink-soft); flex:0 0 auto;}
 .cli-arq-vazio{padding:34px 24px; text-align:center; color:var(--ink-soft); font-size:13px; line-height:1.55;}
 .cli-arq-pe{justify-content:space-between; align-items:center;}
-body.is-admin .nao-admin-only{display:none;}
 
 .rastreio-link-box{
   display:flex; align-items:center; gap:8px; margin-bottom:8px;

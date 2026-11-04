@@ -6,7 +6,6 @@
    selectTudoPaginado, currentUser*, setView), que só são resolvidos na hora da chamada. */
 
 const CRM_SISTEMAS = { atacado: "Atacado", encomenda: "Encomenda" };
-const CRM_PAPEL_LABEL = { executivo: "Executivo", financeiro: "Financeiro", gestao: "Gestão / Direção" };
 const CRM_RESULTADOS = ["Não atendeu", "Pediu retorno", "Interesse", "Estimativa enviada", "Fechou negócio", "Sem interesse"];
 const CRM_RESULTADO_PILL = {
   "Não atendeu": "pill-neutro", "Pediu retorno": "pill-atencao", "Interesse": "crm-pill-int",
@@ -61,7 +60,6 @@ function crmGestaoComCarteira() { return crmPapelEfetivo() === "gestao" && crmTe
 function crmTemCarteiraPropria() { return crmEhExecutivo() || crmGestaoComCarteira(); }
 const crmMeuId = () => (currentUser ? currentUser.id : null);
 function crmEhMinha(c) { return crmGestaoComCarteira() && c.executivoId === crmMeuId(); }
-function crmPodeRegistrarLigacao() { return crmTemCarteiraPropria() && crmPodeEscrever(); }
 // executivo só enxerga a própria carteira; a gestão só registra nos clientes em que é a responsável
 function crmPodeLigarPara(c) { return crmPodeEscrever() && !crmEhRepresentante(c.cliente) && (crmEhExecutivo() || crmEhMinha(c)); }
 // Metas (Gestão > Metas): só a gestão do CRM (administrador sem papel conta como gestão)

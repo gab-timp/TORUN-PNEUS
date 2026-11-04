@@ -564,25 +564,6 @@ function crmAcharNoTorun(nome, documento) {
   if (!crmState.clientesIndisponivel) return null; // cadastro do CRM é independente do Torun: só vale como fonte no modo legado
   return (state.clientes || []).find(c => crmMesmoCliente(c, n, d)) || null;
 }
-// só sugestão: um nome contido no outro (a partir de 4 letras)
-function crmParecidos(nome) {
-  const n = crmNorm(nome);
-  if (n.length < 4) return [];
-  const vistos = new Set([n]);
-  const achados = [];
-  const olhar = (lista, onde) => {
-    for (const c of lista) {
-      const a = crmNorm(c.nome);
-      if (vistos.has(a) || !(a.includes(n) || n.includes(a))) continue;
-      vistos.add(a);
-      achados.push(`${c.nome} (${onde})`);
-      if (achados.length >= 5) return;
-    }
-  };
-  olhar(crmState.clientes.values(), "CRM");
-  if (achados.length < 5 && crmState.clientesIndisponivel) olhar(state.clientes || [], "Torun");
-  return achados;
-}
 
 // Uma lista só, CRM e Torun juntos, filtrada pelo CNPJ e pelo nome digitados. Cada linha mostra o status do cliente.
 function crmWizItens() {
