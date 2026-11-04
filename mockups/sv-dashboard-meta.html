@@ -1,0 +1,106 @@
+<title>Dashboard Sem Venda com Meta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--bar:#EDEBE4;--ok:#1E7A46;--warn:#B45309;
+--f:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{background:var(--paper);color:var(--ink);font-family:var(--f);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1100px;margin:0 auto;display:grid;gap:18px}
+.tabs{display:flex;gap:8px}
+.tabs button{font:inherit;padding:7px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--black);color:var(--paper);border-color:var(--black)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+h1{font-size:26px;margin:0}.sub{color:var(--soft);font-size:14px;margin-top:2px}
+h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;margin:0;color:var(--soft)}
+.band{display:grid;gap:10px}
+.band-head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap}
+.band-head .note{font-size:12.5px;color:var(--soft);margin-top:2px}
+select{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.kpi .lbl{font-size:12px;color:var(--soft)}
+.kpi .val{font-size:clamp(19px,2.1vw,26px);font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .n{font-size:12px;color:var(--soft);margin-top:3px}
+.kpi.accent{background:var(--orange-pale);border-color:var(--orange)}
+.kpi.meta{background:var(--black);color:var(--paper);border-color:var(--black)}
+.kpi.meta .lbl,.kpi.meta .n{color:var(--paper);opacity:.72}
+.vendas .meta{grid-column:span 2}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.kpis{grid-template-columns:1fr}.vendas .meta{grid-column:auto}}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.card h3{margin:0 0 10px;font-size:15px}
+.bar b{font-weight:600}.bl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;font-variant-numeric:tabular-nums}
+.tr{height:8px;background:var(--bar);border-radius:4px;margin-bottom:10px}.tr i{display:block;height:100%;background:var(--orange);border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 4px;border-bottom:1px solid var(--line)}th{color:var(--soft);font-weight:500}
+td:last-child,th:last-child{text-align:right}
+.tag{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--bar);color:var(--soft)}
+.legend{font-size:12.5px;color:var(--soft);padding:10px 12px;border:1px dashed var(--line);border-radius:6px}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="tabs" role="group" aria-label="Versão">
+    <button id="bDepois" aria-pressed="true">Proposta</button>
+    <button id="bAntes" aria-pressed="false">Como está hoje</button>
+  </div>
+  <div class="legend" id="leg">Proposta: a faixa Vendas vai pro topo (é o que a equipe olha primeiro), com a Meta ao lado do Valor vendido. O estoque desce pra uma faixa própria. A Meta é um valor fixo digitado no código: não lê nada do banco e não muda com o mês.</div>
+
+  <div><h1>Dashboard</h1><div class="sub">Visão geral do estoque comprado a mais, ainda sem venda.</div></div>
+
+  <!-- PROPOSTA -->
+  <div id="depois" class="wrap" style="gap:18px">
+    <section class="band">
+      <div class="band-head"><div><h2>Vendas</h2><div class="note">Valor vendido e vendedores seguem o mês escolhido. A meta é fixa.</div></div>
+        <label>Mês <select id="m1"><option>Novembro de 2026</option><option>Outubro de 2026</option><option>Tudo</option></select></label></div>
+      <div class="kpis vendas">
+        <div class="kpi meta"><div class="lbl">Meta</div><div class="val">R$ 1.500.000,00</div><div class="n">valor fixo</div></div>
+        <div class="kpi accent"><div class="lbl">Valor vendido</div><div class="val">R$ 412.800,00</div><div class="n">9 vendas confirmadas no mês</div></div>
+        <div class="kpi"><div class="lbl">Vendedores</div><div class="val">3</div><div class="n">com venda confirmada no mês</div></div>
+      </div>
+    </section>
+    <section class="band">
+      <div class="band-head"><div><h2>Estoque parado</h2><div class="note">Não muda com o mês.</div></div></div>
+      <div class="kpis">
+        <div class="kpi"><div class="lbl">Pneus em estoque</div><div class="val">3.240 un.</div></div>
+        <div class="kpi"><div class="lbl">Valor investido parado</div><div class="val">R$ 2.184.000,00</div></div>
+        <div class="kpi"><div class="lbl">Tempo médio parado</div><div class="val">68 dias</div></div>
+        <div class="kpi"><div class="lbl">Armazéns com estoque</div><div class="val">4</div></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ANTES -->
+  <div id="antes" class="wrap" hidden style="gap:18px">
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Pneus em estoque</div><div class="val">3.240 un.</div></div>
+      <div class="kpi accent"><div class="lbl">Valor investido parado</div><div class="val">R$ 2.184.000,00</div></div>
+      <div class="kpi"><div class="lbl">Tempo médio parado</div><div class="val">68 dias</div></div>
+      <div class="kpi"><div class="lbl">Armazéns com estoque</div><div class="val">4</div></div>
+    </div>
+    <div class="band-head"><div><h2>Vendas</h2><div class="note">Os dois números abaixo seguem o mês escolhido.</div></div><label>Mês <select><option>Novembro de 2026</option></select></label></div>
+    <div class="kpis"><div class="kpi"><div class="lbl">Vendedores</div><div class="val">3</div></div><div class="kpi accent"><div class="lbl">Valor vendido</div><div class="val">R$ 412.800,00</div></div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h3>Estoque por armazenagem</h3>
+      <div class="bl"><b>Nguedes</b><span>1.320 un.</span></div><div class="tr"><i style="width:100%"></i></div>
+      <div class="bl"><b>RF</b><span>980 un.</span></div><div class="tr"><i style="width:74%"></i></div>
+      <div class="bl"><b>ZR</b><span>610 un.</span></div><div class="tr"><i style="width:46%"></i></div>
+      <div class="bl"><b>Multilog</b><span>330 un.</span></div><div class="tr"><i style="width:25%"></i></div>
+    </div>
+    <div class="card"><h3>Parados há mais tempo</h3>
+      <table><thead><tr><th>Código</th><th>Medida</th><th>Armazém</th><th>Parado</th></tr></thead><tbody>
+      <tr><td>SV-0142</td><td>295/80R22.5</td><td>Nguedes</td><td>142 d.</td></tr>
+      <tr><td>SV-0087</td><td>11R22.5</td><td>RF</td><td>118 d.</td></tr>
+      <tr><td>SV-0210</td><td>275/80R22.5</td><td>ZR</td><td>96 d.</td></tr></tbody></table>
+    </div>
+  </div>
+  <div class="legend">Números de exemplo, só pra mostrar o desenho.</div>
+</div>
+<script>
+const a=document.getElementById('bAntes'),d=document.getElementById('bDepois');
+function s(x){document.getElementById('antes').hidden=!x;document.getElementById('depois').hidden=x;
+a.setAttribute('aria-pressed',x);d.setAttribute('aria-pressed',!x);
+document.getElementById('leg').hidden=x}
+a.onclick=()=>s(true);d.onclick=()=>s(false);
+</script>

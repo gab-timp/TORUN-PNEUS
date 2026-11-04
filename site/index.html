@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=177">
-<link rel="stylesheet" href="semvenda.css?v=25">
+<link rel="stylesheet" href="semvenda.css?v=26">
 <link rel="stylesheet" href="crm.css?v=26">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -460,11 +460,10 @@
     <!-- ======================= SEM VENDA ======================= -->
     <section id="view-sv-dashboard" class="view">
       <div class="page-head"><div><h1>Dashboard</h1><div class="sub">Visão geral do estoque comprado a mais, ainda sem venda.</div></div></div>
-      <div class="kpis" id="svDashKpis"></div>
       <div class="sv-dash-vendas-topo">
         <div>
           <h2 class="sv-dash-vendas-titulo">Vendas</h2>
-          <div class="note">Os dois números abaixo seguem o mês escolhido. O estoque acima não muda com ele.</div>
+          <div class="note">Valor vendido e vendedores seguem o mês escolhido. A meta é fixa.</div>
         </div>
         <div class="field sv-dash-mes">
           <label for="svDashMes">Mês</label>
@@ -472,6 +471,8 @@
         </div>
       </div>
       <div class="kpis sv-dash-vendas" id="svDashVendas"></div>
+      <div class="sv-dash-vendas-topo sv-dash-estoque-topo"><div><h2 class="sv-dash-vendas-titulo">Estoque parado</h2><div class="note">Não muda com o mês.</div></div></div>
+      <div class="kpis" id="svDashKpis"></div>
       <div class="sv-dash-grid">
         <div class="card">
           <div class="card-head"><h2>Estoque por armazenagem</h2></div>
@@ -4652,7 +4653,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=29"></script>
+<script src="semvenda.js?v=30"></script>
 <script src="crm.js?v=36"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=4"></script>

@@ -263,7 +263,12 @@ body.sistema-semvenda .sidebar-divider{display:none;}
 .sv-dash-vendas-titulo{font-size:15px;font-weight:800;margin:0 0 2px;}
 .sv-dash-vendas-topo .note{font-size:12px;color:var(--ink-soft);}
 .sv-dash-mes{flex:0 0 220px;}
-.sv-dash-vendas{grid-template-columns:repeat(auto-fit,minmax(220px,340px));}
+.sv-dash-vendas,#svDashKpis{grid-template-columns:repeat(4,minmax(0,1fr));}
+.sv-dash-vendas .sv-kpi-meta{grid-column:span 2;background:var(--black);border-color:var(--black);color:var(--white);}
+.sv-dash-vendas .sv-kpi-meta .lbl,.sv-dash-vendas .sv-kpi-meta .sv-kpi-nota{color:rgba(255,255,255,.72);}
+.sv-dash-estoque-topo{margin:18px 0 12px;}
+@media (max-width: 900px){.sv-dash-vendas,#svDashKpis{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width: 520px){.sv-dash-vendas,#svDashKpis{grid-template-columns:1fr;}.sv-dash-vendas .sv-kpi-meta{grid-column:auto;}}
 .kpi .sv-kpi-aviso{margin-top:6px;font-size:11px;font-weight:700;color:var(--warning);}
 .sv-dash-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;}
 .sv-dash-sub{margin:-6px 0 12px;font-size:11.5px;color:var(--ink-soft);}

@@ -2091,6 +2091,9 @@ function svRenderDashboard() {
 
 /* ---------- Dashboard: vendas do mês (Vendedores e Valor vendido) ---------- */
 
+// Meta fixa do Dashboard: não vem do banco, é só este valor
+const SV_META_VALOR = 1500000;
+
 const SV_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 // "" = ainda não escolheu (abre no mês atual); "__tudo" = soma desde o início; senão "AAAA-MM"
@@ -2142,6 +2145,7 @@ function svRenderDashboardVendas() {
     ? `<div class="sv-kpi-aviso">${fmt(semPreco)} ${semPreco === 1 ? "venda sem preço ficou" : "vendas sem preço ficaram"} fora da soma</div>`
     : "";
   document.getElementById("svDashVendas").innerHTML = `
+    <div class="kpi sv-kpi-meta"><div class="lbl">Meta</div><div class="val">${escapeHtml(formatMoney(SV_META_VALOR))}</div><div class="muted sv-sub sv-kpi-nota">valor fixo</div></div>
     <div class="kpi"><div class="lbl">Vendedores</div><div class="val">${fmt(vendedores)}</div><div class="muted sv-sub sv-kpi-nota">com venda confirmada ${quando}</div></div>
     <div class="kpi accent"><div class="lbl">Valor vendido</div><div class="val">${escapeHtml(formatMoney(total))}</div><div class="muted sv-sub sv-kpi-nota">${notaVendas}</div>${aviso}</div>
   `;
