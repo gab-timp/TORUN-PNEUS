@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=177">
-<link rel="stylesheet" href="semvenda.css?v=28">
+<link rel="stylesheet" href="semvenda.css?v=29">
 <link rel="stylesheet" href="crm.css?v=26">
 <link rel="stylesheet" href="usuarios.css?v=3">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -532,6 +532,13 @@
             </div>
           </div>
 
+          <div class="form-row">
+            <div class="field small">
+              <label for="svPrevCusto">Custo total do processo (R$, opcional)</label>
+              <input type="number" id="svPrevCusto" min="0" step="0.01" placeholder="Ex: 486000,00">
+            </div>
+          </div>
+
           <div class="field" style="margin-bottom:12px;">
             <label>Medidas do processo</label>
             <div id="svPrevItens" class="item-list"></div>
@@ -641,15 +648,11 @@
             <div class="form-section-label"><span class="n">3</span>Valores (opcional)</div>
             <div class="form-row">
               <div class="field small">
-                <label>Custo unitário (R$)</label>
-                <input type="number" id="svProdCusto" min="0" step="0.01" placeholder="Ex: 1850,00">
-              </div>
-              <div class="field small">
                 <label>Preço de proposta (R$)</label>
                 <input type="number" id="svProdPreco" min="0" step="0.01" placeholder="Ex: 2180,00">
               </div>
             </div>
-            <span class="note">O custo alimenta o "valor investido" (Dashboard e Armazenagem). O preço já vem preenchido no Relatório de Preço. Produto sem custo ou sem preço continua valendo: só fica de fora dos valores em R$.</span>
+            <span class="note">O preço já vem preenchido no Relatório de Preço. Produto sem preço continua valendo: sai como "Sob consulta". O custo agora é informado em cada processo, no Estoque Previsto.</span>
           </div>
 
           <div class="form-section">
@@ -717,7 +720,6 @@
                 <th>Categoria</th>
                 <th>Marca</th>
                 <th>Carcaça</th>
-                <th class="sv-num">Custo</th>
                 <th class="sv-num">Preço</th>
                 <th>Situação</th>
                 <th></th>
@@ -919,7 +921,6 @@
                 <th>Medida</th>
                 <th>Armazém</th>
                 <th class="sv-num">Quantidade</th>
-                <th class="sv-num">Valor investido</th>
               </tr>
             </thead>
             <tbody id="svArmTbody"></tbody>
@@ -4655,7 +4656,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=34"></script>
+<script src="semvenda.js?v=35"></script>
 <script src="crm.js?v=36"></script>
 <script src="crm-perfil.js?v=7"></script>
 <script src="crm-faturamento.js?v=4"></script>

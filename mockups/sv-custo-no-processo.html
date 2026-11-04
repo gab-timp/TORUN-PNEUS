@@ -1,0 +1,83 @@
+<title>Custo no processo do Sem Venda</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--bar:#EDEBE4;--blue:#2563EB;--blue-pale:#DBEAFE;
+--f:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light}
+body{background:var(--paper);color:var(--ink);font-family:var(--f);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto;display:grid;gap:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button,.btn{font:inherit;padding:7px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--black);color:#fff;border-color:var(--black)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px}
+h2{margin:0;font-size:17px}h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.note{font-size:12.5px;color:var(--soft)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+label{font-size:12px;color:var(--soft);display:block;margin-bottom:4px}
+input,select{font:inherit;width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.novo{outline:2px solid var(--orange);outline-offset:3px;border-radius:8px;padding:8px;background:var(--orange-pale)}
+.tag{display:inline-block;font-size:11px;background:var(--orange);color:#fff;border-radius:99px;padding:1px 8px;margin-left:6px}
+.item{display:flex;justify-content:space-between;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--paper)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}.kpi .l{font-size:12px;color:var(--soft)}.kpi .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi.acc{background:var(--orange-pale);border-color:var(--orange)}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:480px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}th{color:var(--soft);font-weight:500}
+.riscado{text-decoration:line-through;color:var(--soft)}
+.foot{display:flex;justify-content:flex-end;gap:8px}.primary{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:700}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.kv b{display:block;font-size:15px}.kv span{font-size:12px;color:var(--soft)}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="tabs" role="group" aria-label="Tela">
+    <button data-t="a" aria-pressed="true">Cadastrar processo</button>
+    <button data-t="b" aria-pressed="false">Processo aberto</button>
+    <button data-t="c" aria-pressed="false">Produtos</button>
+    <button data-t="d" aria-pressed="false">Valor investido</button>
+  </div>
+
+  <div class="card" data-v="a">
+    <h2>Novo processo previsto</h2>
+    <div class="row">
+      <div><label>Nº do processo</label><input value="3070-26"></div>
+      <div><label>Data de chegada</label><input type="date" value="2026-11-20"></div>
+      <div><label>Status</label><select><option>Processo em água</option></select></div>
+      <div><label>Armazém</label><select><option>Nguedes</option></select></div>
+    </div>
+    <div class="novo"><label>Custo total do processo (R$) <span class="tag">novo</span></label><input type="number" value="486000" step="0.01"><div class="note" style="margin-top:4px">Opcional. Dá pra preencher ou corrigir depois, quando o custo fechar.</div></div>
+    <h3>Medidas do processo</h3>
+    <div class="item"><span>SV-0142 · 295/80R22.5</span><b>400 un.</b></div>
+    <div class="item"><span>SV-0087 · 11R22.5</span><b>240 un.</b></div>
+    <div class="foot"><button class="btn">Cancelar</button><button class="btn primary">Salvar processo</button></div>
+  </div>
+
+  <div class="card" data-v="b" hidden>
+    <h2>Processo 3070-26 <span class="note">· Processo em água</span></h2>
+    <div class="kv"><div><span>Chegada prevista</span><b>20/11/2026</b></div><div><span>Armazém</span><b>Nguedes</b></div><div class="novo"><span>Custo total <em class="tag">novo</em></span><b>R$ 486.000,00</b></div><div><span>Pneus</span><b>640 un.</b></div></div>
+    <div class="note">O custo aparece aqui e na janela Editar, onde pode ser ajustado a qualquer momento (antes ou depois da chegada). Processo sem custo mostra "Custo não informado".</div>
+    <div class="foot"><button class="btn">Excluir</button><button class="btn">Fechar</button><button class="btn primary">Editar</button></div>
+  </div>
+
+  <div class="card" data-v="c" hidden>
+    <h2>Produtos</h2>
+    <div class="note">O campo "Custo unitário" sai do formulário e a coluna "Custo" sai da tabela. O preço de proposta continua.</div>
+    <div class="tbl"><table><thead><tr><th>Código</th><th>Medida</th><th class="riscado">Custo</th><th>Preço de proposta</th></tr></thead>
+    <tbody><tr><td>SV-0142</td><td>295/80R22.5</td><td class="riscado">R$ 1.850,00</td><td>R$ 2.100,00</td></tr>
+    <tr><td>SV-0087</td><td>11R22.5</td><td class="riscado">R$ 1.420,00</td><td>R$ 1.690,00</td></tr></tbody></table></div>
+  </div>
+
+  <div class="card" data-v="d" hidden>
+    <h2>Dashboard e Armazenagem</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Pneus em estoque</div><div class="v">3.240 un.</div></div>
+      <div class="kpi acc"><div class="l">Valor investido parado</div><div class="v">R$ 2.184.000,00</div><div class="note">1 processo sem custo informado</div></div>
+      <div class="kpi"><div class="l">Tempo médio parado</div><div class="v">68 dias</div></div>
+      <div class="kpi"><div class="l">Armazéns com estoque</div><div class="v">4</div></div>
+    </div>
+    <div class="note"><b>Como o valor é somado (conforme você respondeu):</b> soma do custo total dos processos que já chegaram (status FINALIZADO), sem dividir por produto. Na Armazenagem, cada armazém soma os processos dele. Processos ainda a caminho não entram, e processo sem custo fica de fora com o aviso. Esse valor não diminui quando um pneu é vendido.</div>
+  </div>
+  <div class="note">Números de exemplo.</div>
+</div>
+<script>
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-pressed',x===b));document.querySelectorAll('[data-v]').forEach(v=>v.hidden=v.dataset.v!==b.dataset.t)});
+</script>

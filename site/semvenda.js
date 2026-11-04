@@ -122,7 +122,6 @@ function svProdutoFromRow(r) {
     codigo: r.codigo, medida: r.medida, marca: r.marca || "", modelo: r.modelo || "",
     categoria: r.categoria || "", carcaca: r.carcaca || "", situacao: r.situacao || "ATIVO",
     icIv: r.ic_iv || "", pr: r.pr || "", capCarga: r.cap_carga || "", fotoPath: r.foto_path || null,
-    custo: r.custo_unitario === null || r.custo_unitario === undefined ? null : Number(r.custo_unitario),
     preco: r.preco_proposta === null || r.preco_proposta === undefined ? null : Number(r.preco_proposta)
   };
 }
@@ -176,7 +175,6 @@ function svProdutoToRow(p) {
     codigo: p.codigo, medida: p.medida, marca: p.marca || null, modelo: p.modelo || null,
     categoria: p.categoria || null, carcaca: p.carcaca || null, situacao: p.situacao || "ATIVO",
     ic_iv: p.icIv || null, pr: p.pr || null, cap_carga: p.capCarga || null,
-    custo_unitario: p.custo === null || p.custo === undefined ? null : p.custo,
     preco_proposta: p.preco === null || p.preco === undefined ? null : p.preco
   };
 }
@@ -184,14 +182,17 @@ function svProdutoToRow(p) {
 function svPrevistoFromRow(r) {
   return {
     id: r.id, numeroProcesso: r.numero_processo, itens: Array.isArray(r.itens) ? r.itens.filter(it => it && typeof it === "object") : [], dataChegada: r.data_chegada || "",
-    status: r.status, armazem: r.armazem || "", obs: r.obs || "", dtc: !!r.dtc, createdAt: r.created_at, updatedAt: r.updated_at
+    status: r.status, armazem: r.armazem || "", obs: r.obs || "", dtc: !!r.dtc,
+    // custo total do processo (sql/sem_venda_custo_no_processo.sql); vazio = ainda não informado
+    custoTotal: r.custo_total === null || r.custo_total === undefined ? null : Number(r.custo_total), createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
 
 function svPrevistoToRow(p) {
   return {
     id: p.id, numero_processo: p.numeroProcesso, itens: p.itens || [], data_chegada: p.dataChegada || null,
-    status: p.status, armazem: p.armazem || null, obs: p.obs || null, dtc: !!p.dtc
+    status: p.status, armazem: p.armazem || null, obs: p.obs || null, dtc: !!p.dtc,
+    custo_total: p.custoTotal === null || p.custoTotal === undefined ? null : p.custoTotal
   };
 }
 
@@ -292,7 +293,6 @@ function svRenderProdutos() {
       <td>${p.categoria ? escapeHtml(CATEGORIA_LABEL[p.categoria] || p.categoria) : '<span class="muted">—</span>'}</td>
       <td>${p.marca ? escapeHtml(p.marca) : '<span class="muted">—</span>'}</td>
       <td>${p.carcaca === "RADIAL" ? "Radial" : p.carcaca === "DIAGONAL" ? "Diagonal" : '<span class="muted">—</span>'}</td>
-      <td class="sv-num">${p.custo === null ? '<span class="muted">—</span>' : escapeHtml(formatMoney(p.custo))}</td>
       <td class="sv-num">${p.preco === null ? '<span class="muted">—</span>' : escapeHtml(formatMoney(p.preco))}</td>
       <td>${p.situacao === "DESCONTINUADO" ? '<span class="status-pill pill-esgotado">Descontinuado</span>' : '<span class="status-pill pill-normal">Ativo</span>'}</td>
       <td>
@@ -328,7 +328,6 @@ function svIniciarEdicaoProduto(codigo) {
   document.getElementById("svProdIcIv").value = p.icIv;
   document.getElementById("svProdPr").value = p.pr;
   document.getElementById("svProdCapCarga").value = p.capCarga;
-  document.getElementById("svProdCusto").value = p.custo === null ? "" : p.custo;
   document.getElementById("svProdPreco").value = p.preco === null ? "" : p.preco;
   document.getElementById("svProdFormTitle").textContent = "Editar produto";
   document.getElementById("svProdEditBanner").style.display = "block";
@@ -454,11 +453,10 @@ async function svSalvarProdutoDados(e) {
     icIv: document.getElementById("svProdIcIv").value.trim(),
     pr: document.getElementById("svProdPr").value.trim(),
     capCarga: document.getElementById("svProdCapCarga").value.trim(),
-    custo: svLerValor("svProdCusto"),
     preco: svLerValor("svProdPreco")
   };
   if (!dados.codigo || !dados.medida) { toast("Informe o código e a medida."); return; }
-  if (Number.isNaN(dados.custo) || Number.isNaN(dados.preco)) { toast("Custo e preço precisam ser valores de zero em diante."); return; }
+  if (Number.isNaN(dados.preco)) { toast("O preço precisa ser um valor de zero em diante."); return; }
 
   if (svEditandoProduto) {
     const { codigo, ...campos } = svProdutoToRow({ ...dados, codigo: svEditandoProduto });
@@ -701,6 +699,8 @@ function svAbrirPrevistoDetalhe(id) {
       p.armazem ? valor(escapeHtml(svPrevTextoArmazem(p))) : valor("Sem armazém", true)}</div>
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Data de chegada</span>${
       p.dataChegada ? valor(`<span class="mono">${formatDateBR(p.dataChegada)}</span>`) : valor("Sem data de chegada", true)}</div>
+    <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Custo total</span>${
+      p.custoTotal !== null ? valor(`<span class="mono">${escapeHtml(formatMoney(p.custoTotal))}</span>`) : valor("Custo não informado", true)}</div>
     <div class="prev-detalhe-cel"><span class="prev-detalhe-lbl">Reservas ligadas</span>${
       ativas.length ? valor(`<span class="mono">${fmt(qtdReservada)}</span> un. em ${ativas.length} reserva${ativas.length > 1 ? "s" : ""}`) : valor("Nenhuma", true)}</div>`;
 
@@ -825,6 +825,7 @@ function svIniciarEdicaoPrevisto(id) {
   document.getElementById("svPrevDtc").checked = !!p.dtc;
   document.getElementById("svPrevArmazem").value = p.armazem;
   document.getElementById("svPrevObs").value = p.obs;
+  document.getElementById("svPrevCusto").value = p.custoTotal === null ? "" : p.custoTotal;
 
   const container = document.getElementById("svPrevItens");
   container.innerHTML = "";
@@ -875,6 +876,9 @@ async function svSalvarPrevistoDados(e) {
   const armazem = document.getElementById("svPrevArmazem").value;
   const obs = document.getElementById("svPrevObs").value.trim();
   if (!numeroProcesso) { toast("Informe o número do processo."); return; }
+  const custoTexto = document.getElementById("svPrevCusto").value.trim();
+  const custoTotal = custoTexto === "" ? null : Number(custoTexto);
+  if (custoTotal !== null && !(custoTotal >= 0)) { toast("O custo total precisa ser um valor de zero em diante."); return; }
 
   const itens = [];
   for (const row of document.querySelectorAll("#svPrevItens .item-row")) {
@@ -884,7 +888,7 @@ async function svSalvarPrevistoDados(e) {
     if (!codigo || !quantidadeRaw || parseInt(quantidadeRaw, 10) <= 0) { toast("Preencha produto e quantidade em todas as medidas adicionadas."); return; }
     itens.push({ codigo, quantidade: parseInt(quantidadeRaw, 10) });
   }
-  const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs, dtc };
+  const dados = { numeroProcesso, itens, dataChegada, status, armazem, obs, dtc, custoTotal };
 
   if (svEditandoPrevistoId) {
     // com dados atualizados: alguém pode ter reservado desse processo agora há pouco
@@ -2212,7 +2216,6 @@ function svDiasDesde(iso) {
 }
 
 // O que está parado em cada armazém: chegou menos o que já foi vendido (o reservado continua lá, parado).
-// valor = quantidade × custo do produto (null quando o produto não tem custo cadastrado);
 // dias = tempo desde a chegada mais antiga daquele produto naquele armazém.
 function svEstoqueFisico() {
   return svCalcularEstoque().linhas
@@ -2220,8 +2223,7 @@ function svEstoqueFisico() {
     .filter(l => l.qtd > 0)
     .map(l => ({
       ...l,
-      dias: svDiasDesde(l.desde),
-      valor: l.produto && l.produto.custo !== null ? l.qtd * l.produto.custo : null
+      dias: svDiasDesde(l.desde)
     }));
 }
 
@@ -2231,20 +2233,24 @@ function svArmazensDoEstoque(est) {
   return [...SV_ARMAZENS, ...extras, ...(est.some(l => !l.armazem) ? [""] : [])];
 }
 
-function svResumoValor(est) {
-  const comCusto = est.filter(l => l.valor !== null);
+// Valor investido: soma do custo total dos processos que já chegaram (FINALIZADO). Sem argumento soma todos;
+// com um armazém ("" = sem armazém), só os processos dele. Não desconta o que já foi vendido.
+// semCusto = processos que chegaram mas ainda não têm o custo informado (ficam fora da soma).
+function svResumoValor(armazem) {
+  const chegados = svState.previsoes.filter(p => p.status === "FINALIZADO" && (armazem === undefined || (p.armazem || "") === armazem));
+  const comCusto = chegados.filter(p => p.custoTotal !== null);
   return {
-    total: comCusto.reduce((s, l) => s + l.valor, 0),
+    total: comCusto.reduce((s, p) => s + p.custoTotal, 0),
     temCusto: comCusto.length > 0,
-    semCusto: new Set(est.filter(l => l.valor === null).map(l => l.codigo)).size
+    semCusto: chegados.length - comCusto.length
   };
 }
 
 function svNotaSemCusto(resumo) {
   if (resumo.semCusto === 0) return "";
   return resumo.temCusto
-    ? `${resumo.semCusto} código(s) sem custo cadastrado`
-    : "Cadastre o custo nos Produtos";
+    ? `${resumo.semCusto} ${resumo.semCusto === 1 ? "processo sem custo informado" : "processos sem custo informado"}`
+    : "Informe o custo nos processos (Estoque Previsto)";
 }
 
 /* ---------- Dashboard ---------- */
@@ -2252,7 +2258,7 @@ function svNotaSemCusto(resumo) {
 function svRenderDashboard() {
   const est = svEstoqueFisico();
   const total = est.reduce((s, l) => s + l.qtd, 0);
-  const valor = svResumoValor(est);
+  const valor = svResumoValor();
   const comData = est.filter(l => l.dias !== null);
   const pesoTotal = comData.reduce((s, l) => s + l.qtd, 0);
   const mediaDias = pesoTotal > 0 ? Math.round(comData.reduce((s, l) => s + l.qtd * l.dias, 0) / pesoTotal) : null;
@@ -2366,12 +2372,15 @@ function svRenderArmazenagem() {
   const chaveDe = a => a === "" ? "__sem" : a;
   if (svArmSelecionado && !nomes.some(a => chaveDe(a) === svArmSelecionado)) svArmSelecionado = "";
 
-  const valorTodos = svResumoValor(est);
+  const valorTodos = svResumoValor();
+  const textoValor = (v) => v.temCusto
+    ? escapeHtml(formatMoney(v.total)) + " investidos" + (v.semCusto > 0 ? ` · ${v.semCusto} sem custo` : "")
+    : v.semCusto > 0 ? "custo não informado" : "nenhum processo chegou";
   const cartoes = [`
     <button type="button" class="sv-arm-card${svArmSelecionado === "" ? " sel" : ""}" data-svarm="" aria-pressed="${svArmSelecionado === ""}">
       <span class="sv-arm-nome">Todos</span>
       <span class="sv-arm-qtd">${fmt(est.reduce((s, l) => s + l.qtd, 0))} un.</span>
-      <span class="sv-arm-sub">${valorTodos.temCusto ? escapeHtml(formatMoney(valorTodos.total)) + " investidos" : "custo não cadastrado"}${valorTodos.temCusto && valorTodos.semCusto > 0 ? ` · ${valorTodos.semCusto} sem custo` : ""}</span>
+      <span class="sv-arm-sub">${textoValor(valorTodos)}</span>
     </button>`];
   nomes.forEach(a => {
     const linhas = est.filter(l => l.armazem === a);
@@ -2381,6 +2390,7 @@ function svRenderArmazenagem() {
       <span class="sv-arm-nome">${escapeHtml(svNomeArmazem(a))}</span>
       <span class="sv-arm-qtd">${fmt(linhas.reduce((s, l) => s + l.qtd, 0))} un.</span>
       <span class="sv-arm-sub">${fmt(codigos)} ${codigos === 1 ? "código" : "códigos diferentes"}</span>
+      <span class="sv-arm-sub">${textoValor(svResumoValor(a))}</span>
     </button>`);
   });
   const caixa = document.getElementById("svArmCards");
@@ -2402,7 +2412,7 @@ function svRenderArmazenagem() {
 
   const rows = est
     .filter(l => svArmSelecionado === "" || chaveDe(l.armazem) === svArmSelecionado)
-    .sort((a, b) => (b.valor === null ? -1 : b.valor) - (a.valor === null ? -1 : a.valor) || b.qtd - a.qtd || a.codigo.localeCompare(b.codigo));
+    .sort((a, b) => b.qtd - a.qtd || a.codigo.localeCompare(b.codigo));
   document.getElementById("svArmTitulo").textContent = "Itens — " + (svArmSelecionado === "" ? "todos os armazéns" : svNomeArmazem(svArmSelecionado === "__sem" ? "" : svArmSelecionado));
   document.getElementById("svArmCount").textContent = `${rows.length} item(ns)`;
   document.getElementById("svArmTbody").innerHTML = rows.map(l => `
@@ -2411,7 +2421,6 @@ function svRenderArmazenagem() {
       <td>${escapeHtml(l.produto ? l.produto.medida : "(produto removido)")}</td>
       <td>${escapeHtml(svNomeArmazem(l.armazem))}</td>
       <td class="sv-num">${fmt(l.qtd)}</td>
-      <td class="sv-num">${l.valor === null ? "—" : escapeHtml(formatMoney(l.valor))}</td>
     </tr>`).join("");
   const vazio = document.getElementById("svArmEmpty");
   vazio.style.display = rows.length === 0 ? "block" : "none";

@@ -400,3 +400,6 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .sv-extra-erro{grid-column:1 / -1;}
 #svResAddProduto{margin-top:8px;}
 @media (max-width: 760px){.sv-ped-item{grid-template-columns:1fr;}}
+
+/* Janela do processo: 4 informações (armazém, chegada, custo total, reservas) */
+#svPrevDetalheInfo{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
