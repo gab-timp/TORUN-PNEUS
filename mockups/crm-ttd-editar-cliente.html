@@ -1,0 +1,61 @@
+<title>CRM Editar Cliente TTD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f3efe9;--card:#fff;--ink:#2a2622;--soft:#7a7068;--line:#ddd5cb;--acc:#e8660d;--accpale:#fdeedd;--warn:#9a5b00;--warnbg:#fff3d6;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--warn:#ffcf70;--warnbg:#3d3118;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--warn:#ffcf70;--warnbg:#3d3118;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+h1{font-size:18px;margin:0 0 4px}
+.sub{color:var(--soft);font-size:13px;margin:0 0 20px;max-width:70ch}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.col{flex:1 1 360px;max-width:460px;min-width:0}
+.lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);margin-bottom:8px}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.modal h3{margin:0 0 4px;font-size:16px}
+.mut{color:var(--soft);font-size:12px}
+.field{display:flex;flex-direction:column;gap:4px;margin-top:12px}
+.field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.field input,.field select{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.field input:focus,.field select:focus{outline:2px solid var(--acc);outline-offset:0}
+.seg{display:flex}.seg button{flex:1;font:inherit;font-size:13px;padding:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.seg button:first-child{border-radius:6px 0 0 6px}.seg button:last-child{border-radius:0 6px 6px 0}
+.seg button[aria-pressed=true]{background:var(--accpale);border-color:var(--acc);font-weight:700}
+.sec{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.sec h4{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.alert{margin-top:10px;font-size:12.5px;background:var(--warnbg);color:var(--warn);padding:8px 10px;border-radius:6px}
+.acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.btn{font:inherit;font-size:13px;padding:8px 16px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--ink)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+</style>
+<h1>Editar cliente: número e vencimento do TTD</h1>
+<p class="sub">Os campos entram no pop-up de Editar cliente do CRM, abaixo do representante. Só aparecem quando "Possui TTD" é Sim. Gravam no mesmo lugar do perfil, então o aviso de vencimento a 60 dias e a ficha continuam iguais.</p>
+<div class="row">
+  <div class="col"><div class="lbl">A. Possui TTD: Não (ou vazio)</div>
+    <div class="modal">
+      <h3>Editar cliente</h3><div class="mut">Dados do cliente no CRM.</div>
+      <div class="field"><label>Nome do cliente</label><input value="TRANSPORTADORA EXEMPLO LTDA"></div>
+      <div class="field"><label>Tipo</label><div class="seg"><button aria-pressed="true">Cliente efetivo</button><button aria-pressed="false">Prospect</button></div></div>
+      <div class="field"><label>Representante</label><select><option>Sem representante</option></select></div>
+      <div class="sec"><h4>TTD</h4>
+        <div class="field"><label>Possui TTD</label><select><option>Não</option><option>Sim</option></select></div>
+      </div>
+      <div class="acts"><button class="btn">Cancelar</button><button class="btn p">Salvar</button></div>
+    </div></div>
+  <div class="col"><div class="lbl">B. Possui TTD: Sim</div>
+    <div class="modal">
+      <h3>Editar cliente</h3><div class="mut">Dados do cliente no CRM.</div>
+      <div class="field"><label>Nome do cliente</label><input value="TRANSPORTADORA EXEMPLO LTDA"></div>
+      <div class="field"><label>Tipo</label><div class="seg"><button aria-pressed="true">Cliente efetivo</button><button aria-pressed="false">Prospect</button></div></div>
+      <div class="field"><label>Representante</label><select><option>Sem representante</option></select></div>
+      <div class="sec"><h4>TTD</h4>
+        <div class="field"><label>Possui TTD</label><select><option>Sim</option><option>Não</option></select></div>
+        <div class="two">
+          <div class="field"><label>Número do TTD</label><input value="2024/001234"></div>
+          <div class="field"><label>Vencimento do TTD</label><input type="date" value="2026-12-20"></div>
+        </div>
+        <div class="alert">O TTD vence em 46 dias (20/12/2026). Avisar o fiscal para renovar.</div>
+      </div>
+      <div class="acts"><button class="btn">Cancelar</button><button class="btn p">Salvar</button></div>
+    </div></div>
+</div>

@@ -48,9 +48,19 @@ function crmAbrirEditarCliente(carteiraId) {
   if (rep && !nomes.includes(rep)) nomes.push(rep);
   document.getElementById("crmEdRep").innerHTML = `<option value="">Sem representante</option>` + nomes.map(n => `<option value="${escapeAttr(n)}" ${n === rep ? "selected" : ""}>${escapeHtml(n)}</option>`).join("");
   document.getElementById("crmEdRepCampo").style.display = crmState.representantesDisponivel ? "" : "none";
+  const perfil = crmState.perfis.get(c.cliente);
+  document.getElementById("crmEdTtdBloco").style.display = crmState.perfilIndisponivel ? "none" : "";
+  document.getElementById("crmEdTtd").value = perfil ? perfil.possuiTtd : "";
+  document.getElementById("crmEdTtdNum").value = perfil ? perfil.ttdNumero : "";
+  document.getElementById("crmEdTtdVenc").value = perfil ? perfil.ttdVencimento : "";
+  crmEdMostrarTtd();
   document.getElementById("crmEdErro").style.display = "none";
   document.getElementById("crmEdOverlay").classList.add("show");
   document.getElementById("crmEdNome").focus();
+}
+
+function crmEdMostrarTtd() {
+  document.getElementById("crmEdTtdCampos").style.display = document.getElementById("crmEdTtd").value === "sim" ? "" : "none";
 }
 
 function crmFecharEditarCliente() {
@@ -67,12 +77,36 @@ async function crmSalvarEditarCliente() {
   const tipoAtual = crmEhProspect(c.cliente) ? "prospect" : "cliente";
   const repAtual = crmRepresentanteDe(c.cliente) || "";
   const rep = crmState.representantesDisponivel ? document.getElementById("crmEdRep").value : repAtual;
-  if (nome === c.cliente && crmEdTipo === tipoAtual && rep === repAtual) { crmFecharEditarCliente(); toast("Nada mudou."); return; }
+  const perfil = crmState.perfis.get(c.cliente);
+  const ttdAtual = { possui: perfil ? perfil.possuiTtd : "", num: perfil ? perfil.ttdNumero : "", venc: perfil ? perfil.ttdVencimento : "" };
+  const ttd = { possui: document.getElementById("crmEdTtd").value, num: document.getElementById("crmEdTtdNum").value.replace(/\s+/g, " ").trim(), venc: document.getElementById("crmEdTtdVenc").value };
+  if (ttd.possui !== "sim") { ttd.num = ""; ttd.venc = ""; }
+  const ttdMudou = !crmState.perfilIndisponivel && (ttd.possui !== ttdAtual.possui || ttd.num !== ttdAtual.num || ttd.venc !== ttdAtual.venc);
+  const cadastroMudou = !(nome === c.cliente && crmEdTipo === tipoAtual && rep === repAtual);
+  if (!cadastroMudou && !ttdMudou) { crmFecharEditarCliente(); toast("Nada mudou."); return; }
   const botao = document.getElementById("crmEdSalvar");
   botao.disabled = true;
-  const { error } = await sb.rpc("crm_editar_cliente", { p_cliente: c.cliente, p_nome: nome, p_tipo: crmEdTipo, p_representante: rep || null });
+  let nomeFinal = c.cliente;
+  if (cadastroMudou) {
+    const { data, error } = await sb.rpc("crm_editar_cliente", { p_cliente: c.cliente, p_nome: nome, p_tipo: crmEdTipo, p_representante: rep || null });
+    if (error) { botao.disabled = false; erro.textContent = "Não foi possível salvar: " + error.message; erro.style.display = "block"; return; }
+    if (typeof data === "string" && data) nomeFinal = data;
+  }
+  if (ttdMudou) {
+    const campos = {
+      possui_ttd: crmSimNao(ttd.possui), ttd_numero: ttd.num || null, ttd_vencimento: ttd.venc || null,
+      updated_at: new Date().toISOString(), updated_by: currentUser ? currentUser.id : null
+    };
+    const r = await sb.from("crm_cliente_perfil").upsert({ cliente: nomeFinal, ...campos }, { onConflict: "cliente" }).select();
+    if (r.error || !r.data || !r.data[0]) {
+      botao.disabled = false;
+      crmFecharEditarCliente();
+      await crmEdDepoisDeMudar();
+      toast(cadastroMudou ? "Cliente atualizado, mas o TTD não foi salvo: " + (r.error ? r.error.message : "sem permissão") : "Não foi possível salvar o TTD: " + (r.error ? r.error.message : "sem permissão"));
+      return;
+    }
+  }
   botao.disabled = false;
-  if (error) { erro.textContent = "Não foi possível salvar: " + error.message; erro.style.display = "block"; return; }
   crmFecharEditarCliente();
   await crmEdDepoisDeMudar();
   toast("Cliente atualizado.");
@@ -145,6 +179,7 @@ function crmEditarInit() {
   if (!g("crmEdOverlay")) return;
   g("crmEdCancelar").addEventListener("click", crmFecharEditarCliente);
   g("crmEdSalvar").addEventListener("click", crmSalvarEditarCliente);
+  g("crmEdTtd").addEventListener("change", crmEdMostrarTtd);
   g("crmEdTipoCli").addEventListener("click", () => crmEdMostrarTipo("cliente"));
   g("crmEdTipoPros").addEventListener("click", () => crmEdMostrarTipo("prospect"));
   g("crmTrocCancelar").addEventListener("click", crmFecharTrocarExecutivo);
