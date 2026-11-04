@@ -253,7 +253,7 @@ function crmLgChip(x) {
   const { c, n, ligs } = x;
   const ct = crmContatoRapido(c);
   const ult = ligs[0] || null;
-  return `<div class="crm-chip-cliente ${crmLgEditavel(c) ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${n ? escapeAttr(n.id) : ""}">
+  return `<div class="crm-chip-cliente ${crmLgEditavel(c) ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${n ? escapeAttr(n.id) : ""}"${n ? ` data-crmlgabrir="${escapeAttr(n.id)}" tabindex="0" role="button" aria-label="Abrir o cartão de ${escapeAttr(c.cliente)}"` : ""}>
       <button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>${crmLgTagContato(n)}${crmLgDonoHtml(c)}
       <span class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${ct.nome ? " · " + escapeHtml(ct.nome) : ""}</span>
       ${ult ? crmPill(ult.resultado) : '<span class="muted sv-sub">Nunca ligado</span>'}

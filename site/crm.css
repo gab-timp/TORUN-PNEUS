@@ -498,3 +498,4 @@ tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
 .crm-cg-rodape{padding:12px 22px 18px;border-top:1px solid var(--line);justify-content:flex-end;flex-wrap:wrap;}
 .crm-cg .crm-erro{margin:0 22px 8px;}
 @media (max-width:640px){.crm-cg-corpo{grid-template-columns:minmax(0,1fr);}}
+.crm-chip-cliente[data-crmlgabrir]{cursor:pointer;}
