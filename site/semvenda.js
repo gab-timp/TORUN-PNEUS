@@ -1441,7 +1441,7 @@ function svRenderReservaChips() {
     const ligado = f.chave === svResFiltroAtual;
     return `<button type="button" class="sv-chip${ligado ? " on" : ""}" data-svfiltro="${f.chave}" aria-pressed="${ligado}">${escapeHtml(f.rotulo)} <b>${fmt(svFiltrarPorSituacao(svState.reservas, f.chave).length)}</b></button>`;
   }).join("");
-  document.getElementById("svResChipsUnidade").innerHTML = Object.entries(SV_UNIDADES).map(([valor, rotulo]) => {
+  document.getElementById("svResChipsUnidade").innerHTML = Object.entries(SV_UNIDADES).filter(([valor]) => valor !== "ENCOMENDA").map(([valor, rotulo]) => {
     const ligado = valor === svResUnidadeAtual;
     return `<button type="button" class="sv-chip sv-chip-un${ligado ? " on" : ""}" data-svunidade="${valor}" aria-pressed="${ligado}">${escapeHtml(rotulo)} <b>${fmt(svState.reservas.filter(r => r.unidadeNegocio === valor).length)}</b></button>`;
   }).join("");
