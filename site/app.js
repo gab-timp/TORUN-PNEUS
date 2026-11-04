@@ -640,7 +640,7 @@ function getProduto(codigo) {
 /* ---------------- catálogo: preços por região e condição ---------------- */
 
 const CATALOGO_BUCKET = "produtos-fotos";
-const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
+const CATALOGO_REGIOES = ["SC", "RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
@@ -1652,7 +1652,7 @@ function cancelEditPrevisto() {
 /* ---------------- render: PRODUTO SELECTS (movimentações) ---------------- */
 
 function produtoOptionsHTML() {
-  return state.produtos
+  return '<option value="">Selecione o produto…</option>' + state.produtos
     .slice()
     .sort((a, b) => a.codigo.localeCompare(b.codigo))
     .map(p => `<option value="${escapeAttr(p.codigo)}">${escapeHtml(p.codigo)} — ${escapeHtml(p.medida)}</option>`)
@@ -1880,6 +1880,86 @@ function initRelatorioCodigoFiltros() {
   });
 }
 
+
+/* ---------------- busca de medida (código ou medida) nas linhas de item ---------------- */
+/* Mesmo campo de busca do portal do representante (pedido-representante.js): digita o código ou a medida e escolhe na lista.
+   O <select class="item-produto"> continua no lugar, escondido, e é ele que guarda o produto: todo o resto do código
+   (.value, selectedOptions, evento "change") segue como era, sem saber que por cima agora há um campo de busca. */
+
+const PRODUTO_COMBO_LIMITE = 50;
+
+function destacarBuscaProduto(texto, termo) {
+  if (!termo) return escapeHtml(texto);
+  const i = texto.toLowerCase().indexOf(termo.toLowerCase());
+  if (i === -1) return escapeHtml(texto);
+  return escapeHtml(texto.slice(0, i)) + "<mark>" + escapeHtml(texto.slice(i, i + termo.length)) + "</mark>" + escapeHtml(texto.slice(i + termo.length));
+}
+
+function produtoComboAprimorar(select) {
+  if (!select || select.dataset.combo) return;
+  select.dataset.combo = "1";
+  const wrap = document.createElement("div");
+  wrap.className = "produto-combo";
+  const busca = document.createElement("input");
+  busca.type = "text";
+  busca.className = "item-produto-busca";
+  busca.placeholder = "Digite o código ou a medida...";
+  busca.autocomplete = "off";
+  busca.required = true;
+  const lista = document.createElement("div");
+  lista.className = "produto-combo-lista";
+  select.parentNode.insertBefore(wrap, select);
+  wrap.append(busca, select, lista);
+  select.style.display = "none";
+  select.required = false; // quem exige o preenchimento é o campo de busca
+
+  const nativo = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+  const rotulo = () => { const o = select.selectedOptions[0]; return o && o.value ? o.textContent : ""; };
+  const sincronizar = () => { busca.value = rotulo(); };
+  // quem muda o produto por código (sel.value = ...) também atualiza o que aparece no campo
+  Object.defineProperty(select, "value", {
+    configurable: true,
+    get() { return nativo.get.call(this); },
+    set(v) { nativo.set.call(this, v); sincronizar(); }
+  });
+  new MutationObserver(sincronizar).observe(select, { childList: true });
+  sincronizar();
+
+  function desenharLista() {
+    const termo = busca.value.trim().toLowerCase();
+    const todas = Array.from(select.options).filter(o => o.value);
+    const achados = termo ? todas.filter(o => o.textContent.toLowerCase().includes(termo)) : todas;
+    if (!achados.length) {
+      lista.innerHTML = '<div class="produto-combo-empty">Nenhum produto encontrado.</div>';
+    } else {
+      lista.innerHTML = achados.slice(0, PRODUTO_COMBO_LIMITE).map(o => {
+        const partes = o.textContent.split(" — ");
+        const medida = partes.slice(1).join(" — ") || o.textContent;
+        return '<div class="produto-combo-item" data-codigo="' + escapeAttr(o.value) + '"><span class="med">' + destacarBuscaProduto(medida, busca.value.trim()) + '</span><span class="cod">' + destacarBuscaProduto(o.value, busca.value.trim()) + '</span></div>';
+      }).join("") + (achados.length > PRODUTO_COMBO_LIMITE ? '<div class="produto-combo-empty">+' + (achados.length - PRODUTO_COMBO_LIMITE) + ' outros — digite mais pra refinar</div>' : "");
+    }
+    lista.classList.add("show");
+  }
+
+  busca.addEventListener("input", () => {
+    if (nativo.get.call(select) !== "") { nativo.set.call(select, ""); select.dispatchEvent(new Event("change", { bubbles: true })); }
+    desenharLista();
+  });
+  busca.addEventListener("focus", desenharLista);
+  busca.addEventListener("blur", () => {
+    // pequeno atraso pra deixar o "mousedown" da lista disparar antes: clicar numa opção não conta como sair do campo
+    setTimeout(() => lista.classList.remove("show"), 150);
+  });
+  busca.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.remove("show"); });
+  lista.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".produto-combo-item");
+    if (!item) return;
+    select.value = item.dataset.codigo;
+    lista.classList.remove("show");
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
 function renderProdutoSelects() {
   const opts = produtoOptionsHTML();
   document.querySelectorAll("#entItens .item-produto, #saiItens .item-produto, #prevItens .item-produto").forEach(sel => {
@@ -1940,6 +2020,7 @@ function createItemRow(containerId, comProcesso) {
     ${comProcesso ? `<input type="text" class="item-processo" placeholder="Processo (ex: 3061-26)">` : ""}
     <button type="button" class="btn small danger item-remove" title="Remover medida">✕</button>
   `;
+  produtoComboAprimorar(row.querySelector(".item-produto"));
   if (containerId === "pedItens") {
     const atualizarAviso = () => atualizarAvisoEstoqueLinha(row);
     row.querySelector(".item-produto").addEventListener("change", atualizarAviso);
@@ -9469,7 +9550,7 @@ function initForms() {
     for (const row of rows) {
       const codigo = row.querySelector(".item-produto").value;
       const quantidade = parseInt(row.querySelector(".item-qtd").value, 10);
-      if (!codigo) { toast("Cadastre um produto antes de lançar entrada."); return; }
+      if (!codigo) { toast("Escolha o produto em todas as medidas adicionadas."); return; }
       if (!quantidade || quantidade <= 0) { toast("Informe a quantidade de todas as medidas adicionadas."); return; }
       itens.push({ codigo, quantidade });
     }
@@ -9552,7 +9633,7 @@ function initForms() {
     for (const row of rows) {
       const codigo = row.querySelector(".item-produto").value;
       const quantidade = parseInt(row.querySelector(".item-qtd").value, 10);
-      if (!codigo) { toast("Cadastre um produto antes de lançar saída."); return; }
+      if (!codigo) { toast("Escolha o produto em todas as medidas adicionadas."); return; }
       if (!quantidade || quantidade <= 0) { toast("Informe a quantidade de todas as medidas adicionadas."); return; }
       itens.push({ codigo, quantidade });
     }

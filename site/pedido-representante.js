@@ -37,12 +37,12 @@ const UF_LIST = [
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ];
 
-const CATALOGO_REGIOES = ["SC/RS", "PR", "MG", "MT"];
+const CATALOGO_REGIOES = ["SC", "RS", "PR", "MG", "MT"];
 const CATALOGO_CONDICOES = ["A VISTA", "30 DIAS", "2X", "3X", "4X", "5X", "6X"];
 const CATALOGO_TODOS_TIPOS = "TODOS"; // valor do filtro "Tipo de cliente" que lista todos os pneus
 const TIPO_CLIENTE_OPCOES = ["CONSUMO", "FROTA", "REVENDA"];
 const TIPO_CLIENTE_LABEL = { REVENDA: "Revenda", FROTA: "Frota/TTD", CONSUMO: "Consumo" };
-const UF_PARA_REGIAO = { SC: "SC/RS", RS: "SC/RS", PR: "PR", MG: "MG", MT: "MT" };
+const UF_PARA_REGIAO = { SC: "SC", RS: "RS", PR: "PR", MG: "MG", MT: "MT" };
 const CATEGORIA_LABEL = { PASSEIO: "Passeio", CARGAS_TBR: "Cargas/TBR", AGRICOLA_FLORESTAL: "Agrícola/Florestal", OUTRO: "Outro" };
 const MES_ABREV = {
   "01": "Jan", "02": "Fev", "03": "Mar", "04": "Abr", "05": "Mai", "06": "Jun",

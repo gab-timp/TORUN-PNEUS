@@ -515,7 +515,7 @@ async function svExcluirProduto(codigo) {
 /* ---------- Estoque Previsto ---------- */
 
 function svProdutoOptionsHTML() {
-  return svState.produtos.slice()
+  return '<option value="">Selecione o produto…</option>' + svState.produtos.slice()
     .sort((a, b) => a.codigo.localeCompare(b.codigo))
     .map(p => `<option value="${escapeAttr(p.codigo)}">${escapeHtml(p.codigo)} — ${escapeHtml(p.medida)}${p.situacao === "DESCONTINUADO" ? " (descontinuado)" : ""}</option>`)
     .join("");
@@ -529,6 +529,7 @@ function svCriarLinhaItem(containerId) {
     <input type="number" class="item-qtd" min="1" step="1" placeholder="Qtd" required>
     <button type="button" class="btn small danger item-remove" title="Remover medida">✕</button>
   `;
+  produtoComboAprimorar(row.querySelector(".item-produto"));
   row.querySelector(".item-remove").addEventListener("click", () => {
     const container = document.getElementById(containerId);
     if (container.children.length > 1) {
