@@ -407,3 +407,40 @@ td.sv-num{font-family:'Space Mono',monospace;}
 #svPrevItens .item-row .item-subtotal{flex:0 0 105px;text-align:right;font-size:12.5px;font-weight:700;}
 .sv-prev-custo-resumo{display:flex;justify-content:flex-end;align-items:baseline;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;}
 .sv-prev-custo-resumo b{font-size:15px;}
+
+/* ---------------- celular (até 700px) ---------------- */
+@media (max-width: 700px){
+  .sv-res-busca{width:100%;box-sizing:border-box;min-height:40px;}
+  #svDashKpis,.sv-dash-vendas{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  #view-sv-dashboard .kpi{padding:11px 12px;}
+  #view-sv-dashboard .kpi .val{font-size:17px;}
+  .sv-dash-mes{flex:1 1 100%;}
+  /* linhas de medida do processo: busca na linha de cima; quantidade, custo e remover embaixo; subtotal por último */
+  #svPrevItens .item-row{display:grid;grid-template-columns:84px minmax(0,1fr) 40px;gap:8px;align-items:center;}
+  #svPrevItens .item-row .produto-combo{grid-column:1 / -1;flex:none;}
+  #svPrevItens .item-row .item-qtd{width:100%;flex:none;min-height:40px;box-sizing:border-box;}
+  #svPrevItens .item-row .item-custo{width:100%;flex:none;min-height:40px;box-sizing:border-box;}
+  #svPrevItens .item-row .item-subtotal{grid-column:1 / -1;flex:none;text-align:right;}
+  #svPrevItens .item-row .item-remove{grid-column:3;grid-row:2;min-height:40px;padding:0;}
+  #svPrevItens .item-row .item-produto-busca{min-height:40px;}
+  /* o botão de gravar fica à vista ao rolar a janela */
+  .sv-prev-popup-corpo .form-actions{position:sticky;bottom:-18px;background:var(--surface);padding:10px 0 4px;margin-top:10px;border-top:1px solid var(--line);}
+}
+@media (max-width: 700px){
+  .sv-chip{min-height:38px;}
+  #view-sv-previsto input[type="text"],#view-sv-previsto input[type="search"],#view-sv-clientes input[type="text"],#view-sv-clientes input[type="search"]{width:100%;max-width:none;min-height:40px;box-sizing:border-box;}
+  #view-sv-produtos .icon-btn,#view-sv-catalogo .icon-btn,#view-administracao .icon-btn{width:38px;height:38px;}
+  #view-sv-produtos .btn.small,#view-sv-catalogo .btn.small,#view-sv-clientes .btn.small,#view-sv-reserva .btn.small,#view-administracao .btn.small{min-height:36px;}
+  #view-administracao .sv-link{padding:10px 6px;}
+}
+@media (max-width: 700px){
+  [id^="view-sv-"] .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+  [id^="view-sv-"] .kpis > .kpi:last-child:nth-child(odd){grid-column:1 / -1;}
+  [id^="view-sv-"] .kpis .kpi{padding:11px 12px;}
+  [id^="view-sv-"] .kpis .kpi .val{font-size:17px;}
+}
+@media (max-width: 700px){
+  .sv-fechar{width:40px;height:40px;}
+  .sv-seg button,.crm-seg button{min-height:38px;}
+  .modal .sv-link{padding:9px 4px;}
+}

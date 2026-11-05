@@ -499,3 +499,45 @@ tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
 .crm-cg .crm-erro{margin:0 22px 8px;}
 @media (max-width:640px){.crm-cg-corpo{grid-template-columns:minmax(0,1fr);}}
 .crm-chip-cliente[data-crmlgabrir]{cursor:pointer;}
+
+/* ---------------- celular (até 700px): Ligações e telas do CRM ---------------- */
+@media (max-width:700px){
+  /* os cartões de indicadores ficam 2 por linha em vez de empilhar a tela inteira */
+  .crm-view .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+  .crm-view .kpi{padding:11px 12px;}
+  .crm-view .kpi .val{font-size:17px;}
+  /* kanban: cada coluna ocupa quase a largura da tela e encaixa ao deslizar */
+  .crm-board .kanban-col{flex:0 0 88%;width:auto;min-width:0;max-width:340px;scroll-snap-align:start;max-height:none;}
+  .crm-bandeja{padding:10px;}
+  .crm-bandeja-cards{flex-direction:column;}
+  .crm-chip-cliente{width:100%;box-sizing:border-box;}
+  /* filtros e botões do topo ocupam a linha toda, com alvo de toque confortável */
+  .crm-acoes-topo{width:100%;}
+  .crm-acoes-topo .field,.crm-acoes-topo .crm-seg,.crm-acoes-topo .btn{width:100%;box-sizing:border-box;}
+  .crm-acoes-topo .crm-seg{display:flex;}
+  .crm-acoes-topo .crm-seg button{flex:1;min-height:40px;}
+  .crm-filtros .field,.crm-filtros .field.grow{flex:1 1 100%;min-width:0;}
+  .crm-chip,.crm-fechar{min-height:40px;}
+  .crm-fechar{min-width:40px;}
+  /* janelas e cartão grande: rolam por dentro e deixam o rodapé à vista */
+  .crm-cg{max-height:calc(100dvh - 24px);}
+  .crm-cg-topo{padding:16px 16px 12px;}
+  .crm-cg-corpo{padding:14px 16px;gap:16px;}
+  .crm-cg-rodape{padding:12px 16px 16px;}
+  .crm-cg-leitura{margin:12px 16px 0;}
+  .crm-cg .crm-erro{margin:0 16px 8px;}
+  .crm-cg-kv{grid-template-columns:minmax(0,1fr);gap:4px;}
+}
+@media (max-width:700px){
+  .crm-view .kpis > .kpi:last-child:nth-child(odd){grid-column:1 / -1;}
+  .crm-view .card:not(.crm-rep-bloco){padding:14px;}
+  .crm-ico{width:40px;height:40px;}
+  .crm-cartao .crm-nome{min-height:32px;display:inline-flex;align-items:center;}
+}
+@media (max-width:700px){
+  .crm-wiz-trilha button{min-height:34px;justify-content:center;}
+  .crm-abas button{padding:12px 16px;}
+  .crm-wiz-x{width:40px;height:40px;}
+  .crm-modal-rodape .form-actions{width:100%;}
+  .crm-modal-rodape .form-actions .btn{flex:1 1 120px;min-height:42px;}
+}

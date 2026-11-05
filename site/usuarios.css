@@ -141,3 +141,19 @@
 .senha-ok{display:flex;align-items:flex-start;gap:10px;background:var(--status-good-pale);color:var(--status-good-deep);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.5;}
 .senha-ok .ic{width:16px;height:16px;flex:0 0 auto;margin-top:2px;}
 .usr-sem-varejo .usr-atalhos, .usr-sem-varejo .usr-telas{opacity:.4;pointer-events:none;}
+
+/* ---------------- celular (até 700px) ---------------- */
+@media (max-width:700px){
+  .usr-fechar{width:40px;height:40px;}
+  .usr-novo-layout{margin:0 -16px;}
+  .usr-novo-form{padding:14px 16px;}
+  .usr-novo-resumo{padding:14px 16px;}
+  .usr-seg{display:flex;width:100%;box-sizing:border-box;}
+  .usr-seg button{flex:1 1 auto;min-height:38px;}
+  .usr-tela{min-height:40px;}
+  .usr-atalhos .btn,.usr-topo-card .btn,.usr-senha-bloco .btn,#view-administracao .btn.small,#view-usuario-acesso .btn.small{min-height:38px;}
+  .usr-perfis,.usr-perfis-4{grid-template-columns:minmax(0,1fr);}
+  .usr-voltar{padding:10px 4px;}
+  .usr-senha-linha{flex-wrap:wrap;}
+  .usr-modal-rodape .form-actions,.usr-modal-rodape .form-actions .btn{width:100%;}
+}

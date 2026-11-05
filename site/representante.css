@@ -8,3 +8,12 @@
 .rep-rodape{margin-top:auto; padding-top:24px; font-size:12px; color:var(--ink-soft);}
 .rep-pagina .card{margin-bottom:16px;}
 @media (max-width:600px){.rep-shell{padding:0 14px 32px;}}
+@media (max-width:700px){
+  .rep-pagina .kpis{grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:16px;}
+  .rep-pagina .kpis > .kpi:last-child:nth-child(odd){grid-column:1 / -1;}
+  .rep-pagina .kpi{padding:11px 12px;}
+  .rep-pagina .kpi .val{font-size:17px;}
+  .rep-pagina td:first-child{min-width:130px;}
+  .rep-pagina .card{padding:14px;}
+  .rep-pagina select{min-height:40px;}
+}

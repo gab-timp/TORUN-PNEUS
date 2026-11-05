@@ -12064,7 +12064,7 @@ function setMobileMenu(open) {
 }
 
 function initMobileMenu() {
-  document.getElementById("mobileMenuBtn").addEventListener("click", () => setMobileMenu(true));
+  document.getElementById("mobileMenuBtn").addEventListener("click", () => setMobileMenu(!document.getElementById("sidebar").classList.contains("open")));
   document.getElementById("mobileMenuBackdrop").addEventListener("click", () => setMobileMenu(false));
   document.querySelectorAll(".nav-item").forEach(btn => {
     btn.addEventListener("click", () => setMobileMenu(false));

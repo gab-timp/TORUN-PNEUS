@@ -2728,3 +2728,35 @@ body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{d
 .item-row .item-produto-busca:focus{border-color:var(--orange); background:var(--surface); box-shadow:0 0 0 3px var(--orange-pale);}
 .item-row.estoque-baixo .item-produto-busca{border-color:var(--warning-border); background:var(--surface); box-shadow:0 0 0 3px var(--warning-pale);}
 .item-row.estoque-zerado .item-produto-busca{border-color:var(--danger-border); background:var(--surface); box-shadow:0 0 0 3px var(--danger-pale);}
+
+/* ---------------- celular: botão do menu sobre uma faixa própria ----------------
+   a faixa fixa (mesma cor do fundo) impede o botão de ficar por cima do título e do conteúdo ao rolar */
+@media (max-width:900px){
+  .shell::before{content:""; position:fixed; top:0; left:0; right:0; height:64px; background:var(--paper); border-bottom:1px solid var(--line); z-index:50; pointer-events:none;}
+}
+
+/* ---------------- celular: janelas (modais) e alvos de toque ---------------- */
+@media (max-width:700px){
+  .modal-overlay{padding:12px;}
+  .modal{padding:16px; max-height:calc(100dvh - 24px);}
+  .modal-popup-grande{max-width:100%; max-height:calc(100dvh - 24px);}
+  .drawer-simple-head{padding:14px 16px;}
+  .sv-prev-popup-corpo{padding:14px 16px 18px;}
+  .drawer-simple-close{width:40px; height:40px;}
+  /* o botão do menu some enquanto uma janela está aberta (senão cobre o título dela) */
+  body:has(.modal-overlay.show) .mobile-topbar-btn{display:none;}
+  .modal .form-actions, .modal-popup-grande .form-actions{flex-wrap:wrap;}
+  .modal .form-actions .btn, .modal-popup-grande .form-actions .btn{flex:1 1 130px; min-height:42px;}
+  .modal .btn.small, .modal-popup-grande .btn.small{min-height:36px;}
+}
+
+/* celular: com o menu aberto o botão sai de cima da logo e fica ao lado da gaveta; itens do menu maiores para o dedo */
+@media (max-width:900px){
+  body:has(.sidebar.open) .mobile-topbar-btn{left:262px;}
+  .nav-item{min-height:42px;}
+  .theme-opt{min-height:36px;}
+  .sidebar .ghost-btn{min-height:40px;}
+}
+@media (max-width:480px){
+  body:has(.sidebar.open) .mobile-topbar-btn{left:calc(min(82vw, 280px) + 12px);}
+}
