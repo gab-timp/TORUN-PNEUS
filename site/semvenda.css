@@ -256,7 +256,7 @@ body.sistema-semvenda .sidebar-divider{display:none;}
 .sv-dash-vendas-topo{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:6px 0 12px;}
 .sv-dash-vendas-titulo{font-size:15px;font-weight:800;margin:0 0 2px;}
 .sv-dash-vendas-topo .note{font-size:12px;color:var(--ink-soft);}
-.sv-dash-mes{flex:0 0 220px;}
+.sv-dash-mes{flex:0 0 auto;}
 .sv-dash-vendas,#svDashKpis{grid-template-columns:repeat(4,minmax(0,1fr));}
 .sv-dash-vendas .sv-kpi-meta{background:var(--black);border-color:var(--black);color:var(--white);}
 .sv-dash-vendas .sv-kpi-meta .lbl,.sv-dash-vendas .sv-kpi-meta .sv-kpi-nota{color:rgba(255,255,255,.72);}

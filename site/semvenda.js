@@ -2413,13 +2413,19 @@ const SV_META_VALOR = 1500000;
 
 const SV_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// "" = ainda não escolheu (abre no mês atual); "__tudo" = soma desde o início; senão "AAAA-MM"
-let svDashMes = "";
-
-function svNomeMes(chave) {
-  const [ano, mes] = chave.split("-");
-  return `${SV_MESES[Number(mes) - 1]} de ${ano}`;
-}
+// Meses que o seletor de período oferece (o atual e cada mês com venda) e o seletor em si (seletores-dash.js).
+// Abre no mês atual; o painel deixa escolher vários meses.
+let svMesesDisponiveis = [];
+const svDashPeriodo = {
+  _s: null,
+  criar() {
+    this._s = sdCriarSeletorPeriodo(document.getElementById("svDashPeriodoMount"), {
+      disponiveis: () => svMesesDisponiveis, aoMudar: () => svRenderDashboardVendas()
+    });
+  },
+  meses() { return this._s ? this._s.meses() : []; },
+  atualizar() { if (this._s) this._s.atualizar(); }
+};
 
 // Dia (AAAA-MM-DD, no fuso do navegador) em que a venda foi confirmada. Venda confirmada antes de existir
 // a coluna vendido_em usa o dia da última alteração da reserva, que foi justamente a confirmação.
@@ -2442,13 +2448,11 @@ function svRenderDashboardVendas() {
   const atual = todayISO().slice(0, 7);
   // meses da lista: o atual e cada mês em que houve venda, do mais novo pro mais antigo
   const meses = [...new Set([atual, ...vendas.map(v => v.dia.slice(0, 7)).filter(Boolean)])].sort().reverse();
-  if (svDashMes !== "__tudo" && !meses.includes(svDashMes)) svDashMes = atual;
-  const sel = document.getElementById("svDashMes");
-  sel.innerHTML = `<option value="__tudo">Tudo</option>` + meses.map(m => `<option value="${m}">${escapeHtml(svNomeMes(m))}</option>`).join("");
-  sel.value = svDashMes;
-
-  const doPeriodo = svDashMes === "__tudo" ? vendas : vendas.filter(v => v.dia.startsWith(svDashMes));
-  const quando = svDashMes === "__tudo" ? "desde o início" : "no mês";
+  svMesesDisponiveis = meses.slice().sort();
+  svDashPeriodo.atualizar();
+  const mesesEscolhidos = new Set(svDashPeriodo.meses());
+  const doPeriodo = vendas.filter(v => mesesEscolhidos.has(v.dia.slice(0, 7)));
+  const quando = mesesEscolhidos.size > 1 ? "no período" : "no mês";
   const vendedores = new Set(doPeriodo.map(v => v.r.vendedorInterno).filter(Boolean)).size;
   let total = 0, semPreco = 0;
   doPeriodo.forEach(v => {
@@ -3106,13 +3110,9 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderCatalogo);
   });
 
-  sdMelhorarSeletorMes(document.getElementById("svDashMes"));
+  svDashPeriodo.criar();
   svDashEscolher = sdCriarSeletorDashboards(document.getElementById("svDashEscolherMount"), {
     defs: SV_DASH_CARDS, chave: "torun_sv_dash_visibilidade_v1", aoMudar: svAplicarVisibilidadeDash
-  });
-  document.getElementById("svDashMes").addEventListener("change", (e) => {
-    svDashMes = e.target.value;
-    svRenderDashboardVendas();
   });
   document.getElementById("svFormVendedor").addEventListener("submit", svAdicionarVendedor);
   document.getElementById("svFormRepresentante").addEventListener("submit", svAdicionarRepresentante);

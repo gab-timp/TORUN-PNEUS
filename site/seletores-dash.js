@@ -35,90 +35,178 @@ function sdRegistrarPopover(wrap, trigger, painel) {
   });
 }
 
-/* ---------------- mês ---------------- */
+/* ---------------- período (um ou vários meses) ---------------- */
 
-function sdMelhorarSeletorMes(sel) {
-  if (!sel || sel.dataset.sdPronto) return;
-  sel.dataset.sdPronto = "1";
-  const wrap = document.createElement("div");
-  wrap.className = "sd-wrap";
-  sel.parentNode.insertBefore(wrap, sel);
-  wrap.appendChild(sel);
-  sel.classList.add("sd-oculto");
+const sdMesAdd = (k, n) => {
+  const d = new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1 + n, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+};
+const sdMesLabel = (k) => `${SD_MESES_ABREV[Number(k.slice(5, 7)) - 1]} de ${k.slice(0, 4)}`;
+const sdMesCurto = (k) => `${SD_MESES_ABREV[Number(k.slice(5, 7)) - 1]}/${k.slice(2, 4)}`;
+const sdContiguos = (l) => l.every((k, i) => i === 0 || sdMesAdd(l[i - 1], 1) === k);
 
-  const trigger = document.createElement("button");
-  trigger.type = "button";
-  trigger.className = "sd-trig";
-  trigger.setAttribute("aria-haspopup", "dialog");
-  trigger.setAttribute("aria-expanded", "false");
-  trigger.innerHTML = `${SD_ICONE_CAL}<span class="sd-lbl">Mês</span><span class="sd-val"></span>${SD_ICONE_SETA}`;
-  const painel = document.createElement("div");
-  painel.className = "sd-painel sd-mes";
-  painel.hidden = true;
-  painel.setAttribute("role", "dialog");
-  painel.setAttribute("aria-label", "Escolher mês");
-  wrap.append(trigger, painel);
-  sdRegistrarPopover(wrap, trigger, painel);
+/* Texto do período: "Nov de 2026", "Set/26 a Nov/26" (meses seguidos) ou "3 meses". */
+function sdTextoMeses(l) {
+  if (!l.length) return "";
+  if (l.length === 1) return sdMesLabel(l[0]);
+  return sdContiguos(l) ? `${sdMesCurto(l[0])} a ${sdMesCurto(l[l.length - 1])}` : `${l.length} meses`;
+}
 
+/* Monta o botão Período dentro de `mount`. opcoes:
+   disponiveis(): meses ("AAAA-MM") que podem ser escolhidos; padrao(disponiveis): meses marcados de início;
+   aoMudar(): refaz a tela depois de aplicar.
+   Devolve { meses(), texto(), atualizar(), anteriores() }:
+   meses() = meses escolhidos em ordem (sempre ao menos um, só entre os disponíveis);
+   anteriores() = o período imediatamente anterior, com o mesmo número de meses (cada mês recuado pelo tamanho do período). */
+function sdCriarSeletorPeriodo(mount, opcoes) {
+  if (!mount) return { meses: () => [], texto: () => "", atualizar() {}, anteriores: () => [] };
+  const { disponiveis, aoMudar } = opcoes;
+  const mesAtualReal = () => new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0");
+  const padrao = opcoes.padrao || ((disp) => {
+    const ate = disp.filter(k => k <= mesAtualReal());
+    const k = ate.length ? ate[ate.length - 1] : disp[disp.length - 1];
+    return k ? [k] : [];
+  });
+  let escolhidos = null;   // aplicado
+  let rascunho = null;     // marcado no painel, ainda sem aplicar
   let anoVisto = null;
 
-  const opcoes = () => Array.from(sel.options).map(o => ({ valor: o.value, texto: o.textContent }));
-  const ehMes = (v) => /^\d{4}-\d{2}$/.test(v);
+  mount.classList.add("sd-wrap");
+  mount.innerHTML = `
+    <button type="button" class="sd-trig" aria-haspopup="dialog" aria-expanded="false">${SD_ICONE_CAL}<span class="sd-lbl">Período</span><span class="sd-val"></span><span class="sd-badge"></span>${SD_ICONE_SETA}</button>
+    <div class="sd-painel sd-mes" hidden role="dialog" aria-label="Escolher meses"></div>`;
+  const trigger = mount.querySelector(".sd-trig"), painel = mount.querySelector(".sd-painel");
 
-  const rotuloAtual = () => {
-    const o = sel.options[sel.selectedIndex];
-    trigger.querySelector(".sd-val").textContent = o ? o.textContent : "Escolher";
-  };
+  function meses() {
+    const disp = disponiveis();
+    let l = (escolhidos || []).filter(k => disp.includes(k));
+    if (!l.length) l = padrao(disp).filter(k => disp.includes(k));
+    escolhidos = l.slice().sort();
+    return escolhidos;
+  }
+
+  function atalhos(disp) {
+    const hoje = mesAtualReal();
+    const ultimos = (n) => Array.from({ length: n }, (_, i) => sdMesAdd(hoje, -(n - 1 - i))).filter(k => disp.includes(k));
+    const esteAno = disp.filter(k => k.slice(0, 4) === hoje.slice(0, 4));
+    return [
+      { id: "mes", t: "Mês atual", l: disp.includes(hoje) ? [hoje] : [] },
+      { id: "3", t: "Últimos 3 meses", l: ultimos(3) },
+      { id: "6", t: "Últimos 6 meses", l: ultimos(6) },
+      { id: "ano", t: "Este ano", l: esteAno },
+      { id: "tudo", t: "Tudo", l: disp.slice() }
+    ].filter(a => a.l.length);
+  }
+
+  function rotulo() {
+    const l = meses();
+    trigger.querySelector(".sd-val").textContent = sdTextoMeses(l) || "Escolher";
+    const b = trigger.querySelector(".sd-badge");
+    b.textContent = l.length;
+    b.hidden = l.length < 2;
+    trigger.title = l.map(sdMesLabel).join(", ");
+  }
 
   function desenhar() {
-    const ops = opcoes();
-    const meses = new Set(ops.filter(o => ehMes(o.valor)).map(o => o.valor));
-    const anos = [...new Set([...meses].map(m => m.slice(0, 4)))].sort();
-    const especial = ops.find(o => !ehMes(o.valor) && o.valor !== "");
-    if (anoVisto === null || (!anos.includes(anoVisto) && anos.length)) {
-      anoVisto = ehMes(sel.value) ? sel.value.slice(0, 4) : (anos[anos.length - 1] || String(new Date().getFullYear()));
-    }
+    const disp = disponiveis();
+    const marcados = new Set(rascunho || meses());
+    const anos = [...new Set(disp.map(k => k.slice(0, 4)))].sort();
+    if (anoVisto === null || (!anos.includes(anoVisto) && anos.length)) anoVisto = anos[anos.length - 1] || String(new Date().getFullYear());
     const i = anos.indexOf(anoVisto);
-    const temAnterior = i > 0, temProximo = i >= 0 && i < anos.length - 1;
+    const atual = [...marcados].sort().join();
     const grade = SD_MESES_ABREV.map((nome, k) => {
       const chave = `${anoVisto}-${String(k + 1).padStart(2, "0")}`;
-      const existe = meses.has(chave);
-      return `<button type="button" class="sd-m" data-sd-mes="${chave}" aria-pressed="${sel.value === chave}" ${existe ? "" : "disabled"}>${nome}</button>`;
+      return `<button type="button" class="sd-m" data-sd-mes="${chave}" aria-pressed="${marcados.has(chave)}" ${disp.includes(chave) ? "" : "disabled"}>${nome}</button>`;
     }).join("");
     painel.innerHTML = `
-      ${especial ? `<button type="button" class="sd-todos" data-sd-mes="${sdEsc(especial.valor)}" aria-pressed="${sel.value === especial.valor}">${sdEsc(especial.texto)}</button>` : ""}
+      <div class="sd-atalhos">${atalhos(disp).map(a => `<button type="button" class="sd-at${a.l.slice().sort().join() === atual ? " on" : ""}" data-sd-atalho="${a.id}">${a.t}</button>`).join("")}</div>
       <div class="sd-ano">
-        <button type="button" class="sd-nav" data-sd-ano="-1" aria-label="Ano anterior" ${temAnterior ? "" : "disabled"}><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L5 7l4 4"/></svg></button>
-        <b>${anoVisto}</b>
-        <button type="button" class="sd-nav" data-sd-ano="1" aria-label="Próximo ano" ${temProximo ? "" : "disabled"}><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l4 4-4 4"/></svg></button>
+        <button type="button" class="sd-nav" data-sd-ano="-1" aria-label="Ano anterior" ${i > 0 ? "" : "disabled"}><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L5 7l4 4"/></svg></button>
+        <div class="sd-ano-meio"><b>${anoVisto}</b><button type="button" class="sd-link" data-sd-anotodo="1">Ano todo</button></div>
+        <button type="button" class="sd-nav" data-sd-ano="1" aria-label="Próximo ano" ${i >= 0 && i < anos.length - 1 ? "" : "disabled"}><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l4 4-4 4"/></svg></button>
       </div>
-      <div class="sd-meses">${grade}</div>`;
-    rotuloAtual();
+      <div class="sd-meses">${grade}</div>
+      <div class="sd-dica">Clique nos meses para ligar e desligar. Dá para misturar anos. Sempre fica ao menos um marcado.</div>
+      <div class="sd-rodape"><span>${marcados.size} ${marcados.size === 1 ? "mês marcado" : "meses marcados"}</span><button type="button" class="sd-aplicar" data-sd-aplicar="1">Aplicar</button></div>`;
   }
+
+  function aplicar(l) {
+    const antes = meses().join();
+    escolhidos = l.slice().sort();
+    rascunho = null;
+    rotulo();
+    if (meses().join() !== antes) aoMudar();
+  }
+
+  // fechar com o rascunho diferente do aplicado (clique fora, Esc, outro botão) também aplica: ninguém perde a escolha
+  const fechar = (exceto) => {
+    if (exceto === mount || painel.hidden) return;
+    painel.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    if (rascunho) aplicar(rascunho);
+  };
+  sdFechadores.push(fechar);
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const abrir = painel.hidden;
+    sdFecharTodos();
+    if (abrir) {
+      rascunho = meses().slice();
+      const ult = rascunho[rascunho.length - 1];
+      if (ult) anoVisto = ult.slice(0, 4);
+      desenhar();
+      painel.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+    }
+  });
 
   painel.addEventListener("click", (e) => {
     e.stopPropagation();
+    const disp = disponiveis();
     const nav = e.target.closest("[data-sd-ano]");
     if (nav && !nav.disabled) {
-      const anos = [...new Set(Array.from(sel.options).map(o => o.value).filter(ehMes).map(m => m.slice(0, 4)))].sort();
+      const anos = [...new Set(disp.map(k => k.slice(0, 4)))].sort();
       const j = anos.indexOf(anoVisto) + Number(nav.dataset.sdAno);
       if (anos[j]) { anoVisto = anos[j]; desenhar(); }
       return;
     }
-    const b = e.target.closest("[data-sd-mes]");
-    if (!b || b.disabled) return;
-    sel.value = b.dataset.sdMes;
-    if (ehMes(sel.value)) anoVisto = sel.value.slice(0, 4);
-    sel.dispatchEvent(new Event("change", { bubbles: true }));
-    desenhar();
-    sdFecharTodos();
+    const at = e.target.closest("[data-sd-atalho]");
+    if (at) {
+      const a = atalhos(disp).find(x => x.id === at.dataset.sdAtalho);
+      if (a) { painel.hidden = true; trigger.setAttribute("aria-expanded", "false"); aplicar(a.l); }
+      return;
+    }
+    if (e.target.closest("[data-sd-anotodo]")) {
+      const set = new Set(rascunho);
+      disp.filter(k => k.slice(0, 4) === anoVisto).forEach(k => set.add(k));
+      rascunho = [...set].sort();
+      desenhar();
+      return;
+    }
+    const m = e.target.closest("[data-sd-mes]");
+    if (m && !m.disabled) {
+      const set = new Set(rascunho);
+      if (set.has(m.dataset.sdMes)) { if (set.size > 1) set.delete(m.dataset.sdMes); } else set.add(m.dataset.sdMes);
+      rascunho = [...set].sort();
+      desenhar();
+      return;
+    }
+    if (e.target.closest("[data-sd-aplicar]")) {
+      painel.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+      aplicar(rascunho || meses());
+    }
   });
 
-  wrap.addEventListener("sd-abriu", () => { if (ehMes(sel.value)) anoVisto = sel.value.slice(0, 4); desenhar(); });
-  // o sistema recria as opções (e muda o valor) a cada renderização: o botão acompanha
-  new MutationObserver(() => { if (painel.hidden) { anoVisto = null; } desenhar(); }).observe(sel, { childList: true });
-  sel.addEventListener("change", rotuloAtual);
-  desenhar();
+  rotulo();
+  return {
+    meses,
+    texto: () => sdTextoMeses(meses()),
+    // a tela chama no começo de cada desenho: as opções mudam quando entra venda nova
+    atualizar() { rotulo(); },
+    anteriores() { const l = meses(); return l.map(k => sdMesAdd(k, -l.length)); }
+  };
 }
 
 /* ---------------- dashboards ---------------- */

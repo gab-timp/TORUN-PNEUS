@@ -5501,10 +5501,13 @@ function mesesDoAno(ano) {
   return Array.from({ length: 12 }, (_, i) => `${ano}-${String(i + 1).padStart(2, "0")}`);
 }
 
-function getVendasFiltradasPor(selectId) {
-  const mes = document.getElementById(selectId).value;
-  if (!mes || mes === "todos") return state.vendas.slice();
-  return state.vendas.filter(v => (v.data || "").slice(0, 7) === mes);
+// Seletor de período do Dashboard (seletores-dash.js): um ou vários meses. null até a tela ser iniciada.
+let dashPeriodo = null;
+
+// vendas dos meses escolhidos no Dashboard
+function getVendasDoPeriodoDash() {
+  const meses = new Set(dashPeriodo ? dashPeriodo.meses() : []);
+  return state.vendas.filter(v => meses.has((v.data || "").slice(0, 7)));
 }
 
 // "2026-01" -> "2025-12" (o construtor Date rola o ano sozinho com mês negativo).
@@ -5519,14 +5522,14 @@ function mesAnterior(mes) {
 
 // null quando não dá pra calcular (sem mês anterior, ou mês anterior sem nenhuma
 // venda pra comparar). invertido=true pra métricas onde subir é ruim (ex. frete).
-function dashDeltaHtml(atual, anterior, invertido = false) {
+function dashDeltaHtml(atual, anterior, invertido = false, rotulo = "mês anterior") {
   if (anterior === null || !anterior) return "";
   const delta = (atual - anterior) / anterior * 100;
   if (!isFinite(delta)) return "";
   const positivo = delta >= 0;
   const bom = invertido ? !positivo : positivo;
   const seta = bom ? "▲" : "▼";
-  return `<div class="delta ${bom ? "good" : "bad"}">${seta} ${Math.abs(delta).toFixed(1)}% vs. mês anterior</div>`;
+  return `<div class="delta ${bom ? "good" : "bad"}">${seta} ${Math.abs(delta).toFixed(1)}% vs. ${rotulo}</div>`;
 }
 
 // Único filtro da tela de Faturamento -- antes só olhava o mês (fatMesFiltro) e
@@ -5566,8 +5569,8 @@ function fatFiltroExtraAtivo() {
   );
 }
 
-function getMovimentosVendaFiltradosPor(selectId) {
-  const mes = document.getElementById(selectId).value;
+function getMovimentosVendaDoPeriodoDash() {
+  const meses = new Set(dashPeriodo ? dashPeriodo.meses() : []);
   const vendas = state.movimentos.filter(m => {
     if (m.tipo !== "venda") return false;
     // Venda automática de um pedido que foi cancelado depois: o estorno lança uma
@@ -5579,8 +5582,7 @@ function getMovimentosVendaFiltradosPor(selectId) {
     }
     return true;
   });
-  if (!mes || mes === "todos") return vendas;
-  return vendas.filter(m => (m.data || "").slice(0, 7) === mes);
+  return vendas.filter(m => meses.has((m.data || "").slice(0, 7)));
 }
 
 /* ---------------- render: DASHBOARD (gráficos) ---------------- */
@@ -5628,7 +5630,10 @@ function applyDashVisibility() {
 
 // Botão "Dashboards" e botão do mês (seletores-dash.js): o mesmo visual do Sem Venda e do CRM
 function initDashFiltro() {
-  sdMelhorarSeletorMes(document.getElementById("dashMesFiltro"));
+  dashPeriodo = sdCriarSeletorPeriodo(document.getElementById("dashPeriodoMount"), {
+    disponiveis: () => Array.from(new Set(state.vendas.map(v => (v.data || "").slice(0, 7)).filter(k => k.length === 7))).sort(),
+    aoMudar: renderDashboard
+  });
   sdCriarSeletorDashboards(document.getElementById("dashEscolherMount"), {
     defs: DASH_CARD_DEFS, chave: DASH_VISIBILITY_KEY, aoMudar: renderDashboard
   });
@@ -6077,8 +6082,8 @@ function renderDashboard() {
   refreshDashColors();
   atualizarAlertaEstoqueBaixo();
   applyDashVisibility();
-  populateMesFiltro("dashMesFiltro");
-  const vendas = getVendasFiltradasPor("dashMesFiltro");
+  if (dashPeriodo) dashPeriodo.atualizar();
+  const vendas = getVendasDoPeriodoDash();
 
   const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
@@ -6087,9 +6092,12 @@ function renderDashboard() {
 
   // comparação com o mês anterior, pra faixa de destaque (Indicadores Gerais) --
   // null quando o filtro é "Todos os meses" ou o mês anterior não tem venda nenhuma.
-  const mesFiltroValue = document.getElementById("dashMesFiltro").value;
-  const mesAnt = mesAnterior(mesFiltroValue);
-  let vendasMesAnt = mesAnt ? state.vendas.filter(v => (v.data || "").slice(0, 7) === mesAnt) : [];
+  // com vários meses escolhidos, compara com o período imediatamente anterior do mesmo tamanho
+  // (3 meses contra os 3 meses antes deles); com um mês só, é o mês anterior como sempre foi.
+  const mesesPeriodo = dashPeriodo ? dashPeriodo.meses() : [];
+  const mesesAnteriores = new Set(dashPeriodo ? dashPeriodo.anteriores() : []);
+  const rotuloAnterior = mesesPeriodo.length > 1 ? "período anterior" : "mês anterior";
+  let vendasMesAnt = mesesAnteriores.size ? state.vendas.filter(v => mesesAnteriores.has((v.data || "").slice(0, 7))) : [];
   // Se o mês selecionado é o mês em andamento (hoje), o mês atual só tem dado até
   // hoje -- comparar com o mês anterior INTEIRO não é justo (mês incompleto vs.
   // mês completo sempre parece uma queda enorme). Trunca o mês anterior na mesma
@@ -6097,9 +6105,11 @@ function renderDashboard() {
   // passado (já fechado) continua comparando mês cheio com mês cheio, sem truncar.
   const hoje = new Date();
   const mesRealAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
-  if (mesFiltroValue === mesRealAtual) {
+  if (mesesPeriodo.includes(mesRealAtual)) {
+    // o mês anterior que corresponde ao mês em andamento: só até o mesmo dia
+    const mesCorrespondente = sdMesAdd(mesRealAtual, -mesesPeriodo.length);
     const diaCorte = hoje.getDate();
-    vendasMesAnt = vendasMesAnt.filter(v => Number((v.data || "").slice(8, 10)) <= diaCorte);
+    vendasMesAnt = vendasMesAnt.filter(v => (v.data || "").slice(0, 7) !== mesCorrespondente || Number((v.data || "").slice(8, 10)) <= diaCorte);
   }
   const totalFaturamentoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.valorVenda, 0) : null;
   const totalPneusAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0) : null;
@@ -6179,7 +6189,7 @@ function renderDashboard() {
   );
 
   // 1b. Pneus mais vendidos por medida (soma de todos os códigos daquela medida)
-  const movimentosVenda = getMovimentosVendaFiltradosPor("dashMesFiltro");
+  const movimentosVenda = getMovimentosVendaDoPeriodoDash();
   const porMedidaVendida = {};
   movimentosVenda.forEach(m => {
     const p = getProduto(m.codigo);
@@ -6234,17 +6244,17 @@ function renderDashboard() {
   // "Faturamento mensal" só quando o filtro é de fato um mês -- com "Todos os
   // meses" (mesFiltroValue === "todos") o valor é um total geral, não mensal,
   // então o rótulo volta a ser genérico pra não afirmar algo que não é verdade.
-  const labelFaturamento = mesFiltroValue && mesFiltroValue !== "todos" ? "Faturamento mensal" : "Faturamento";
+  const labelFaturamento = mesesPeriodo.length === 1 ? "Faturamento mensal" : "Faturamento";
   document.getElementById("statsIndicadores").innerHTML = [
-    { lbl: labelFaturamento, val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt) },
+    { lbl: labelFaturamento, val: formatMoney(totalFaturamento), icone: "i-invoice", delta: dashDeltaHtml(totalFaturamento, totalFaturamentoAnt, false, rotuloAnterior) },
     { lbl: `Faturamento anual (${anoIndicadores})`, val: formatMoney(faturamentoAnual), icone: "i-calendar", delta: "" },
-    { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt) },
-    { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true) },
-    { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true) },
+    { lbl: "Pneus vendidos", val: fmt(totalPneus) + " un.", icone: "i-package", delta: dashDeltaHtml(totalPneus, totalPneusAnt, false, rotuloAnterior) },
+    { lbl: "Comissão", val: formatMoney(totalComissao), icone: "i-tag", delta: dashDeltaHtml(totalComissao, totalComissaoAnt, true, rotuloAnterior) },
+    { lbl: "Custo de frete", val: formatMoney(totalFrete), icone: "i-truck", delta: dashDeltaHtml(totalFrete, totalFreteAnt, true, rotuloAnterior) },
     // só entre vendas com parcelas informadas -- PIX e campo em branco ficam de
     // fora da conta (mesmo critério de mediaParcelasDe usado no perfil do cliente)
     { lbl: "Média de parcelas", val: mediaParcelas != null ? `${mediaParcelas.toFixed(1).replace(".", ",")}x` : "—", icone: "i-layers",
-      delta: mediaParcelas != null ? dashDeltaHtml(mediaParcelas, mediaParcelasAnt) : "" }
+      delta: mediaParcelas != null ? dashDeltaHtml(mediaParcelas, mediaParcelasAnt, false, rotuloAnterior) : "" }
   ].map(s => `
     <div class="dash-stat-tile">
       <div class="dash-stat-tile-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#${s.icone}"/></svg></div>
@@ -11204,8 +11214,7 @@ function capturarGraficoParaImpressao(chart) {
 
 function buildDashPrintHtml(cardKey) {
   const def = DASH_CARD_DEFS.find(d => d.key === cardKey);
-  const filtroSelect = document.getElementById("dashMesFiltro");
-  const periodoTxt = filtroSelect.selectedOptions[0] ? filtroSelect.selectedOptions[0].textContent : "";
+  const periodoTxt = dashPeriodo ? dashPeriodo.texto() : "";
 
   const cardEl = document.querySelector(`[data-dashcard="${cardKey}"]`);
   const canvas = cardEl.querySelector("canvas");
@@ -11650,7 +11659,6 @@ async function init() {
     vendasMostrarTodas = !vendasMostrarTodas;
     renderVendas();
   });
-  document.getElementById("dashMesFiltro").addEventListener("change", renderDashboard);
   document.getElementById("prevSearch").addEventListener("input", renderPrevistos);
 
   document.getElementById("chartModalClose").addEventListener("click", closeChartModal);

@@ -61,3 +61,16 @@
 .sd-barra{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
 .crm-des-filtros .field select{height:40px; border-radius:10px;}
 .crm-des-filtros .field .sd-wrap{display:block;}
+
+/* período com vários meses */
+.sd-badge[hidden]{display:none;}
+.sd-mes{width:318px; max-width:calc(100vw - 32px);}
+.sd-atalhos{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+.sd-at{height:30px; padding:0 11px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--ink); font:inherit; font-size:12px; font-weight:600; cursor:pointer;}
+.sd-at:hover{border-color:var(--orange); color:var(--orange-deep);}
+.sd-at.on{background:var(--tint-orange); border-color:var(--orange); color:var(--orange-deep);}
+.sd-ano-meio{display:flex; align-items:center; gap:8px;}
+.sd-dica{font-size:11.5px; color:var(--ink-soft); margin-top:10px; line-height:1.4;}
+.sd-rodape{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-soft);}
+.sd-aplicar{border:0; background:var(--ink); color:var(--surface); font:inherit; font-size:12.5px; font-weight:700; border-radius:8px; padding:7px 14px; cursor:pointer;}
+.sd-aplicar:hover{background:var(--orange); color:#fff;}
