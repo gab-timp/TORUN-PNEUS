@@ -11485,7 +11485,9 @@ function rerenderViewAtual() {
   // refazer a tela a cada evento do varejo fecharia seletores abertos e repetiria consultas
   if (activeBtn && activeBtn.dataset.view.startsWith("sv-")) return;
   renderProdutoSelects();
-  setView(activeBtn ? activeBtn.dataset.view : primeiraViewPermitida());
+  const destino = activeBtn ? activeBtn.dataset.view : primeiraViewPermitida();
+  if (!viewPermitida(destino)) return; // quem está sem o Torun (Varejo) não tem tela dele pra refazer
+  setView(destino);
 }
 
 async function refreshAll() {
@@ -11800,7 +11802,8 @@ async function init() {
   const btnCentralAjuda = document.getElementById("btnCentralAjuda");
   if (btnCentralAjuda) btnCentralAjuda.addEventListener("click", () => toast("Central de ajuda ainda não está disponível — fale com o time por enquanto."));
 
-  setView(primeiraViewPermitida());
+  // quem entra sem o Torun (Varejo) segue pro sistema que tem: não tenta abrir a tela do Varejo nem avisa "sem acesso"
+  if (viewPermitida(primeiraViewPermitida())) setView(primeiraViewPermitida());
 }
 
 /* ---------------- tema (claro / escuro / sistema) ---------------- */
