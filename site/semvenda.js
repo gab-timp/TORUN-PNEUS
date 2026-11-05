@@ -343,7 +343,6 @@ function svIniciarEdicaoProduto(codigo) {
   document.getElementById("svProdIcIv").value = p.icIv;
   document.getElementById("svProdPr").value = p.pr;
   document.getElementById("svProdCapCarga").value = p.capCarga;
-  document.getElementById("svProdPreco").value = p.preco === null ? "" : p.preco;
   document.getElementById("svProdFormTitle").textContent = "Editar produto";
   document.getElementById("svProdEditBanner").style.display = "block";
   document.getElementById("svBtnSubmitProduto").textContent = "Salvar alterações";
@@ -468,10 +467,10 @@ async function svSalvarProdutoDados(e) {
     icIv: document.getElementById("svProdIcIv").value.trim(),
     pr: document.getElementById("svProdPr").value.trim(),
     capCarga: document.getElementById("svProdCapCarga").value.trim(),
-    preco: svLerValor("svProdPreco")
+    // o valor não é tabelado: o cadastro não pede preço; produto já cadastrado mantém o que tinha
+    preco: svEditandoProduto ? ((svState.produtos.find(x => x.codigo === svEditandoProduto) || {}).preco ?? null) : null
   };
   if (!dados.codigo || !dados.medida) { toast("Informe o código e a medida."); return; }
-  if (Number.isNaN(dados.preco)) { toast("O preço precisa ser um valor de zero em diante."); return; }
 
   if (svEditandoProduto) {
     const { codigo, ...campos } = svProdutoToRow({ ...dados, codigo: svEditandoProduto });
@@ -1164,7 +1163,7 @@ const SV_RES_FILTROS = [
   { chave: "canceladas", rotulo: "Canceladas e liberadas" },
   { chave: "todas", rotulo: "Todas" }
 ];
-const SV_CAMPOS_RES = ["produto", "cliente", "unidade", "vendedor", "representante", "forma", "quantidade", "data", "tipotransp", "transportadora"];
+const SV_CAMPOS_RES = ["cliente", "unidade", "vendedor", "representante", "forma", "data", "tipotransp", "transportadora"];
 // de qual unidade é a venda (check em sv_reservas.unidade_negocio); só informação, não limita quem vê a reserva
 const SV_UNIDADES = { ATACADO: "Atacado", ENCOMENDA: "Encomenda" };
 let svResUnidadeAtual = ""; // filtro da lista: "" = todas
@@ -1172,7 +1171,7 @@ let svResUnidadeAtual = ""; // filtro da lista: "" = todas
 const SV_FORMAS_PAGAMENTO = ["PIX", "CARTÃO", "BOLETO PRÓPRIO", "BOLETO TRADEMASTER"];
 // quem cuida do frete: o valor vai pro banco (check em sv_reservas), o texto aparece na tela
 const SV_TIPOS_TRANSPORTE = { NOSSO: "Frete nosso", CLIENTE: "Frete do cliente" };
-let svPickerAberto = false;
+let svPickerAberto = null; // a linha de produto com a lista aberta
 let svSalvandoReserva = false;
 
 function svFiltrarPorSituacao(rows, chave) {
@@ -1267,11 +1266,6 @@ function svChaveOpcao(o) {
   return [o.tipo, o.codigo, o.armazem || "", o.previsaoId || ""].join("|");
 }
 
-function svOpcaoSelecionada() {
-  const v = document.getElementById("svResProduto").value;
-  return v === "" ? null : (svOpcoesReserva[Number(v)] || null);
-}
-
 /* ----- erros dentro do campo ----- */
 
 function svErroCampo(chave, msg) {
@@ -1286,7 +1280,7 @@ function svLimparErroCampo(chave) {
 
 function svLimparErrosReserva() {
   SV_CAMPOS_RES.forEach(svLimparErroCampo);
-  document.querySelectorAll("#svResExtras .sv-extra-erro").forEach(el => { el.textContent = ""; });
+  document.querySelectorAll("#svResExtras .sv-item-erro").forEach(el => { el.textContent = ""; });
 }
 
 function svFocarPrimeiroErro() {
@@ -1296,22 +1290,31 @@ function svFocarPrimeiroErro() {
   if (alvo) alvo.focus();
 }
 
-/* ----- escolha do produto (lista com busca, em grupos) ----- */
+/* ----- produtos do pedido: todas as linhas são iguais (escolha do produto com busca + quantidade ao lado) ----- */
 
-function svRenderPickerBotao() {
-  const o = svOpcaoSelecionada();
-  const btn = document.getElementById("svResProdutoBtn");
+function svOpcaoDaLinha(linha) {
+  const v = linha.dataset.idx;
+  return v === undefined || v === "" ? null : (svOpcoesReserva[Number(v)] || null);
+}
+
+function svLinhasItens() {
+  return [...document.querySelectorAll("#svResExtras .sv-item")];
+}
+
+function svRenderPickerBotao(linha) {
+  const o = svOpcaoDaLinha(linha);
+  const btn = linha.querySelector(".sv-picker-botao");
   btn.disabled = svOpcoesReserva.length === 0;
   btn.classList.toggle("sv-picker-preenchido", !!o);
   btn.innerHTML = o
     ? `<span class="sv-picker-lado"><span class="sv-picker-t"><b class="mono">${escapeHtml(o.codigo)}</b> ${escapeHtml(o.medida)}</span><span class="sv-picker-s">${escapeHtml(o.origem)}</span></span>
-       <span class="sv-picker-chip">Disponível pra reservar: ${fmt(o.disp)} un.</span><span class="sv-picker-trocar">Trocar</span>`
+       <span class="sv-picker-chip">${fmt(o.disp)} disp.</span><span class="sv-picker-trocar">Trocar</span>`
     : `<span class="sv-picker-ph">${svOpcoesReserva.length === 0 ? "Nada disponível" : "Escolha o produto…"}</span><span class="sv-picker-chev" aria-hidden="true">▾</span>`;
 }
 
-function svRenderPickerOpcoes() {
-  const termo = (document.getElementById("svResProdutoBusca").value || "").trim().toLowerCase();
-  const sel = svOpcaoSelecionada();
+function svRenderPickerOpcoes(linha) {
+  const termo = (linha.querySelector(".sv-picker-busca").value || "").trim().toLowerCase();
+  const sel = svOpcaoDaLinha(linha);
   const chaveSel = sel ? svChaveOpcao(sel) : null;
   const itens = svOpcoesReserva.map((o, i) => ({ o, i }))
     .filter(x => !termo || `${x.o.codigo} ${x.o.medida} ${x.o.origem}`.toLowerCase().includes(termo));
@@ -1326,154 +1329,156 @@ function svRenderPickerOpcoes() {
       </button>`;
     }).join("");
   };
-  document.getElementById("svResProdutoOpcoes").innerHTML = grupo("Em estoque", "E") + grupo("A caminho (Estoque Previsto)", "P") ||
+  linha.querySelector(".sv-picker-opcoes").innerHTML = grupo("Em estoque", "E") + grupo("A caminho (Estoque Previsto)", "P") ||
     `<div class="sv-picker-vazio">${svOpcoesReserva.length ? "Nenhum produto com essa busca." : "Nada disponível."}</div>`;
 }
 
-function svAbrirPicker() {
+function svAbrirPicker(linha) {
   if (svOpcoesReserva.length === 0) return;
-  svPickerAberto = true;
-  document.getElementById("svResProdutoPainel").hidden = false;
-  document.getElementById("svResProdutoBtn").setAttribute("aria-expanded", "true");
-  const busca = document.getElementById("svResProdutoBusca");
+  if (svPickerAberto) svFecharPicker();
+  svPickerAberto = linha;
+  linha.querySelector(".sv-picker-painel").hidden = false;
+  linha.querySelector(".sv-picker-botao").setAttribute("aria-expanded", "true");
+  const busca = linha.querySelector(".sv-picker-busca");
   busca.value = "";
-  svRenderPickerOpcoes();
+  svRenderPickerOpcoes(linha);
   busca.focus();
 }
 
 function svFecharPicker(devolverFoco) {
-  svPickerAberto = false;
-  document.getElementById("svResProdutoPainel").hidden = true;
-  const btn = document.getElementById("svResProdutoBtn");
+  const linha = svPickerAberto;
+  svPickerAberto = null;
+  if (!linha) return;
+  linha.querySelector(".sv-picker-painel").hidden = true;
+  const btn = linha.querySelector(".sv-picker-botao");
   btn.setAttribute("aria-expanded", "false");
   if (devolverFoco) btn.focus();
 }
 
-function svEscolherOpcao(i) {
-  document.getElementById("svResProduto").value = String(i);
+function svEscolherOpcao(linha, i) {
+  linha.dataset.idx = String(i);
+  linha.dataset.chave = svChaveOpcao(svOpcoesReserva[i]);
   svFecharPicker();
-  svLimparErroCampo("produto");
-  svAtualizarNotaDisponivel();
-  document.getElementById("svResCliente").focus();
+  linha.querySelector(".sv-item-erro").textContent = "";
+  svAtualizarLinha(linha);
+  svAtualizarResumoReserva();
+  linha.querySelector(".sv-item-qtd").focus();
+}
+
+// máximo e dica de "máx." da quantidade e botão do produto de uma linha
+function svAtualizarLinha(linha) {
+  const o = svOpcaoDaLinha(linha);
+  linha.querySelector(".sv-item-qtd").max = o ? String(o.disp) : "";
+  linha.querySelector(".sv-qtd-max").textContent = o ? `máx. ${fmt(o.disp)}` : "";
+  svRenderPickerBotao(linha);
 }
 
 function svAtualizarNotaDisponivel() {
-  const o = svOpcaoSelecionada();
-  const aviso = document.getElementById("svResDisp");
   const nada = svOpcoesReserva.length === 0;
+  const aviso = document.getElementById("svResDisp");
   aviso.textContent = nada ? "Nada disponível: marque um processo como FINALIZADO (com armazém) ou cadastre um processo a caminho no Estoque Previsto." : "";
   aviso.style.display = nada ? "" : "none";
-  document.getElementById("svResQuantidade").max = o ? String(o.disp) : "";
-  document.getElementById("svResQuantMax").textContent = o ? `máx. ${fmt(o.disp)}` : "";
-  svRenderPickerBotao();
+  svLinhasItens().forEach(svAtualizarLinha);
   svAtualizarResumoReserva();
+}
+
+// todas as linhas do pedido, na ordem da tela
+function svLerItens() {
+  return svLinhasItens().map(linha => ({
+    linha, opcao: svOpcaoDaLinha(linha), quantidade: parseInt(linha.querySelector(".sv-item-qtd").value, 10)
+  }));
 }
 
 // rodapé da janela: resumo do que vai ser reservado e rótulo do botão ("Reservar 30 un.")
 function svAtualizarResumoReserva() {
-  const o = svOpcaoSelecionada();
-  const q = parseInt(document.getElementById("svResQuantidade").value, 10);
   const cliente = document.getElementById("svResCliente").value.trim();
   const resumo = document.getElementById("svResResumo");
-  const extras = svLerExtras();
-  const extrasOk = extras.filter(x => x.opcao && x.quantidade > 0);
-  const totalUn = (q > 0 ? q : 0) + extrasOk.reduce((s, x) => s + x.quantidade, 0);
-  const nProdutos = (o && q > 0 ? 1 : 0) + extrasOk.length;
-  if (!o) resumo.textContent = "Escolha o produto para continuar.";
-  else if (nProdutos > 1) resumo.innerHTML = `${nProdutos} produtos, ${fmt(totalUn)} un.${cliente ? " para " + escapeHtml(cliente) : ""}`;
-  else if (q > 0) resumo.innerHTML = `${fmt(q)} un. de <span class="mono">${escapeHtml(o.codigo)}</span>${cliente ? " para " + escapeHtml(cliente) : ""}`;
+  const ok = svLerItens().filter(x => x.opcao && x.quantidade > 0);
+  const totalUn = ok.reduce((s, x) => s + x.quantidade, 0);
+  const temProduto = svLerItens().some(x => x.opcao);
+  if (!temProduto) resumo.textContent = "Escolha o produto para continuar.";
+  else if (ok.length > 1) resumo.innerHTML = `${ok.length} produtos, ${fmt(totalUn)} un.${cliente ? " para " + escapeHtml(cliente) : ""}`;
+  else if (ok.length === 1) resumo.innerHTML = `${fmt(totalUn)} un. de <span class="mono">${escapeHtml(ok[0].opcao.codigo)}</span>${cliente ? " para " + escapeHtml(cliente) : ""}`;
   else resumo.textContent = "";
   const botao = document.getElementById("svBtnSubmitReserva");
-  botao.textContent = o && totalUn > 0 ? `Reservar ${fmt(totalUn)} un.` : "Reservar";
-  botao.disabled = !o || svSalvandoReserva;
-  document.getElementById("svResQuantidadeRotulo").textContent = extras.length ? "Quantidade do 1º produto" : "Quantidade";
+  botao.textContent = totalUn > 0 ? `Reservar ${fmt(totalUn)} un.` : "Reservar";
+  botao.disabled = !temProduto || svSalvandoReserva;
 }
 
-/* ----- produtos extras do pedido (o 1º é o seletor de cima; os outros ficam nesta lista) ----- */
-
-function svOpcoesExtraHTML(chaveSelecionada) {
-  return `<option value="">Escolha o produto…</option>` + svOpcoesReserva.map((o, i) =>
-    `<option value="${i}"${svChaveOpcao(o) === chaveSelecionada ? " selected" : ""}>${escapeHtml(o.rotulo)}</option>`).join("");
-}
-
-function svAdicionarExtra() {
+function svAdicionarItem(removivel) {
   const linha = document.createElement("div");
-  linha.className = "sv-extra";
+  linha.className = "sv-item";
   linha.innerHTML = `
-    <div class="sv-extra-prod"><select class="sv-extra-sel" aria-label="Produto"></select><div class="sv-extra-disp muted sv-sub"></div></div>
-    <input type="number" class="sv-extra-qtd" min="1" step="1" placeholder="Qtd." aria-label="Quantidade">
-    <button type="button" class="sv-extra-rm" aria-label="Remover produto">✕</button>
-    <div class="sv-erro-msg sv-extra-erro" role="alert"></div>`;
-  linha.querySelector(".sv-extra-sel").innerHTML = svOpcoesExtraHTML(null);
+    <div class="sv-item-prod">
+      <div class="sv-picker">
+        <button type="button" class="sv-picker-botao" aria-haspopup="listbox" aria-expanded="false" aria-label="Produto"></button>
+        <div class="sv-picker-painel" hidden>
+          <input type="search" class="sv-picker-busca" placeholder="Buscar por código ou medida…" aria-label="Buscar produto" autocomplete="off">
+          <div class="sv-picker-opcoes" role="listbox"></div>
+        </div>
+      </div>
+    </div>
+    <div class="sv-qtd-wrap">
+      <input type="number" class="sv-item-qtd" min="1" step="1" placeholder="Qtd." aria-label="Quantidade">
+      <span class="sv-qtd-max"></span>
+    </div>
+    ${removivel ? `<button type="button" class="sv-extra-rm" aria-label="Remover produto">✕</button>` : `<span></span>`}
+    <div class="sv-erro-msg sv-item-erro" role="alert"></div>`;
   document.getElementById("svResExtras").appendChild(linha);
+  svAtualizarLinha(linha);
   svAtualizarResumoReserva();
   return linha;
 }
 
-function svAtualizarDispExtra(linha) {
-  const v = linha.querySelector(".sv-extra-sel").value;
-  const o = v === "" ? null : svOpcoesReserva[Number(v)];
-  linha.querySelector(".sv-extra-disp").textContent = o ? `${o.origem} · disponível: ${fmt(o.disp)} un.` : "";
-  linha.querySelector(".sv-extra-qtd").max = o ? String(o.disp) : "";
-}
-
-function svLerExtras() {
-  return [...document.querySelectorAll("#svResExtras .sv-extra")].map(linha => {
-    const v = linha.querySelector(".sv-extra-sel").value;
-    return { linha, opcao: v === "" ? null : (svOpcoesReserva[Number(v)] || null), quantidade: parseInt(linha.querySelector(".sv-extra-qtd").value, 10) };
+// depois de uma recarga das opções: cada linha mantém o produto escolhido (pela chave, não pela posição)
+function svRefazerItens() {
+  svLinhasItens().forEach(linha => {
+    const chave = linha.dataset.chave || "";
+    const i = chave ? svOpcoesReserva.findIndex(o => svChaveOpcao(o) === chave) : -1;
+    if (i >= 0) linha.dataset.idx = String(i);
+    else { delete linha.dataset.idx; delete linha.dataset.chave; }
+    svAtualizarLinha(linha);
+    if (svPickerAberto === linha) svRenderPickerOpcoes(linha);
   });
 }
 
-// depois de uma recarga das opções: refaz cada seletor mantendo o produto escolhido (pela chave, não pela posição)
-function svRefazerExtras() {
-  document.querySelectorAll("#svResExtras .sv-extra").forEach(linha => {
-    const sel = linha.querySelector(".sv-extra-sel");
-    sel.innerHTML = svOpcoesExtraHTML(sel.dataset.chave || "");
-    svAtualizarDispExtra(linha);
-  });
-}
-
-function svLigarExtras() {
+function svLigarItens() {
   const caixa = document.getElementById("svResExtras");
   document.getElementById("svResAddProduto").addEventListener("click", () => {
-    svAdicionarExtra().querySelector(".sv-extra-sel").focus();
-  });
-  caixa.addEventListener("change", (e) => {
-    const linha = e.target.closest(".sv-extra");
-    if (!linha) return;
-    if (e.target.classList.contains("sv-extra-sel")) {
-      const v = e.target.value;
-      e.target.dataset.chave = v === "" ? "" : svChaveOpcao(svOpcoesReserva[Number(v)]);
-      svAtualizarDispExtra(linha);
-    }
-    linha.querySelector(".sv-extra-erro").textContent = "";
-    svAtualizarResumoReserva();
-  });
-  caixa.addEventListener("input", (e) => {
-    const linha = e.target.closest(".sv-extra");
-    if (linha) { linha.querySelector(".sv-extra-erro").textContent = ""; svAtualizarResumoReserva(); }
+    svAdicionarItem(true).querySelector(".sv-picker-botao").click();
   });
   caixa.addEventListener("click", (e) => {
-    const b = e.target.closest(".sv-extra-rm");
-    if (!b) return;
-    b.closest(".sv-extra").remove();
-    svAtualizarResumoReserva();
+    const linha = e.target.closest(".sv-item");
+    if (!linha) return;
+    if (e.target.closest(".sv-extra-rm")) {
+      if (svPickerAberto === linha) svFecharPicker();
+      linha.remove();
+      svAtualizarResumoReserva();
+    } else if (e.target.closest(".sv-picker-botao")) {
+      if (svPickerAberto === linha) svFecharPicker(true); else svAbrirPicker(linha);
+    } else if (e.target.closest("[data-svopcao]")) {
+      svEscolherOpcao(linha, Number(e.target.closest("[data-svopcao]").dataset.svopcao));
+    }
+  });
+  caixa.addEventListener("input", (e) => {
+    const linha = e.target.closest(".sv-item");
+    if (!linha) return;
+    if (e.target.classList.contains("sv-picker-busca")) svRenderPickerOpcoes(linha);
+    else { linha.querySelector(".sv-item-erro").textContent = ""; svAtualizarResumoReserva(); }
+  });
+  caixa.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || !e.target.classList.contains("sv-picker-busca")) return;
+    e.preventDefault(); // Enter na busca escolhe o primeiro resultado, não envia o formulário
+    const linha = e.target.closest(".sv-item");
+    const primeira = linha.querySelector("[data-svopcao]");
+    if (primeira) svEscolherOpcao(linha, Number(primeira.dataset.svopcao));
   });
 }
 
 function svRenderReservaForm() {
-  const sel = document.getElementById("svResProduto");
-  const anterior = svOpcaoSelecionada();
-  const chaveAnterior = anterior ? svChaveOpcao(anterior) : null;
   svOpcoesReserva = svMontarOpcoesReserva();
-  sel.innerHTML = `<option value="">Selecione…</option>` + svOpcoesReserva.map((o, i) => `<option value="${i}">${escapeHtml(o.rotulo)}</option>`).join("");
-  if (chaveAnterior) {
-    const i = svOpcoesReserva.findIndex(o => svChaveOpcao(o) === chaveAnterior);
-    if (i >= 0) sel.value = String(i);
-  }
+  svRefazerItens();
   svAtualizarNotaDisponivel();
-  if (svPickerAberto) svRenderPickerOpcoes();
-  svRefazerExtras();
 
   document.getElementById("svListaClientes").innerHTML =
     svClientes.map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
@@ -1543,12 +1548,13 @@ function svAbrirNovaReserva() {
   document.getElementById("svFormReserva").reset();
   document.getElementById("svResExtras").innerHTML = "";
   svEscolherPedidoReserva("TOTAL");
+  svPickerAberto = null;
   document.getElementById("svResData").value = todayISO();
   svLimparErrosReserva();
-  svFecharPicker();
   svRenderReservaForm();
+  svAdicionarItem(false);
   document.getElementById("svResOverlay").classList.add("show");
-  const primeiro = document.getElementById("svResProdutoBtn");
+  const primeiro = document.querySelector("#svResExtras .sv-picker-botao");
   (primeiro.disabled ? document.getElementById("svResCliente") : primeiro).focus();
 }
 
@@ -1561,7 +1567,7 @@ function svFecharNovaReserva() {
 function svAoMudarFormReserva(e) {
   const campo = e.target.closest("[id^='svResCampo_']");
   if (campo) svLimparErroCampo(campo.id.replace("svResCampo_", ""));
-  if (e.target.id === "svResQuantidade" || e.target.id === "svResCliente") svAtualizarResumoReserva();
+  if (e.target.id === "svResCliente") svAtualizarResumoReserva();
 }
 
 function svRenderReservaKpis() {
@@ -1819,8 +1825,8 @@ function svVendaModal(r) {
     document.querySelector('input[name="svVendaSobra"][value="MANTER"]').checked = true;
     $("svVendaTexto").textContent = `Reserva de ${r.quantidade} un. de ${r.codigo} para ${r.cliente}.`;
     $("svVendaDica").textContent = temPreco
-      ? "Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor."
-      : "Esse produto não tem preço de proposta no cadastro: digite o preço da venda.";
+      ? "Já vem com o preço registrado do produto. Mude se vendeu por outro valor."
+      : "Digite o preço da venda.";
     input.value = temPreco ? produto.preco : "";
     erro.style.display = "none";
 
@@ -2081,8 +2087,7 @@ async function svMudarSituacaoReserva(id, nova) {
 function svLigarReserva() {
   const $ = (id) => document.getElementById(id);
   $("svFormReserva").addEventListener("submit", svSalvarReserva);
-  svLigarExtras();
-  $("svResProduto").addEventListener("change", svAtualizarNotaDisponivel);
+  svLigarItens();
   $("svResSearch").addEventListener("input", svRenderReservaTabela);
   $("svResChips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-svfiltro]");
@@ -2117,20 +2122,8 @@ function svLigarReserva() {
     e.stopPropagation();
     if (svPickerAberto) svFecharPicker(true); else svFecharNovaReserva();
   });
-  $("svResProdutoBtn").addEventListener("click", () => { if (svPickerAberto) svFecharPicker(true); else svAbrirPicker(); });
-  $("svResProdutoBusca").addEventListener("input", svRenderPickerOpcoes);
-  $("svResProdutoBusca").addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault(); // Enter na busca escolhe o primeiro resultado, não envia o formulário
-    const primeira = $("svResProdutoOpcoes").querySelector("[data-svopcao]");
-    if (primeira) svEscolherOpcao(Number(primeira.dataset.svopcao));
-  });
-  $("svResProdutoOpcoes").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-svopcao]");
-    if (b) svEscolherOpcao(Number(b.dataset.svopcao));
-  });
   document.addEventListener("click", (e) => {
-    if (svPickerAberto && !e.target.closest("#svPicker")) svFecharPicker();
+    if (svPickerAberto && !e.target.closest(".sv-picker")) svFecharPicker();
   });
   $("svFormReserva").addEventListener("input", svAoMudarFormReserva);
   $("svFormReserva").addEventListener("change", svAoMudarFormReserva);
@@ -2149,7 +2142,6 @@ async function svSalvarReserva(e) {
 
 async function svSalvarReservaDados() {
   svLimparErrosReserva();
-  const opcao = svOpcaoSelecionada();
   const clienteDigitado = document.getElementById("svResCliente").value.trim();
   const vendedorInterno = document.getElementById("svResVendedor").value;
   const escolhaRepresentante = document.getElementById("svResRepresentante").value;
@@ -2157,14 +2149,12 @@ async function svSalvarReservaDados() {
   const unidade = document.getElementById("svResUnidade").value;
   const tipoTransporte = document.getElementById("svResTipoTransporte").value;
   const transportadora = document.getElementById("svResTransportadora").value;
-  const quantidade = parseInt(document.getElementById("svResQuantidade").value, 10);
   const data = document.getElementById("svResData").value;
   const obs = document.getElementById("svResObs").value.trim();
   const cliente = svClientes.find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
 
   // confere tudo de uma vez e marca cada campo com problema (em vez de avisar um por vez)
   const erros = [];
-  if (!opcao) erros.push(["produto", "Escolha o produto."]);
   if (!clienteDigitado) erros.push(["cliente", "Escolha um cliente da lista. Se ele ainda não existe, cadastre em Clientes."]);
   else if (!cliente) erros.push(["cliente", "Cliente não encontrado no cadastro do Sem Venda. Use \"Cadastrar cliente\" antes de reservar."]);
   if (!vendedorInterno) erros.push(["vendedor", svVendedores.length ? "Escolha o vendedor interno." : "Cadastre os vendedores em Administração antes de reservar."]);
@@ -2173,17 +2163,14 @@ async function svSalvarReservaDados() {
   if (!forma) erros.push(["forma", "Escolha a forma de pagamento."]);
   if (!tipoTransporte) erros.push(["tipotransp", "Escolha o tipo de transporte."]);
   if (!transportadora) erros.push(["transportadora", svTransportadoras.length ? "Escolha a transportadora." : "Cadastre as transportadoras em Administração antes de reservar."]);
-  if (!(quantidade > 0)) erros.push(["quantidade", "Informe a quantidade."]);
-  else if (opcao && quantidade > opcao.disp) erros.push(["quantidade", `Só há ${fmt(opcao.disp)} un. disponíveis neste produto.`]);
   if (!data) erros.push(["data", "Informe a data."]);
-  // produtos extras: cada um com produto e quantidade; o mesmo lote repetido soma contra o disponível
-  const extras = svLerExtras();
-  let erroExtra = false;
+  // produtos do pedido: cada linha com produto e quantidade; o mesmo lote repetido soma contra o disponível
+  const itensTela = svLerItens();
+  let erroItem = false;
   const usado = new Map();
-  if (opcao && quantidade > 0) usado.set(svChaveOpcao(opcao), quantidade);
-  extras.forEach(x => {
+  itensTela.forEach(x => {
     let msg = "";
-    if (!x.opcao) msg = "Escolha o produto ou remova esta linha.";
+    if (!x.opcao) msg = "Escolha o produto" + (itensTela.length > 1 ? " ou remova esta linha." : ".");
     else if (!(x.quantidade > 0)) msg = "Informe a quantidade.";
     else {
       const k = svChaveOpcao(x.opcao);
@@ -2191,13 +2178,14 @@ async function svSalvarReservaDados() {
       usado.set(k, soma);
       if (soma > x.opcao.disp) msg = `Só há ${fmt(x.opcao.disp)} un. disponíveis neste produto${soma > x.quantidade ? " (somando as outras linhas dele)" : ""}.`;
     }
-    x.linha.querySelector(".sv-extra-erro").textContent = msg;
-    if (msg) erroExtra = true;
+    x.linha.querySelector(".sv-item-erro").textContent = msg;
+    if (msg) erroItem = true;
   });
-  if (erros.length || erroExtra) {
+  if (erros.length || erroItem) {
     erros.forEach(([campo, msg]) => svErroCampo(campo, msg));
-    if (erros.length) svFocarPrimeiroErro();
-    else extras.find(x => x.linha.querySelector(".sv-extra-erro").textContent).linha.querySelector("select, input").focus();
+    const linhaErro = itensTela.find(x => x.linha.querySelector(".sv-item-erro").textContent);
+    if (linhaErro) linhaErro.linha.querySelector(".sv-picker-botao, input").focus();
+    else svFocarPrimeiroErro();
     return;
   }
   const representante = escolhaRepresentante === SV_SEM_REPRESENTANTE ? null : escolhaRepresentante;
@@ -2216,8 +2204,8 @@ async function svSalvarReservaDados() {
     const a = aChegar.find(x => x.previsaoId === op.previsaoId && x.codigo === op.codigo);
     return a ? a.livres : 0;
   };
-  // todos os produtos do pedido (o 1º e os extras), somando os que repetem o mesmo lote
-  const itens = [{ opcao, quantidade, linha: null }, ...extras.map(x => ({ opcao: x.opcao, quantidade: x.quantidade, linha: x.linha }))];
+  // todos os produtos do pedido, somando os que repetem o mesmo lote
+  const itens = itensTela;
   const somaPorLote = new Map();
   for (const it of itens) {
     const k = svChaveOpcao(it.opcao);
@@ -2228,8 +2216,7 @@ async function svSalvarReservaDados() {
       : somaPorLote.get(k) > disponivel ? `Só há ${fmt(disponivel)} un. disponíveis nessa opção.` : "";
     if (msg) {
       svRenderReserva();
-      if (it.linha === null) { svErroCampo(disponivel === null ? "produto" : "quantidade", msg); svFocarPrimeiroErro(); }
-      else it.linha.querySelector(".sv-extra-erro").textContent = msg;
+      it.linha.querySelector(".sv-item-erro").textContent = msg;
       toast("Nada foi reservado. Confira o aviso no produto.");
       return;
     }

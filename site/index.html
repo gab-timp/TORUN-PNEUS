@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=182">
-<link rel="stylesheet" href="semvenda.css?v=37">
+<link rel="stylesheet" href="semvenda.css?v=38">
 <link rel="stylesheet" href="crm.css?v=39">
 <link rel="stylesheet" href="usuarios.css?v=6">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -330,8 +330,8 @@
         <button class="nav-item" data-view="sv-reserva" data-label="Reserva">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-lock"/></svg> Reserva
         </button>
-        <button class="nav-item" data-view="sv-relatoriopreco" data-label="Relatório de Preço">
-          <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Relatório de Preço
+        <button class="nav-item" data-view="sv-relatoriopreco" data-label="Propostas">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-report"/></svg> Propostas
         </button>
         <button class="nav-item" data-view="sv-armazenagem" data-label="Armazenagem">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-warehouse"/></svg> Armazenagem
@@ -598,17 +598,6 @@
           </div>
 
           <div class="form-section">
-            <div class="form-section-label"><span class="n">3</span>Valores (opcional)</div>
-            <div class="form-row">
-              <div class="field small">
-                <label>Preço de proposta (R$)</label>
-                <input type="number" id="svProdPreco" min="0" step="0.01" placeholder="Ex: 2180,00">
-              </div>
-            </div>
-            <span class="note">O preço já vem preenchido no Relatório de Preço. Produto sem preço continua valendo: sai como "Sob consulta". O custo agora é informado em cada processo, no Estoque Previsto.</span>
-          </div>
-
-          <div class="form-section">
             <div class="form-section-label"><span class="n">4</span>Foto (opcional)</div>
             <div class="sv-foto-row">
               <div class="sv-foto-preview" id="svProdFotoPreview"><span>Sem foto</span></div>
@@ -790,7 +779,7 @@
       </div>
     </section>
     <section id="view-sv-relatoriopreco" class="view">
-      <div class="page-head"><div><h1>Relatório de Preço</h1><div class="sub">Monta uma proposta em PDF pra mandar pro cliente.</div></div></div>
+      <div class="page-head"><div><h1>Propostas</h1><div class="sub">Monta uma proposta em PDF pra mandar pro cliente.</div></div></div>
 
       <div class="sv-prop-layout">
         <div class="card sv-prop-form">
@@ -829,7 +818,7 @@
               <div class="sv-prop-sub" id="svPropSub"></div>
             </div>
           </div>
-          <div class="sv-prop-aviso"><strong>O preço já vem do cadastro e a quantidade já vem do estoque disponível.</strong> Dá pra ajustar os dois linha a linha antes de gerar o PDF; o ajuste vale só pra esta proposta e não muda o cadastro nem o estoque. Linha sem preço sai como "Sob consulta"; linha com quantidade 0 fica fora do PDF.</div>
+          <div class="sv-prop-aviso"><strong>A quantidade já vem do estoque disponível; o preço você digita em cada linha.</strong> Dá pra ajustar os dois antes de gerar o PDF; o ajuste vale só pra esta proposta e não muda o estoque. Linha sem preço sai como "Sob consulta"; linha com quantidade 0 fica fora do PDF.</div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -4019,19 +4008,10 @@
       <button type="button" class="sv-fechar" id="svResFechar" aria-label="Fechar">✕</button>
     </div>
     <form id="svFormReserva" novalidate autocomplete="off">
-      <select id="svResProduto" hidden aria-hidden="true" tabindex="-1"></select>
       <div class="field" id="svResCampo_produto">
-        <label id="svResProdutoRotulo">Produto</label>
-        <div class="sv-picker" id="svPicker">
-          <button type="button" class="sv-picker-botao" id="svResProdutoBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="svResProdutoRotulo"></button>
-          <div class="sv-picker-painel" id="svResProdutoPainel" hidden>
-            <input type="search" id="svResProdutoBusca" placeholder="Buscar por código ou medida…" aria-label="Buscar produto" autocomplete="off">
-            <div class="sv-picker-opcoes" id="svResProdutoOpcoes" role="listbox" aria-labelledby="svResProdutoRotulo"></div>
-          </div>
-        </div>
-        <div class="sv-aviso" id="svResDisp" style="display:none;"></div>
-        <div class="sv-erro-msg" id="svResErro_produto" role="alert"></div>
+        <label>Produtos</label>
         <div class="sv-res-extras" id="svResExtras"></div>
+        <div class="sv-aviso" id="svResDisp" style="display:none;"></div>
         <button type="button" class="sv-link sv-write" id="svResAddProduto">+ Adicionar outro produto</button>
       </div>
       <div class="sv-res-linha">
@@ -4066,14 +4046,6 @@
           <label for="svResForma">Forma de pagamento</label>
           <select id="svResForma"></select>
           <div class="sv-erro-msg" id="svResErro_forma" role="alert"></div>
-        </div>
-        <div class="field" id="svResCampo_quantidade">
-          <label for="svResQuantidade" id="svResQuantidadeRotulo">Quantidade</label>
-          <div class="sv-qtd-wrap">
-            <input type="number" id="svResQuantidade" min="1" step="1" placeholder="0">
-            <span class="sv-qtd-max" id="svResQuantMax"></span>
-          </div>
-          <div class="sv-erro-msg" id="svResErro_quantidade" role="alert"></div>
         </div>
         <div class="field" id="svResCampo_data">
           <label for="svResData">Data</label>
@@ -4147,7 +4119,7 @@
     <div class="field">
       <label for="svVendaPreco">Preço por unidade (R$)</label>
       <input type="number" id="svVendaPreco" min="0" step="0.01" placeholder="0,00">
-      <div class="note" id="svVendaDica">Já vem com o preço de proposta do cadastro. Mude se vendeu por outro valor.</div>
+      <div class="note" id="svVendaDica">Já vem com o preço registrado do produto. Mude se vendeu por outro valor.</div>
     </div>
     <div class="field">
       <label for="svVendaForma">Forma de pagamento</label>
@@ -4775,7 +4747,7 @@
   </div>
 </div>
 
-<script src="semvenda.js?v=45"></script>
+<script src="semvenda.js?v=49"></script>
 <script src="crm.js?v=44"></script>
 <script src="crm-ligacoes.js?v=4"></script>
 <script src="crm-perfil.js?v=10"></script>
