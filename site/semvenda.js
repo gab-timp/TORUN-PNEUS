@@ -2247,7 +2247,12 @@ async function svSalvarReservaDados() {
   // um insert só: ou entram todos os produtos ou nenhum
   const { data: inseridas, error } = await sb.from("sv_reservas")
     .insert(novas.map(n => ({ ...svReservaToRow(n), created_by: currentUser ? currentUser.id : null }))).select();
-  if (error) { toast("Erro ao reservar: " + error.message); return; }
+  if (error) {
+    toast("Erro ao reservar: " + error.message);
+    // o banco recusou por falta de saldo (alguém reservou antes): atualiza a tela para mostrar o saldo de agora
+    if (/Sem saldo dispon/.test(error.message)) { await svCarregarDados(true); svRenderReserva(); }
+    return;
+  }
   if (!inseridas || inseridas.length !== novas.length) { toast("Não foi possível reservar (sem permissão)."); return; }
   inseridas.map(svReservaFromRow).reverse().forEach(n => svState.reservas.unshift(n));
   svFecharNovaReserva();
