@@ -11917,6 +11917,8 @@ function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNotifPedidoParado").checked = currentUserNotifPedidoParado;
   document.getElementById("minhasConfigNotifPrevisto").checked = currentUserNotifPrevistoChegando;
   document.getElementById("minhasConfigNotifPrecadastro").checked = currentUserNotifPrecadastroNovo;
+  // as notificações são do Torun (Varejo): quem está com o Torun desligado não vê esse bloco no perfil
+  document.getElementById("minhasConfigNotifSecao").style.display = temAcessoVarejo() ? "" : "none";
   renderMinhasConfigAvatarPreview();
   senhaResetar();
   document.getElementById("minhasConfigOverlay").classList.add("show");
