@@ -6013,12 +6013,12 @@ function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney 
     const folded = foldTopN(labels, data);
     dashChart(canvasId,
       dashDonutConfig(folded.labels, folded.data, { valueIsMoney, suffix }),
-      { type: "donut", title: def ? def.label : cardKey, labels: folded.labels, data: folded.data, opts: { valueIsMoney, suffix, mediaFixa } }
+      { type: "donut", title: def ? def.label : cardKey, labels: folded.labels, data: folded.data, opts: { valueIsMoney, suffix, mediaFixa, totalMode } }
     );
   } else {
     dashChart(canvasId,
       dashBarConfig(labels, data, { horizontal, valueIsMoney, suffix, colors: categoricalBarColors(labels) }),
-      { type: "bar", title: def ? def.label : cardKey, labels, data, opts: { horizontal, valueIsMoney, suffix, mediaFixa } }
+      { type: "bar", title: def ? def.label : cardKey, labels, data, opts: { horizontal, valueIsMoney, suffix, mediaFixa, totalMode } }
     );
   }
   document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows, mediaFixa });
@@ -6181,7 +6181,7 @@ function renderDashboard() {
   );
   dashChart("chartEvolucaoMensal",
     dashLineConfig(labelsEvolucao, faturamentoPorMes, { valueIsMoney: true }),
-    { type: "line", title: "Evolução Mensal do Faturamento", labels: labelsEvolucao, data: faturamentoPorMes, opts: { valueIsMoney: true } }
+    { type: "line", title: "Evolução Mensal do Faturamento", labels: labelsEvolucao, data: faturamentoPorMes, opts: { valueIsMoney: true, totalMode: "both" } }
   );
   document.getElementById("footEvolucaoMensal").innerHTML = dashFooterHtml(
     mesesEvolucao.map((mes, i) => ({ label: labelsEvolucao[i], value: faturamentoPorMes[i] })),
@@ -6344,8 +6344,12 @@ function openChartModal(canvasId) {
     config = dashBarConfig(spec.labels, spec.data, { ...spec.opts, valueIsMoney: false, abbreviate: false });
     config.options.plugins.tooltip.callbacks = { label: (ctx) => ctx.parsed.y + "%" };
     config.options.scales.y.ticks.callback = (v) => v + "%";
+  } else if (spec.type === "line") {
+    // Evolução Mensal é de linha: o pop-up tem que abrir a mesma linha, não virar barras
+    config = dashLineConfig(spec.labels, spec.data, { ...spec.opts });
   } else {
-    config = dashBarConfig(spec.labels, spec.data, { ...spec.opts, abbreviate: false });
+    // mesmas cores por categoria do gráfico pequeno (senão as barras abrem todas de uma cor só)
+    config = dashBarConfig(spec.labels, spec.data, { ...spec.opts, abbreviate: false, colors: categoricalBarColors(spec.labels) });
   }
 
   if (dashModalChart) dashModalChart.destroy();
@@ -6354,7 +6358,13 @@ function openChartModal(canvasId) {
   const money = spec.type !== "pct";
   document.getElementById("chartModalFooter").innerHTML = dashFooterHtml(
     spec.labels.map((label, i) => ({ label, value: spec.data[i] })),
-    { money: spec.opts && spec.opts.valueIsMoney === false ? false : money, maxRows: 100, suffix: spec.type === "pct" ? "%" : "" }
+    {
+      money: spec.opts && spec.opts.valueIsMoney === false ? false : money, maxRows: 100,
+      suffix: (spec.opts && spec.opts.suffix) || (spec.type === "pct" ? "%" : ""),
+      // mesmo rodapé do card pequeno (Total, Média, ou os dois; % de frete com o "Geral" calculado)
+      totalMode: (spec.opts && spec.opts.totalMode) || "sum",
+      mediaFixa: spec.opts && spec.opts.mediaFixa !== undefined ? spec.opts.mediaFixa : null
+    }
   );
 
   document.getElementById("chartModalOverlay").classList.add("show");
