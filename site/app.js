@@ -5626,49 +5626,11 @@ function applyDashVisibility() {
   });
 }
 
-function renderDashFiltroLista() {
-  const vis = loadDashVisibility();
-  document.getElementById("dashFiltroLista").innerHTML = DASH_CARD_DEFS.map(({ key, label }) => `
-    <label class="dash-filter-item">
-      <input type="checkbox" data-dashvis="${key}" ${isDashCardVisible(key, vis) ? "checked" : ""}>
-      ${escapeHtml(label)}
-    </label>
-  `).join("");
-}
-
+// Botão "Dashboards" e botão do mês (seletores-dash.js): o mesmo visual do Sem Venda e do CRM
 function initDashFiltro() {
-  renderDashFiltroLista();
-  const panel = document.getElementById("dashFiltroPanel");
-
-  document.getElementById("btnDashFiltro").addEventListener("click", (e) => {
-    e.stopPropagation();
-    panel.style.display = panel.style.display === "none" ? "block" : "none";
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".dash-filter-wrap")) panel.style.display = "none";
-  });
-
-  document.getElementById("dashFiltroLista").addEventListener("change", (e) => {
-    if (!e.target.matches("[data-dashvis]")) return;
-    const vis = loadDashVisibility();
-    vis[e.target.dataset.dashvis] = e.target.checked;
-    localStorage.setItem(DASH_VISIBILITY_KEY, JSON.stringify(vis));
-    renderDashboard();
-  });
-
-  document.getElementById("dashFiltroTodos").addEventListener("click", () => {
-    const vis = {};
-    DASH_CARD_DEFS.forEach(({ key }) => { vis[key] = true; });
-    localStorage.setItem(DASH_VISIBILITY_KEY, JSON.stringify(vis));
-    renderDashFiltroLista();
-    renderDashboard();
-  });
-  document.getElementById("dashFiltroNenhum").addEventListener("click", () => {
-    const vis = {};
-    DASH_CARD_DEFS.forEach(({ key }) => { vis[key] = false; });
-    localStorage.setItem(DASH_VISIBILITY_KEY, JSON.stringify(vis));
-    renderDashFiltroLista();
-    renderDashboard();
+  sdMelhorarSeletorMes(document.getElementById("dashMesFiltro"));
+  sdCriarSeletorDashboards(document.getElementById("dashEscolherMount"), {
+    defs: DASH_CARD_DEFS, chave: DASH_VISIBILITY_KEY, aoMudar: renderDashboard
   });
 }
 

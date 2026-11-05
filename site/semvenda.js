@@ -2345,7 +2345,24 @@ function svNotaSemCusto(resumo) {
 
 /* ---------- Dashboard ---------- */
 
+// blocos que o botão "Dashboards" liga e desliga (data-dashcard no index.html)
+const SV_DASH_CARDS = [
+  { key: "vendas", label: "Vendas (meta, vendedores e valor vendido)" },
+  { key: "estoqueParado", label: "Estoque parado" },
+  { key: "armazenagem", label: "Estoque por armazenagem" },
+  { key: "parados", label: "Parados há mais tempo" }
+];
+let svDashEscolher = null;
+
+function svAplicarVisibilidadeDash() {
+  SV_DASH_CARDS.forEach(({ key }) => {
+    const mostrar = !svDashEscolher || svDashEscolher.visivel(key);
+    document.querySelectorAll(`#view-sv-dashboard [data-dashcard="${key}"]`).forEach(el => { el.style.display = mostrar ? "" : "none"; });
+  });
+}
+
 function svRenderDashboard() {
+  svAplicarVisibilidadeDash();
   const est = svEstoqueFisico();
   const total = est.reduce((s, l) => s + l.qtd, 0);
   const valor = svResumoValor();
@@ -3089,6 +3106,10 @@ function initSemVendaTelas() {
     document.getElementById(id).addEventListener("input", svRenderCatalogo);
   });
 
+  sdMelhorarSeletorMes(document.getElementById("svDashMes"));
+  svDashEscolher = sdCriarSeletorDashboards(document.getElementById("svDashEscolherMount"), {
+    defs: SV_DASH_CARDS, chave: "torun_sv_dash_visibilidade_v1", aoMudar: svAplicarVisibilidadeDash
+  });
   document.getElementById("svDashMes").addEventListener("change", (e) => {
     svDashMes = e.target.value;
     svRenderDashboardVendas();

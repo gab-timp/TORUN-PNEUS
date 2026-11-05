@@ -1,0 +1,63 @@
+/* Seletores dos dashboards: botão do mês + painel de meses, botão Dashboards + interruptores */
+.sd-wrap{position:relative; display:inline-block;}
+.sd-oculto{display:none !important;}
+.sd-trig{
+  display:inline-flex; align-items:center; gap:9px; height:40px; padding:0 12px 0 11px;
+  border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--ink);
+  font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.04);
+  transition:border-color .15s, box-shadow .15s; white-space:nowrap;
+}
+.sd-trig:hover{border-color:var(--orange);}
+.sd-trig[aria-expanded="true"], .sd-trig:focus-visible{border-color:var(--orange); box-shadow:0 0 0 3px var(--orange-pale); outline:none;}
+.sd-ic{width:17px; height:17px; flex:none; color:var(--orange);}
+.sd-lbl{font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);}
+.sd-val{min-width:84px; text-align:left;}
+.sd-chev{width:14px; height:14px; color:var(--ink-soft); transition:transform .15s; flex:none;}
+.sd-trig[aria-expanded="true"] .sd-chev{transform:rotate(180deg);}
+.sd-badge{background:var(--orange); color:#fff; border-radius:999px; font-size:11px; padding:1px 7px; font-weight:700;}
+
+.sd-painel{
+  position:absolute; top:calc(100% + 8px); z-index:30; background:var(--surface); border:1px solid var(--line);
+  border-radius:14px; box-shadow:var(--shadow-modal); padding:14px; text-align:left;
+}
+.sd-painel[hidden]{display:none;}
+.sd-mes{left:0; width:292px;}
+.sd-dashs{right:0; width:330px; max-width:calc(100vw - 32px);}
+.sd-ano{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.sd-ano b{font-size:15px;}
+.sd-nav{width:30px; height:30px; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:8px; cursor:pointer; display:grid; place-items:center; padding:0;}
+.sd-nav:hover:not(:disabled){border-color:var(--orange); color:var(--orange-deep);}
+.sd-nav:disabled{opacity:.35; cursor:default;}
+.sd-nav svg{width:14px; height:14px;}
+.sd-todos{
+  width:100%; height:36px; border:1px dashed var(--line); background:transparent; color:var(--ink); border-radius:9px;
+  font:inherit; font-size:13px; font-weight:600; cursor:pointer; margin-bottom:10px;
+}
+.sd-todos:hover{border-color:var(--orange); color:var(--orange-deep);}
+.sd-todos[aria-pressed="true"]{border-style:solid; border-color:var(--orange); background:var(--tint-orange); color:var(--orange-deep);}
+.sd-meses{display:grid; grid-template-columns:repeat(3,1fr); gap:6px;}
+.sd-m{height:42px; border:1px solid transparent; border-radius:9px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer; padding:0;}
+.sd-m:hover:not(:disabled){border-color:var(--orange);}
+.sd-m:disabled{background:transparent; color:var(--ink-soft); opacity:.45; cursor:default; font-weight:400;}
+.sd-m[aria-pressed="true"]{background:var(--orange); color:#fff;}
+
+.sd-ph{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:10px; border-bottom:1px solid var(--line);}
+.sd-ph span{font-size:12px; color:var(--ink-soft);}
+.sd-links{display:flex; gap:4px;}
+.sd-link{border:0; background:transparent; color:var(--orange-deep); font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:4px 6px; border-radius:6px;}
+.sd-link:hover{background:var(--tint-orange);}
+.sd-lista{max-height:320px; overflow:auto; display:flex; flex-direction:column;}
+.sd-it{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 6px; border-radius:8px; cursor:pointer; font-size:13px; text-transform:none; letter-spacing:0; font-weight:400; color:var(--ink);}
+.sd-it:hover{background:var(--paper);}
+.sd-sw{position:relative; width:34px; height:20px; flex:none;}
+.sd-sw input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; width:100%; height:100%;}
+.sd-sw i{position:absolute; inset:0; border-radius:999px; background:var(--line); transition:background .15s; pointer-events:none;}
+.sd-sw i::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s;}
+.sd-sw input:checked + i{background:var(--orange);}
+.sd-sw input:checked + i::after{transform:translateX(14px);}
+.sd-sw input:focus-visible + i{box-shadow:0 0 0 3px var(--orange-pale);}
+
+/* barra do topo do dashboard: mês e dashboards lado a lado; selects que sobraram (ano, executivo) na mesma altura */
+.sd-barra{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
+.crm-des-filtros .field select{height:40px; border-radius:10px;}
+.crm-des-filtros .field .sd-wrap{display:block;}

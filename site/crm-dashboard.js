@@ -288,8 +288,24 @@ function crmRenderDashboardCorpo() {
       <div class="table-wrap"><table><thead><tr><th>Cliente</th>${gestao ? "<th>Executivo</th>" : ""}<th class="num">Faturamento</th>${mensal ? '<th class="num">Comissão</th>' : '<th class="num">Parte</th>'}</tr></thead>
       <tbody>${topo.map(x => `<tr><td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(x.c.id)}">${escapeHtml(x.c.cliente)}</button></td>${gestao ? `<td>${escapeHtml(x.c.executivoNome || "—")}</td>` : ""}<td class="num">${formatMoney(x.fatPer)}</td><td class="num">${mensal ? formatMoney(comissao(doPeriodo.filter(r => r.cliente === x.c.cliente))) : (fat > 0 ? crmPct(x.fatPer / fat * 100) : "—")}</td></tr>`).join("")}</tbody></table></div></div>` : "";
 
-  corpo.innerHTML = `${combinado ? cartaoCombinado : `<div class="crm-dash-topo">${cartaoMeta}</div>`}${tabelaMeta}${kpis}${tabelaExec}${comportamento}${graficos}${ranking}`;
+  const v = (key, html) => crmDashEscolher && !crmDashEscolher.visivel(key) ? "" : html;
+  const blocos = [
+    v("meta", `${combinado ? cartaoCombinado : `<div class="crm-dash-topo">${cartaoMeta}</div>`}${tabelaMeta}`),
+    v("numeros", kpis), v("porExecutivo", tabelaExec), v("clientes", comportamento), v("graficos", graficos), v("ranking", ranking)
+  ].join("");
+  corpo.innerHTML = blocos || `<div class="card"><div class="empty-state">Nenhum dashboard selecionado. Use o botão Dashboards, no alto da tela, para escolher o que mostrar.</div></div>`;
 }
+
+// blocos que o botão "Dashboards" liga e desliga
+const CRM_DASH_CARDS = [
+  { key: "meta", label: "Meta e atingimento" },
+  { key: "numeros", label: "Comissão, propostas e fechamento" },
+  { key: "porExecutivo", label: "Comissão e fechamento por executivo" },
+  { key: "clientes", label: "Comportamento dos clientes" },
+  { key: "graficos", label: "Faturamento e comissão por mês" },
+  { key: "ranking", label: "Clientes que mais compraram" }
+];
+let crmDashEscolher = null;
 
 const crmDashMesRotuloOuAno = (k, mensal) => mensal ? crmDashMesCurto(k) + "/" + k.slice(2, 4) : k;
 
@@ -344,6 +360,10 @@ function crmDashInit() {
     if (!b || b.dataset.crmdashmodo === crmDash.modo) return;
     crmDash.modo = b.dataset.crmdashmodo;
     crmRenderDashboard();
+  });
+  sdMelhorarSeletorMes(document.getElementById("crmDashMes"));
+  crmDashEscolher = sdCriarSeletorDashboards(document.getElementById("crmDashEscolherMount"), {
+    defs: CRM_DASH_CARDS, chave: "torun_crm_dash_visibilidade_v1", aoMudar: crmRenderDashboardCorpo
   });
   document.getElementById("crmDashMes").addEventListener("change", (e) => { crmDash.mes = e.target.value; crmRenderDashboard(); });
   document.getElementById("crmDashAno").addEventListener("change", (e) => { crmDash.ano = Number(e.target.value); crmRenderDashboard(); });
