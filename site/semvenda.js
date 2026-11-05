@@ -106,6 +106,9 @@ function initSistemas() {
    o log do sistema é legível por quem não tem acesso ao Sem Venda. */
 
 const SV_ARMAZENS = ["Nguedes", "RF", "ZR", "Multilog"];
+// nome que o servidor põe no lugar do cliente, nas reservas de clientes de outro executivo (sql/executivo_carteira_propria_sem_venda.sql)
+const SV_CLIENTE_MASCARADO = "Outro executivo";
+const svReservaMascarada = (r) => r.cliente === SV_CLIENTE_MASCARADO;
 const SV_SEM_REPRESENTANTE = "__sem"; // valor da opção "Sem representante" (no banco, representante fica vazio)
 const SV_RECARGA_MIN_MS = 3000;
 
@@ -214,10 +217,16 @@ function svCarregarDados(forcar) {
   if (!forcar && Date.now() - svUltimaCarga < SV_RECARGA_MIN_MS) return Promise.resolve(true);
   svUltimaCarga = Date.now();
   svCargaEmAndamento = (async () => {
+    // as reservas vêm por sv_reservas_lista (executivo vê o nome só dos clientes dele); sem o SQL rodado cai na leitura antiga
+    const buscarReservas = async () => {
+      const lista = await sb.rpc("sv_reservas_lista");
+      if (!lista.error) return lista;
+      return sb.from("sv_reservas").select("*").order("created_at", { ascending: false });
+    };
     const [prod, prev, res] = await Promise.all([
       sb.from("sv_produtos").select("*").order("codigo"),
       sb.from("sv_previsoes").select("*").order("created_at", { ascending: false }),
-      sb.from("sv_reservas").select("*").order("created_at", { ascending: false })
+      buscarReservas()
     ]);
     const erro = prod.error || prev.error || res.error;
     if (erro) {
@@ -1590,7 +1599,7 @@ function svPartesReserva(r) {
       : "";
   const dataExtra = r.situacao === "ATIVA" ? svDiasTexto(r.data)
     : (vendido && r.vendidoEm ? `vendido em ${formatDateBR(r.vendidoEm).slice(0, 5)}` : "");
-  const acoes = r.situacao === "ATIVA"
+  const acoes = r.situacao === "ATIVA" && !svReservaMascarada(r)
     ? `<button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
        <button type="button" class="sv-link sv-cancelar sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
     : `<span class="muted">—</span>`;
@@ -1605,7 +1614,7 @@ function svProdutoCelula(r) {
 // cliente, vendedor, representante, forma, transporte e unidade: iguais em todos os produtos do pedido
 function svCelulasComunsReserva(r) {
   return `
-        <td>${escapeHtml(r.cliente)}${r.obs ? `<div class="sv-obs">${escapeHtml(r.obs)}</div>` : ""}</td>
+        <td>${svReservaMascarada(r) ? `<span class="muted">${escapeHtml(r.cliente)}</span>` : escapeHtml(r.cliente)}${r.obs ? `<div class="sv-obs">${escapeHtml(r.obs)}</div>` : ""}</td>
         <td>${escapeHtml(r.vendedorInterno)}</td>
         <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
         <td>${svFormaCelula(r)}</td>
