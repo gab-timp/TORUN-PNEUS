@@ -5838,7 +5838,8 @@ function dashLineConfig(labels, data, { valueIsMoney = true } = {}) {
   };
 }
 
-function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMode = "sum" } = {}) {
+// mediaFixa: valor já calculado pra linha "Geral" (ex.: % de frete = frete total ÷ faturamento total), em vez da média simples das linhas
+function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMode = "sum", mediaFixa = null } = {}) {
   if (!rows.length) return `<div class="dash-footer-row"><span class="lbl">Sem dados no período</span></div>`;
 
   // "both" mostra as duas linhas juntas (total em cima, média embaixo) -- usado na
@@ -5848,10 +5849,10 @@ function dashFooterHtml(rows, { money = true, maxRows = 6, suffix = "", totalMod
   let totalHtml = "";
   if (totalMode !== "none") {
     const soma = rows.reduce((a, r) => a + r.value, 0);
-    const media = soma / rows.length;
+    const media = mediaFixa !== null ? mediaFixa : soma / rows.length;
     const linhas = [];
     if (totalMode === "sum" || totalMode === "both") linhas.push(["Total", soma, false]);
-    if (totalMode === "avg" || totalMode === "both") linhas.push(["Média geral", media, true]);
+    if (totalMode === "avg" || totalMode === "both") linhas.push([mediaFixa !== null ? "Geral (frete ÷ faturamento)" : "Média geral", media, true]);
     totalHtml = linhas.map(([totalLabel, totalValue, ehMedia]) => {
       const totalDisplay = money ? formatMoney(totalValue) : fmt(ehMedia ? +totalValue.toFixed(1) : totalValue);
       return `
@@ -5958,7 +5959,7 @@ function pintarMapaEstados(container, rows, { valueIsMoney = true, suffix = "" }
 // tabela/mapa, ver getDashCardEstilo()) -- monta o miolo do card (#bodyId) do zero a
 // cada chamada, então funciona junto com o resto de renderDashboard() rodando de novo
 // a cada mudança de filtro/realtime, do jeito que os outros cards já fazem.
-function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney = true, suffix = "", horizontal = false, totalMode = "sum", maxRows = 6, tabelaRica = null } = {}) {
+function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney = true, suffix = "", horizontal = false, totalMode = "sum", maxRows = 6, tabelaRica = null, mediaFixa = null } = {}) {
   const body = document.getElementById(bodyId);
   if (!body) return;
   const estilo = getDashCardEstilo(cardKey);
@@ -5997,7 +5998,7 @@ function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney 
       wrap.insertAdjacentHTML("afterbegin", svgText);
       pintarMapaEstados(body, rows, { valueIsMoney, suffix });
     });
-    document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows });
+    document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows, mediaFixa });
     return;
   }
 
@@ -6012,15 +6013,15 @@ function renderDashCardVariavel(cardKey, bodyId, canvasId, rows, { valueIsMoney 
     const folded = foldTopN(labels, data);
     dashChart(canvasId,
       dashDonutConfig(folded.labels, folded.data, { valueIsMoney, suffix }),
-      { type: "donut", title: def ? def.label : cardKey, labels: folded.labels, data: folded.data, opts: { valueIsMoney } }
+      { type: "donut", title: def ? def.label : cardKey, labels: folded.labels, data: folded.data, opts: { valueIsMoney, suffix, mediaFixa } }
     );
   } else {
     dashChart(canvasId,
       dashBarConfig(labels, data, { horizontal, valueIsMoney, suffix, colors: categoricalBarColors(labels) }),
-      { type: "bar", title: def ? def.label : cardKey, labels, data, opts: { horizontal, valueIsMoney } }
+      { type: "bar", title: def ? def.label : cardKey, labels, data, opts: { horizontal, valueIsMoney, suffix, mediaFixa } }
     );
   }
-  document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows });
+  document.getElementById(`${bodyId}Foot`).innerHTML = dashFooterHtml(rows, { money: valueIsMoney, suffix, totalMode, maxRows, mediaFixa });
 }
 
 function dashBarConfig(labels, data, { horizontal = false, valueIsMoney = true, colors = null, abbreviate = true, suffix = "" } = {}) {
@@ -6095,7 +6096,11 @@ function renderDashboard() {
   // com vários meses escolhidos, compara com o período imediatamente anterior do mesmo tamanho
   // (3 meses contra os 3 meses antes deles); com um mês só, é o mês anterior como sempre foi.
   const mesesPeriodo = dashPeriodo ? dashPeriodo.meses() : [];
-  const mesesAnteriores = new Set(dashPeriodo ? dashPeriodo.anteriores() : []);
+  // Só compara se o período anterior inteiro cabe dentro da base (começa no primeiro mês com venda ou depois);
+  // senão seria 4 meses contra 1 mês de dado e a seta mentiria.
+  const primeiroMesDaBase = state.vendas.reduce((m, v) => { const k = (v.data || "").slice(0, 7); return k.length === 7 && (m === "" || k < m) ? k : m; }, "");
+  const anterioresDoPeriodo = dashPeriodo ? dashPeriodo.anteriores() : [];
+  const mesesAnteriores = new Set(anterioresDoPeriodo.every(k => k >= primeiroMesDaBase) ? anterioresDoPeriodo : []);
   const rotuloAnterior = mesesPeriodo.length > 1 ? "período anterior" : "mês anterior";
   let vendasMesAnt = mesesAnteriores.size ? state.vendas.filter(v => mesesAnteriores.has((v.data || "").slice(0, 7))) : [];
   // Se o mês selecionado é o mês em andamento (hoje), o mês atual só tem dado até
@@ -6129,10 +6134,10 @@ function renderDashboard() {
 
     const cli = getCliente(v.cliente);
     const uf = (cli && cli.estado) || "—";
-    if (!porEstado[uf]) porEstado[uf] = { faturamento: 0, pneus: 0, fretePct: [] };
+    if (!porEstado[uf]) porEstado[uf] = { faturamento: 0, pneus: 0, frete: 0 };
     porEstado[uf].faturamento += v.valorVenda;
     porEstado[uf].pneus += v.quantidadePneus;
-    if (v.valorFrete && v.valorVenda) porEstado[uf].fretePct.push(v.valorFrete / v.valorVenda);
+    porEstado[uf].frete += v.valorFrete || 0;
 
     const transp = v.transportadora || "(não informado)";
     if (!porTransp[transp]) porTransp[transp] = { qtd: 0, frete: 0 };
@@ -6265,12 +6270,16 @@ function renderDashboard() {
   `).join("");
 
   // 6. Percentual médio de frete por estado
-  const estadosComFrete = estados.filter(([, d]) => d.fretePct.length > 0);
+  // % de frete = frete total ÷ faturamento total (de todas as vendas do estado, inclusive as sem frete), não a média
+  // das % de cada venda: uma venda pequena não pesa igual a uma grande. Estado sem nenhum frete fica de fora.
+  const estadosComFrete = estados.filter(([, d]) => d.frete > 0 && d.faturamento > 0);
   const percPorEstado = estadosComFrete.map(([uf, d]) => ({
-    uf, pct: +(d.fretePct.reduce((a, b) => a + b, 0) / d.fretePct.length * 100).toFixed(1)
+    uf, pct: +(d.frete / d.faturamento * 100).toFixed(1)
   })).sort((a, b) => b.pct - a.pct); // ordem própria (%), não a herdada de "estados" (faturamento)
+  const percFreteGeral = totalFaturamento > 0 ? +(totalFrete / totalFaturamento * 100).toFixed(1) : null;
   renderDashCardVariavel("fretePercEstado", "bodyFretePercEstado", "chartFretePercEstado",
-    percPorEstado.map(x => ({ label: x.uf, value: x.pct })), { valueIsMoney: false, suffix: "%", totalMode: "avg" }
+    percPorEstado.map(x => ({ label: x.uf, value: x.pct })),
+    { valueIsMoney: false, suffix: "%", totalMode: "avg", mediaFixa: percFreteGeral }
   );
 
   // 7. Faturamento por estado
@@ -6430,17 +6439,17 @@ function renderFaturamento() {
   vendas.forEach(v => {
     const cli = getCliente(v.cliente);
     const uf = (cli && cli.estado) || "—";
-    if (!porEstado[uf]) porEstado[uf] = { faturamento: 0, pneus: 0, fretePct: [] };
+    if (!porEstado[uf]) porEstado[uf] = { faturamento: 0, pneus: 0, frete: 0 };
     porEstado[uf].faturamento += v.valorVenda;
     porEstado[uf].pneus += v.quantidadePneus;
-    if (v.valorFrete && v.valorVenda) porEstado[uf].fretePct.push(v.valorFrete / v.valorVenda);
+    porEstado[uf].frete += v.valorFrete || 0;
   });
   const estados = Object.entries(porEstado).sort((a, b) => b[1].faturamento - a[1].faturamento);
   const maxEstado = estados.length ? estados[0][1].faturamento : 1;
   document.getElementById("fatEstadoTbody").innerHTML = estados.length === 0
     ? `<tr><td colspan="4" class="muted">Nenhuma venda no período.</td></tr>`
     : estados.map(([uf, d]) => {
-      const media = d.fretePct.length ? (d.fretePct.reduce((a, b) => a + b, 0) / d.fretePct.length * 100) : null;
+      const media = d.frete > 0 && d.faturamento > 0 ? d.frete / d.faturamento * 100 : null;
       return `
         <tr>
           <td class="mono">${escapeHtml(uf)}</td>
@@ -11226,12 +11235,23 @@ function buildDashPrintHtml(cardKey) {
     if (spec && spec.labels && spec.labels.length) {
       const valueIsMoney = !(spec.opts && spec.opts.valueIsMoney === false);
       const total = spec.data.reduce((a, v) => a + (v || 0), 0);
+      const ehPercentual = !!(spec.opts && spec.opts.suffix === "%");
+      const fmtPct = (n) => n.toFixed(1).replace(".", ",") + "%";
       const linhasHtml = spec.labels.map((lbl, i) => {
         const val = spec.data[i] || 0;
+        // card que já é uma % (frete por estado): mostra a própria %, sem "% do total" (somar % não faz sentido)
+        if (ehPercentual) return `<tr><td>${escapeHtml(lbl)}</td><td class="num">${fmtPct(val)}</td></tr>`;
         const pct = total ? (val / total * 100).toFixed(1) : "0.0";
         return `<tr><td>${escapeHtml(lbl)}</td><td class="num">${valueIsMoney ? formatMoney(val) : fmt(val)}</td><td class="num">${pct}%</td></tr>`;
       }).join("");
-      tabelaHtml = `
+      const geralPct = spec.opts && spec.opts.mediaFixa !== null && spec.opts.mediaFixa !== undefined ? spec.opts.mediaFixa : null;
+      tabelaHtml = ehPercentual ? `
+        <table class="print-report-table" style="margin-top:18px;">
+          <thead><tr><th>Estado</th><th style="text-align:right;">Frete ÷ faturamento</th></tr></thead>
+          <tbody>${linhasHtml}</tbody>
+        </table>
+        ${geralPct !== null ? `<div class="print-report-summary"><div class="print-report-summary-row total"><span>Geral (frete total ÷ faturamento total)</span><span>${fmtPct(geralPct)}</span></div></div>` : ""}
+      ` : `
         <table class="print-report-table" style="margin-top:18px;">
           <thead><tr><th>Categoria</th><th style="text-align:right;">Valor</th><th style="text-align:right;">%</th></tr></thead>
           <tbody>${linhasHtml}</tbody>
