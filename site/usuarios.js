@@ -551,10 +551,10 @@ function usrRenderAcesso() {
         </div>
 
         <div class="card ${f.pode_acessar_varejo ? "" : "usr-sem-varejo"}">
-          ${colunas.has("pode_acessar_varejo") ? usrSwitch("pode_acessar_varejo", "Acesso ao Torun (Varejo)", f.pode_acessar_varejo ? "Ligado: a pessoa vê o Torun (Varejo) pelas telas marcadas abaixo." : "Desligado: o cartão do Varejo some da escolha de sistema e as telas dele ficam bloqueadas. A pessoa abre direto os outros sistemas dela.", false, "") : ""}
+          ${colunas.has("pode_acessar_varejo") ? usrSwitch("pode_acessar_varejo", "Acesso ao Torun (Varejo)", f.pode_acessar_varejo ? "Ligado: a pessoa vê o Torun (Varejo) pelas telas marcadas abaixo." : "Desligado: o cartão do Varejo some da escolha de sistema e as telas dele ficam bloqueadas. A pessoa abre direto os outros sistemas dela. O papel abaixo (Editor ou Somente leitura) continua valendo para todos os sistemas dela.", false, "") : ""}
           <div class="usr-topo-card">
             <div><h2>Torun (Varejo)</h2><div class="muted usr-sub">O painel de estoque, vendas e financeiro. Marque só as telas que essa pessoa precisa.</div></div>
-            <div class="usr-seg" role="group" aria-label="Papel no Torun">
+            <div class="usr-seg" role="group" aria-label="Papel: Editor ou Somente leitura">
               ${Object.entries(USR_PAPEL_VAREJO).map(([id, rot]) => `<button type="button" data-usrrole="${id}" class="${f.role === id ? "on" : ""}">${rot}</button>`).join("")}
             </div>
           </div>
