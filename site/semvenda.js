@@ -624,6 +624,12 @@ async function svMoverPrevistoDeColuna(evt) {
   if (novoStatus === statusAntigo) return;
   const alvo = svState.previsoes.find(x => x.id === id);
   if (!alvo) return;
+  // sem armazém os pneus não têm onde ficar na Armazenagem: o processo só finaliza com o armazém escolhido
+  if (novoStatus === "FINALIZADO" && !alvo.armazem) {
+    toast("Escolha o armazém de destino para finalizar o processo. Abra o processo, escolha o armazém e salve.");
+    svRenderPrevistos();
+    return;
+  }
   const ok = await confirmModal("Mudar status do processo?",
     `Tem certeza que deseja mudar o processo ${alvo.numeroProcesso} para "${novoStatus}"?`);
   if (ok) await svAtualizarCampoPrevisto(id, { status: novoStatus }, "Status atualizado.");
@@ -802,7 +808,12 @@ function svInitPrevDetalhe() {
 }
 
 async function svAtualizarCampoPrevisto(id, campos, mensagem) {
-  if (!svState.previsoes.some(x => x.id === id)) return;
+  const existente = svState.previsoes.find(x => x.id === id);
+  if (!existente) return;
+  // um processo finalizado precisa de armazém (é onde os pneus aparecem na Armazenagem)
+  const statusFinal = "status" in campos ? campos.status : existente.status;
+  const armazemFinal = "armazem" in campos ? (campos.armazem || "") : existente.armazem;
+  if (statusFinal === "FINALIZADO" && !armazemFinal) { toast("Escolha o armazém de destino para finalizar o processo."); return; }
   // trocar status ou armazém de um processo que já chegou mexe no saldo: confere antes, com dados atualizados
   // (os chamadores redesenham a lista depois, então o seletor volta pro valor que valia)
   if ("status" in campos || "armazem" in campos) {
@@ -905,6 +916,7 @@ async function svSalvarPrevistoDados(e) {
   const armazem = document.getElementById("svPrevArmazem").value;
   const obs = document.getElementById("svPrevObs").value.trim();
   if (!numeroProcesso) { toast("Informe o número do processo."); return; }
+  if (status === "FINALIZADO" && !armazem) { toast("Escolha o armazém de destino para finalizar o processo."); return; }
 
   const itens = [];
   for (const row of document.querySelectorAll("#svPrevItens .item-row")) {
