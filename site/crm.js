@@ -28,6 +28,7 @@ const CRM_ATALHOS_FU = [["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7], ["
 
 let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastro do usuário)
 let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
+let crmPodeVarejo = true; // user_roles.pode_acessar_varejo (sql/acesso_varejo_chave.sql); sem a coluna ou sem o perfil, vale ligado
 let crmRepresentante = null; // login de representante: nome do cadastro tipo representante (user_roles.crm_representante); sem papel no CRM
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
@@ -44,6 +45,7 @@ function crmDefinirPerfil(r) {
   crmPapel = (r && r.crm_papel) || null;
   crmTemCarteira = !!(r && r.crm_tem_carteira);
   crmRepresentante = (r && r.crm_representante) || null;
+  crmPodeVarejo = !(r && r.pode_acessar_varejo === false);
   // a lista nova (user_roles.crm_sistemas); sem ela vale o sistema único de antes
   const lista = r && Array.isArray(r.crm_sistemas) ? r.crm_sistemas : (r && r.crm_sistema ? [r.crm_sistema] : []);
   crmSistemas = Object.keys(CRM_SISTEMAS).filter(k => lista.includes(k));
@@ -53,6 +55,8 @@ function crmDefinirPerfil(r) {
 function crmPapelEfetivo() {
   return crmPapel || (currentUserIsAdmin ? "gestao" : null);
 }
+// o Torun (Varejo) é de todos, menos de quem tem a chave desligada em Administração > Usuários (administrador sempre tem)
+function temAcessoVarejo() { return currentUserIsAdmin || crmPodeVarejo; }
 function temAcessoCrm() { return currentUserIsAdmin || !!crmPapelEfetivo(); }
 function crmEhExecutivo() { return crmPapelEfetivo() === "executivo"; }
 function crmPodeEscrever() { return currentUserRole !== "viewer"; }

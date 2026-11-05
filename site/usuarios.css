@@ -140,3 +140,4 @@
 .senha-campo-erro input{border-color:var(--danger);background:var(--surface);box-shadow:0 0 0 3px var(--danger-pale);}
 .senha-ok{display:flex;align-items:flex-start;gap:10px;background:var(--status-good-pale);color:var(--status-good-deep);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;line-height:1.5;}
 .senha-ok .ic{width:16px;height:16px;flex:0 0 auto;margin-top:2px;}
+.usr-sem-varejo .usr-topo-card, .usr-sem-varejo .usr-atalhos, .usr-sem-varejo .usr-telas{opacity:.4;pointer-events:none;}

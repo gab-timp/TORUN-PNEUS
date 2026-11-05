@@ -1,0 +1,90 @@
+<title>Acesso ao Torun por pessoa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: três telas com abas: a chave em Editar acesso, os perfis novos e a escolha de sistema de quem fica sem o Varejo */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-deep:#C64F0C;--orange-pale:#FFE7D6;--black:#111;--onblack:#fff;--ok:#15803D;--chip:#EFEEEA}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-deep:#FFA066;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--ok:#4ADE80;--chip:#2A2825;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#F1EFE9;--soft:#A5A39B;--paper:#161513;--surface:#1F1E1B;--line:#34322D;--orange:#FF7A2B;--orange-deep:#FFA066;--orange-pale:#3A2515;--black:#F1EFE9;--onblack:#161513;--ok:#4ADE80;--chip:#2A2825;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto;display:grid;gap:14px}
+.exemplo,.note{font-size:12.5px;color:var(--soft)}.exemplo{border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button{font:inherit;padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}.tabs button[aria-pressed="true"]{background:var(--black);color:var(--onblack);border-color:var(--black)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+h1{margin:0;font-size:20px}h2{margin:0;font-size:15px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px;min-width:0}
+.topo{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.novo{outline:2px solid var(--orange);outline-offset:3px;border-radius:12px}
+.sw{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;cursor:pointer}
+.sw input{position:absolute;opacity:0}
+.sw .trilho{width:44px;height:24px;border-radius:99px;background:var(--line);position:relative;transition:background .15s}
+.sw .trilho::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.sw input:checked+.trilho{background:var(--orange)}.sw input:checked+.trilho::after{left:23px}
+.sw input:focus-visible+.trilho{outline:2px solid var(--orange);outline-offset:2px}
+.telas{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.tela{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;display:flex;gap:8px;align-items:center;background:var(--paper)}
+.off .telas,.off .atalhos{opacity:.4;pointer-events:none}
+.aviso{font-size:12.5px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:8px;padding:9px 12px;background:var(--paper)}
+.perfis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.perfil{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface);display:grid;gap:4px}
+.perfil b{font-size:14px}.perfil span{font-size:12.5px;color:var(--soft)}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px;justify-self:start}
+.tag.sim{background:#D7F0DF;color:#136B33}.tag.nao{background:var(--chip);color:var(--soft)}
+.cartoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.cartao{border:1px solid var(--line);border-radius:16px;padding:18px;background:var(--surface);display:grid;gap:6px}
+.cartao b{font-size:16px}.cartao span{font-size:12.5px;color:var(--soft)}
+.cartao.some{border-style:dashed;opacity:.55}
+[hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <div class="exemplo">Telas de exemplo, com nomes inventados. Mostra a chave nova "Acesso ao Torun (Varejo)" por pessoa.</div>
+  <div class="tabs" role="group" aria-label="Tela"><button data-t="a" aria-pressed="true">Editar acesso</button><button data-t="b" aria-pressed="false">Perfis novos</button><button data-t="c" aria-pressed="false">Escolha de sistema</button></div>
+
+  <div data-v="a" class="wrap" style="max-width:none;margin:0">
+    <h1>Marina Souza</h1>
+    <div class="card novo" id="cardTorun">
+      <div class="topo">
+        <div><h2>Torun (Varejo)</h2><div class="note">O painel de estoque, vendas e financeiro. Desligado, a pessoa não vê o Varejo em lugar nenhum.</div></div>
+        <label class="sw"><input type="checkbox" id="chave" checked><span class="trilho"></span><span id="chaveTxt">Acesso ligado</span></label>
+      </div>
+      <div class="aviso" id="avisoOff" hidden>Sem acesso ao Torun. O cartão do Varejo some da escolha de sistema, as telas dele ficam bloqueadas e a Marina abre direto o Atacado ou a Encomenda.</div>
+      <div class="atalhos note">Papel no Torun: Editor · Telas liberadas:</div>
+      <div class="telas"><div class="tela"><input type="checkbox" checked disabled> Dashboard</div><div class="tela"><input type="checkbox" disabled> Estoque</div><div class="tela"><input type="checkbox" disabled> Entregas</div><div class="tela"><input type="checkbox" disabled> Faturamento</div></div>
+    </div>
+    <div class="card"><h2>Atacado e Encomenda (CRM)</h2><div class="note">Papel: Executivo · sistemas: Atacado e Encomenda. Não muda.</div></div>
+  </div>
+
+  <div data-v="b" hidden class="wrap" style="max-width:none;margin:0">
+    <h1>Novo usuário: perfis</h1>
+    <div class="note">Cada perfil já nasce com a chave do Torun ligada ou desligada. Dá para mudar depois em Editar acesso.</div>
+    <div class="perfis">
+      <div class="perfil novo"><b>Executivo de Atacado</b><span>Carteira própria do Atacado.</span><span class="tag nao">Sem Torun</span></div>
+      <div class="perfil novo"><b>Executivo de Encomenda</b><span>Carteira própria da Encomenda.</span><span class="tag nao">Sem Torun</span></div>
+      <div class="perfil novo"><b>Executivo de Atacado e Encomenda</b><span>As duas carteiras.</span><span class="tag nao">Sem Torun</span></div>
+      <div class="perfil"><b>Financeiro</b><span>Telas do Financeiro e leitura das carteiras.</span><span class="tag sim">Com Torun</span></div>
+      <div class="perfil novo"><b>Gestão / Direção</b><span>Lê tudo no Atacado e na Encomenda.</span><span class="tag nao">Sem Torun</span></div>
+      <div class="perfil"><b>Torun (Varejo)</b><span>Painel do dia a dia, todas as telas.</span><span class="tag sim">Com Torun</span></div>
+      <div class="perfil"><b>Somente leitura</b><span>Vê o Torun, não grava nada.</span><span class="tag sim">Com Torun</span></div>
+    </div>
+    <div class="aviso">Quem já existe hoje <b>não muda</b>: todo mundo continua com o Torun ligado até você desligar a chave da pessoa.</div>
+  </div>
+
+  <div data-v="c" hidden class="wrap" style="max-width:none;margin:0">
+    <h1>Escolha o sistema</h1>
+    <div class="note">Como a Marina vê depois de entrar, com o Torun desligado:</div>
+    <div class="cartoes">
+      <div class="cartao some"><b>Torun (Varejo)</b><span>Não aparece para a Marina</span></div>
+      <div class="cartao"><b>Encomenda</b><span>Carteira e ligações</span></div>
+      <div class="cartao"><b>Atacado</b><span>Carteira, kanban e ligações</span></div>
+    </div>
+    <div class="aviso">Quem fica com um sistema só, sem o Torun, entra direto nele, sem passar pela escolha. O cartão tracejado acima é só para você ver o que sumiu: na tela real ele não aparece.</div>
+  </div>
+</div>
+<script>
+const chave=document.getElementById("chave");
+function aplica(){const on=chave.checked;document.getElementById("cardTorun").classList.toggle("off",!on);document.getElementById("avisoOff").hidden=on;document.getElementById("chaveTxt").textContent=on?"Acesso ligado":"Acesso desligado"}
+chave.addEventListener("change",aplica);aplica();
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  document.querySelectorAll("[data-v]").forEach(c=>c.hidden=c.dataset.v!==b.dataset.t);
+}));
+</script>

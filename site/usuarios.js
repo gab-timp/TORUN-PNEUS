@@ -13,21 +13,21 @@ const USR_SISTEMA = { atacado: "Atacado", encomenda: "Encomenda" };
 
 const USR_BASE = {
   role: "editor", is_admin: false, pode_autorizar_gerencia: false, pode_exportar_backup: false, pode_acessar_sem_venda: false,
-  pode_acessar_portal_representante: false, crm_papel: null, crm_representante: null, crm_sistema: null, crm_sistemas: [], crm_tem_carteira: false, visible_views: null
+  pode_acessar_portal_representante: false, pode_acessar_varejo: true, crm_papel: null, crm_representante: null, crm_sistema: null, crm_sistemas: [], crm_tem_carteira: false, visible_views: null
 };
 
 // Perfis prontos da janela "Novo usuário". Executivo entra no Torun só com o Dashboard (visible_views = ["dashboard"]).
 const USR_PERFIS = [
   { id: "exec-atacado", nome: "Executivo de Atacado", desc: "Vê só a própria carteira do Atacado e registra as ligações dela.",
-    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "atacado", crm_sistemas: ["atacado"], visible_views: ["dashboard"] } },
+    valores: { ...USR_BASE, pode_acessar_varejo: false, crm_papel: "executivo", crm_sistema: "atacado", crm_sistemas: ["atacado"], visible_views: ["dashboard"] } },
   { id: "exec-encomenda", nome: "Executivo de Encomenda", desc: "Vê só a própria carteira da Encomenda e registra as ligações dela.",
-    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "encomenda", crm_sistemas: ["encomenda"], visible_views: ["dashboard"] } },
+    valores: { ...USR_BASE, pode_acessar_varejo: false, crm_papel: "executivo", crm_sistema: "encomenda", crm_sistemas: ["encomenda"], visible_views: ["dashboard"] } },
   { id: "exec-ambos", nome: "Executivo de Atacado e Encomenda", desc: "Vê só as próprias carteiras do Atacado e da Encomenda e troca entre os dois sistemas.",
-    valores: { ...USR_BASE, crm_papel: "executivo", crm_sistema: "atacado", crm_sistemas: ["atacado", "encomenda"], visible_views: ["dashboard"] } },
+    valores: { ...USR_BASE, pode_acessar_varejo: false, crm_papel: "executivo", crm_sistema: "atacado", crm_sistemas: ["atacado", "encomenda"], visible_views: ["dashboard"] } },
   { id: "financeiro", nome: "Financeiro", desc: "Telas do Financeiro no Torun e leitura das carteiras do Atacado e da Encomenda.",
     valores: { ...USR_BASE, crm_papel: "financeiro", visible_views: USR_TELAS_FINANCEIRO.slice() } },
   { id: "gestao", nome: "Gestão / Direção", desc: "Lê tudo no Atacado e na Encomenda e redistribui as carteiras.",
-    valores: { ...USR_BASE, crm_papel: "gestao" } },
+    valores: { ...USR_BASE, pode_acessar_varejo: false, crm_papel: "gestao" } },
   { id: "varejo", nome: "Torun (Varejo)", desc: "Painel do dia a dia, como Editor, com todas as telas.",
     valores: { ...USR_BASE } },
   { id: "leitura", nome: "Somente leitura", desc: "Vê o Torun, mas não grava nada.",
@@ -166,7 +166,7 @@ function usrLinhaPessoa(u) {
   const v = usrValoresDe(u);
   const a = usrAcessosDe(v);
   const crmExiste = "crm_papel" in u;
-  const celulaVarejo = `${usrSelo({ editor: "ed", viewer: "leit", representante: "rep" }[v.role] || "ed", USR_PAPEL_VAREJO[v.role] || v.role)}` +
+  const celulaVarejo = v.pode_acessar_varejo === false ? '<span class="muted">sem acesso</span>' : `${usrSelo({ editor: "ed", viewer: "leit", representante: "rep" }[v.role] || "ed", USR_PAPEL_VAREJO[v.role] || v.role)}` +
     `<div class="muted usr-sub">${v.role === "representante" ? "só o portal" : usrTextoTelas(v.visible_views)}${v.pode_acessar_portal_representante && v.role !== "representante" ? " · + portal" : ""}</div>`;
   return `
     <tr>
@@ -248,7 +248,7 @@ function usrResumoHtml(v, quem) {
   return `
     <div class="usr-rot">Como ${escapeHtml(quem)} vê o sistema</div>
     <div class="usr-minis">
-      ${cartao("TORUN (VAREJO)", v.role === "representante" ? "só o portal" : usrTextoTelas(v.visible_views), true, true)}
+      ${v.pode_acessar_varejo === false ? cartao("TORUN (VAREJO)", "sem acesso", false) : cartao("TORUN (VAREJO)", v.role === "representante" ? "só o portal" : usrTextoTelas(v.visible_views), true, true)}
       ${cartao("SEM VENDA", a.semvenda ? "Liberado" : "sem acesso", a.semvenda)}
       ${cartao("ENCOMENDA", crmAtivo && a.encomenda ? USR_PAPEL_CRM[a.encomenda] : "sem acesso", crmAtivo && !!a.encomenda)}
       ${cartao("ATACADO", crmAtivo && a.atacado ? USR_PAPEL_CRM[a.atacado] : "sem acesso", crmAtivo && !!a.atacado)}
@@ -317,7 +317,7 @@ function usrErroNovo(msg) {
 function usrPerfilParaEnvio(valores) {
   const colunas = usrColunas();
   const sempre = ["role", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup", "pode_acessar_sem_venda", "visible_views"];
-  const opcionais = ["pode_acessar_portal_representante", "crm_papel", "crm_sistema", "crm_sistemas", "crm_tem_carteira"];
+  const opcionais = ["pode_acessar_portal_representante", "pode_acessar_varejo", "crm_papel", "crm_sistema", "crm_sistemas", "crm_tem_carteira"];
   const envio = {};
   sempre.forEach(k => { envio[k] = valores[k]; });
   opcionais.forEach(k => { if (colunas.has(k)) envio[k] = valores[k]; });
@@ -355,6 +355,10 @@ async function usrSalvarNovo() {
     if (vals.crm_papel === "executivo" && vals.crm_sistemas.length > 1 && usrColunas().has("crm_sistemas") && r.user_id) {
       const up = await sb.from("user_roles").update({ crm_sistemas: vals.crm_sistemas }).eq("user_id", r.user_id);
       if (up.error) toast("Usuário criado, mas os dois sistemas não foram gravados: " + up.error.message + ". Abra Editar acesso e marque de novo.");
+    }
+    if (vals.pode_acessar_varejo === false && usrColunas().has("pode_acessar_varejo") && r.user_id) {
+      const up = await sb.from("user_roles").update({ pode_acessar_varejo: false }).eq("user_id", r.user_id);
+      if (up.error) toast("Usuário criado, mas o Torun não foi desligado: " + up.error.message + ". Abra Editar acesso e desligue a chave.");
     }
     usrFecharNovo();
     await usrCarregar();
@@ -466,6 +470,7 @@ function usrDiferencas() {
   const itens = [];
   const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   if (f.nome.trim() !== o.nome.trim()) itens.push(["Nome", o.nome || "—", f.nome.trim() || "—"]);
+  if (f.pode_acessar_varejo !== o.pode_acessar_varejo) itens.push(["Acesso ao Torun (Varejo)", o.pode_acessar_varejo ? "ligado" : "desligado", f.pode_acessar_varejo ? "ligado" : "desligado"]);
   if (f.role !== o.role) itens.push(["Papel no Torun", USR_PAPEL_VAREJO[o.role], USR_PAPEL_VAREJO[f.role]]);
   if (!igual(f.visible_views, o.visible_views)) itens.push(["Telas do Torun", usrTextoTelas(o.visible_views), usrTextoTelas(f.visible_views)]);
   if (f.pode_acessar_sem_venda !== o.pode_acessar_sem_venda) itens.push(["Sem Venda", o.pode_acessar_sem_venda ? "liberado" : "sem acesso", f.pode_acessar_sem_venda ? "liberado" : "sem acesso"]);
@@ -545,7 +550,8 @@ function usrRenderAcesso() {
           </div>
         </div>
 
-        <div class="card">
+        <div class="card ${f.pode_acessar_varejo ? "" : "usr-sem-varejo"}">
+          ${colunas.has("pode_acessar_varejo") ? usrSwitch("pode_acessar_varejo", "Acesso ao Torun (Varejo)", f.pode_acessar_varejo ? "Ligado: a pessoa vê o Torun (Varejo) pelas telas marcadas abaixo." : "Desligado: o cartão do Varejo some da escolha de sistema e as telas dele ficam bloqueadas. A pessoa abre direto os outros sistemas dela.", false, "") : ""}
           <div class="usr-topo-card">
             <div><h2>Torun (Varejo)</h2><div class="muted usr-sub">O painel de estoque, vendas e financeiro. Marque só as telas que essa pessoa precisa.</div></div>
             <div class="usr-seg" role="group" aria-label="Papel no Torun">
@@ -644,6 +650,9 @@ async function usrSalvarAcesso() {
   const f = usrUi.form, o = usrUi.original;
   if (!f.nome.trim()) { toast("Informe o nome."); return; }
   if (f.crm_papel === "executivo" && !f.crm_sistemas.length) { toast("Marque pelo menos um sistema para o executivo (Atacado ou Encomenda)."); return; }
+  if (!f.pode_acessar_varejo && !(f.is_admin || f.pode_acessar_sem_venda || f.crm_papel || f.crm_representante)) {
+    toast("Sem o Torun, a pessoa precisa de pelo menos um outro sistema: Sem Venda, Atacado ou Encomenda. Marque algum antes de salvar."); return;
+  }
   if (f.crm_papel === "executivo" && f.crm_sistemas.length > 1 && !usrColunas().has("crm_sistemas")) { toast("O banco ainda não guarda dois sistemas por executivo (rode sql/crm_executivo_dois_sistemas.sql no Supabase)."); return; }
   if (f.crm_representante !== null && !f.crm_papel && !f.crm_representante) { toast("Escolha qual representante essa pessoa é."); return; }
   if (f.is_admin && !o.is_admin) {
@@ -660,6 +669,7 @@ async function usrSalvarAcesso() {
   ["role", "visible_views", "pode_acessar_sem_venda", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup"].forEach(k => { if (mudou(k)) payload[k] = f[k]; });
   if (colunas.has("pode_acessar_portal_representante") && mudou("pode_acessar_portal_representante")) payload.pode_acessar_portal_representante = f.pode_acessar_portal_representante;
   if (colunas.has("crm_tem_carteira") && mudou("crm_tem_carteira")) payload.crm_tem_carteira = f.crm_tem_carteira;
+  if (colunas.has("pode_acessar_varejo") && mudou("pode_acessar_varejo")) payload.pode_acessar_varejo = f.pode_acessar_varejo;
   if (colunas.has("crm_papel") && (mudou("crm_papel") || mudou("crm_sistemas") || mudou("crm_representante"))) {
     const ehRep = f.crm_representante !== null && !f.crm_papel;
     payload.crm_papel = f.crm_papel;

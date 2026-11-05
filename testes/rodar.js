@@ -331,6 +331,26 @@ grupo('Sem Venda: custo unitário por item e valor investido', () => {
     { total: 50, temCusto: true, semCusto: 0 }, 'valor investido: por armazém só soma os processos dele');
 });
 
+grupo('acesso: sistemas disponíveis e chave do Torun (Varejo)', () => {
+  const sistemas = (o) => {
+    const { run } = contexto(Object.assign({ currentUserIsAdmin: false, crmRepresentante: null }, o));
+    run(funcao('semvenda.js', 'sistemasDisponiveis'));
+    return run('sistemasDisponiveis()');
+  };
+  const base = { temAcessoVarejo: () => true, temAcessoSemVenda: () => false, crmSistemasVisiveis: () => [] };
+  iguais(sistemas(base), ['varejo'], 'sistemas: quem só tem o Torun vê só o Torun');
+  iguais(sistemas(Object.assign({}, base, { temAcessoSemVenda: () => true, crmSistemasVisiveis: () => ['atacado', 'encomenda'] })),
+    ['varejo', 'semvenda', 'encomenda', 'atacado'], 'sistemas: com tudo liberado, a ordem dos cartões é Torun, Sem Venda, Encomenda, Atacado');
+  iguais(sistemas(Object.assign({}, base, { temAcessoVarejo: () => false, crmSistemasVisiveis: () => ['atacado'] })),
+    ['atacado'], 'sistemas: com o Torun desligado o cartão do Varejo some');
+  iguais(sistemas(Object.assign({}, base, { temAcessoVarejo: () => false, temAcessoSemVenda: () => true, crmSistemasVisiveis: () => ['encomenda'] })),
+    ['semvenda', 'encomenda'], 'sistemas: sem o Torun, ficam os outros sistemas da pessoa');
+  iguais(sistemas(Object.assign({}, base, { temAcessoVarejo: () => false })),
+    ['varejo'], 'sistemas: sem nenhum sistema liberado não deixa a pessoa numa tela vazia (volta ao Torun)');
+  iguais(sistemas(Object.assign({}, base, { crmRepresentante: 'Ricardo', crmSistemasVisiveis: () => ['atacado'] })),
+    ['atacado'], 'sistemas: login de representante abre só o sistema dele');
+});
+
 /* ---------------- resultado ---------------- */
 console.log('\n' + (total - falhas) + ' de ' + total + ' conferências passaram.');
 if (falhas) {

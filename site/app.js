@@ -1010,6 +1010,8 @@ function viewPermitida(view) {
   if (view === "crm-metas") return typeof crmPodeVerMetas === "function" ? crmPodeVerMetas() : false;
   if (String(view).startsWith("crm-")) return typeof temAcessoCrm === "function" ? temAcessoCrm() : false;
   if (String(view).startsWith("sv-")) return typeof temAcessoSemVenda === "function" ? temAcessoSemVenda() : true;
+  // quem está com o Torun (Varejo) desligado não abre nenhuma tela dele (cartão, menu, busca e links incluídos)
+  if (typeof temAcessoVarejo === "function" && !temAcessoVarejo()) return false;
   return !currentUserVisibleViews || currentUserVisibleViews.includes(view) || view === primeiraViewPermitida();
 }
 
