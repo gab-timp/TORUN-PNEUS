@@ -845,7 +845,7 @@ async function crmWizSalvarNovo() {
 
   const cart = await sb.from("crm_carteira").insert({
     sistema: s, cliente, executivo_user_id: execId, executivo_nome: execNome,
-    tambem_outro_sistema: crmWiz.tipo === "cliente" ? crmWiz.outro : false, primeiro_followup: todayISO()
+    tambem_outro_sistema: crmWiz.tipo === "cliente" ? crmWiz.outro : false, primeiro_followup: null
   }).select();
   if (cart.error) {
     crmWizErro(cart.error.code === "23505"
