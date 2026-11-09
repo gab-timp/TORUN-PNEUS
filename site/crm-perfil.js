@@ -3,7 +3,9 @@
    Raio-X comercial da ficha. Usa o estado e os helpers de crm.js (carregado antes). As tabelas vêm de
    sql/crm_perfil_cliente.sql; sem elas a ficha avisa que o perfil não está disponível e o resto do CRM segue normal. */
 
-const CRM_SEGMENTOS = ["Revenda", "Auto Center", "Reformadora", "Borracharia", "Transportadora", "Frota", "Agro", "Indústria", "Outros"];
+const CRM_SEGMENTOS = ["Revenda", "Auto Center", "Reformadora", "Borracharia", "Transportadora", "Frota", "Agro", "Rodas", "Indústria", "Outros"];
+// o cliente pode ter mais de um segmento: ficam na mesma coluna, separados por vírgula
+const crmSegLista = v => String(v || "").split(",").map(x => x.trim()).filter(Boolean);
 const CRM_PORTES = ["Pequeno", "Médio", "Grande"];
 const CRM_REGIMES = ["Simples Nacional", "Lucro Presumido", "Lucro Real"];
 const CRM_INADIMPLENCIAS = ["Nenhuma", "Em atraso", "Protestado"];
@@ -444,8 +446,8 @@ function crmWizPassoHtml(chave) {
   if (chave === "perfil") {
     return `
       <h4 class="crm-wiz-titulo">Perfil do cliente</h4>
-      <div class="field"><label>Segmento</label>
-        <div class="crm-chips" role="radiogroup" aria-label="Segmento">${CRM_SEGMENTOS.map(sg => `<button type="button" class="crm-chip ${d.segmento === sg ? "on" : ""}" role="radio" aria-checked="${d.segmento === sg}" data-wseg="${escapeAttr(sg)}">${escapeHtml(sg)}</button>`).join("")}</div></div>
+      <div class="field"><label>Segmento <span class="muted">(pode marcar mais de um)</span></label>
+        <div class="crm-chips" role="group" aria-label="Segmento">${CRM_SEGMENTOS.map(sg => `<button type="button" class="crm-chip ${crmSegLista(d.segmento).includes(sg) ? "on" : ""}" role="checkbox" aria-checked="${crmSegLista(d.segmento).includes(sg)}" data-wseg="${escapeAttr(sg)}">${escapeHtml(sg)}</button>`).join("")}</div></div>
       <div class="crm-wiz-grade">
         <div class="field"><label>Tempo de mercado (anos)</label><input type="number" min="0" data-w="tempoMercado" value="${escapeAttr(d.tempoMercado)}"></div>
         ${crmWizSelect("Porte da empresa", "porte", CRM_PORTES)}
@@ -993,7 +995,10 @@ function crmWizInit() {
       crmWizErro("");
       crmWizRenderBusca();
     } else if (b.dataset.wseg) {
-      crmWiz.d.segmento = crmWiz.d.segmento === b.dataset.wseg ? "" : b.dataset.wseg;
+      const segs = crmSegLista(crmWiz.d.segmento);
+      const i = segs.indexOf(b.dataset.wseg);
+      if (i >= 0) segs.splice(i, 1); else segs.push(b.dataset.wseg);
+      crmWiz.d.segmento = CRM_SEGMENTOS.filter(x => segs.includes(x)).concat(segs.filter(x => !CRM_SEGMENTOS.includes(x))).join(", ");
       crmWizRender();
     } else if (b.dataset.wuf) {
       const k = crmWiz.d.estados.indexOf(b.dataset.wuf);
@@ -1109,7 +1114,7 @@ function crmFichaPerfilHtml(c, aba) {
         <div class="card">
           <div class="card-head"><h2>Perfil do cliente</h2>${crmEditarLink("perfil", "perfil do cliente")}</div>
           ${crmDl([
-            ["Segmento", escapeHtml(p.segmento)], ["Porte", escapeHtml(p.porte)],
+            ["Segmento", escapeHtml(crmSegLista(p.segmento).join(", "))], ["Porte", escapeHtml(p.porte)],
             ["Tempo de mercado", p.tempoMercado !== "" ? escapeHtml(p.tempoMercado) + " anos" : ""],
             ["Funcionários", escapeHtml(p.funcionarios)], ["Cliente desde", escapeHtml(crmMesAno(p.clienteDesde))]
           ])}
