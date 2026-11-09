@@ -249,14 +249,29 @@ function crmLgCartao(x) {
     </div>`;
 }
 
+// cor de cada executivo (paleta do site, 6 cores, na ordem alfabética dos nomes da carteira do sistema): a faixa do cartão
+// e a etiqueta do executivo usam a mesma cor, e quem entrar depois pega a próxima
+let crmLgCoresCache = null;
+function crmLgCorExec(c) {
+  const lista = crmState.carteira;
+  if (!crmLgCoresCache || crmLgCoresCache.ref !== lista || crmLgCoresCache.len !== lista.length) {
+    const nomes = [...new Set(lista.map(x => x.executivoNome || ""))].sort((a, b) => a.localeCompare(b));
+    crmLgCoresCache = { ref: lista, len: lista.length, nomes };
+  }
+  return "crm-ex-" + (Math.max(0, crmLgCoresCache.nomes.indexOf(c.executivoNome || "")) % 6);
+}
+
+// cartão pequeno da faixa "Sem etapa": todos do mesmo tamanho, executivo no canto, cidade e contato numa linha
 function crmLgChip(x) {
   const { c, n, ligs } = x;
   const ct = crmContatoRapido(c);
   const ult = ligs[0] || null;
-  return `<div class="crm-chip-cliente ${crmLgEditavel(c) ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${n ? escapeAttr(n.id) : ""}"${n ? ` data-crmlgabrir="${escapeAttr(n.id)}" tabindex="0" role="button" aria-label="Abrir o cartão de ${escapeAttr(c.cliente)}"` : ""}>
-      <button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>${crmLgTagContato(n)}${crmLgDonoHtml(c)}
-      <span class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}${ct.nome ? " · " + escapeHtml(ct.nome) : ""}</span>
-      ${ult ? crmPill(ult.resultado) : '<span class="muted sv-sub">Nunca ligado</span>'}
+  const nomeExec = c.executivoNome || "—";
+  const dono = crmEhExecutivo() ? "" : `<span class="crm-selo crm-selo-ex" title="${escapeAttr(nomeExec)}">${crmEhMinha(c) ? "Minha carteira" : escapeHtml(String(nomeExec).split(" ")[0])}</span>`;
+  return `<div class="crm-chip-cliente crm-chip-a ${crmLgCorExec(c)} ${crmLgEditavel(c) ? "" : "crm-so-leitura"}" data-id="${escapeAttr(c.id)}" data-neg="${n ? escapeAttr(n.id) : ""}"${n ? ` data-crmlgabrir="${escapeAttr(n.id)}" tabindex="0" role="button" aria-label="Abrir o cartão de ${escapeAttr(c.cliente)}"` : ""}>
+      <div class="crm-chip-linha1"><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button>${dono}</div>
+      <div class="muted sv-sub crm-chip-sub">${crmLgTagContato(n)}${escapeHtml(crmCidadeUF(c.cliente))}${ct.nome ? " · " + escapeHtml(ct.nome) : ""}</div>
+      <div class="crm-chip-situ">${ult ? crmPill(ult.resultado) : '<span class="status-pill pill-atencao">Nunca ligado</span>'}</div>
     </div>`;
 }
 
