@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=182">
 <link rel="stylesheet" href="semvenda.css?v=39">
-<link rel="stylesheet" href="crm.css?v=41">
+<link rel="stylesheet" href="crm.css?v=42">
 <link rel="stylesheet" href="usuarios.css?v=6">
 <link rel="stylesheet" href="seletores-dash.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -3891,17 +3891,27 @@
 
 <div class="modal-overlay" id="crmContOverlay">
   <div class="modal" role="dialog" aria-labelledby="crmContTitulo">
-    <h3 id="crmContTitulo">Novo contato</h3>
-    <div class="field"><label for="crmContNome">Nome</label><input type="text" id="crmContNome" autocomplete="off"></div>
-    <div class="field"><label for="crmContCargo">Cargo</label><input type="text" id="crmContCargo" autocomplete="off"></div>
-    <div class="field"><label for="crmContTelefone">Telefone</label><input type="text" id="crmContTelefone" autocomplete="off"></div>
-    <div class="field"><label for="crmContWhats">WhatsApp</label><input type="text" id="crmContWhats" autocomplete="off"></div>
-    <div class="field"><label for="crmContEmail">E-mail</label><input type="email" id="crmContEmail" autocomplete="off"></div>
-    <div class="field"><label><input type="checkbox" id="crmContPrincipal"> Comprador/fechador (os atalhos de ligar, WhatsApp e e-mail usam este contato)</label></div>
+    <div class="crm-cont-topo">
+      <div class="crm-cont-ico"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.5 16.5c.8-3 3.3-4.5 6.5-4.5s5.7 1.5 6.5 4.5"/></svg></div>
+      <div><h3 id="crmContTitulo">Novo contato</h3><div class="muted sv-sub" id="crmContSub"></div></div>
+    </div>
+    <div class="crm-cont-linha">
+      <div class="field"><label for="crmContNome">Nome <span class="crm-cont-req">*</span></label><div class="crm-cont-campo"><input type="text" id="crmContNome" autocomplete="off" placeholder="Nome do contato"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7" r="3.2"/><path d="M3.5 16.5c.8-3 3.3-4.5 6.5-4.5s5.7 1.5 6.5 4.5"/></svg></div></div>
+      <div class="field"><label for="crmContCargo">Cargo</label><div class="crm-cont-campo"><select id="crmContCargo"></select><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="14" height="9.5" rx="2"/><path d="M7.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 12.5 5v1.5"/></svg></div></div>
+    </div>
+    <div class="crm-cont-linha">
+      <div class="field"><label for="crmContTelefone">Telefone</label><div class="crm-cont-campo"><input type="text" id="crmContTelefone" autocomplete="off" placeholder="(00) 0000-0000"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3.5h2.6l1.2 3.2-1.7 1.1a8.5 8.5 0 0 0 4.1 4.1l1.1-1.7 3.2 1.2V14a1.5 1.5 0 0 1-1.6 1.5C8.8 15.1 4.9 11.2 4.5 5.1A1.5 1.5 0 0 1 5 3.5Z"/></svg></div></div>
+      <div class="field"><div class="crm-cont-rotulo"><label for="crmContWhats">WhatsApp</label><button type="button" class="crm-cont-mesmo" id="crmContMesmo">Mesmo número</button></div><div class="crm-cont-campo"><input type="text" id="crmContWhats" autocomplete="off" placeholder="(00) 00000-0000"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 16.5l1-3.4A6.5 6.5 0 1 1 7 15.6l-3.5.9Z"/></svg></div></div>
+    </div>
+    <div class="field"><label for="crmContEmail">E-mail</label><div class="crm-cont-campo"><input type="email" id="crmContEmail" autocomplete="off" placeholder="nome@empresa.com.br"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="10.5" rx="2"/><path d="m3.5 6.5 6.5 5 6.5-5"/></svg></div></div>
+    <label class="crm-cont-principal" id="crmContPrincipalBox">
+      <span class="crm-cont-sw"><input type="checkbox" id="crmContPrincipal"><i></i></span>
+      <span><b>Comprador/fechador</b><span class="crm-cont-desc">Os atalhos de ligar, WhatsApp e e-mail do cartão usam este contato. Só um contato por cliente fica marcado.</span></span>
+    </label>
     <div class="note crm-erro" id="crmContErro" style="display:none;"></div>
-    <div class="form-actions">
+    <div class="form-actions crm-cont-acoes">
       <button type="button" class="btn outline" id="crmContCancelar">Cancelar</button>
-      <button type="button" class="btn primary" id="crmContSalvar">Salvar</button>
+      <button type="button" class="btn primary" id="crmContSalvar">Salvar contato</button>
     </div>
   </div>
 </div>
@@ -4742,7 +4752,7 @@
 
 <script src="seletores-dash.js?v=2"></script>
 <script src="semvenda.js?v=52"></script>
-<script src="crm.js?v=44"></script>
+<script src="crm.js?v=45"></script>
 <script src="crm-ligacoes.js?v=5"></script>
 <script src="crm-perfil.js?v=10"></script>
 <script src="crm-faturamento.js?v=5"></script>

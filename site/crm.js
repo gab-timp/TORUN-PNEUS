@@ -1197,11 +1197,19 @@ function crmAbrirContato(carteiraId, contatoId) {
   const p = contatoId ? crmState.contatos.find(x => x.id === contatoId) : null;
   document.getElementById("crmContTitulo").textContent = p ? "Editar contato" : "Novo contato";
   document.getElementById("crmContNome").value = p ? p.nome : "";
-  document.getElementById("crmContCargo").value = p ? p.cargo : "";
+  // cargo = as mesmas funções do cadastro inicial do cliente (CRM_FUNCOES); um cargo antigo fora da lista continua como opção a mais
+  const sel = document.getElementById("crmContCargo");
+  const atual = p ? (p.cargo || "") : "";
+  const extra = atual && !CRM_FUNCOES.includes(atual) ? [atual] : [];
+  sel.innerHTML = `<option value="">Selecione a função</option>` + [...CRM_FUNCOES, ...extra].map(f => `<option value="${escapeAttr(f)}">${escapeHtml(f)}${extra.includes(f) ? " (atual)" : ""}</option>`).join("");
+  sel.value = atual;
+  sel.classList.toggle("crm-cont-vazio", !sel.value);
+  document.getElementById("crmContSub").textContent = `${c.cliente} · ${CRM_SISTEMAS[c.sistema] || c.sistema}`;
   document.getElementById("crmContTelefone").value = p ? p.telefone : "";
   document.getElementById("crmContWhats").value = p ? p.whatsapp : "";
   document.getElementById("crmContEmail").value = p ? p.email : "";
   document.getElementById("crmContPrincipal").checked = p ? p.principal : crmContatosDe(c).length === 0;
+  document.getElementById("crmContPrincipalBox").classList.toggle("on", document.getElementById("crmContPrincipal").checked);
   document.getElementById("crmContErro").style.display = "none";
   document.getElementById("crmContOverlay").classList.add("show");
   document.getElementById("crmContNome").focus();
@@ -1364,6 +1372,15 @@ function initCrmTelas() {
   document.getElementById("crmLevarSalvar").addEventListener("click", crmSalvarLevar);
   document.getElementById("crmContCancelar").addEventListener("click", crmFecharContato);
   document.getElementById("crmContSalvar").addEventListener("click", crmSalvarContato);
+  document.getElementById("crmContMesmo").addEventListener("click", () => {
+    document.getElementById("crmContWhats").value = document.getElementById("crmContTelefone").value;
+  });
+  document.getElementById("crmContPrincipal").addEventListener("change", (e) => {
+    document.getElementById("crmContPrincipalBox").classList.toggle("on", e.target.checked);
+  });
+  document.getElementById("crmContCargo").addEventListener("change", (e) => {
+    e.target.classList.toggle("crm-cont-vazio", !e.target.value);
+  });
 
   // adicionar à carteira e editar o perfil (assistente)
   crmWizInit();
