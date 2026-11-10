@@ -277,6 +277,8 @@ function aplicarMudancaRealtimeRep(def, payload) {
     else list[idx] = row;
     def.setList(list);
   }
+  // cancelado (UPDATE cancelado=true) sai da lista na hora, igual ao carregamento inicial
+  if (def.table === "entregas") entregas = entregas.filter(e => !e.cancelado);
   // Pedido do próprio representante mudou de etapa -- dispara o popup na hora,
   // não só na próxima visita (a comparação por localStorage abaixo continua
   // existindo como rede de segurança pra quando a aba estava fechada).
@@ -437,7 +439,8 @@ async function afterLogin() {
   produtos = produtosRes.data || [];
   produtosPrecos = precosRes.data || [];
   movimentos = movimentosRes.data || [];
-  entregas = entregasRes.data || [];
+  // pedido cancelado no admin some do Kanban de lá mas continua na tabela: aqui ele não aparece em lugar nenhum
+  entregas = (entregasRes.data || []).filter(e => !e.cancelado);
   vendas = vendasRes.data || [];
   clientesRep = clientesRes.data || [];
   previsoes = previsoesRes.data || [];
