@@ -471,6 +471,7 @@ async function afterLogin() {
   initRepCatalogo();
   initRepRelatorioPreco();
   initRepEntregas();
+  initRepEstoquePrevisto();
   initRepClientes();
   initPreCadastroForm();
   initThemeToggle();
@@ -2298,8 +2299,8 @@ function computeSaldoProduto(codigo) {
 
 // Segurar e arrastar o quadro pro lado (os cards aqui são só leitura, então dá pra
 // começar o arraste em cima de um card; se arrastou, o clique que vem depois é ignorado).
-function initRepEntregasBoardDrag() {
-  const board = document.getElementById("repEntregasBoard");
+function initRepBoardDrag(boardId) {
+  const board = document.getElementById(boardId);
   let arrastando = false, moveu = false, startX = 0, scrollStart = 0;
   board.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
@@ -2324,7 +2325,7 @@ function initRepEntregasBoardDrag() {
 }
 
 function initRepEntregas() {
-  initRepEntregasBoardDrag();
+  initRepBoardDrag("repEntregasBoard");
   document.getElementById("repEntregasSearch").addEventListener("input", renderRepEntregas);
   document.getElementById("repEntregasFiltroEtapa").addEventListener("change", renderRepEntregas);
   document.getElementById("repEntregasViewKanban").addEventListener("click", () => setRepEntregasView("kanban"));
@@ -2491,37 +2492,110 @@ function abrirDetalheEntregaRep(id) {
 // "previsoes" já vem filtrado pelo RLS (sql/previsoes_representante.sql) -- só traz os
 // processos vinculados a este representante, então não precisa filtrar de novo aqui.
 
+// mesmas colunas e cores do kanban do Estoque Previsto do sistema principal (PREVISTO_STATUS / PREVISTO_COR em app.js)
+const PREVISTO_STATUS_REP = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "ATRACADO", "AGUARDANDO PRESENÇA", "AGUARDANDO RETIRADA DO PORTO", "FINALIZADO"];
+const PREVISTO_COR_REP = {
+  "AGUARDANDO PRONTIDÃO": { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" },
+  "AGUARDANDO EMBARQUE": { accent: "#FF6A13", deep: "#C64F0C", pale: "#FFE7D6" },
+  "PROCESSO EM AGUA": { accent: "#2F80ED", deep: "#1D4FA8", pale: "#E4EEFD" },
+  "ATRACADO": { accent: "#6366F1", deep: "#4338CA", pale: "#E7E7FE" },
+  "AGUARDANDO PRESENÇA": { accent: "#EC4899", deep: "#BE185D", pale: "#FCE7F3" },
+  "AGUARDANDO RETIRADA DO PORTO": { accent: "#D97706", deep: "#92400E", pale: "#FCECC9" },
+  "FINALIZADO": { accent: "#22C55E", deep: "#15803D", pale: "#E1F8E8" }
+};
+const REP_PREVISTO_VIEW_KEY = "torun_rep_previsto_view";
+function repPrevistoView() {
+  try { return localStorage.getItem(REP_PREVISTO_VIEW_KEY) === "cards" ? "cards" : "kanban"; } catch (_) { return "kanban"; }
+}
+function setRepPrevistoView(v) {
+  try { localStorage.setItem(REP_PREVISTO_VIEW_KEY, v); } catch (_) {}
+  renderRepEstoquePrevisto();
+}
+
+function initRepEstoquePrevisto() {
+  initRepBoardDrag("repEstoquePrevistoBoard");
+  document.getElementById("repEstoquePrevistoSearch").addEventListener("input", renderRepEstoquePrevisto);
+  document.getElementById("repEstoquePrevistoFiltro").addEventListener("change", renderRepEstoquePrevisto);
+  document.getElementById("repEstoquePrevistoViewKanban").addEventListener("click", () => setRepPrevistoView("kanban"));
+  document.getElementById("repEstoquePrevistoViewCards").addEventListener("click", () => setRepPrevistoView("cards"));
+}
+
+function repPrevistoCardHtml(p, comStatus) {
+  const cor = PREVISTO_COR_REP[p.status] || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
+  const itensHtml = (p.itens || []).map(it => {
+    const prod = produtos.find(x => x.codigo === it.codigo);
+    return `
+      <li>
+        <span class="mono">${escapeHtml(it.codigo)}</span>
+        <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
+        <span class="num mono">${fmt(it.quantidade)}</span>
+      </li>
+    `;
+  }).join("");
+  const finalizado = p.status === "FINALIZADO";
+  return `
+    <div class="kanban-card" style="--col-accent:${cor.accent};">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <span class="kanban-card-nf">${escapeHtml(p.numero_processo)}</span>
+        ${comStatus ? `<span class="kanban-card-tag" style="background:${cor.pale}; color:${cor.deep}; border-color:${cor.accent};">${escapeHtml(p.status || "—")}</span>` : ""}
+      </div>
+      ${itensHtml ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+      <div class="kanban-card-meta">
+        ${p.data_chegada
+          ? `<span class="kanban-card-tag ${finalizado ? "entregue" : ""}">${finalizado ? "Chegada" : "Prev."} ${formatDateBR(p.data_chegada)}</span>`
+          : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
+      </div>
+    </div>
+  `;
+}
+
 function renderRepEstoquePrevisto() {
+  const board = document.getElementById("repEstoquePrevistoBoard");
   const grid = document.getElementById("repEstoquePrevistoGrid");
   const empty = document.getElementById("repEstoquePrevistoEmpty");
+  const view = repPrevistoView();
+  document.getElementById("repEstoquePrevistoViewKanban").setAttribute("aria-pressed", view === "kanban");
+  document.getElementById("repEstoquePrevistoViewCards").setAttribute("aria-pressed", view === "cards");
+
   if (previsoes.length === 0) {
-    grid.innerHTML = "";
+    board.innerHTML = ""; grid.innerHTML = "";
     empty.style.display = "block";
     return;
   }
   empty.style.display = "none";
-  grid.innerHTML = previsoes.map(p => {
-    const itensHtml = (p.itens || []).map(it => {
-      const prod = produtos.find(x => x.codigo === it.codigo);
+
+  const search = (document.getElementById("repEstoquePrevistoSearch").value || "").trim().toLowerCase();
+  const emAndamento = document.getElementById("repEstoquePrevistoFiltro").value === "EM_ANDAMENTO";
+  let rows = previsoes.slice();
+  if (emAndamento) rows = rows.filter(p => p.status !== "FINALIZADO");
+  if (search) {
+    rows = rows.filter(p => {
+      const medidas = (p.itens || []).map(it => { const prod = produtos.find(x => x.codigo === it.codigo); return prod ? prod.medida : it.codigo; }).join(" ");
+      return (String(p.numero_processo || "") + " " + medidas).toLowerCase().includes(search);
+    });
+  }
+
+  board.style.display = view === "kanban" ? "" : "none";
+  grid.style.display = view === "cards" ? "" : "none";
+  if (view === "cards") {
+    board.innerHTML = "";
+    grid.innerHTML = rows.length ? rows.map(p => repPrevistoCardHtml(p, true)).join("") : `<div class="note">Nenhum processo encontrado.</div>`;
+  } else {
+    grid.innerHTML = "";
+    board.innerHTML = PREVISTO_STATUS_REP.filter(s => !emAndamento || s !== "FINALIZADO").map(s => {
+      const cor = PREVISTO_COR_REP[s];
+      const lista = rows.filter(p => p.status === s);
       return `
-        <li>
-          <span class="mono">${escapeHtml(it.codigo)}</span>
-          <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
-          <span class="num mono">${fmt(it.quantidade)}</span>
-        </li>
+        <section class="kanban-col" style="--col-accent:${cor.accent}; --col-deep:${cor.deep}; --col-pale:${cor.pale};">
+          <div class="kanban-col-head" style="cursor:default;">
+            <span>${escapeHtml(s)}</span>
+            <span class="kanban-count" style="margin-left:auto;">${lista.length}</span>
+          </div>
+          <div class="kanban-cards">${lista.length ? lista.map(p => repPrevistoCardHtml(p, false)).join("") : `<div class="rep-kanban-vazio">Nenhum processo</div>`}</div>
+        </section>
       `;
     }).join("");
-    return `
-      <div class="kanban-card">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-          <span class="kanban-card-nf">${escapeHtml(p.numero_processo)}</span>
-          <span class="kanban-card-tag">${escapeHtml(p.status || "—")}</span>
-        </div>
-        ${itensHtml ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
-        ${p.data_chegada ? `<div class="kanban-card-meta"><span class="kanban-card-tag">Prev. ${formatDateBR(p.data_chegada)}</span></div>` : ""}
-      </div>
-    `;
-  }).join("");
+  }
 }
 
 /* ---------------- clientes (visão do representante) ---------------- */

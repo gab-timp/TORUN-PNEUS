@@ -351,7 +351,21 @@
       <h2>Estoque Previsto</h2>
       <div class="note">Processos de compra vinculados a você — medida, quantidade e previsão de chegada (somente leitura).</div>
     </div>
-    <div id="repEstoquePrevistoGrid" class="rep-entregas-grid"></div>
+    <div class="rep-section-card" style="padding-top:0;">
+      <div class="search-row">
+        <input type="text" id="repEstoquePrevistoSearch" placeholder="Buscar por processo ou medida…">
+        <select id="repEstoquePrevistoFiltro">
+          <option value="EM_ANDAMENTO" selected>Em andamento</option>
+          <option value="">Todos os status</option>
+        </select>
+        <div class="rep-view-toggle" role="group" aria-label="Visualização">
+          <button type="button" class="btn" id="repEstoquePrevistoViewKanban" aria-pressed="true">Kanban</button>
+          <button type="button" class="btn" id="repEstoquePrevistoViewCards" aria-pressed="false">Cards</button>
+        </div>
+      </div>
+    </div>
+    <div id="repEstoquePrevistoBoard" class="kanban-board rep-entregas-board"></div>
+    <div id="repEstoquePrevistoGrid" class="rep-entregas-grid" style="display:none;"></div>
     <div class="note" id="repEstoquePrevistoEmpty" style="display:none;">Nenhum processo vinculado a você ainda.</div>
   </div>
 
@@ -682,6 +696,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=56"></script>
+<script src="pedido-representante.js?v=57"></script>
 </body>
 </html>
