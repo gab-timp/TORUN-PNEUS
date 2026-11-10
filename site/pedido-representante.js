@@ -2293,9 +2293,39 @@ function computeSaldoProduto(codigo) {
 
 /* ---------------- entregas (somente leitura) ---------------- */
 
+// Segurar e arrastar o quadro pro lado (os cards aqui são só leitura, então dá pra
+// começar o arraste em cima de um card; se arrastou, o clique que vem depois é ignorado).
+function initRepEntregasBoardDrag() {
+  const board = document.getElementById("repEntregasBoard");
+  let arrastando = false, moveu = false, startX = 0, scrollStart = 0;
+  board.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    arrastando = true; moveu = false;
+    startX = e.pageX; scrollStart = board.scrollLeft;
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!arrastando) return;
+    const dx = e.pageX - startX;
+    if (!moveu && Math.abs(dx) < 5) return;
+    moveu = true;
+    board.classList.add("dragging-scroll");
+    board.scrollLeft = scrollStart - dx;
+  });
+  window.addEventListener("mouseup", () => {
+    arrastando = false;
+    board.classList.remove("dragging-scroll");
+  });
+  board.addEventListener("click", (e) => {
+    if (moveu) { e.stopPropagation(); e.preventDefault(); moveu = false; }
+  }, true);
+}
+
 function initRepEntregas() {
+  initRepEntregasBoardDrag();
   document.getElementById("repEntregasSearch").addEventListener("input", renderRepEntregas);
   document.getElementById("repEntregasFiltroEtapa").addEventListener("change", renderRepEntregas);
+  document.getElementById("repEntregasViewKanban").addEventListener("click", () => setRepEntregasView("kanban"));
+  document.getElementById("repEntregasViewCards").addEventListener("click", () => setRepEntregasView("cards"));
   document.getElementById("repEntregaDetalheClose").addEventListener("click", () => {
     document.getElementById("repEntregaDetalheOverlay").classList.remove("show");
   });
@@ -2322,6 +2352,48 @@ function initRepEntregas() {
   });
 }
 
+const REP_ENTREGAS_VIEW_KEY = "torun_rep_entregas_view";
+function repEntregasView() {
+  try { return localStorage.getItem(REP_ENTREGAS_VIEW_KEY) === "cards" ? "cards" : "kanban"; } catch (_) { return "kanban"; }
+}
+function setRepEntregasView(v) {
+  try { localStorage.setItem(REP_ENTREGAS_VIEW_KEY, v); } catch (_) {}
+  renderRepEntregas();
+}
+
+function repEntregaCardHtml(e) {
+  const cor = ETAPA_COR[e.etapa] || ETAPA_COR.PRE_VENDA;
+  const itensHtml = (e.itens || []).map(it => {
+    const prod = produtos.find(p => p.codigo === it.codigo);
+    return `
+      <li>
+        <span class="mono">${escapeHtml(it.codigo)}</span>
+        <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
+        <span class="num mono">${fmt(it.quantidade)}</span>
+      </li>
+    `;
+  }).join("");
+  return `
+    <div class="kanban-card rep-entrega-card" data-entid="${escapeHtml(e.id)}" style="--col-accent:${cor.accent};">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <span class="kanban-card-nf">${escapeHtml(e.numero_nf || e.numero_pedido || "Sem NF")}</span>
+        <span class="kanban-card-tag" style="background:${cor.pale}; color:${cor.deep}; border-color:${cor.accent};">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "—")}</span>
+      </div>
+      <div class="kanban-card-cliente">${escapeHtml(e.cliente || "(sem cliente)")}</div>
+      ${e.reserva_status === "pendente" ? `<span class="kanban-card-tag reserva" style="margin-top:6px; display:inline-block;">RESERVA</span>` : ""}
+      ${itensHtml ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+      ${e.destino ? `<div class="kanban-card-endereco">📍 ${escapeHtml(e.destino)}</div>` : ""}
+      <div class="kanban-card-meta">
+        ${e.transportadora ? `<span class="kanban-card-tag">${escapeHtml(e.transportadora)}</span>` : ""}
+        ${e.data_prevista ? `<span class="kanban-card-tag">Prev. ${formatDateBR(e.data_prevista)}</span>` : ""}
+        ${e.data_entrega ? `<span class="kanban-card-tag entregue">Entregue ${formatDateBR(e.data_entrega)}</span>` : ""}
+        ${(e.anexos || []).length ? `<span class="kanban-card-tag">${e.anexos.length} anexo${e.anexos.length > 1 ? "s" : ""}</span>` : ""}
+        <span class="kanban-card-tag cte ${(e.cte_status || "aguardando").replace("_", "-")}">${CTE_STATUS_LABEL[e.cte_status] || CTE_STATUS_LABEL.aguardando}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderRepEntregas() {
   const search = (document.getElementById("repEntregasSearch").value || "").trim().toLowerCase();
   const filtroEtapa = document.getElementById("repEntregasFiltroEtapa").value;
@@ -2332,39 +2404,35 @@ function renderRepEntregas() {
     rows = rows.filter(e => [e.numero_nf, e.numero_pedido, e.cliente, e.transportadora].join(" ").toLowerCase().includes(search));
   }
 
+  const view = repEntregasView();
+  document.getElementById("repEntregasViewKanban").setAttribute("aria-pressed", view === "kanban");
+  document.getElementById("repEntregasViewCards").setAttribute("aria-pressed", view === "cards");
+  const board = document.getElementById("repEntregasBoard");
+  const grid = document.getElementById("repEntregasGrid");
+  board.style.display = view === "kanban" ? "" : "none";
+  grid.style.display = view === "cards" ? "" : "none";
   document.getElementById("repEntregasEmpty").style.display = rows.length ? "none" : "block";
-  document.getElementById("repEntregasGrid").innerHTML = rows.map(e => {
-    const cor = ETAPA_COR[e.etapa] || ETAPA_COR.PRE_VENDA;
-    const itensHtml = (e.itens || []).map(it => {
-      const prod = produtos.find(p => p.codigo === it.codigo);
+
+  if (view === "cards") {
+    board.innerHTML = "";
+    grid.innerHTML = rows.map(repEntregaCardHtml).join("");
+  } else {
+    grid.innerHTML = "";
+    const etapas = (typeof ETAPAS_ORDEM !== "undefined" ? ETAPAS_ORDEM : Object.keys(ETAPA_COR))
+      .filter(et => filtroEtapa !== "EM_ANDAMENTO" || et !== "FINALIZADOS");
+    board.innerHTML = rows.length ? etapas.map(et => {
+      const lista = rows.filter(e => e.etapa === et);
       return `
-        <li>
-          <span class="mono">${escapeHtml(it.codigo)}</span>
-          <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
-          <span class="num mono">${fmt(it.quantidade)}</span>
-        </li>
+        <section class="kanban-col" data-etapa="${et}">
+          <div class="kanban-col-head" style="cursor:default;">
+            <span>${escapeHtml(ETAPA_LABEL[et] || et)}</span>
+            <span class="kanban-count" style="margin-left:auto;">${lista.length}</span>
+          </div>
+          <div class="kanban-cards">${lista.length ? lista.map(repEntregaCardHtml).join("") : `<div class="rep-kanban-vazio">Nenhum pedido</div>`}</div>
+        </section>
       `;
-    }).join("");
-    return `
-      <div class="kanban-card rep-entrega-card" data-entid="${escapeHtml(e.id)}" style="--col-accent:${cor.accent};">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-          <span class="kanban-card-nf">${escapeHtml(e.numero_nf || e.numero_pedido || "Sem NF")}</span>
-          <span class="kanban-card-tag" style="background:${cor.pale}; color:${cor.deep}; border-color:${cor.accent};">${escapeHtml(ETAPA_LABEL[e.etapa] || e.etapa || "—")}</span>
-        </div>
-        <div class="kanban-card-cliente">${escapeHtml(e.cliente || "(sem cliente)")}</div>
-        ${e.reserva_status === "pendente" ? `<span class="kanban-card-tag reserva" style="margin-top:6px; display:inline-block;">RESERVA</span>` : ""}
-        ${itensHtml ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
-        ${e.destino ? `<div class="kanban-card-endereco">📍 ${escapeHtml(e.destino)}</div>` : ""}
-        <div class="kanban-card-meta">
-          ${e.transportadora ? `<span class="kanban-card-tag">${escapeHtml(e.transportadora)}</span>` : ""}
-          ${e.data_prevista ? `<span class="kanban-card-tag">Prev. ${formatDateBR(e.data_prevista)}</span>` : ""}
-          ${e.data_entrega ? `<span class="kanban-card-tag entregue">Entregue ${formatDateBR(e.data_entrega)}</span>` : ""}
-          ${(e.anexos || []).length ? `<span class="kanban-card-tag">${e.anexos.length} anexo${e.anexos.length > 1 ? "s" : ""}</span>` : ""}
-          <span class="kanban-card-tag cte ${(e.cte_status || "aguardando").replace("_", "-")}">${CTE_STATUS_LABEL[e.cte_status] || CTE_STATUS_LABEL.aguardando}</span>
-        </div>
-      </div>
-    `;
-  }).join("");
+    }).join("") : "";
+  }
 
   document.querySelectorAll(".rep-entrega-card").forEach(card => {
     card.addEventListener("click", () => abrirDetalheEntregaRep(card.dataset.entid));

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=132">
-<link rel="stylesheet" href="pedido-representante.css?v=22">
+<link rel="stylesheet" href="pedido-representante.css?v=23">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
 </head>
 <body>
@@ -334,22 +334,15 @@
         <select id="repEntregasFiltroEtapa">
           <option value="EM_ANDAMENTO" selected>Em andamento</option>
           <option value="">Todas as etapas</option>
-          <option value="PRE_VENDA">Pré-venda</option>
-          <option value="ENTRADA">Entrada</option>
-          <option value="AUTORIZACAO_GERENCIA">Autorização de Gerência</option>
-          <option value="ANALISE_CREDITO">Análise de Crédito</option>
-          <option value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</option>
-          <option value="VALIDACAO_TRANSPORTE">Validação de Transporte</option>
-          <option value="FATURAMENTO">Faturamento</option>
-          <option value="SEPARACAO">Separação</option>
-          <option value="AGUARDANDO_COLETA">Aguardando Coleta</option>
-          <option value="COLETA">Coletado</option>
-          <option value="RASTREIO">Rastreio</option>
-          <option value="FINALIZADOS">Finalizados</option>
         </select>
+        <div class="rep-view-toggle" role="group" aria-label="Visualização">
+          <button type="button" class="btn" id="repEntregasViewKanban" aria-pressed="true">Kanban</button>
+          <button type="button" class="btn" id="repEntregasViewCards" aria-pressed="false">Cards</button>
+        </div>
       </div>
     </div>
-    <div id="repEntregasGrid" class="rep-entregas-grid"></div>
+    <div id="repEntregasBoard" class="kanban-board rep-entregas-board"></div>
+    <div id="repEntregasGrid" class="rep-entregas-grid" style="display:none;"></div>
     <div class="note" id="repEntregasEmpty" style="display:none;">Nenhum pedido encontrado.</div>
   </div>
 
@@ -689,6 +682,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=54"></script>
+<script src="pedido-representante.js?v=55"></script>
 </body>
 </html>

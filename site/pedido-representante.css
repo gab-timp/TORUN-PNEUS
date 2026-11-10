@@ -125,6 +125,13 @@
 /* .kanban-card (styles.css) é pensado pra arrastar entre colunas no board interno --
    aqui é só clique pra abrir o detalhe, sem drag. */
 .rep-entrega-card{cursor:pointer;}
+.rep-entregas-board{margin-bottom:20px; scrollbar-width:thin;}
+.rep-entregas-board .kanban-card{cursor:pointer;}
+.rep-entregas-board.dragging-scroll .kanban-card{cursor:grabbing;}
+.rep-kanban-vazio{font-size:12px; color:var(--ink-soft); text-align:center; padding:14px 6px;}
+.rep-view-toggle{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+.rep-view-toggle .btn{border:0; border-radius:0; box-shadow:none; background:var(--paper); color:var(--ink-soft);}
+.rep-view-toggle .btn[aria-pressed="true"]{background:var(--orange); color:#141414;}
 
 .rep-itens-table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px;}
 /* só a tabela de Itens do pedido (a única com o combobox de busca de produto)
