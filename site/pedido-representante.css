@@ -126,6 +126,13 @@
    aqui é só clique pra abrir o detalhe, sem drag. */
 .rep-entrega-card{cursor:pointer;}
 .rep-entregas-board{margin-bottom:20px; scrollbar-width:thin;}
+/* a página rola, não cada coluna: sem barra de rolagem dentro da coluna */
+.rep-entregas-board .kanban-col{max-height:none;}
+.rep-entregas-board .kanban-cards{overflow-y:visible;}
+/* Estoque Previsto: as colunas dividem a largura da tela (só rola pro lado se não couber) */
+#repEstoquePrevistoBoard .kanban-col{flex:1 1 0; width:auto; min-width:180px;}
+/* sem folga sobrando embaixo do card de filtros */
+.rep-section-card .search-row:last-child{margin-bottom:0;}
 .rep-entregas-board .kanban-card{cursor:pointer;}
 .rep-entregas-board.dragging-scroll .kanban-card{cursor:grabbing;}
 .rep-kanban-vazio{font-size:12px; color:var(--ink-soft); text-align:center; padding:14px 6px;}
