@@ -486,23 +486,76 @@ async function afterLogin() {
 
 /* ---------------- cliente ---------------- */
 
+// Lista de clientes pra busca por nome (carrega uma vez e reaproveita; o botão
+// "Buscar cliente" sempre consulta de novo).
+let clientesBuscaCache = null;
+async function carregarClientesBusca(forcar) {
+  if (clientesBuscaCache && !forcar) return { data: clientesBuscaCache };
+  const { data, error } = await sb.from("clientes")
+    .select("nome, razao_social, documento, endereco, estado, cidade, tipo_cliente");
+  if (!error) clientesBuscaCache = data || [];
+  return { data, error };
+}
+
+function semAcentoMinusculo(s) {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+// Digitou letra = busca por nome; só número/pontuação = CNPJ/CPF.
+function termoEhNome(termo) {
+  return /[a-zA-ZÀ-ÿ]/.test(termo);
+}
+function filtrarClientesPorNome(lista, termo) {
+  const t = semAcentoMinusculo(termo).trim();
+  if (!t) return [];
+  return lista.filter(c => semAcentoMinusculo(c.nome).includes(t) || semAcentoMinusculo(c.razao_social).includes(t));
+}
+
+const CLIENTE_LISTA_LIMITE = 30;
+function renderClienteBuscaLista(achados, termo) {
+  const lista = document.getElementById("repClienteLista");
+  if (achados.length === 0) {
+    lista.innerHTML = `<div class="produto-combo-empty">Nenhum cliente encontrado.</div>`;
+    lista.classList.add("show");
+    return;
+  }
+  lista.innerHTML = achados.slice(0, CLIENTE_LISTA_LIMITE).map((c, i) => `
+    <div class="produto-combo-item" data-idx="${i}">
+      <span class="med">${destacarBuscaProduto(c.nome || c.razao_social || "—", termo)}</span>
+      <span class="cod">${escapeHtml([c.documento, [c.cidade, c.estado].filter(Boolean).join("/")].filter(Boolean).join(" · "))}</span>
+    </div>
+  `).join("") + (achados.length > CLIENTE_LISTA_LIMITE ? `<div class="produto-combo-empty">+${achados.length - CLIENTE_LISTA_LIMITE} outros — digite mais pra refinar</div>` : "");
+  lista.classList.add("show");
+  lista._achados = achados;
+}
+
+async function atualizarSugestoesClienteRep() {
+  const lista = document.getElementById("repClienteLista");
+  const termo = document.getElementById("repDocumento").value;
+  if (!termo.trim() || !termoEhNome(termo)) { lista.classList.remove("show"); return; }
+  const { data } = await carregarClientesBusca(false);
+  // o campo pode ter mudado enquanto carregava
+  if (document.getElementById("repDocumento").value !== termo) return;
+  renderClienteBuscaLista(filtrarClientesPorNome(data || [], termo), termo.trim());
+}
+
 async function buscarClienteRep() {
   const docInput = document.getElementById("repDocumento").value;
   const docNormalizado = normalizarDocumento(docInput);
   const erroEl = document.getElementById("repClienteErro");
   erroEl.style.display = "none";
+  document.getElementById("repClienteLista").classList.remove("show");
   document.getElementById("repClienteGrid").style.display = "none";
   document.getElementById("repItensBox").style.display = "none";
   clienteAtual = null;
 
-  if (!docNormalizado) {
-    erroEl.textContent = "Digite o CNPJ ou CPF do cliente.";
+  const porNome = termoEhNome(docInput);
+  if (!docInput.trim() || (!porNome && !docNormalizado)) {
+    erroEl.textContent = "Digite o nome, CNPJ ou CPF do cliente.";
     erroEl.style.display = "block";
     return;
   }
 
-  const { data, error } = await sb.from("clientes")
-    .select("nome, razao_social, documento, endereco, estado, cidade, tipo_cliente");
+  const { data, error } = await carregarClientesBusca(true);
 
   if (error) {
     erroEl.textContent = "Erro ao consultar cliente. Tente novamente.";
@@ -510,13 +563,28 @@ async function buscarClienteRep() {
     return;
   }
 
-  const encontrado = (data || []).find(c => normalizarDocumento(c.documento) === docNormalizado);
+  let encontrado;
+  if (porNome) {
+    const achados = filtrarClientesPorNome(data || [], docInput);
+    if (achados.length > 1) {
+      renderClienteBuscaLista(achados, docInput.trim());
+      return;
+    }
+    encontrado = achados[0];
+  } else {
+    encontrado = (data || []).find(c => normalizarDocumento(c.documento) === docNormalizado);
+  }
   if (!encontrado) {
     erroEl.textContent = "Cliente não encontrado — solicite o cadastro antes de continuar.";
     erroEl.style.display = "block";
     return;
   }
+  selecionarClienteRep(encontrado);
+}
 
+function selecionarClienteRep(encontrado) {
+  document.getElementById("repDocumento").value = encontrado.nome || encontrado.razao_social || encontrado.documento || "";
+  document.getElementById("repClienteLista").classList.remove("show");
   clienteAtual = encontrado;
   document.getElementById("repClienteNome").textContent = encontrado.nome || "—";
   document.getElementById("repRazaoSocial").textContent = encontrado.razao_social || "—";
@@ -1800,6 +1868,21 @@ function initForm() {
   document.getElementById("btnBuscarCliente").addEventListener("click", buscarClienteRep);
   document.getElementById("repDocumento").addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); buscarClienteRep(); }
+    if (e.key === "Escape") document.getElementById("repClienteLista").classList.remove("show");
+  });
+  document.getElementById("repDocumento").addEventListener("input", atualizarSugestoesClienteRep);
+  document.getElementById("repClienteLista").addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".produto-combo-item");
+    const lista = document.getElementById("repClienteLista");
+    if (!item || !lista._achados) return;
+    e.preventDefault();
+    const c = lista._achados[Number(item.dataset.idx)];
+    if (c) selecionarClienteRep(c);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#repClienteLista") && e.target.id !== "repDocumento") {
+      document.getElementById("repClienteLista").classList.remove("show");
+    }
   });
   document.getElementById("btnAddItemRep").addEventListener("click", () => {
     document.getElementById("repItens").appendChild(createItemRowRep());

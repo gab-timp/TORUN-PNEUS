@@ -150,8 +150,11 @@
       <div class="rep-doc-cliente-box">
         <div class="rep-cliente-busca">
           <div class="field">
-            <label>CNPJ/CPF do cliente</label>
-            <input type="text" id="repDocumento" placeholder="Digite o CNPJ ou CPF cadastrado">
+            <label>Nome, CNPJ ou CPF do cliente</label>
+            <div class="produto-combo">
+              <input type="text" id="repDocumento" placeholder="Nome, CNPJ ou CPF do cliente" autocomplete="off">
+              <div class="produto-combo-lista" id="repClienteLista"></div>
+            </div>
           </div>
           <button type="button" class="btn primary" id="btnBuscarCliente">Buscar cliente</button>
         </div>

@@ -63,10 +63,11 @@
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:12px;
-  overflow:hidden;
+  /* sem overflow:hidden: a lista de sugestões de cliente abre por cima do card */
 }
 
 .rep-doc-header{
+  border-radius:11px 11px 0 0;
   display:flex;
   align-items:center;
   gap:16px;
