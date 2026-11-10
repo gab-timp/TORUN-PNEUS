@@ -92,7 +92,11 @@
 
 .rep-doc-cliente-box{padding:20px; border-bottom:1px solid var(--line);}
 .rep-cliente-busca{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
-.rep-cliente-busca .field{flex:1 1 260px;}
+.rep-cliente-busca .field{flex:1 1 260px; min-width:0;}
+/* o campo ocupa toda a largura da caixa (o input solto ficava com a largura padrão, ~200px) e fica maior */
+.rep-cliente-busca .produto-combo{width:100%;}
+.rep-cliente-busca .produto-combo input{width:100%; min-height:44px; font-size:15px;}
+.rep-cliente-busca .btn{min-height:44px;}
 .rep-cliente-erro{
   margin-top:10px; background:var(--orange-pale); color:var(--orange-deep);
   border-radius:7px; padding:8px 10px; font-size:12.5px; font-weight:600;
