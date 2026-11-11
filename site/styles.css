@@ -1848,6 +1848,9 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 /* grupo mesclado (várias linhas com a mesma célula de processo/medida) fica inteiro numa página */
 .print-report-table tbody.grupo{page-break-inside:avoid; break-inside:avoid;}
 .print-report-table tr.gi td{border-top:2px solid #555;}
+/* grupo grande (ex.: marca no Estoque atual) pode quebrar entre páginas; só cada linha continua inteira */
+.print-report-table tbody.grupo.longo{page-break-inside:auto; break-inside:auto;}
+.print-report-table tbody.grupo.longo tr{page-break-inside:avoid; break-inside:avoid;}
 /* grupo com muitos itens gera uma linha bem alta -- evita que ela seja cortada
    ao meio entre duas páginas na hora de imprimir/gerar PDF */
 .print-report-table tr{page-break-inside:avoid; break-inside:avoid;}

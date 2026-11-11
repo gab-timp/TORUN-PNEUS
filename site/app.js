@@ -10608,18 +10608,34 @@ const REPORT_DEFS = {
         return { columns, rows: grupos, summaryLines };
       }
 
+      // organizado por marca: marcas em ordem alfabética ("Sem marca" por último), códigos em ordem dentro de cada uma.
+      // "grupo" + "merge": no PDF a marca vira uma célula mesclada nas linhas dela; no Excel ela se repete em cada linha (dá pra filtrar).
+      const SEM_MARCA = "Sem marca";
+      const marcaDe = p => (p.marca || "").trim() || SEM_MARCA;
+      produtos = produtos.slice().sort((a, b) => {
+        const ma = marcaDe(a), mb = marcaDe(b);
+        if (ma !== mb) {
+          if (ma === SEM_MARCA) return 1;
+          if (mb === SEM_MARCA) return -1;
+          return ma.localeCompare(mb, "pt-BR");
+        }
+        return a.codigo.localeCompare(b.codigo);
+      });
       const columns = [
+        { key: "marca", label: "Marca", merge: true },
         { key: "codigo", label: "Código" },
         { key: "medida", label: "Medida" },
         { key: "saldo", label: "Saldo disponível", numeric: true }
       ];
-      const rows = produtos.map(p => ({ codigo: p.codigo, medida: p.medida, saldo: p.saldo }));
+      const rows = produtos.map(p => ({ grupo: marcaDe(p), marca: marcaDe(p), codigo: p.codigo, medida: p.medida, saldo: p.saldo }));
+      const nMarcas = new Set(rows.map(r => r.grupo)).size;
       const summaryLines = [
         ...summaryBase,
+        { label: "Quantidade de marcas", value: fmt(nMarcas) },
         { label: "Produtos incluídos", value: fmt(produtos.length) },
         { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
       ];
-      return { columns, rows, summaryLines };
+      return { columns, rows, summaryLines, grupoBorda: true, grupoLongo: true };
     }
   },
   movimentacoes: {
@@ -10986,7 +11002,7 @@ function buildReportPrintHtml(def, de, ate, data) {
       if (i > 0 && r.grupo === rows[i - 1].grupo) grupos[grupos.length - 1].push(r);
       else grupos.push([r]);
     });
-    tbodyHtml = grupos.map(g => `<tbody class="grupo">${g.map((r, i) =>
+    tbodyHtml = grupos.map(g => `<tbody class="grupo${data.grupoLongo ? " longo" : ""}">${g.map((r, i) =>
       `<tr${i === 0 && data.grupoBorda ? ' class="gi"' : ""}>${columns.map(c =>
         c.merge ? (i === 0 ? celulaHtml(c, r, g.length) : "") : celulaHtml(c, r, 1)
       ).join("")}</tr>`
