@@ -2009,6 +2009,70 @@ function produtoComboAprimorar(select) {
   });
 }
 
+/* Mesmo campo de busca do produto (mesmas classes e visual), pra listas de nomes: digita parte do nome e escolhe.
+   O <select> continua no lugar, escondido, e guarda o valor: .value, "change", disabled e reset de formulário
+   seguem como eram. Usado em Representante (Faturamento e Pedido). */
+function selectComBuscaAprimorar(select, placeholder) {
+  if (!select || select.dataset.combo) return;
+  select.dataset.combo = "1";
+  const obrigatorio = select.required;
+  const wrap = document.createElement("div");
+  wrap.className = "produto-combo";
+  const busca = document.createElement("input");
+  busca.type = "text";
+  busca.className = "item-produto-busca";
+  busca.placeholder = placeholder || "Digite para buscar...";
+  busca.autocomplete = "off";
+  busca.required = obrigatorio;
+  const lista = document.createElement("div");
+  lista.className = "produto-combo-lista";
+  select.parentNode.insertBefore(wrap, select);
+  wrap.append(busca, select, lista);
+  select.style.display = "none";
+  select.required = false; // quem exige o preenchimento é o campo de busca
+
+  const nativo = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+  const sincronizar = () => {
+    const o = select.selectedOptions[0];
+    busca.value = o && o.value ? o.textContent : "";
+    busca.disabled = select.disabled;
+  };
+  Object.defineProperty(select, "value", {
+    configurable: true,
+    get() { return nativo.get.call(this); },
+    set(v) { nativo.set.call(this, v); sincronizar(); }
+  });
+  new MutationObserver(sincronizar).observe(select, { childList: true, attributes: true, attributeFilter: ["disabled"] });
+  if (select.form) select.form.addEventListener("reset", () => setTimeout(sincronizar, 0));
+  sincronizar();
+
+  function desenharLista() {
+    const termo = busca.value.trim().toLowerCase();
+    const todas = Array.from(select.options).filter(o => o.value);
+    const achados = termo ? todas.filter(o => o.textContent.toLowerCase().includes(termo)) : todas;
+    lista.innerHTML = !achados.length ? '<div class="produto-combo-empty">Nenhum nome encontrado.</div>'
+      : achados.slice(0, PRODUTO_COMBO_LIMITE).map(o =>
+          '<div class="produto-combo-item" data-valor="' + escapeAttr(o.value) + '"><span class="med">' + destacarBuscaProduto(o.textContent, busca.value.trim()) + '</span></div>').join("");
+    lista.classList.add("show");
+  }
+  busca.addEventListener("input", () => {
+    if (nativo.get.call(select) !== "") { nativo.set.call(select, ""); select.dispatchEvent(new Event("change", { bubbles: true })); }
+    desenharLista();
+  });
+  busca.addEventListener("focus", desenharLista);
+  busca.addEventListener("blur", () => {
+    setTimeout(() => { lista.classList.remove("show"); if (nativo.get.call(select) === "") busca.value = ""; }, 150);
+  });
+  busca.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.remove("show"); });
+  lista.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".produto-combo-item");
+    if (!item) return;
+    select.value = item.dataset.valor;
+    lista.classList.remove("show");
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
 function renderProdutoSelects() {
   const opts = produtoOptionsHTML();
   document.querySelectorAll("#entItens .item-produto, #saiItens .item-produto, #prevItens .item-produto").forEach(sel => {
@@ -5550,6 +5614,8 @@ function preencherVendedorSelect(sel, valorAtual) {
 function renderFaturamentoDatalists() {
   preencherVendedorSelect(document.getElementById("venVendedor"));
   preencherVendedorSelect(document.getElementById("pedVendedor"));
+  selectComBuscaAprimorar(document.getElementById("venVendedor"), "Digite o nome do representante...");
+  selectComBuscaAprimorar(document.getElementById("pedVendedor"), "Digite o nome do representante...");
   const uniq = (arr) => Array.from(new Set(arr.filter(Boolean)));
   document.getElementById("listTransportadora").innerHTML =
     uniq(state.vendas.map(v => v.transportadora)).filter(v => v !== "Cliente retira").sort().map(v => `<option value="${escapeAttr(v)}">`).join("");
