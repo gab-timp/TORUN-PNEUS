@@ -2785,3 +2785,25 @@ body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{d
 }
 .aviso-atualizacao span{flex:1 1 220px; min-width:0;}
 @media (max-width:480px){ .aviso-atualizacao{left:12px; right:12px; bottom:12px; max-width:none;} }
+
+/* ---------- seletor padrão do sistema (seletor-padrao.js) ----------
+   Todo <select> vira este campo: mesma altura, raio, letra, seta e foco em qualquer tela. O <select> original
+   fica escondido (.combo-oculto) e continua guardando o valor. */
+.combo-oculto{display:none !important;}
+.combo-seletor{position:relative; min-width:0;}
+.combo-seletor > input.item-produto-busca{
+  display:block; width:100%; box-sizing:border-box; height:38px; padding:0 34px 0 12px;
+  border:1px solid var(--line); border-radius:9px; font-family:inherit; font-size:13.5px; line-height:1.2;
+  color:var(--ink); background-color:var(--surface); outline:none; cursor:pointer; text-overflow:ellipsis;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%238a8a8a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 13px center; background-size:12px 8px;
+  transition:border-color .15s, box-shadow .15s;
+}
+.combo-seletor > input.item-produto-busca::placeholder{color:var(--ink-soft); opacity:1;}
+.combo-seletor > input.item-produto-busca:hover{border-color:var(--ink-soft);}
+.combo-seletor > input.item-produto-busca:focus{border-color:var(--orange); background-color:var(--surface); box-shadow:0 0 0 3px var(--orange-pale); cursor:text;}
+.combo-seletor > input.item-produto-busca:disabled{background-color:var(--paper-2); color:var(--ink-soft); cursor:not-allowed; opacity:.8;}
+.produto-combo-item.atual .med{color:var(--orange-deep);}
+.produto-combo-item.atual::after{content:"✓"; color:var(--orange-deep); font-weight:800; font-size:12px; position:absolute; right:12px;}
+.produto-combo-item.foco{background:var(--orange-pale);}
+.produto-combo-item{position:relative;}
