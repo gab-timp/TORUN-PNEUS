@@ -353,12 +353,15 @@ grupo('acesso: sistemas disponíveis e chave do Torun (Varejo)', () => {
 
 grupo('sub-representantes da venda', () => {
   const { run } = contexto();
+  run('const APELIDOS_VENDEDOR = { "fran": "franciane" };\n' + funcao('app.js', 'chaveNomeVendedor'));
   run(['subsDaVenda', 'participantesVenda', 'comissaoTotalVenda', 'mesmoNomeRep', 'vendaTemRepresentante', 'participacaoDe',
     'linhasPorRepresentante', 'textoRepresentantes', 'valorSubDe'].map(n => funcao('app.js', n)).join('\n'));
   const venda = 'const venda = { vendedor: "Marcos Teixeira", comissaoPercentual: 2.5, comissao: 1300, valorVenda: 52000,' +
     ' subRepresentantes: [{ nome: "Ana Paula Reis", pct: 0.5, valor: 260 }] };' +
     'const antiga = { vendedor: "Rogério Lima", comissaoPercentual: 3, comissao: 552, valorVenda: 18400 };';
   run(venda);
+  iguais(run('[mesmoNomeRep("Fran","FRANCIANE"), mesmoNomeRep("ROGÉRIO","Rogerio"), mesmoNomeRep("Alessandro","ALESSANDRO MARCHETTI")]'),
+    [true, true, false], 'nomes: Fran = FRANCIANE, acento/caixa não separam, Alessandro ≠ Alessandro Marchetti');
   iguais(run('subsDaVenda(antiga)'), [], 'sub: venda antiga (sem a coluna) não tem sub-representante');
   iguais(run('comissaoTotalVenda(antiga)'), 552, 'sub: venda antiga mantém a comissão que já tinha');
   iguais(run('comissaoTotalVenda(venda)'), 1560, 'sub: comissão total soma principal e sub');
