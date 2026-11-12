@@ -216,40 +216,76 @@ const REALTIME_TABLES_REP = [
 let realtimeChannelsRep = [];
 let realtimeReconnectTimerRep = null;
 let realtimeReconnectTentativasRep = 0;
+const REALTIME_MAX_TENTATIVAS = 6; // depois disso pausa e espera a pessoa voltar pra aba / a internet voltar
+const REALTIME_INTERVALO_ENTRE_CANAIS_MS = 250;
+let realtimePausadoRep = false;
+let realtimeEscalonaTimersRep = [];
 
 function agendarReconexaoRealtimeRep(motivo) {
-  if (realtimeReconnectTimerRep) return;
+  if (realtimeReconnectTimerRep || realtimePausadoRep) return;
+  // tira os canais JÁ: sem isso a biblioteca do Supabase continua tentando entrar sozinha em cada canal, ao mesmo
+  // tempo que a nossa reconexão, e as duas juntas estouram o limite de entradas do servidor (SocketJoinRateLimitReached)
+  derrubarCanaisRealtimeRep();
+  if (realtimeReconnectTentativasRep >= REALTIME_MAX_TENTATIVAS) {
+    realtimePausadoRep = true;
+    console.error(`Realtime pausado depois de ${REALTIME_MAX_TENTATIVAS} tentativas (${motivo}).`);
+    toast("Atualização automática pausada. Se as telas não atualizarem sozinhas, recarregue a página.");
+    return;
+  }
   const espera = Math.min(60000, 5000 * Math.pow(2, realtimeReconnectTentativasRep));
   realtimeReconnectTentativasRep++;
   console.error(`Realtime desconectado (${motivo}) — reconectando em ${Math.round(espera / 1000)}s.`);
   realtimeReconnectTimerRep = setTimeout(() => { realtimeReconnectTimerRep = null; subscribeRealtimeRep(); }, espera);
 }
 
+function derrubarCanaisRealtimeRep() {
+  realtimeEscalonaTimersRep.forEach(clearTimeout);
+  realtimeEscalonaTimersRep = [];
+  const antigos = realtimeChannelsRep;
+  realtimeChannelsRep = []; // esvazia ANTES: o callback dos canais removidos é ignorado
+  antigos.forEach(ch => sb.removeChannel(ch));
+}
+
+// Voltou pra aba ou a internet voltou depois da pausa: tenta de novo do zero
+function retomarRealtimeSePausadoRep() {
+  if (!realtimePausadoRep) return;
+  realtimePausadoRep = false;
+  realtimeReconnectTentativasRep = 0;
+  subscribeRealtimeRep();
+}
+
 function subscribeRealtimeRep() {
   clearTimeout(realtimeReconnectTimerRep);
   realtimeReconnectTimerRep = null;
-  realtimeChannelsRep.forEach(ch => sb.removeChannel(ch));
-  realtimeChannelsRep = [];
+  derrubarCanaisRealtimeRep();
 
+  // um canal por tabela (ver comentário no app.js), entrando um de cada vez
   let conectados = 0;
-  REALTIME_TABLES_REP.forEach((def) => {
-    const channel = sb.channel(`rt-rep-${def.table}`);
-    channel.on("postgres_changes", { event: "*", schema: "public", table: def.table },
-      (payload) => aplicarMudancaRealtimeRep(def, payload));
-    channel.subscribe((status) => {
-      if (!realtimeChannelsRep.includes(channel)) return;
-      if (status === "SUBSCRIBED") {
-        realtimeReconnectTentativasRep = 0;
-        if (++conectados === REALTIME_TABLES_REP.length) {
-          console.log("Realtime conectado — atualizações automáticas ativas.");
+  REALTIME_TABLES_REP.forEach((def, i) => {
+    realtimeEscalonaTimersRep.push(setTimeout(() => {
+      const channel = sb.channel(`rt-rep-${def.table}`);
+      channel.on("postgres_changes", { event: "*", schema: "public", table: def.table },
+        (payload) => aplicarMudancaRealtimeRep(def, payload));
+      realtimeChannelsRep.push(channel);
+      channel.subscribe((status) => {
+        // callback de um canal de assinatura anterior, já substituída numa
+        // reconexão -- ignora pra não disparar reconexão em cascata.
+        if (!realtimeChannelsRep.includes(channel)) return;
+        if (status === "SUBSCRIBED") {
+          realtimeReconnectTentativasRep = 0;
+          if (++conectados === REALTIME_TABLES_REP.length) {
+            console.log("Realtime conectado — atualizações automáticas ativas.");
+          }
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          agendarReconexaoRealtimeRep(`${def.table}: ${status}`);
         }
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        agendarReconexaoRealtimeRep(`${def.table}: ${status}`);
-      }
-    });
-    realtimeChannelsRep.push(channel);
+      });
+    }, i * REALTIME_INTERVALO_ENTRE_CANAIS_MS));
   });
 }
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") retomarRealtimeSePausadoRep(); });
+window.addEventListener("online", retomarRealtimeSePausadoRep);
 
 let rerenderTimerRep = null;
 // Só re-renderiza as telas que já existem no DOM com o que já está em

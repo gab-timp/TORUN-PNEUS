@@ -11709,6 +11709,10 @@ function scheduleRerender() {
 let realtimeChannels = [];
 let realtimeReconnectTimer = null;
 let realtimeReconnectTentativas = 0;
+const REALTIME_MAX_TENTATIVAS = 6; // depois disso pausa e espera a pessoa voltar pra aba / a internet voltar
+const REALTIME_INTERVALO_ENTRE_CANAIS_MS = 250;
+let realtimePausado = false;
+let realtimeEscalonaTimers = [];
 
 // Rede de segurança: mesmo com o Realtime saudável, se ele ficar minutos sem avisar
 // nenhuma mudança (rede instável, aba em segundo plano, etc.) os dados podem ficar
@@ -11760,18 +11764,42 @@ function aplicarMudancaRealtime({ table, key, fromRow }, payload) {
 // mas só a primeira chamada agenda; as outras veem o timer já de pé e saem, pra
 // não inflar o contador de backoff nem empilhar timeouts.
 function agendarReconexaoRealtime(motivo) {
-  if (realtimeReconnectTimer) return;
+  if (realtimeReconnectTimer || realtimePausado) return;
+  // tira os canais JÁ: sem isso a biblioteca do Supabase continua tentando entrar sozinha em cada canal, ao mesmo
+  // tempo que a nossa reconexão, e as duas juntas estouram o limite de entradas do servidor (SocketJoinRateLimitReached)
+  derrubarCanaisRealtime();
+  if (realtimeReconnectTentativas >= REALTIME_MAX_TENTATIVAS) {
+    realtimePausado = true;
+    console.error(`Realtime pausado depois de ${REALTIME_MAX_TENTATIVAS} tentativas (${motivo}).`);
+    toast("Atualização automática pausada. Se as telas não atualizarem sozinhas, recarregue a página.");
+    return;
+  }
   const espera = Math.min(60000, 5000 * Math.pow(2, realtimeReconnectTentativas));
   realtimeReconnectTentativas++;
   console.error(`Realtime desconectado (${motivo}) — reconectando em ${Math.round(espera / 1000)}s.`);
   realtimeReconnectTimer = setTimeout(() => { realtimeReconnectTimer = null; subscribeRealtime(); }, espera);
 }
 
+function derrubarCanaisRealtime() {
+  realtimeEscalonaTimers.forEach(clearTimeout);
+  realtimeEscalonaTimers = [];
+  const antigos = realtimeChannels;
+  realtimeChannels = []; // esvazia ANTES: o callback dos canais removidos é ignorado
+  antigos.forEach(ch => sb.removeChannel(ch));
+}
+
+// Voltou pra aba ou a internet voltou depois da pausa: tenta de novo do zero
+function retomarRealtimeSePausado() {
+  if (!realtimePausado) return;
+  realtimePausado = false;
+  realtimeReconnectTentativas = 0;
+  subscribeRealtime();
+}
+
 function subscribeRealtime() {
   clearTimeout(realtimeReconnectTimer);
   realtimeReconnectTimer = null;
-  realtimeChannels.forEach(ch => sb.removeChannel(ch));
-  realtimeChannels = [];
+  derrubarCanaisRealtime();
 
   // UM CANAL POR TABELA -- de propósito, não junte de volta num canal só.
   // O realtime-js tem um bug com vários postgres_changes no mesmo canal: os IDs
@@ -11780,27 +11808,34 @@ function subscribeRealtime() {
   // Entregas (8ª de 9) e Notificações (9ª) não atualizavam em tempo real -- só
   // no F5 ou no refresh de emergência de 5 min. Um canal com um binding só não
   // tem como desalinhar. (vários issues em github.com/supabase/realtime-js)
+  // Os canais entram um de cada vez (REALTIME_INTERVALO_ENTRE_CANAIS_MS), não todos no mesmo instante, pra não
+  // bater no limite de entradas por segundo do servidor.
   let conectados = 0;
-  REALTIME_TABLES.forEach((def) => {
-    const channel = sb.channel(`rt-${def.table}`);
-    channel.on("postgres_changes", { event: "*", schema: "public", table: def.table },
-      (payload) => aplicarMudancaRealtime(def, payload));
-    channel.subscribe((status) => {
-      // callback de um canal de assinatura anterior, já substituída numa
-      // reconexão -- ignora pra não disparar reconexão em cascata.
-      if (!realtimeChannels.includes(channel)) return;
-      if (status === "SUBSCRIBED") {
-        realtimeReconnectTentativas = 0;
-        if (++conectados === REALTIME_TABLES.length) {
-          console.log("Realtime conectado — atualizações automáticas ativas.");
+  REALTIME_TABLES.forEach((def, i) => {
+    realtimeEscalonaTimers.push(setTimeout(() => {
+      const channel = sb.channel(`rt-${def.table}`);
+      channel.on("postgres_changes", { event: "*", schema: "public", table: def.table },
+        (payload) => aplicarMudancaRealtime(def, payload));
+      realtimeChannels.push(channel);
+      channel.subscribe((status) => {
+        // callback de um canal de assinatura anterior, já substituída numa
+        // reconexão -- ignora pra não disparar reconexão em cascata.
+        if (!realtimeChannels.includes(channel)) return;
+        if (status === "SUBSCRIBED") {
+          realtimeReconnectTentativas = 0;
+          if (++conectados === REALTIME_TABLES.length) {
+            console.log("Realtime conectado — atualizações automáticas ativas.");
+          }
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          agendarReconexaoRealtime(`${def.table}: ${status}`);
         }
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        agendarReconexaoRealtime(`${def.table}: ${status}`);
-      }
-    });
-    realtimeChannels.push(channel);
+      });
+    }, i * REALTIME_INTERVALO_ENTRE_CANAIS_MS));
   });
 }
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") retomarRealtimeSePausado(); });
+window.addEventListener("online", retomarRealtimeSePausado);
 
 /* ---------------- init ---------------- */
 
