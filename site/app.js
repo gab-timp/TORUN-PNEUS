@@ -5491,10 +5491,17 @@ function vendedoresDasVendas() {
   return nomesSemDuplicados(nomes, state.representantes || []);
 }
 
+// Apelidos que são a mesma pessoa com outro nome (chave já sem maiúscula e sem acento -> chave do nome principal)
+const APELIDOS_VENDEDOR = { "fran": "franciane" };
+function chaveNomeVendedor(n) {
+  const k = n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  return APELIDOS_VENDEDOR[k] || k;
+}
+
 // "Caetano" e "CAETANO" (ou "Rogério" e "ROGÉRIO") são a mesma pessoa: a lista mostra um nome só. Fica a grafia do
 // cadastro de representantes; se nenhuma estiver lá, a que mais aparece nas vendas. As vendas gravadas não mudam.
 function nomesSemDuplicados(nomes, preferidos) {
-  const chave = n => n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").toLowerCase();
+  const chave = chaveNomeVendedor;
   const grupos = new Map();
   nomes.forEach(n => {
     const k = chave(n);
@@ -5512,13 +5519,19 @@ function nomesSemDuplicados(nomes, preferidos) {
 // entra como opção "(fora da lista)", senão salvar a edição apagaria o vendedor sem ninguém perceber.
 function preencherVendedorSelect(sel, valorAtual) {
   const atual = ((valorAtual !== undefined ? valorAtual : sel.value) || "").trim();
-  const chave = n => n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").toLowerCase();
+  const chave = chaveNomeVendedor;
   // editando uma venda gravada como "CAETANO" com a lista mostrando "Caetano": mantém a grafia gravada, sem "(fora da lista)"
   const nomes = vendedoresDasVendas().map(n => (atual !== "" && chave(n) === chave(atual) ? atual : n));
   const foraDaLista = atual !== "" && !nomes.includes(atual);
   const opcoes = (foraDaLista ? [...nomes, atual] : nomes).sort((a, b) => a.localeCompare(b));
+  // quem tem login cadastrado aparece como está no cadastro; os demais, com a primeira letra de cada nome maiúscula.
+  // Só o texto muda: o valor gravado na venda continua o mesmo, pros relatórios não separarem "AGNALDO" de "Agnaldo".
+  const comLogin = new Set((state.representantes || []).map(n => chave((n || "").trim())));
+  const particulas = new Set(["de", "da", "do", "das", "dos", "e"]);
+  const rotulo = n => comLogin.has(chave(n)) ? n
+    : n.toLowerCase().split(" ").map((p, i) => (i > 0 && particulas.has(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
   sel.innerHTML = `<option value="">${opcoes.length ? "Selecione…" : "Nenhum representante ainda"}</option>` +
-    opcoes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}${n === atual && foraDaLista ? " (fora da lista)" : ""}</option>`).join("");
+    opcoes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(rotulo(n))}${n === atual && foraDaLista ? " (fora da lista)" : ""}</option>`).join("");
   sel.value = atual;
   sel.disabled = opcoes.length === 0;
 }
