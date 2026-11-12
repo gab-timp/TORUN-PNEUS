@@ -394,8 +394,9 @@ function participantesVenda(v) {
 function comissaoTotalVenda(v) {
   return (v.comissao || 0) + subsDaVenda(v).reduce((a, s) => a + (Number(s.valor) || 0), 0);
 }
+// compara sem caixa, sem acento e com apelido (Fran = FRANCIANE), pros filtros pegarem todas as grafias do mesmo nome
 function mesmoNomeRep(a, b) {
-  return (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+  return chaveNomeVendedor((a || "").trim()) === chaveNomeVendedor((b || "").trim());
 }
 function vendaTemRepresentante(v, nome) {
   return participantesVenda(v).some(p => p.nome && mesmoNomeRep(p.nome, nome));
@@ -5515,6 +5516,21 @@ function nomesSemDuplicados(nomes, preferidos) {
   }).sort((a, b) => a.localeCompare(b));
 }
 
+// Texto de um vendedor/representante em QUALQUER seletor do sistema: quem tem login cadastrado aparece como está no
+// cadastro; os demais, com a primeira letra de cada nome maiúscula. Só o texto muda: o valor gravado/filtrado continua
+// o original, pros relatórios não separarem "AGNALDO" de "Agnaldo".
+function rotuloVendedor(n) {
+  const comLogin = new Set((state.representantes || []).map(x => chaveNomeVendedor((x || "").trim())));
+  if (comLogin.has(chaveNomeVendedor(n))) return n;
+  const particulas = new Set(["de", "da", "do", "das", "dos", "e"]);
+  return n.toLowerCase().split(" ").map((p, i) => (i > 0 && particulas.has(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+}
+// <option>s de um filtro de vendedor: sem duplicados (caixa, acento, apelido) e com o texto padronizado
+function opcoesVendedorHtml(nomes) {
+  return nomesSemDuplicados(nomes.filter(Boolean), state.representantes || [])
+    .map(v => `<option value="${escapeAttr(v)}">${escapeHtml(rotuloVendedor(v))}</option>`).join("");
+}
+
 // valorAtual (sem ele, mantém o que o select já tem). Um nome que nenhuma venda tem (pedido ou venda antiga)
 // entra como opção "(fora da lista)", senão salvar a edição apagaria o vendedor sem ninguém perceber.
 function preencherVendedorSelect(sel, valorAtual) {
@@ -5524,12 +5540,7 @@ function preencherVendedorSelect(sel, valorAtual) {
   const nomes = vendedoresDasVendas().map(n => (atual !== "" && chave(n) === chave(atual) ? atual : n));
   const foraDaLista = atual !== "" && !nomes.includes(atual);
   const opcoes = (foraDaLista ? [...nomes, atual] : nomes).sort((a, b) => a.localeCompare(b));
-  // quem tem login cadastrado aparece como está no cadastro; os demais, com a primeira letra de cada nome maiúscula.
-  // Só o texto muda: o valor gravado na venda continua o mesmo, pros relatórios não separarem "AGNALDO" de "Agnaldo".
-  const comLogin = new Set((state.representantes || []).map(n => chave((n || "").trim())));
-  const particulas = new Set(["de", "da", "do", "das", "dos", "e"]);
-  const rotulo = n => comLogin.has(chave(n)) ? n
-    : n.toLowerCase().split(" ").map((p, i) => (i > 0 && particulas.has(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+  const rotulo = rotuloVendedor;
   sel.innerHTML = `<option value="">${opcoes.length ? "Selecione…" : "Nenhum representante ainda"}</option>` +
     opcoes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(rotulo(n))}${n === atual && foraDaLista ? " (fora da lista)" : ""}</option>`).join("");
   sel.value = atual;
@@ -8398,9 +8409,8 @@ function renderContasReceber() {
 
   const vendedorSelect = document.getElementById("carFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
-  const vendedoresUnicos = Array.from(new Set(todas.flatMap(r => participantesVenda(r.v).map(p => p.nome)).filter(Boolean))).sort();
-  vendedorSelect.innerHTML = `<option value="">Todos os representantes</option>` +
-    vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  const vendedoresUnicos = nomesSemDuplicados(todas.flatMap(r => participantesVenda(r.v).map(p => p.nome)).filter(Boolean), state.representantes || []);
+  vendedorSelect.innerHTML = `<option value="">Todos os representantes</option>` + opcoesVendedorHtml(vendedoresUnicos);
   vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
 
   const search = (document.getElementById("carSearch").value || "").trim().toLowerCase();
@@ -8981,9 +8991,8 @@ function abrirComissaoClienteDetalhe(nomeVendedor, clienteNome) {
 function renderVendas() {
   const vendedorSelect = document.getElementById("venFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
-  const vendedoresUnicos = Array.from(new Set(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean))).sort();
-  vendedorSelect.innerHTML = `<option value="">Todos os representantes</option>` +
-    vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  const vendedoresUnicos = nomesSemDuplicados(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean), state.representantes || []);
+  vendedorSelect.innerHTML = `<option value="">Todos os representantes</option>` + opcoesVendedorHtml(vendedoresUnicos);
   vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
 
   // filtro único da tela -- ver getVendasFiltradas()
@@ -11305,8 +11314,8 @@ function gerarRelatorioCSV(reportKey, de, ate, filtro, codigo, agrupar, filtro2,
 function populateReportFatVendedor() {
   const sel = document.getElementById("reportFatVendedor");
   const atual = sel.value;
-  const vendedores = Array.from(new Set(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean))).sort();
-  sel.innerHTML = `<option value="">Todos os representantes</option>` + vendedores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  const vendedores = nomesSemDuplicados(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean), state.representantes || []);
+  sel.innerHTML = `<option value="">Todos os representantes</option>` + opcoesVendedorHtml(vendedores);
   if (vendedores.includes(atual)) sel.value = atual;
 }
 
@@ -11327,18 +11336,19 @@ function populateReportFatEstado() {
 // relatórios de crédito e de clientes parados -- repopula a cada geração, pra pegar cliente
 // ou venda nova sem precisar recarregar a página
 function populateReportCreditoInativos() {
-  const preencher = (id, vazio, valores) => {
+  const preencher = (id, vazio, valores, ehVendedor) => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const atual = sel.value;
-    sel.innerHTML = `<option value="">${vazio}</option>` + valores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+    sel.innerHTML = `<option value="">${vazio}</option>` + (ehVendedor ? opcoesVendedorHtml(valores)
+      : valores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join(""));
     if (valores.includes(atual)) sel.value = atual;
   };
   const estados = Array.from(new Set(state.clientes.map(c => c.estado).filter(Boolean))).sort();
-  const vendedores = Array.from(new Set(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean))).sort();
+  const vendedores = nomesSemDuplicados(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean), state.representantes || []);
   preencher("reportCredEstado", "Todos os estados", estados);
   preencher("reportInatEstado", "Todos os estados", estados);
-  preencher("reportInatVendedor", "Todos os representantes", vendedores);
+  preencher("reportInatVendedor", "Todos os representantes", vendedores, true);
 }
 
 function initRelatorios() {

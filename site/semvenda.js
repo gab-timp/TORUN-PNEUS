@@ -1488,7 +1488,7 @@ function svRenderReservaForm() {
   const selVendedor = document.getElementById("svResVendedor");
   const vendedorAnterior = selVendedor.value;
   selVendedor.innerHTML = `<option value="">${svVendedores.length ? "Selecione…" : "Nenhum vendedor cadastrado"}</option>` +
-    svVendedores.map(v => `<option value="${escapeAttr(v.nome)}">${escapeHtml(v.nome)}</option>`).join("");
+    svVendedores.map(v => `<option value="${escapeAttr(v.nome)}">${escapeHtml(rotuloVendedor(v.nome))}</option>`).join("");
   if (svVendedores.some(v => v.nome === vendedorAnterior)) selVendedor.value = vendedorAnterior;
   selVendedor.disabled = svVendedores.length === 0;
   document.getElementById("svResVendedorAviso").style.display = svVendedores.length === 0 ? "" : "none";
@@ -1496,9 +1496,9 @@ function svRenderReservaForm() {
   const selRep = document.getElementById("svResRepresentante");
   const repAnterior = selRep.value;
   // os com login de representante e os cadastrados à parte em Administração (sem login), numa lista só
-  const representantes = [...new Set([...(state.representantes || []), ...svRepresentantes.map(r => r.nome)])].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const representantes = nomesSemDuplicados([...(state.representantes || []), ...svRepresentantes.map(r => r.nome)].filter(Boolean), state.representantes || []);
   selRep.innerHTML = `<option value="">Selecione…</option><option value="${SV_SEM_REPRESENTANTE}">Sem representante</option>` +
-    representantes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
+    representantes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(rotuloVendedor(n))}</option>`).join("");
   if ([...selRep.options].some(o => o.value === repAnterior)) selRep.value = repAnterior;
 
   const selForma = document.getElementById("svResForma");
