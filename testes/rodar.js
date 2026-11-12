@@ -351,6 +351,34 @@ grupo('acesso: sistemas disponíveis e chave do Torun (Varejo)', () => {
     ['atacado'], 'sistemas: login de representante abre só o sistema dele');
 });
 
+grupo('sub-representantes da venda', () => {
+  const { run } = contexto();
+  run(['subsDaVenda', 'participantesVenda', 'comissaoTotalVenda', 'mesmoNomeRep', 'vendaTemRepresentante', 'participacaoDe',
+    'linhasPorRepresentante', 'textoRepresentantes', 'valorSubDe'].map(n => funcao('app.js', n)).join('\n'));
+  const venda = 'const venda = { vendedor: "Marcos Teixeira", comissaoPercentual: 2.5, comissao: 1300, valorVenda: 52000,' +
+    ' subRepresentantes: [{ nome: "Ana Paula Reis", pct: 0.5, valor: 260 }] };' +
+    'const antiga = { vendedor: "Rogério Lima", comissaoPercentual: 3, comissao: 552, valorVenda: 18400 };';
+  run(venda);
+  iguais(run('subsDaVenda(antiga)'), [], 'sub: venda antiga (sem a coluna) não tem sub-representante');
+  iguais(run('comissaoTotalVenda(antiga)'), 552, 'sub: venda antiga mantém a comissão que já tinha');
+  iguais(run('comissaoTotalVenda(venda)'), 1560, 'sub: comissão total soma principal e sub');
+  iguais(run('participantesVenda(venda).map(p => [p.nome, p.comissao, p.principal])'),
+    [['Marcos Teixeira', 1300, true], ['Ana Paula Reis', 260, false]], 'sub: principal vem primeiro, cada um com a sua comissão');
+  iguais(run('vendaTemRepresentante(venda, " ana paula reis ")'), true, 'sub: acha o sub sem diferenciar maiúscula nem espaço');
+  iguais(run('vendaTemRepresentante(venda, "Rogério Lima")'), false, 'sub: quem não está na venda não aparece');
+  iguais(run('vendaTemRepresentante(antiga, "")'), false, 'sub: nome vazio nunca casa');
+  iguais(run('participacaoDe(venda, "Ana Paula Reis").comissao'), 260, 'sub: a parte do sub é só a dele');
+  iguais(run('participacaoDe(venda, "Ninguém")'), null, 'sub: quem não participa não tem parte');
+  iguais(run('textoRepresentantes(venda)'), 'Marcos Teixeira + Ana Paula Reis', 'sub: texto da busca lista os dois');
+  iguais(run('textoRepresentantes(antiga)'), 'Rogério Lima', 'sub: venda comum mostra só o representante');
+  iguais(run('linhasPorRepresentante([venda, antiga]).map(l => [l.nome, l.comissao])'),
+    [['Marcos Teixeira', 1300], ['Ana Paula Reis', 260], ['Rogério Lima', 552]], 'sub: uma linha por representante em cada venda');
+  iguais(run('linhasPorRepresentante([{ vendedor: "", comissao: 0, comissaoPercentual: 0 }]).map(l => l.nome)'),
+    ['(sem representante)'], 'sub: venda sem representante cai em "(sem representante)"');
+  iguais(run('valorSubDe(52000, 0.5)'), 260, 'sub: 0,5% de 52.000 = 260');
+  iguais(run('valorSubDe(1000, 0.333)'), 3.33, 'sub: arredonda em centavos');
+});
+
 /* ---------------- resultado ---------------- */
 console.log('\n' + (total - falhas) + ' de ' + total + ' conferências passaram.');
 if (falhas) {

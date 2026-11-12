@@ -350,7 +350,12 @@ function vendaToRow(v) {
     status_pagamento: v.statusPagamento || "em_aberto",
     data_pagamento: v.statusPagamento === "pago" ? (v.dataPagamento || null) : null,
     data_vencimento: v.dataVencimento || null,
-    parcelas_detalhe: v.parcelasDetalhe && v.parcelasDetalhe.length ? v.parcelasDetalhe : null
+    parcelas_detalhe: v.parcelasDetalhe && v.parcelasDetalhe.length ? v.parcelasDetalhe : null,
+    // só manda a coluna quando há sub-representante (ou quando a venda tinha e agora não tem mais):
+    // vendas comuns continuam salvando mesmo antes do SQL sql/vendas_sub_representantes.sql rodar
+    ...(v.subRepresentantes && v.subRepresentantes.length
+      ? { sub_representantes: v.subRepresentantes }
+      : (v.limparSubRepresentantes ? { sub_representantes: null } : {}))
   };
 }
 function vendaFromRow(r) {
@@ -368,8 +373,49 @@ function vendaFromRow(r) {
     dataPagamento: r.data_pagamento || null,
     dataVencimento: r.data_vencimento || null,
     parcelasDetalhe: r.parcelas_detalhe || null,
+    subRepresentantes: Array.isArray(r.sub_representantes) ? r.sub_representantes : [],
     createdAt: r.created_at, updatedAt: r.updated_at
   };
+}
+
+// Sub-representantes da venda: [{ nome, pct, valor }]. O representante principal continua nas colunas
+// vendedor / comissao_percentual / comissao (por isso vendas antigas seguem valendo sem mexer em nada).
+// A % de cada sub é sobre o valor TOTAL da venda e a venda conta inteira no faturamento de cada um.
+function subsDaVenda(v) {
+  return v && Array.isArray(v.subRepresentantes) ? v.subRepresentantes : [];
+}
+// todos os representantes da venda (principal primeiro), cada um com a comissão que lhe cabe
+function participantesVenda(v) {
+  const lista = [{ nome: (v.vendedor || "").trim(), pct: v.comissaoPercentual || 0, comissao: v.comissao || 0, principal: true }];
+  subsDaVenda(v).forEach(s => lista.push({ nome: (s.nome || "").trim(), pct: Number(s.pct) || 0, comissao: Number(s.valor) || 0, principal: false }));
+  return lista;
+}
+// comissão total paga na venda (principal + subs) -- é a que entra nos totais gerais
+function comissaoTotalVenda(v) {
+  return (v.comissao || 0) + subsDaVenda(v).reduce((a, s) => a + (Number(s.valor) || 0), 0);
+}
+function mesmoNomeRep(a, b) {
+  return (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+}
+function vendaTemRepresentante(v, nome) {
+  return participantesVenda(v).some(p => p.nome && mesmoNomeRep(p.nome, nome));
+}
+// a parte de um representante na venda (comissão e %) ou null se ele não participa
+function participacaoDe(v, nome) {
+  return participantesVenda(v).find(p => p.nome && mesmoNomeRep(p.nome, nome)) || null;
+}
+// uma linha por (venda, representante): é o que as telas "por representante" somam
+function linhasPorRepresentante(vendas) {
+  const linhas = [];
+  vendas.forEach(v => participantesVenda(v).forEach(p => {
+    if (p.principal || p.nome) linhas.push({ v, nome: p.nome || "(sem representante)", comissao: p.comissao, pct: p.pct, principal: p.principal });
+  }));
+  return linhas;
+}
+// "Marcos Teixeira" ou "Marcos Teixeira + Ana Paula Reis" (texto pra tabela, busca e relatório)
+function textoRepresentantes(v) {
+  const nomes = participantesVenda(v).map(p => p.nome).filter(Boolean);
+  return nomes.length ? nomes.join(" + ") : "";
 }
 
 // Representantes do processo: lista (previsoes.representantes). A coluna antiga `representante` (um nome só)
@@ -4554,7 +4600,7 @@ function pedidoCamposFaltando(p) {
   if (!p.numeroPedido) faltando.push("Nº do pedido");
   if (!p.data) faltando.push("Data do pedido");
   if (!p.cliente) faltando.push("Cliente");
-  if (!p.vendedor) faltando.push("Vendedor");
+  if (!p.vendedor) faltando.push("Representante");
   if (!p.destino) faltando.push("Destino");
   if (!p.transportadora) faltando.push("Transportadora");
   if (!p.itens || p.itens.length === 0) faltando.push("Medidas do pedido");
@@ -5440,7 +5486,7 @@ function renderClienteSelect() {
 // os vendedores cadastrados (state.representantes: quem tem papel Representante ou a permissão do portal), pra um
 // vendedor novo poder ser escolhido antes de ter a primeira venda.
 function vendedoresDasVendas() {
-  const nomes = [...state.vendas.map(v => v.vendedor), ...(state.representantes || [])];
+  const nomes = [...state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)), ...(state.representantes || [])];
   return Array.from(new Set(nomes.map(n => (n || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
 
@@ -5451,7 +5497,7 @@ function preencherVendedorSelect(sel, valorAtual) {
   const nomes = vendedoresDasVendas();
   const foraDaLista = atual !== "" && !nomes.includes(atual);
   const opcoes = (foraDaLista ? [...nomes, atual] : nomes).sort((a, b) => a.localeCompare(b));
-  sel.innerHTML = `<option value="">${opcoes.length ? "Selecione…" : "Nenhum vendedor ainda"}</option>` +
+  sel.innerHTML = `<option value="">${opcoes.length ? "Selecione…" : "Nenhum representante ainda"}</option>` +
     opcoes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}${n === atual && foraDaLista ? " (fora da lista)" : ""}</option>`).join("");
   sel.value = atual;
   sel.disabled = opcoes.length === 0;
@@ -5547,9 +5593,9 @@ function getVendasFiltradas() {
   let rows = state.vendas.slice();
   if (mes && mes !== "todos") rows = rows.filter(v => (v.data || "").slice(0, 7) === mes);
   if (search) {
-    rows = rows.filter(v => [v.cliente, v.numeroNFVenda, v.numeroPedido, v.vendedor].join(" ").toLowerCase().includes(search));
+    rows = rows.filter(v => [v.cliente, v.numeroNFVenda, v.numeroPedido, textoRepresentantes(v)].join(" ").toLowerCase().includes(search));
   }
-  if (vendedor) rows = rows.filter(v => v.vendedor === vendedor);
+  if (vendedor) rows = rows.filter(v => vendaTemRepresentante(v, vendedor));
   if (formaPagamento === "DIVIDIDO") rows = rows.filter(v => v.pagamentosDivididos && v.pagamentosDivididos.length > 0);
   else if (formaPagamento) rows = rows.filter(v => v.formaPagamento === formaPagamento);
   if (de) rows = rows.filter(v => v.data >= de);
@@ -6088,7 +6134,7 @@ function renderDashboard() {
 
   const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
-  const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
+  const totalComissao = vendas.reduce((a, v) => a + comissaoTotalVenda(v), 0);
   const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
 
   // comparação com o mês anterior, pra faixa de destaque (Indicadores Gerais) --
@@ -6118,7 +6164,7 @@ function renderDashboard() {
   }
   const totalFaturamentoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.valorVenda, 0) : null;
   const totalPneusAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0) : null;
-  const totalComissaoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0) : null;
+  const totalComissaoAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + comissaoTotalVenda(v), 0) : null;
   const totalFreteAnt = vendasMesAnt.length ? vendasMesAnt.reduce((a, v) => a + (v.valorFrete || 0), 0) : null;
   const { media: mediaParcelas } = mediaParcelasDe(vendas);
   const { media: mediaParcelasAnt } = vendasMesAnt.length ? mediaParcelasDe(vendasMesAnt) : { media: null };
@@ -6126,11 +6172,13 @@ function renderDashboard() {
   // por vendedor / estado / transportadora / forma / cliente
   const porVendedor = {}, porEstado = {}, porTransp = {}, porForma = {}, porCliente = {};
   vendas.forEach(v => {
-    const vend = v.vendedor || "(sem vendedor)";
-    if (!porVendedor[vend]) porVendedor[vend] = { faturamento: 0, comissao: 0, qtd: 0 };
-    porVendedor[vend].faturamento += v.valorVenda;
-    porVendedor[vend].comissao += v.comissao || 0;
-    porVendedor[vend].qtd += 1;
+    participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
+      const vend = p.nome || "(sem representante)";
+      if (!porVendedor[vend]) porVendedor[vend] = { faturamento: 0, comissao: 0, qtd: 0 };
+      porVendedor[vend].faturamento += v.valorVenda; // a venda conta inteira pra cada representante dela
+      porVendedor[vend].comissao += p.comissao;
+      porVendedor[vend].qtd += 1;
+    });
 
     const cli = getCliente(v.cliente);
     const uf = (cli && cli.estado) || "—";
@@ -6380,7 +6428,7 @@ function renderFaturamento() {
 
   const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
   const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
-  const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
+  const totalComissao = vendas.reduce((a, v) => a + comissaoTotalVenda(v), 0);
   const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
   const vendasTrademaster = vendas.filter(v => v.valorRecebido != null);
   const totalDiferencaTrademaster = vendasTrademaster.reduce((a, v) => a + (v.valorVenda - v.valorRecebido), 0);
@@ -6404,7 +6452,7 @@ function renderFaturamento() {
     if (vendasMesAnt.length) {
       totalFaturamentoAnt = vendasMesAnt.reduce((a, v) => a + v.valorVenda, 0);
       totalPneusAnt = vendasMesAnt.reduce((a, v) => a + v.quantidadePneus, 0);
-      totalComissaoAnt = vendasMesAnt.reduce((a, v) => a + (v.comissao || 0), 0);
+      totalComissaoAnt = vendasMesAnt.reduce((a, v) => a + comissaoTotalVenda(v), 0);
       totalFreteAnt = vendasMesAnt.reduce((a, v) => a + (v.valorFrete || 0), 0);
     }
   }
@@ -6427,10 +6475,12 @@ function renderFaturamento() {
   // por vendedor
   const porVendedor = {};
   vendas.forEach(v => {
-    const key = v.vendedor || "(sem vendedor)";
-    if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
-    porVendedor[key].faturamento += v.valorVenda;
-    porVendedor[key].comissao += v.comissao || 0;
+    participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
+      const key = p.nome || "(sem representante)";
+      if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
+      porVendedor[key].faturamento += v.valorVenda;
+      porVendedor[key].comissao += p.comissao;
+    });
   });
   const vendedores = Object.entries(porVendedor).sort((a, b) => b[1].faturamento - a[1].faturamento);
   const maxVendedor = vendedores.length ? vendedores[0][1].faturamento : 1;
@@ -6940,7 +6990,7 @@ function buscaGeralResultados(query) {
       (v.numeroNFEntrada || "").toLowerCase().includes(q) ||
       (v.numeroPedido || "").toLowerCase().includes(q) ||
       (v.cliente || "").toLowerCase().includes(q) ||
-      (v.vendedor || "").toLowerCase().includes(q))
+      textoRepresentantes(v).toLowerCase().includes(q))
     .slice(0, 4);
   // romaneio não tem NF/cliente próprios -- eles moram no pedido ligado (entrega_id)
   const romaneios = state.romaneios
@@ -7047,7 +7097,7 @@ function renderBuscaGeral() {
         : v.numeroNFEntrada ? "NF entrada " + marcarTrechoBusca(v.numeroNFEntrada, q)
         : v.numeroPedido ? "Pedido " + marcarTrechoBusca(v.numeroPedido, q)
         : marcarTrechoBusca(v.cliente || "", q);
-      const desc = [formatMoney(v.valorVenda || 0), v.vendedor ? marcarTrechoBusca(v.vendedor, q) : "", formatDateBR(v.data)].filter(Boolean).join(" · ");
+      const desc = [formatMoney(v.valorVenda || 0), textoRepresentantes(v) ? marcarTrechoBusca(textoRepresentantes(v), q) : "", formatDateBR(v.data)].filter(Boolean).join(" · ");
       return `
       <div class="search-item" data-buscaview="faturamento" data-buscaid="${escapeAttr(v.id)}">
         <span class="search-item-icon"><svg class="ic" viewBox="0 0 20 20"><use href="#i-invoice"/></svg></span>
@@ -7529,7 +7579,7 @@ function openClienteModal(nome) {
           <td class="num mono">${fmt(v.quantidadePneus)}</td>
           <td class="num mono">${formatMoney(v.valorVenda)}</td>
           <td>${escapeHtml(v.formaPagamento || "—")}</td>
-          <td>${escapeHtml(v.vendedor || "—")}</td>
+          <td>${escapeHtml(textoRepresentantes(v) || "—")}</td>
         </tr>
       `).join("")
     : `<tr><td colspan="6" class="muted" style="text-align:center;padding:16px;">Nenhuma venda registrada ainda.</td></tr>`;
@@ -8315,8 +8365,8 @@ function renderContasReceber() {
 
   const vendedorSelect = document.getElementById("carFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
-  const vendedoresUnicos = Array.from(new Set(todas.map(r => r.v.vendedor).filter(Boolean))).sort();
-  vendedorSelect.innerHTML = `<option value="">Todos os vendedores</option>` +
+  const vendedoresUnicos = Array.from(new Set(todas.flatMap(r => participantesVenda(r.v).map(p => p.nome)).filter(Boolean))).sort();
+  vendedorSelect.innerHTML = `<option value="">Todos os representantes</option>` +
     vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
   vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
 
@@ -8327,7 +8377,7 @@ function renderContasReceber() {
   // os cartões do topo olham a carteira inteira (só o vendedor escolhido recorta) -- a busca
   // e o filtro de situação mexem só na lista, senão filtrar "60+" zerava os outros cartões e
   // o "Total em aberto" deixava de ser o total
-  const carteira = vendedor ? todas.filter(r => r.v.vendedor === vendedor) : todas;
+  const carteira = vendedor ? todas.filter(r => vendaTemRepresentante(r.v, vendedor)) : todas;
 
   let rows = carteira;
   if (search) rows = rows.filter(({ v }) => [v.cliente, v.numeroNFVenda, v.numeroPedido].join(" ").toLowerCase().includes(search));
@@ -8353,7 +8403,7 @@ function renderContasReceber() {
       <td class="mono">${formatDateBR(v.data)}</td>
       <td>${escapeHtml(v.cliente)}</td>
       <td class="mono">${escapeHtml(v.numeroNFVenda || v.numeroPedido || "—")}</td>
-      <td>${escapeHtml(v.vendedor || "—")}</td>
+      <td>${escapeHtml(textoRepresentantes(v) || "—")}</td>
       <td class="num mono">
         ${formatMoney(r.total)}
         ${temParcelas ? `<div class="muted" style="font-size:11px;">${pagas} de ${v.parcelasDetalhe.length} parcelas pagas</div>` : ""}
@@ -8476,7 +8526,7 @@ function abrirBaixaParcelas(vendaId) {
   if (!v || !Array.isArray(v.parcelasDetalhe) || !v.parcelasDetalhe.length) return;
   baixaVendaId = vendaId;
   document.getElementById("baixaParcelasSubtitulo").textContent =
-    `${v.cliente} · NF ${v.numeroNFVenda || v.numeroPedido || "—"} · venda de ${formatMoney(v.valorVenda)} em ${formatDateBR(v.data)}${v.vendedor ? " · " + v.vendedor : ""}`;
+    `${v.cliente} · NF ${v.numeroNFVenda || v.numeroPedido || "—"} · venda de ${formatMoney(v.valorVenda)} em ${formatDateBR(v.data)}${textoRepresentantes(v) ? " · " + textoRepresentantes(v) : ""}`;
   const total = v.parcelasDetalhe.length;
   document.getElementById("baixaParcelasTbody").innerHTML = v.parcelasDetalhe.map((p, i) => {
     const paga = p.status === "pago";
@@ -8715,7 +8765,7 @@ function getVendasFiltradasComissoes() {
 // de vendedor (texto livre) a uma pessoa -- ver minhasVendas() no portal do representante.
 function vendasDoVendedor(nome) {
   const alvo = (nome || "").trim().toLowerCase();
-  return state.vendas.filter(v => (v.vendedor || "").trim().toLowerCase() === alvo);
+  return state.vendas.filter(v => vendaTemRepresentante(v, alvo));
 }
 
 function renderComissoes() {
@@ -8725,10 +8775,12 @@ function renderComissoes() {
   const vendas = getVendasFiltradasComissoes();
   const porVendedor = {};
   vendas.forEach(v => {
-    const key = v.vendedor || "(sem vendedor)";
-    if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
-    porVendedor[key].faturamento += v.valorVenda;
-    porVendedor[key].comissao += v.comissao || 0;
+    participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
+      const key = p.nome || "(sem representante)";
+      if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
+      porVendedor[key].faturamento += v.valorVenda;
+      porVendedor[key].comissao += p.comissao;
+    });
   });
   const vendedores = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao);
 
@@ -8758,10 +8810,12 @@ function renderComissoes() {
 function rankingVendedorNoPeriodo(vendasPeriodo, nomeVendedor) {
   const porVendedor = {};
   vendasPeriodo.forEach(v => {
-    const key = v.vendedor || "(sem vendedor)";
-    if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
-    porVendedor[key].faturamento += v.valorVenda;
-    porVendedor[key].comissao += v.comissao || 0;
+    participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
+      const key = p.nome || "(sem representante)";
+      if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
+      porVendedor[key].faturamento += v.valorVenda;
+      porVendedor[key].comissao += p.comissao;
+    });
   });
   const porFaturamento = Object.entries(porVendedor).sort((a, b) => b[1].faturamento - a[1].faturamento).map(([n]) => n);
   const porComissao = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao).map(([n]) => n);
@@ -8777,9 +8831,9 @@ function abrirComissaoVendedorDetalhe(nomeVendedor) {
   document.getElementById("comissoesDetalheWrap").style.display = "";
 
   const vendasPeriodoTodos = getVendasFiltradasComissoes();
-  const vendasPeriodo = vendasPeriodoTodos.filter(v => v.vendedor === nomeVendedor);
+  const vendasPeriodo = vendasPeriodoTodos.filter(v => vendaTemRepresentante(v, nomeVendedor));
   const totalFaturamento = vendasPeriodo.reduce((a, v) => a + v.valorVenda, 0);
-  const totalComissao = vendasPeriodo.reduce((a, v) => a + (v.comissao || 0), 0);
+  const totalComissao = vendasPeriodo.reduce((a, v) => a + ((participacaoDe(v, nomeVendedor) || {}).comissao || 0), 0);
   const totalPneus = vendasPeriodo.reduce((a, v) => a + v.quantidadePneus, 0);
   // mesmo período da lista (não o total histórico) -- consistente com os outros 3 KPIs.
   // saldoEmAbertoDaVenda soma só a parte em aberto quando a venda tem parcela detalhada.
@@ -8894,8 +8948,8 @@ function abrirComissaoClienteDetalhe(nomeVendedor, clienteNome) {
 function renderVendas() {
   const vendedorSelect = document.getElementById("venFiltroVendedor");
   const vendedorAnterior = vendedorSelect.value;
-  const vendedoresUnicos = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
-  vendedorSelect.innerHTML = `<option value="">Todos os vendedores</option>` +
+  const vendedoresUnicos = Array.from(new Set(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean))).sort();
+  vendedorSelect.innerHTML = `<option value="">Todos os representantes</option>` +
     vendedoresUnicos.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
   vendedorSelect.value = vendedoresUnicos.includes(vendedorAnterior) ? vendedorAnterior : "";
 
@@ -8942,10 +8996,10 @@ function renderVendas() {
       <td class="mono">${formatDateBR(v.data)}</td>
       <td>${escapeHtml(v.cliente)}</td>
       <td class="mono">${nfHtml}${v.numeroPedido ? `<div class="muted" style="font-size:11px;">Ped. ${escapeHtml(v.numeroPedido)}</div>` : ""}</td>
-      <td>${escapeHtml(v.vendedor || "—")}</td>
+      <td>${escapeHtml(v.vendedor || "—")}${subsDaVenda(v).map(sb => `<div class="muted" style="font-size:11px;">Sub: ${escapeHtml(sb.nome)} · ${Number(sb.pct || 0).toFixed(2).replace(".", ",")}%</div>`).join("")}</td>
       <td class="num mono">${fmt(v.quantidadePneus)}</td>
       <td class="num mono">${formatMoney(v.valorVenda)}${v.pagamentosDivididos && v.pagamentosDivididos.length ? `<div class="muted" style="font-size:11px;">Dividido em ${v.pagamentosDivididos.length} formas</div>` : ""}</td>
-      <td class="num mono">${formatMoney(v.comissao || 0)}${v.comissaoPercentual ? `<div class="muted" style="font-size:11px;">${v.comissaoPercentual.toFixed(2).replace(".", ",")}%</div>` : ""}</td>
+      <td class="num mono">${formatMoney(comissaoTotalVenda(v))}${subsDaVenda(v).length ? `<div class="muted" style="font-size:11px;">total (principal + ${subsDaVenda(v).length} sub)</div>` : (v.comissaoPercentual ? `<div class="muted" style="font-size:11px;">${v.comissaoPercentual.toFixed(2).replace(".", ",")}%</div>` : "")}</td>
       <td>${escapeHtml(v.transportadora || "—")}</td>
       <td class="muted">${escapeHtml(v.obs || "—")}</td>
       <td>${statusPagamentoPillHtml(v)}</td>
@@ -9167,6 +9221,89 @@ function comissaoVendaVoltarAuto(restaurarPct = true) {
   comissaoVendaDesenhar();
 }
 
+/* ---------------- sub-representantes da venda ---------------- */
+// Marcando "tem sub-representante", abre uma lista: cada linha tem o representante e a % dele. A % é sobre o
+// valor TOTAL da venda e o valor em R$ é calculado sozinho. O representante principal fica no campo de cima.
+function criarLinhaSub(nome, pct) {
+  const row = document.createElement("div");
+  row.className = "item-row sub-row";
+  row.innerHTML = `
+    <select class="sub-nome" aria-label="Sub-representante"></select>
+    <input type="number" class="sub-pct" min="0" step="0.01" placeholder="Comissão (%)" aria-label="Comissão do sub-representante em %">
+    <input type="text" class="sub-valor" value="R$ 0,00" disabled aria-label="Comissão do sub-representante em R$">
+    <button type="button" class="btn small danger item-remove" title="Remover">✕</button>
+  `;
+  preencherVendedorSelect(row.querySelector(".sub-nome"), nome || "");
+  if (pct != null && pct !== "") row.querySelector(".sub-pct").value = pct;
+  row.querySelector(".sub-pct").addEventListener("input", atualizarResumoSub);
+  row.querySelector(".item-remove").addEventListener("click", () => { row.remove(); atualizarResumoSub(); });
+  return row;
+}
+function linhasSub() {
+  return Array.from(document.querySelectorAll("#venSubLista .sub-row"));
+}
+function valorSubDe(valorVenda, pct) {
+  return Math.round((valorVenda * pct / 100) * 100) / 100;
+}
+function atualizarResumoSub() {
+  const resumo = document.getElementById("venSubResumo");
+  if (!resumo) return;
+  const valorVenda = parseFloat(document.getElementById("venValor").value) || 0;
+  let totalSubs = 0;
+  linhasSub().forEach(row => {
+    const v = valorSubDe(valorVenda, parseFloat(row.querySelector(".sub-pct").value) || 0);
+    totalSubs += v;
+    row.querySelector(".sub-valor").value = formatMoney(v);
+  });
+  const principal = comissaoVendaValorFinal();
+  resumo.innerHTML = `Comissão total da venda: <b>${formatMoney(principal + totalSubs)}</b>` +
+    ` <span class="muted">· principal ${formatMoney(principal)} · sub-representantes ${formatMoney(totalSubs)}</span>`;
+}
+function resetSubRepresentantes() {
+  document.getElementById("venTemSub").checked = false;
+  document.getElementById("venSubBox").style.display = "none";
+  document.getElementById("venSubLista").innerHTML = "";
+  atualizarResumoSub();
+}
+function carregarSubRepresentantes(subs) {
+  resetSubRepresentantes();
+  if (!subs || !subs.length) return;
+  document.getElementById("venTemSub").checked = true;
+  document.getElementById("venSubBox").style.display = "";
+  const lista = document.getElementById("venSubLista");
+  subs.forEach(s => lista.appendChild(criarLinhaSub(s.nome, s.pct)));
+  atualizarResumoSub();
+}
+// devolve [] com a caixa desmarcada, a lista [{nome, pct, valor}] ou undefined (já avisou o erro na tela)
+function coletarSubRepresentantes(valorVenda, principal) {
+  if (!document.getElementById("venTemSub").checked) return [];
+  const linhas = linhasSub();
+  if (linhas.length === 0) {
+    toast("Adicione ao menos um sub-representante, ou desmarque a opção.");
+    return undefined;
+  }
+  const subs = [];
+  const vistos = new Set([(principal || "").trim().toLowerCase()]);
+  for (const row of linhas) {
+    const nome = row.querySelector(".sub-nome").value.trim();
+    const pctRaw = row.querySelector(".sub-pct").value;
+    if (!nome || pctRaw === "") {
+      toast("Preencha o representante e a comissão (%) em todas as linhas de sub-representante.");
+      return undefined;
+    }
+    const pct = parseFloat(pctRaw);
+    if (isNaN(pct) || pct < 0) { toast("A comissão do sub-representante não pode ser negativa."); return undefined; }
+    const chave = nome.toLowerCase();
+    if (vistos.has(chave)) {
+      toast(`${nome} já está nesta venda. Cada representante entra uma vez só.`);
+      return undefined;
+    }
+    vistos.add(chave);
+    subs.push({ nome, pct, valor: valorSubDe(valorVenda, pct) });
+  }
+  return subs;
+}
+
 function startEditVenda(vendaId) {
   const v = state.vendas.find(x => x.id === vendaId);
   if (!v) return;
@@ -9182,6 +9319,7 @@ function startEditVenda(vendaId) {
   document.getElementById("venValor").value = v.valorVenda;
   document.getElementById("venFormaPagamento").value = v.formaPagamento || "";
   preencherVendedorSelect(document.getElementById("venVendedor"), v.vendedor || "");
+  carregarSubRepresentantes(subsDaVenda(v));
   document.getElementById("venComissaoPct").value = v.comissaoPercentual || "";
   comissaoVendaVoltarAuto();
   // valor salvo diferente de venda x % (mais de 1 centavo) = foi ajustado à mão: mostra o valor salvo, não o recalculado
@@ -9255,6 +9393,7 @@ function cancelEditVenda() {
   resetarFretePuxado();
   resetDivisaoPagamento();
   document.getElementById("formVenda").reset();
+  resetSubRepresentantes();
   preencherVendedorSelect(document.getElementById("venVendedor"), ""); // tira a opção "(fora da lista)" de uma edição anterior
   document.getElementById("venData").value = todayISO();
   document.getElementById("venTransportadora").disabled = false;
@@ -10040,11 +10179,24 @@ function initForms() {
     atualizarResumoDivisaoPagamento();
   });
   document.getElementById("venValor").addEventListener("input", atualizarResumoDivisaoPagamento);
+  document.getElementById("venTemSub").addEventListener("change", (e) => {
+    document.getElementById("venSubBox").style.display = e.target.checked ? "" : "none";
+    if (e.target.checked && linhasSub().length === 0) document.getElementById("venSubLista").appendChild(criarLinhaSub("", ""));
+    atualizarResumoSub();
+  });
+  document.getElementById("btnAddSub").addEventListener("click", () => {
+    document.getElementById("venSubLista").appendChild(criarLinhaSub("", ""));
+    atualizarResumoSub();
+  });
+  ["venValor", "venComissaoPct", "venComissaoCalc"].forEach(id => {
+    document.getElementById(id).addEventListener("input", atualizarResumoSub);
+    document.getElementById(id).addEventListener("change", atualizarResumoSub);
+  });
 
   document.getElementById("formVenda").addEventListener("submit", async (e) => {
     e.preventDefault();
     // select desabilitado (nenhuma venda ainda, lista vazia) escapa do "required" nativo
-    if (!document.getElementById("venVendedor").value) { toast("Escolha o vendedor."); return; }
+    if (!document.getElementById("venVendedor").value) { toast("Escolha o representante."); return; }
     const cliente = document.getElementById("venCliente").value.trim();
     const quantidade = parseInt(document.getElementById("venQtd").value, 10);
     const valorVenda = parseFloat(document.getElementById("venValor").value);
@@ -10101,6 +10253,8 @@ function initForms() {
     const comissaoBase = valorVenda; // comissão sempre sai do valor da venda, nunca do valor recebido
     const pagamentosDivididos = coletarDivisaoPagamento();
     if (pagamentosDivididos === undefined) return;
+    const subRepresentantes = coletarSubRepresentantes(valorVenda, document.getElementById("venVendedor").value);
+    if (subRepresentantes === undefined) return;
 
     const valorFreteRaw = document.getElementById("venValorFrete").value;
     const dadosVenda = {
@@ -10115,6 +10269,7 @@ function initForms() {
       vendedor: document.getElementById("venVendedor").value.trim(),
       comissaoPercentual,
       comissao: comissaoVendaManual() ? comissaoVendaValorFinal() : comissaoBase * comissaoPercentual / 100,
+      subRepresentantes,
       valorFrete: clienteRetira ? null : (valorFreteRaw ? parseFloat(valorFreteRaw) : null),
       transportadora: clienteRetira ? "Cliente retira" : (document.getElementById("venTransportadora").value.trim() || null),
       obs: document.getElementById("venObs").value.trim(),
@@ -10132,7 +10287,8 @@ function initForms() {
       if (!motivo) return;
       const v = state.vendas.find(x => x.id === editingVendaId);
       const { conflict, error, row } = await updateWithConflictCheck(
-        "vendas", editingVendaId, editingVendaUpdatedAt, vendaToRow({ id: editingVendaId, ...dadosVenda })
+        "vendas", editingVendaId, editingVendaUpdatedAt,
+        vendaToRow({ id: editingVendaId, ...dadosVenda, limparSubRepresentantes: !subRepresentantes.length && subsDaVenda(v).length > 0 })
       );
       if (error) { toast("Erro ao salvar: " + error.message); return; }
       if (conflict) {
@@ -10481,12 +10637,13 @@ const REPORT_DEFS = {
         return {
           c, faturamento: r.faturamento, ultimaCompra: r.ultimaCompra,
           dias: r.ultimaCompra ? diasDesde(r.ultimaCompra) : 0,
-          vendedor: ultimaVenda[c.nome] ? ultimaVenda[c.nome].vendedor : "",
+          vendedor: ultimaVenda[c.nome] ? textoRepresentantes(ultimaVenda[c.nome]) : "",
+          reps: ultimaVenda[c.nome] ? participantesVenda(ultimaVenda[c.nome]).map(p => p.nome) : [],
           status: statusAtividadeCliente(r.ultimaCompra)
         };
       }).filter(r => sit.status.includes(r.status));
       if (filtro2) lista = lista.filter(r => r.c.estado === filtro2);
-      if (filtro3) lista = lista.filter(r => r.vendedor === filtro3);
+      if (filtro3) lista = lista.filter(r => r.reps.includes(filtro3));
       const porNome = (a, b) => a.c.nome.localeCompare(b.c.nome);
       if (agrupar === "nome") lista.sort(porNome);
       else if (agrupar === "valor") lista.sort((a, b) => b.faturamento - a.faturamento || b.dias - a.dias || porNome(a, b));
@@ -10499,7 +10656,7 @@ const REPORT_DEFS = {
         { key: "ultima", label: "Última compra", mono: true, width: 70 },
         { key: "dias", label: "Dias", numeric: true, width: 38 },
         { key: "situacao", label: "Situação", width: 58 },
-        { key: "vendedor", label: "Vendedor", width: 78 },
+        { key: "vendedor", label: "Representante", width: 78 },
         { key: "total", label: "Total comprado", money: true, width: 112 }
       ];
       const rows = lista.map(r => ({
@@ -10520,7 +10677,7 @@ const REPORT_DEFS = {
       const summaryLines = [
         { label: "Situações incluídas", value: sit.label },
         ...(filtro2 ? [{ label: "Estado", value: filtro2 }] : []),
-        ...(filtro3 ? [{ label: "Vendedor (da última compra)", value: filtro3 }] : []),
+        ...(filtro3 ? [{ label: "Representante (da última compra)", value: filtro3 }] : []),
         ...(sit.status.includes("atencao") ? [{ label: "Em atenção (61 a 120 dias)", value: `${fmt(emAtencao.length)} · já compraram ${somaCompras(emAtencao)}` }] : []),
         ...(sit.status.includes("inativo") ? [{ label: "Inativos (mais de 120 dias)", value: `${fmt(inativos.length)} · já compraram ${somaCompras(inativos)}` }] : []),
         { label: "Clientes no relatório", value: fmt(lista.length), total: true }
@@ -10533,7 +10690,7 @@ const REPORT_DEFS = {
     hasDateRange: true,
     build(de, ate, filtro, codigos, agrupar, filtro2) {
       let vendas = filtrarPorPeriodo(state.vendas, de, ate).slice().sort((a, b) => a.data.localeCompare(b.data));
-      if (filtro) vendas = vendas.filter(v => v.vendedor === filtro);
+      if (filtro) vendas = vendas.filter(v => vendaTemRepresentante(v, filtro));
       // estado não é campo da venda -- vem do cadastro do cliente (mesma lógica de
       // "Faturamento e frete por estado": getCliente(v.cliente).estado).
       if (filtro2) vendas = vendas.filter(v => { const cli = getCliente(v.cliente); return cli && cli.estado === filtro2; });
@@ -10542,7 +10699,7 @@ const REPORT_DEFS = {
         { key: "cliente", label: "Cliente" },
         { key: "estado", label: "Estado" },
         { key: "nf", label: "NF" },
-        { key: "vendedor", label: "Vendedor" },
+        { key: "vendedor", label: "Representante" },
         { key: "qtd", label: "Qtd. pneus", numeric: true },
         { key: "valor", label: "Valor da venda", money: true },
         { key: "comissao", label: "Comissão", money: true },
@@ -10552,17 +10709,17 @@ const REPORT_DEFS = {
       const rows = vendas.map(v => {
         const cli = getCliente(v.cliente);
         return {
-          data: formatDateBR(v.data), cliente: v.cliente, estado: (cli && cli.estado) || "—", nf: v.numeroNFVenda || "—", vendedor: v.vendedor || "—",
-          qtd: v.quantidadePneus, valor: v.valorVenda, comissao: v.comissao || 0, frete: v.valorFrete || 0,
+          data: formatDateBR(v.data), cliente: v.cliente, estado: (cli && cli.estado) || "—", nf: v.numeroNFVenda || "—", vendedor: textoRepresentantes(v) || "—",
+          qtd: v.quantidadePneus, valor: v.valorVenda, comissao: filtro ? ((participacaoDe(v, filtro) || {}).comissao || 0) : comissaoTotalVenda(v), frete: v.valorFrete || 0,
           transportadora: v.transportadora || "—"
         };
       });
       const totalFaturamento = vendas.reduce((a, v) => a + v.valorVenda, 0);
-      const totalComissao = vendas.reduce((a, v) => a + (v.comissao || 0), 0);
+      const totalComissao = vendas.reduce((a, v) => a + (filtro ? ((participacaoDe(v, filtro) || {}).comissao || 0) : comissaoTotalVenda(v)), 0);
       const totalFrete = vendas.reduce((a, v) => a + (v.valorFrete || 0), 0);
       const totalPneus = vendas.reduce((a, v) => a + v.quantidadePneus, 0);
       const summaryLines = [
-        ...(filtro ? [{ label: "Vendedor", value: filtro }] : []),
+        ...(filtro ? [{ label: "Representante", value: filtro }] : []),
         ...(filtro2 ? [{ label: "Estado", value: filtro2 }] : []),
         { label: "Vendas no período", value: fmt(vendas.length) },
         { label: "Pneus vendidos", value: fmt(totalPneus) + " un." },
@@ -11115,8 +11272,8 @@ function gerarRelatorioCSV(reportKey, de, ate, filtro, codigo, agrupar, filtro2,
 function populateReportFatVendedor() {
   const sel = document.getElementById("reportFatVendedor");
   const atual = sel.value;
-  const vendedores = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
-  sel.innerHTML = `<option value="">Todos os vendedores</option>` + vendedores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+  const vendedores = Array.from(new Set(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean))).sort();
+  sel.innerHTML = `<option value="">Todos os representantes</option>` + vendedores.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
   if (vendedores.includes(atual)) sel.value = atual;
 }
 
@@ -11145,10 +11302,10 @@ function populateReportCreditoInativos() {
     if (valores.includes(atual)) sel.value = atual;
   };
   const estados = Array.from(new Set(state.clientes.map(c => c.estado).filter(Boolean))).sort();
-  const vendedores = Array.from(new Set(state.vendas.map(v => v.vendedor).filter(Boolean))).sort();
+  const vendedores = Array.from(new Set(state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)).filter(Boolean))).sort();
   preencher("reportCredEstado", "Todos os estados", estados);
   preencher("reportInatEstado", "Todos os estados", estados);
-  preencher("reportInatVendedor", "Todos os vendedores", vendedores);
+  preencher("reportInatVendedor", "Todos os representantes", vendedores);
 }
 
 function initRelatorios() {

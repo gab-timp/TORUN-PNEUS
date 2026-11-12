@@ -2012,16 +2012,16 @@
       <div class="page-head">
         <div>
           <h1>Faturamento</h1>
-          <div class="sub">Vendas, comissão, frete e faturamento por vendedor, estado, transportadora e cliente.</div>
+          <div class="sub">Vendas, comissão, frete e faturamento por representante, estado, transportadora e cliente.</div>
         </div>
       </div>
 
       <div class="card">
         <div class="search-row" style="margin-bottom:0;">
           <select id="fatMesFiltro"></select>
-          <input type="text" id="venSearch" placeholder="Buscar por cliente, NF, pedido ou vendedor…">
+          <input type="text" id="venSearch" placeholder="Buscar por cliente, NF, pedido ou representante…">
           <select id="venFiltroVendedor">
-            <option value="">Todos os vendedores</option>
+            <option value="">Todos os representantes</option>
           </select>
           <select id="venFiltroFormaPagamento">
             <option value="">Todas as formas de pagamento</option>
@@ -2086,7 +2086,7 @@
               </select>
             </div>
             <div class="field">
-              <label>Vendedor</label>
+              <label>Representante</label>
               <select id="venVendedor" required>
                 <option value="">Selecione…</option>
               </select>
@@ -2099,6 +2099,18 @@
               <label for="venComissaoCalc">Comissão (R$)</label>
               <input type="text" id="venComissaoCalc" value="R$ 0,00" inputmode="decimal" autocomplete="off">
               <div class="sub" id="venComissaoEstado" style="margin-top:6px; font-size:11.5px;" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="field" style="flex:0 0 auto; margin-bottom:12px;">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
+              <input type="checkbox" id="venTemSub" style="width:auto;">
+              Essa venda tem sub-representante? (mais de um representante)
+            </label>
+            <div id="venSubBox" class="divisao-pagamento-box" style="display:none;">
+              <div class="sub" style="margin-bottom:8px;">O representante acima é o principal. Cada sub-representante tem a própria %, calculada sobre o valor total da venda, e a venda conta inteira no faturamento dele.</div>
+              <div id="venSubLista" class="item-list"></div>
+              <button type="button" class="btn small outline" id="btnAddSub" style="margin-top:8px;">+ Adicionar sub-representante</button>
+              <div id="venSubResumo" class="divisao-pagamento-resumo"></div>
             </div>
           </div>
           <div class="field" style="flex:0 0 auto; margin-bottom:12px;">
@@ -2199,7 +2211,7 @@
                 <th>Data</th>
                 <th>Cliente</th>
                 <th>NF / Pedido</th>
-                <th>Vendedor</th>
+                <th>Representante</th>
                 <th class="num">Pneus</th>
                 <th class="num">Valor</th>
                 <th class="num">Comissão</th>
@@ -2220,11 +2232,11 @@
 
       <div class="grid-2">
         <div class="card card-collapsible" data-collapse-key="fat-vendedor">
-          <div class="card-head"><h2>Faturamento e comissão por vendedor</h2><span class="card-toggle">⌄</span></div>
+          <div class="card-head"><h2>Faturamento e comissão por representante</h2><span class="card-toggle">⌄</span></div>
           <div class="card-body">
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Vendedor</th><th class="num">Faturamento</th><th class="num">Comissão</th></tr></thead>
+                <thead><tr><th>Representante</th><th class="num">Faturamento</th><th class="num">Comissão</th></tr></thead>
                 <tbody id="fatVendedorTbody"></tbody>
               </table>
             </div>
@@ -2369,7 +2381,7 @@
       <div class="card">
         <div class="search-row">
           <input type="text" id="carSearch" placeholder="Buscar por cliente, NF ou pedido…">
-          <select id="carFiltroVendedor"><option value="">Todos os vendedores</option></select>
+          <select id="carFiltroVendedor"><option value="">Todos os representantes</option></select>
           <select id="carFiltroFaixa">
             <option value="">Todas as situações</option>
             <option value="1-30">Vencido há 1–30 dias</option>
@@ -2383,7 +2395,7 @@
           <table>
             <thead>
               <tr>
-                <th>Data</th><th>Cliente</th><th>NF/Pedido</th><th>Vendedor</th>
+                <th>Data</th><th>Cliente</th><th>NF/Pedido</th><th>Representante</th>
                 <th class="num">Valor</th><th>Vencimento</th><th>Situação</th><th></th>
               </tr>
             </thead>
@@ -2400,7 +2412,7 @@
         <div class="page-head">
           <div>
             <h1>Comissões</h1>
-            <div class="sub">Escolha um vendedor pra ver o desempenho individual completo — faturamento, comissão, inadimplência, evolução e clientes. Totais e comparações entre vendedores já ficam no Dashboard e no Faturamento.</div>
+            <div class="sub">Escolha um representante pra ver o desempenho individual completo — faturamento, comissão, inadimplência, evolução e clientes. Totais e comparações entre representantes já ficam no Dashboard e no Faturamento.</div>
           </div>
         </div>
 
@@ -2765,7 +2777,7 @@
                     <th class="num">Pneus</th>
                     <th class="num">Valor</th>
                     <th>Forma pgto</th>
-                    <th>Vendedor</th>
+                    <th>Representante</th>
                   </tr>
                 </thead>
                 <tbody id="clienteModalVendasTbody"></tbody>
@@ -2793,7 +2805,7 @@
       <div class="report-grid">
         <div class="card report-card" data-report="faturamento">
           <div class="card-head"><h2>Faturamento</h2></div>
-          <div class="note">Vendas, comissões, frete e faturamento por vendedor, estado e cliente.</div>
+          <div class="note">Vendas, comissões, frete e faturamento por representante, estado e cliente.</div>
           <div class="form-row report-daterange">
             <div class="field">
               <label>De</label>
@@ -2804,9 +2816,9 @@
               <input type="date" class="report-ate">
             </div>
             <div class="field">
-              <label>Vendedor</label>
+              <label>Representante</label>
               <select class="report-filtro" id="reportFatVendedor">
-                <option value="">Todos os vendedores</option>
+                <option value="">Todos os representantes</option>
               </select>
             </div>
             <div class="field">
@@ -3087,9 +3099,9 @@
           </div>
           <div class="form-row">
             <div class="field">
-              <label>Vendedor (da última compra)</label>
+              <label>Representante (da última compra)</label>
               <select class="report-filtro3" id="reportInatVendedor">
-                <option value="">Todos os vendedores</option>
+                <option value="">Todos os representantes</option>
               </select>
             </div>
             <div class="field">
@@ -4260,7 +4272,7 @@
           <option>Negociação não concluída.</option>
           <option>Condição de pagamento não aprovada.</option>
           <option>Alteração de preço.</option>
-          <option>Solicitação do representante/vendedor.</option>
+          <option>Solicitação do representante.</option>
           <option>Compra adiada.</option>
           <option>Alteração do pedido (será emitido novo pedido).</option>
         </optgroup>
@@ -4427,7 +4439,7 @@
           <input type="text" id="pedCliente" list="listCliente" placeholder="Digite o nome do cliente" autocomplete="off">
         </div>
         <div class="field">
-          <label>Vendedor</label>
+          <label>Representante</label>
           <select id="pedVendedor">
             <option value="">Selecione…</option>
           </select>

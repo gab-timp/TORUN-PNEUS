@@ -424,7 +424,7 @@ async function afterLogin() {
     selectTudoPaginadoRep("produtos_precos", "id, codigo, regiao, tipo_cliente, condicao_pagamento, preco", "id"),
     selectTudoPaginadoRep("movimentos", "id, codigo, tipo, quantidade, data, entrega_id", "id"),
     sb.from("entregas").select("*").order("data", { ascending: false }),
-    sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, valor_recebido, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false }),
+    sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, valor_recebido, vendedor, comissao, forma_pagamento, obs, sub_representantes").order("data", { ascending: false }),
     sb.from("clientes").select("nome, estado"),
     sb.from("previsoes").select("id, numero_processo, itens, data_chegada, status, representante").order("data_chegada", { ascending: true, nullsFirst: false }),
     sb.from("clientes_pendentes").select("*").eq("created_by", currentUser.id).order("created_at", { ascending: false }),
@@ -442,6 +442,11 @@ async function afterLogin() {
   // pedido cancelado no admin some do Kanban de lá mas continua na tabela: aqui ele não aparece em lugar nenhum
   entregas = (entregasRes.data || []).filter(e => !e.cancelado);
   vendas = vendasRes.data || [];
+  if (vendasRes.error) {
+    // coluna sub_representantes ainda não existe no banco (sql/vendas_sub_representantes.sql): carrega sem ela
+    const semSub = await sb.from("vendas").select("id, data, numero_nf_venda, numero_pedido, cliente, quantidade_pneus, valor_venda, valor_recebido, vendedor, comissao, forma_pagamento, obs").order("data", { ascending: false });
+    if (!semSub.error) vendas = semSub.data || [];
+  }
   clientesRep = clientesRes.data || [];
   previsoes = previsoesRes.data || [];
   meusPreCadastros = preCadastrosRes.data || [];
@@ -2060,9 +2065,18 @@ function initMobileMenuRep() {
 // vendas.vendedor é texto livre digitado pela equipe interna ao faturar -- não tem vínculo
 // direto com o login. Liga pelo nome batendo (sem diferenciar maiúsc./minúsc. ou espaço),
 // mesmo risco de digitação que já existe hoje em qualquer relatório por vendedor.
+// Venda com sub-representante: quem é sub vê a venda inteira no faturamento dele, com a comissão que lhe cabe
+// (a cópia leva a comissão do sub no lugar da do principal, então todas as telas abaixo já somam certo).
 function minhasVendas() {
   const meuNome = (currentUserNome || "").trim().toLowerCase();
-  return vendas.filter(v => (v.vendedor || "").trim().toLowerCase() === meuNome);
+  const sou = (n) => (n || "").trim().toLowerCase() === meuNome;
+  const minhas = [];
+  vendas.forEach(v => {
+    if (sou(v.vendedor)) { minhas.push(v); return; }
+    const sub = (Array.isArray(v.sub_representantes) ? v.sub_representantes : []).find(x => sou(x.nome));
+    if (sub) minhas.push({ ...v, comissao: Number(sub.valor) || 0, sou_sub: true });
+  });
+  return minhas;
 }
 
 let repDashMesAtual = null;
@@ -2458,7 +2472,7 @@ function abrirDetalheEntregaRep(id) {
   entregaDetalheAtualId = id;
   document.getElementById("repEntregaDetalheTitulo").textContent = e.numero_nf || e.numero_pedido || "Sem NF";
   document.getElementById("repEntregaDetalheInfo").innerHTML = [
-    ["Cliente", e.cliente], ["Vendedor", e.vendedor], ["Etapa", ETAPA_LABEL[e.etapa] || e.etapa],
+    ["Cliente", e.cliente], ["Representante", e.vendedor], ["Etapa", ETAPA_LABEL[e.etapa] || e.etapa],
     ["Data", formatDateBR(e.data)], ["Transportadora", e.transportadora], ["Destino", e.destino]
   ].map(([lbl, val]) => `<div><label>${lbl}</label><div class="rep-readonly">${escapeHtml(val || "—")}</div></div>`).join("");
 

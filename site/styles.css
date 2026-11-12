@@ -1018,7 +1018,18 @@ tr.fc-total td{border-top:2px solid var(--line-strong); font-weight:800; backgro
   flex:0 0 140px; width:140px; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
   font-size:13.5px; background:var(--surface); color:var(--ink); outline:none; font-family:'Space Mono',monospace;
 }
+.item-row.sub-row .sub-nome{
+  flex:1 1 220px; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+  font-size:13.5px; background:var(--surface); color:var(--ink); outline:none;
+}
+.item-row.sub-row .sub-pct,
+.item-row.sub-row .sub-valor{
+  flex:0 0 130px; width:130px; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+  font-size:13.5px; background:var(--surface); color:var(--ink); outline:none; font-family:'Space Mono',monospace;
+}
+.item-row.sub-row .sub-valor{opacity:.85;}
 .divisao-pagamento-resumo{margin-top:10px; padding-top:10px; border-top:1px solid var(--line);}
+#venSubResumo{font-size:12.5px;}
 .divisao-resumo-linha{display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-soft);}
 .divisao-resumo-linha .mono{font-weight:700; color:var(--ink);}
 .divisao-resumo-status{margin-top:4px; font-size:12px; font-weight:700;}
@@ -1746,7 +1757,8 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
 .prev-detalhe-bloco{margin-bottom:16px;}
 .prev-detalhe-tabela{width:100%; border-collapse:collapse;}
 .prev-detalhe-tabela th{text-align:left; color:var(--ink-soft); font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:0 10px 8px; font-weight:700;}
-.prev-detalhe-tabela td{padding:9px 10px; border-top:1px solid var(--line); font-size:12.5px;}
+.prev-detalhe-tabela td{padding:9px 10px; border-top:1px solid var(--line);}
+#venSubResumo{font-size:12.5px;}
 .prev-detalhe-tabela .num{text-align:right; font-weight:700;}
 .prev-detalhe-tabela .medida-txt{color:var(--ink-soft);}
 .prev-detalhe-tabela tr.total td{font-weight:800; background:var(--paper);}
