@@ -5486,15 +5486,35 @@ function renderClienteSelect() {
 // os vendedores cadastrados (state.representantes: quem tem papel Representante ou a permissão do portal), pra um
 // vendedor novo poder ser escolhido antes de ter a primeira venda.
 function vendedoresDasVendas() {
-  const nomes = [...state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)), ...(state.representantes || [])];
-  return Array.from(new Set(nomes.map(n => (n || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const nomes = [...state.vendas.flatMap(v => participantesVenda(v).map(p => p.nome)), ...(state.representantes || [])]
+    .map(n => (n || "").trim()).filter(Boolean);
+  return nomesSemDuplicados(nomes, state.representantes || []);
+}
+
+// "Caetano" e "CAETANO" (ou "Rogério" e "ROGÉRIO") são a mesma pessoa: a lista mostra um nome só. Fica a grafia do
+// cadastro de representantes; se nenhuma estiver lá, a que mais aparece nas vendas. As vendas gravadas não mudam.
+function nomesSemDuplicados(nomes, preferidos) {
+  const chave = n => n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").toLowerCase();
+  const grupos = new Map();
+  nomes.forEach(n => {
+    const k = chave(n);
+    if (!grupos.has(k)) grupos.set(k, new Map());
+    grupos.get(k).set(n, (grupos.get(k).get(n) || 0) + 1);
+  });
+  const pref = new Set(preferidos.map(n => (n || "").trim()));
+  return Array.from(grupos.values()).map(g => {
+    const grafias = Array.from(g.entries());
+    return (grafias.find(([n]) => pref.has(n)) || grafias.sort((a, b) => b[1] - a[1])[0])[0];
+  }).sort((a, b) => a.localeCompare(b));
 }
 
 // valorAtual (sem ele, mantém o que o select já tem). Um nome que nenhuma venda tem (pedido ou venda antiga)
 // entra como opção "(fora da lista)", senão salvar a edição apagaria o vendedor sem ninguém perceber.
 function preencherVendedorSelect(sel, valorAtual) {
   const atual = ((valorAtual !== undefined ? valorAtual : sel.value) || "").trim();
-  const nomes = vendedoresDasVendas();
+  const chave = n => n.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").toLowerCase();
+  // editando uma venda gravada como "CAETANO" com a lista mostrando "Caetano": mantém a grafia gravada, sem "(fora da lista)"
+  const nomes = vendedoresDasVendas().map(n => (atual !== "" && chave(n) === chave(atual) ? atual : n));
   const foraDaLista = atual !== "" && !nomes.includes(atual);
   const opcoes = (foraDaLista ? [...nomes, atual] : nomes).sort((a, b) => a.localeCompare(b));
   sel.innerHTML = `<option value="">${opcoes.length ? "Selecione…" : "Nenhum representante ainda"}</option>` +
