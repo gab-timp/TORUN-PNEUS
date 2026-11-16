@@ -576,9 +576,14 @@ function crmAtualizarFiltroExecutivo() {
   const s = crmSistemaAtual();
   const mapa = new Map();
   crmState.carteira.filter(c => c.sistema === s).forEach(c => mapa.set(c.executivoId, c.executivoNome || "(sem nome)"));
-  sel.innerHTML = `<option value="">Todos</option>` + Array.from(mapa.entries()).sort((a, b) => a[1].localeCompare(b[1]))
+  const html = `<option value="">Todos</option>` + Array.from(mapa.entries()).sort((a, b) => a[1].localeCompare(b[1]))
     .map(([id, nome]) => `<option value="${escapeAttr(id)}">${escapeHtml(nome)}</option>`).join("");
-  sel.value = mapa.has(atual) ? atual : "";
+  // só refaz as opções se mudaram: trocar o conteúdo do seletor no meio do evento dele trava a escolha de outro executivo
+  if (sel.dataset.opcoes !== html) {
+    sel.innerHTML = html;
+    sel.dataset.opcoes = html;
+    sel.value = mapa.has(atual) ? atual : "";
+  }
 }
 
 function crmAtualizarFiltroRepresentante() {
@@ -1322,6 +1327,9 @@ function initCrmTelas() {
   });
   ["crmCliBusca", "crmCliTipo", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo", "crmCliRepresentante"].forEach(id => {
     document.getElementById(id).addEventListener("input", crmRenderClientes);
+  });
+  ["crmCliTipo", "crmCliSituacao", "crmCliOrdem", "crmCliExecutivo", "crmCliRepresentante"].forEach(id => {
+    document.getElementById(id).addEventListener("change", crmRenderClientes);
   });
   document.getElementById("crmEscopoSeg").addEventListener("click", (e) => {
     const b = e.target.closest("[data-crmescopo]");
