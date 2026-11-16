@@ -450,9 +450,7 @@ function crmWizPassoHtml(chave) {
         <div class="crm-chips" role="group" aria-label="Segmento">${CRM_SEGMENTOS.map(sg => `<button type="button" class="crm-chip ${crmSegLista(d.segmento).includes(sg) ? "on" : ""}" role="checkbox" aria-checked="${crmSegLista(d.segmento).includes(sg)}" data-wseg="${escapeAttr(sg)}">${escapeHtml(sg)}</button>`).join("")}</div></div>
       <div class="crm-wiz-grade">
         <div class="field"><label>Tempo de mercado (anos)</label><input type="number" min="0" data-w="tempoMercado" value="${escapeAttr(d.tempoMercado)}"></div>
-        ${crmWizSelect("Porte da empresa", "porte", CRM_PORTES)}
-        <div class="field"><label>Quantidade de funcionários</label><input type="number" min="0" data-w="funcionarios" value="${escapeAttr(d.funcionarios)}"></div>
-      </div>`;
+        ${crmWizSelect("Porte da empresa", "porte", CRM_PORTES)}      </div>`;
   }
   if (chave === "fiscal") {
     const ttd = d.possuiTtd === "sim";
@@ -1116,7 +1114,7 @@ function crmFichaPerfilHtml(c, aba) {
           ${crmDl([
             ["Segmento", escapeHtml(crmSegLista(p.segmento).join(", "))], ["Porte", escapeHtml(p.porte)],
             ["Tempo de mercado", p.tempoMercado !== "" ? escapeHtml(p.tempoMercado) + " anos" : ""],
-            ["Funcionários", escapeHtml(p.funcionarios)], ["Cliente desde", escapeHtml(crmMesAno(p.clienteDesde))]
+            ["Cliente desde", escapeHtml(crmMesAno(p.clienteDesde))]
           ])}
         </div>
       </div>
