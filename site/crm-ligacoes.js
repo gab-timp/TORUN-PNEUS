@@ -502,7 +502,7 @@ let crmEdLigId = null, crmEdLigRes = "", crmEdLigCot = 0;
 
 function crmEdLigChips() {
   document.getElementById("crmEdLigResultados").innerHTML = CRM_RESULTADOS.map(r =>
-    `<button type="button" class="crm-chip" data-crmedres="${escapeAttr(r)}" aria-pressed="${r === crmEdLigRes}">${escapeHtml(r)}</button>`).join("");
+    `<button type="button" class="crm-chip ${r === crmEdLigRes ? "on" : ""}" data-crmedres="${escapeAttr(r)}" aria-pressed="${r === crmEdLigRes}">${escapeHtml(r)}</button>`).join("");
 }
 
 function crmEdLigCotAtualizar() {

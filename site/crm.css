@@ -421,6 +421,7 @@ tr.crm-rel-sub td{font-weight:800;border-top:2px solid var(--line-strong,#111);}
 .crm-lg-pick{width:100%;box-sizing:border-box;text-align:left;font:inherit;color:inherit;cursor:pointer;}
 .crm-lg-pick:hover, .crm-lg-pick:focus-visible{border-color:var(--orange);outline:none;}
 .crm-lg-aviso{background:var(--indigo-pale);color:var(--indigo-deep);margin-bottom:12px;}
+#crmEdLigOverlay .crm-lg-aviso{padding:9px 12px;border-radius:8px;margin:2px 0 12px;}
 .crm-lg-duplo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 4px;}
 .crm-lg-bloco{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;}
 .crm-lg-bloco b{font-size:24px;}
