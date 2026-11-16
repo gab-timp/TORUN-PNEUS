@@ -282,7 +282,9 @@ grupo('igualdade Atacado x Encomenda', () => {
         if (t.startsWith('--')) return;
         const cod = t.replace(/\s--.*$/, '');
         if (/(=|<>|!=)\s*'(atacado|encomenda)'|'(atacado|encomenda)'\s*(=|<>)|when\s+'(atacado|encomenda)'/i.test(cod)
-            && !/case when \w+ = 'atacado' then 'encomenda' else 'atacado' end/i.test(cod)) sqlDesvios.push(f + ':' + (i + 1) + '  ' + cod.slice(0, 110));
+            && !/case when \w+ = 'atacado' then 'encomenda' else 'atacado' end/i.test(cod)
+            // migração única de crm_metas_por_sistema.sql: as metas antigas viram Encomenda e o % de comissão antigo é copiado para o Atacado
+            && !(f === 'crm_metas_por_sistema.sql' && /set sistema = 'encomenda';$|'atacado' from crm_comissao_percentual/i.test(cod))) sqlDesvios.push(f + ':' + (i + 1) + '  ' + cod.slice(0, 110));
       });
     });
   }

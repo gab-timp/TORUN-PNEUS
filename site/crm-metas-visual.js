@@ -17,7 +17,6 @@ function crmMtTelaHtml(cfg) {
   const linhas = cfg.execs.map((e, i) => `
     <tr>
       <td><span class="crm-mt-ponto" style="background:${crmMtCor(i)}"></span><b>${escapeHtml(e.nome)}</b>${e.papel === "gestao" ? '<div class="muted sv-sub">Gestão com carteira própria</div>' : ""}</td>
-      <td>${e.sistemas.length ? e.sistemas.map(s => `<span class="crm-selo crm-selo-tor">${escapeHtml(CRM_SISTEMAS[s] || s)}</span>`).join(" ") : '<span class="muted">—</span>'}</td>
       <td><label class="crm-mt-campo" id="${p}Campo${i}"><span>R$</span><input type="text" inputmode="numeric" class="crm-meta-in" ${cfg.attr}="${i}" value="${dinheiro(e.valor)}" aria-label="${escapeAttr(cfg.ariaMeta)} de ${escapeAttr(e.nome)}" ${cfg.podeEditar ? "" : "disabled"}></label></td>
       <td><div class="crm-mt-parte"><div class="crm-mt-trilho"><i id="${p}Barra${i}" style="background:${crmMtCor(i)}"></i></div><b id="${p}Pct${i}"></b></div></td>
       ${cfg.com ? `<td><label class="crm-mt-campo crm-mt-pct"><input type="text" inputmode="decimal" class="crm-com-in ${cfg.com.sug[i] ? "crm-com-sug" : ""}" data-crmcom="${i}" value="${escapeAttr(cfg.com.pcts[i])}" aria-label="Percentual de comissão de ${escapeAttr(e.nome)}" ${cfg.podeEditar ? "" : "disabled"}><span>%</span></label></td>
@@ -36,14 +35,14 @@ function crmMtTelaHtml(cfg) {
     <div class="card crm-mt-barra"><div class="crm-mt-tit"><span>Divisão da meta entre os executivos</span><span id="${p}BarraPct"></span></div>
       <div class="crm-mt-pilha" id="${p}Pilha"></div><div class="crm-mt-leg" id="${p}Leg"></div></div>
     <div class="card crm-mt-tab ${cfg.com ? "crm-mt-com" : ""}">
-      <div class="card-head"><h2>${escapeHtml(cfg.titulo)}</h2><div class="note">A soma das metas individuais tem que bater com a meta da equipe.</div></div>
+      <div class="card-head"><h2>${escapeHtml(cfg.titulo)}</h2><div class="note">A soma das metas individuais tem que bater com a meta da equipe deste sistema.</div></div>
       ${cfg.execs.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>Executivo</th><th>Sistemas</th><th>Meta</th><th>Parte da equipe</th>${cfg.com ? '<th>% de comissão</th><th class="num">Valor da comissão</th>' : ""}${cfg.ref ? `<th class="num">${escapeHtml(cfg.ref.titulo)}</th>` : ""}</tr></thead>
+        <thead><tr><th>Executivo</th><th>Meta</th><th>Parte da equipe</th>${cfg.com ? '<th>% de comissão</th><th class="num">Valor da comissão</th>' : ""}${cfg.ref ? `<th class="num">${escapeHtml(cfg.ref.titulo)}</th>` : ""}</tr></thead>
         <tbody>${linhas}</tbody>
         <tfoot>${cfg.com
-          ? `<tr><td colspan="2">Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td><span class="crm-selo" id="${p}Status"></span></td><td></td><td class="num mono"><b id="${p}ComTot"></b></td>${cfg.ref ? "<td></td>" : ""}</tr>`
-          : `<tr><td colspan="2">Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td ${cfg.ref ? 'colspan="2"' : ""}><span class="crm-selo" id="${p}Status"></span></td></tr>`}</tfoot>
+          ? `<tr><td>Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td><span class="crm-selo" id="${p}Status"></span></td><td></td><td class="num mono"><b id="${p}ComTot"></b></td>${cfg.ref ? "<td></td>" : ""}</tr>`
+          : `<tr><td>Soma das metas individuais</td><td class="mono" id="${p}Soma"></td><td ${cfg.ref ? 'colspan="2"' : ""}><span class="crm-selo" id="${p}Status"></span></td></tr>`}</tfoot>
       </table></div>
       ${cfg.com ? '<div class="note" style="margin-top:10px;">Valor da comissão = meta do mês × % de comissão. O percentual vale para o mês escolhido e é o mesmo que a Beth usa no lançamento de faturamento e no Relatório de comissão. Percentuais em cinza vieram do mês anterior e passam a valer neste mês quando você salvar.</div>' : ""}
       <div class="crm-mt-aviso" id="${p}Aviso" hidden></div>` : `<div class="empty-state">Nenhum executivo cadastrado. Marque o papel Executivo em Administração > Usuários.</div>`}

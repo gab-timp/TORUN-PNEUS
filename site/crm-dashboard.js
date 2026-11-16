@@ -78,21 +78,22 @@ const crmDashAssinatura = (o) => JSON.stringify([o.fat, [...o.pct], [...o.metas]
 async function crmDashCarregar() {
   const ano = crmDashAnoBusca();
   const gestao = crmDashEhGestao();
+  const s = crmSistemaAtual(); // metas e % de comissão são do sistema aberto
   const [f, p, m, ex, mm, em, ea, h] = await Promise.all([
     sb.rpc("crm_dashboard_faturamento", { p_ano: ano }),
     sb.rpc("crm_dashboard_percentuais", { p_ano: ano }),
-    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano),
+    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano).eq("sistema", s),
     gestao ? sb.rpc("crm_executivos_metas") : Promise.resolve({ data: [], error: null }),
-    sb.from("crm_meta_mes_executivo").select("mes, executivo_user_id, valor").gte("mes", (ano - 1) + "-01-01").lte("mes", ano + "-12-01"),
-    gestao ? sb.from("crm_meta_mes_equipe").select("mes, valor").gte("mes", (ano - 1) + "-01-01").lte("mes", ano + "-12-01") : Promise.resolve({ data: [], error: null }),
-    gestao ? sb.from("crm_meta_equipe").select("valor").eq("ano", ano).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    sb.from("crm_meta_mes_executivo").select("mes, executivo_user_id, valor").eq("sistema", s).gte("mes", (ano - 1) + "-01-01").lte("mes", ano + "-12-01"),
+    gestao ? sb.from("crm_meta_mes_equipe").select("mes, valor").eq("sistema", s).gte("mes", (ano - 1) + "-01-01").lte("mes", ano + "-12-01") : Promise.resolve({ data: [], error: null }),
+    gestao ? sb.from("crm_meta_equipe").select("valor").eq("ano", ano).eq("sistema", s).maybeSingle() : Promise.resolve({ data: null, error: null }),
     sb.rpc("crm_dashboard_clientes_historico")
   ]);
   if (f.error || p.error) { crmDash.indisponivel = f.error ? f.error.message : p.error.message; return false; }
   crmDash.indisponivel = false;
   crmDash.fat = (f.data || []).map(r => ({ sistema: r.sistema, cliente: r.cliente, exec: r.executivo_user_id, execNome: r.executivo_nome || "", mes: String(r.mes).slice(0, 7), valor: Number(r.valor) }));
   crmDash.pct = new Map();
-  (p.data || []).forEach(r => {
+  (p.data || []).filter(r => r.sistema === s).forEach(r => {
     if (!crmDash.pct.has(r.executivo_user_id)) crmDash.pct.set(r.executivo_user_id, []);
     crmDash.pct.get(r.executivo_user_id).push({ mes: String(r.mes).slice(0, 7), pct: Number(r.percentual) });
   });
@@ -105,7 +106,7 @@ async function crmDashCarregar() {
   crmDash.equipeAno = ea.error || !ea.data ? 0 : Number(ea.data.valor);
   crmDash.hist = new Set(h.error ? [] : (h.data || []).map(r => r.sistema + "|" + r.cliente));
   crmDash.execsMeta = ex.error ? [] : (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [] }));
-  crmDash.cache.set(ano, crmDashSnapshot());
+  crmDash.cache.set(s + "|" + ano, crmDashSnapshot());
   return true;
 }
 
@@ -371,7 +372,7 @@ async function crmRenderDashboard() {
   }
   const ano = crmDashAnoBusca();
   // com o resultado da última vez (do mesmo ano) a tela abre na hora; a busca nova corre por trás
-  const snap = crmDash.cache.get(ano);
+  const snap = crmDash.cache.get(crmSistemaAtual() + "|" + ano);
   if (snap) { Object.assign(crmDash, snap); crmRenderDashboardCorpo(); }
   else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando o dashboard…</div></div>`;
   const antes = snap ? crmDashAssinatura(snap) : null;

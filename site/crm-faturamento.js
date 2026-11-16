@@ -58,7 +58,7 @@ async function crmFatBuscar() {
   if (!l.error && (l.data || []).length) {
     itens = await sb.from("crm_faturamento_itens").select("*").in("lancamento_id", l.data.map(x => x.id));
   }
-  const p = await sb.from("crm_comissao_percentual").select("*").lte("mes", ini).order("mes", { ascending: false });
+  const p = await sb.from("crm_comissao_percentual").select("*").eq("sistema", s).lte("mes", ini).order("mes", { ascending: false });
   const erro = l.error || itens.error || p.error;
   if (erro) return { ok: false, erro: erro.message };
   // % do mês: a linha mais recente de cada executivo até este mês

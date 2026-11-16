@@ -671,29 +671,32 @@ async function crmRenderMetas() {
   if (!crmMetas.ano || !anos.includes(crmMetas.ano)) crmMetas.ano = anos[0];
   selAno.innerHTML = anos.map(a => `<option value="${a}" ${a === crmMetas.ano ? "selected" : ""}>${a}</option>`).join("");
   const ano = crmMetas.ano;
+  const s = crmSistemaAtual(); // as metas são do sistema aberto: a gestão cadastra as do Atacado no Atacado e as da Encomenda na Encomenda
+  const chave = s + "|" + ano;
+  crmMetas.sistema = s;
   // com o resultado da última vez a tela abre na hora; a busca nova corre por trás
-  const cache = crmMetas.cache.get(ano);
+  const cache = crmMetas.cache.get(chave);
   if (cache) crmMetasDesenhar(cache);
   else corpo.innerHTML = `<div class="card"><div class="empty-state">Carregando as metas…</div></div>`;
   const [ex, eq, ind] = await Promise.all([
     sb.rpc("crm_executivos_metas"),
-    sb.from("crm_meta_equipe").select("valor").eq("ano", ano).maybeSingle(),
-    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano)
+    sb.from("crm_meta_equipe").select("valor").eq("ano", ano).eq("sistema", s).maybeSingle(),
+    sb.from("crm_meta_executivo").select("executivo_user_id, valor").eq("ano", ano).eq("sistema", s)
   ]);
-  if (ano !== crmMetas.ano) return; // trocou de ano enquanto carregava
+  if (ano !== crmMetas.ano || s !== crmSistemaAtual()) return; // trocou de ano ou de sistema enquanto carregava
   if (ex.error || eq.error || ind.error) {
     if (!cache) {
       crmMetas.indisponivel = true;
-      corpo.innerHTML = `<div class="card"><div class="empty-state">As metas ainda não estão disponíveis: rode o SQL <b>sql/crm_metas.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
+      corpo.innerHTML = `<div class="card"><div class="empty-state">As metas ainda não estão disponíveis: rode o SQL <b>sql/crm_metas_por_sistema.sql</b> no Supabase. (${escapeHtml((ex.error || eq.error || ind.error).message)})</div></div>`;
     }
     return;
   }
   const salvos = new Map((ind.data || []).map(r => [r.executivo_user_id, Number(r.valor)]));
   const dados = {
-    execs: (ex.data || []).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], papel: e.papel || "", valor: salvos.get(e.user_id) || 0 })),
+    execs: (ex.data || []).filter(e => (e.sistemas || []).includes(s)).map(e => ({ id: e.user_id, nome: e.nome, sistemas: e.sistemas || [], papel: e.papel || "", valor: salvos.get(e.user_id) || 0 })),
     equipe: eq.data ? Number(eq.data.valor) : 0
   };
-  crmMetas.cache.set(ano, dados);
+  crmMetas.cache.set(chave, dados);
   // com a tela já desenhada: só redesenha se mudou e se ninguém digitou nada nela
   if (cache && (JSON.stringify(cache) === JSON.stringify(dados) || crmMetas.sujo)) return;
   crmMetasDesenhar(dados);
@@ -711,8 +714,8 @@ function crmMetasDesenhar(dados) {
 // configuração da tela da aba Anual para o visual compartilhado (crm-metas-visual.js)
 function crmMetasCfg(equipe, podeEditar) {
   return {
-    p: "crmMeta", attr: "data-crmmetaexec", ariaMeta: "Meta " + crmMetas.ano, titulo: "Meta individual de cada executivo",
-    rotEq: "Meta anual da equipe · " + crmMetas.ano, notaEq: "Faturamento de janeiro a dezembro de " + crmMetas.ano + ".",
+    p: "crmMeta", attr: "data-crmmetaexec", ariaMeta: "Meta " + crmMetas.ano, titulo: "Meta individual de cada executivo · " + CRM_SISTEMAS[crmSistemaAtual()],
+    rotEq: "Meta anual da equipe " + CRM_SISTEMAS[crmSistemaAtual()] + " · " + crmMetas.ano, notaEq: "Faturamento de janeiro a dezembro de " + crmMetas.ano + ".",
     execs: crmMetas.execs, equipe, podeEditar, ref: null, salvarTxt: "Salvar metas"
   };
 }
@@ -732,15 +735,15 @@ async function crmSalvarMetas() {
   const individuais = crmMetas.execs.map((e, i) => ({ executivo_user_id: e.id, valor: crmNumMeta(document.querySelector(`[data-crmmetaexec="${i}"]`).value) }));
   crmMetas.salvando = true;
   crmAtualizarMetasCalculo();
-  const { error } = await sb.rpc("crm_salvar_metas", { p_ano: crmMetas.ano, p_equipe: equipe, p_individuais: individuais });
+  const { error } = await sb.rpc("crm_salvar_metas", { p_ano: crmMetas.ano, p_sistema: crmSistemaAtual(), p_equipe: equipe, p_individuais: individuais });
   crmMetas.salvando = false;
   if (error) {
     toast("Não foi possível salvar as metas: " + error.message);
     crmAtualizarMetasCalculo();
     return;
   }
-  toast("Metas de " + crmMetas.ano + " salvas.");
-  crmMetas.cache.delete(crmMetas.ano);
+  toast("Metas " + CRM_SISTEMAS[crmSistemaAtual()] + " de " + crmMetas.ano + " salvas.");
+  crmMetas.cache.delete(crmSistemaAtual() + "|" + crmMetas.ano);
   crmRenderMetas();
 }
 
