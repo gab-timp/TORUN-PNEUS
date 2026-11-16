@@ -494,6 +494,67 @@ async function crmLgSalvarObs() {
   crmRenderLigacoes();
 }
 
+/* ---------------- editar uma ligação já registrada (ficha do cliente > Histórico de ligações) ---------------- */
+// Corrige resultado, contato, observação, próximo follow-up e cotações enviadas pela função crm_editar_ligacao
+// (sql/crm_editar_ligacoes.sql). Não muda data, hora, quem registrou nem a etapa do cartão.
+
+let crmEdLigId = null, crmEdLigRes = "", crmEdLigCot = 0;
+
+function crmEdLigChips() {
+  document.getElementById("crmEdLigResultados").innerHTML = CRM_RESULTADOS.map(r =>
+    `<button type="button" class="crm-chip" data-crmedres="${escapeAttr(r)}" aria-pressed="${r === crmEdLigRes}">${escapeHtml(r)}</button>`).join("");
+}
+
+function crmEdLigCotAtualizar() {
+  document.getElementById("crmEdLigCotN").textContent = crmEdLigCot;
+  document.getElementById("crmEdLigCotMenos").disabled = crmEdLigCot <= 0;
+}
+
+function crmLgAbrirEditarLigacao(id) {
+  const l = crmState.ligacoes.find(x => x.id === id);
+  const c = l && crmState.carteira.find(x => x.sistema === l.sistema && x.cliente === l.cliente);
+  if (!l || !crmPodeEditarLigacao(c)) return;
+  crmEdLigId = id;
+  crmEdLigRes = l.resultado;
+  crmEdLigCot = l.cotacoesEnviadas || 0;
+  document.getElementById("crmEdLigSub").textContent = `${l.cliente} · ligação de ${formatDateBR(crmDiaLocal(l.createdAt))} às ${crmHoraLocal(l.createdAt)} · registrada por ${l.executivoNome || "—"}`;
+  document.getElementById("crmEdLigContato").value = l.contatoNome;
+  document.getElementById("crmEdLigContatos").innerHTML = crmContatosDe(c).map(k => `<option value="${escapeAttr(k.nome)}"></option>`).join("");
+  document.getElementById("crmEdLigObs").value = l.observacao;
+  document.getElementById("crmEdLigFu").value = l.proximoFollowup || "";
+  document.getElementById("crmEdLigErro").style.display = "none";
+  crmEdLigChips();
+  crmEdLigCotAtualizar();
+  document.getElementById("crmEdLigOverlay").classList.add("show");
+}
+
+async function crmLgSalvarEdicaoLigacao() {
+  const l = crmState.ligacoes.find(x => x.id === crmEdLigId);
+  if (!l) return;
+  const erroEl = document.getElementById("crmEdLigErro");
+  const erro = (msg) => { erroEl.textContent = msg; erroEl.style.display = "block"; };
+  const fu = document.getElementById("crmEdLigFu").value || null;
+  if (CRM_EXIGE_RETORNO.includes(crmEdLigRes) && !fu) { erro("A data do próximo follow-up é obrigatória para " + crmEdLigRes + "."); return; }
+  const botao = document.getElementById("crmEdLigSalvar");
+  botao.disabled = true;
+  const { error } = await sb.rpc("crm_editar_ligacao", {
+    p_id: l.id, p_resultado: crmEdLigRes, p_contato: document.getElementById("crmEdLigContato").value.trim(),
+    p_observacao: document.getElementById("crmEdLigObs").value.trim(), p_followup: fu, p_cotacoes: crmEdLigCot
+  });
+  botao.disabled = false;
+  if (error) { erro("Não foi possível salvar: " + error.message); return; }
+  document.getElementById("crmEdLigOverlay").classList.remove("show");
+  crmEdLigId = null;
+  toast("Ligação corrigida.");
+  await crmRecarregarLigacoes();
+}
+
+// busca o CRM de novo (o total de cotações do cartão pode ter mudado) e redesenha a ficha
+async function crmRecarregarLigacoes() {
+  await crmCarregar(true);
+  crmRenderFicha();
+}
+
 /* ---------------- ligação: peças que o modal de crm.js usa ---------------- */
 
 let crmLigNeg = null;       // contato aberto do cliente escolhido (null = esta ligação cria um novo)
@@ -724,6 +785,12 @@ function crmLgInit() {
   g("crmCotMais").addEventListener("click", () => { const n = crmNegPorId(crmLgCotNegId); if (n && crmLgCotValor < n.cotEnviadas) { crmLgCotValor++; crmLgAtualizarCot(); } });
   g("crmCotCancelar").addEventListener("click", () => g("crmCotOverlay").classList.remove("show"));
   g("crmCotSalvar").addEventListener("click", crmLgSalvarCot);
+  // modal de editar ligação
+  g("crmEdLigResultados").addEventListener("click", (e) => { const b = e.target.closest("[data-crmedres]"); if (b) { crmEdLigRes = b.dataset.crmedres; crmEdLigChips(); } });
+  g("crmEdLigCotMenos").addEventListener("click", () => { if (crmEdLigCot > 0) { crmEdLigCot--; crmEdLigCotAtualizar(); } });
+  g("crmEdLigCotMais").addEventListener("click", () => { crmEdLigCot++; crmEdLigCotAtualizar(); });
+  g("crmEdLigCancelar").addEventListener("click", () => g("crmEdLigOverlay").classList.remove("show"));
+  g("crmEdLigSalvar").addEventListener("click", crmLgSalvarEdicaoLigacao);
   // modal de obs do cartão
   g("crmObsCancelar").addEventListener("click", () => g("crmObsOverlay").classList.remove("show"));
   g("crmObsSalvar").addEventListener("click", crmLgSalvarObs);

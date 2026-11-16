@@ -3901,6 +3901,31 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="crmEdLigOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmEdLigTitulo">
+    <h3 id="crmEdLigTitulo">Editar ligação</h3>
+    <div class="muted sv-sub" id="crmEdLigSub"></div>
+    <div class="field">
+      <label>Resultado da ligação</label>
+      <div class="crm-chips" id="crmEdLigResultados"></div>
+    </div>
+    <div class="field"><label for="crmEdLigContato">Contato com quem falou</label><input type="text" id="crmEdLigContato" list="crmEdLigContatos" autocomplete="off"><datalist id="crmEdLigContatos"></datalist></div>
+    <div class="field"><label for="crmEdLigObs">Observação</label><textarea id="crmEdLigObs" rows="3"></textarea></div>
+    <div class="field">
+      <label>Cotações enviadas nesta ligação</label>
+      <div class="crm-step"><button type="button" id="crmEdLigCotMenos" aria-label="Menos uma cotação">−</button><span id="crmEdLigCotN" class="mono">0</span><button type="button" id="crmEdLigCotMais" aria-label="Mais uma cotação">+</button></div>
+      <div class="note">O total de cotações do contato é recalculado.</div>
+    </div>
+    <div class="field"><label for="crmEdLigFu">Próximo follow-up</label><input type="date" id="crmEdLigFu"><div class="note" id="crmEdLigAviso">Obrigatório para Pediu retorno, Interesse e Estimativa enviada.</div></div>
+    <div class="note">Mudar o resultado não move o cartão no kanban. Para isso, arraste o cartão ou use a etapa na ficha.</div>
+    <div class="note crm-erro" id="crmEdLigErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmEdLigCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmEdLigSalvar">Salvar correção</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="crmContOverlay">
   <div class="modal" role="dialog" aria-labelledby="crmContTitulo">
     <div class="crm-cont-topo">
@@ -4765,8 +4790,8 @@
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
 <script src="semvenda.js?v=52"></script>
-<script src="crm.js?v=46"></script>
-<script src="crm-ligacoes.js?v=5"></script>
+<script src="crm.js?v=47"></script>
+<script src="crm-ligacoes.js?v=6"></script>
 <script src="crm-perfil.js?v=11"></script>
 <script src="crm-faturamento.js?v=6"></script>
 <script src="crm-representante.js?v=2"></script>

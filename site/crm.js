@@ -69,6 +69,8 @@ function crmEhMinha(c) { return crmGestaoComCarteira() && c.executivoId === crmM
 function crmPodeLigarPara(c) { return crmPodeEscrever() && !crmEhRepresentante(c.cliente) && (crmEhExecutivo() || crmEhMinha(c)); }
 // Metas (Gestão > Metas): só a gestão do CRM (administrador sem papel conta como gestão)
 function crmPodeVerMetas() { return currentUserIsAdmin || crmPapelEfetivo() === "gestao"; }
+// editar uma ligação já registrada: a gestão (qualquer cliente) ou o executivo dono da carteira do cliente
+function crmPodeEditarLigacao(c) { return !!c && crmPodeGerirCarteira() && (crmPapelEfetivo() === "gestao" || c.executivoId === crmMeuId()); }
 function crmPodeGerirCarteira() { return ["executivo", "gestao"].includes(crmPapelEfetivo()) && crmPodeEscrever(); }
 
 function crmSistemasVisiveis() {
@@ -150,7 +152,8 @@ function crmLigacaoFromRow(r) {
     id: r.id, sistema: r.sistema, cliente: r.cliente, contatoNome: r.contato_nome || "", resultado: r.resultado,
     observacao: r.observacao || "", proximoFollowup: r.proximo_followup || null, etapaPara: r.etapa_para || null,
     executivoId: r.executivo_user_id, executivoNome: r.executivo_nome || "", createdAt: r.created_at,
-    negociacaoId: r.negociacao_id || null, cotacoesEnviadas: r.cotacoes_enviadas || 0
+    negociacaoId: r.negociacao_id || null, cotacoesEnviadas: r.cotacoes_enviadas || 0,
+    editadaEm: r.editada_em || null, editadaPorNome: r.editada_por_nome || ""
   };
 }
 // cadastro próprio do CRM (sql/crm_clientes.sql); os campos têm o mesmo nome dos clientes do Torun
@@ -841,13 +844,15 @@ function crmRenderFicha() {
         <div class="card">
           <div class="card-head"><h2>Histórico de ligações</h2><div class="note">${ligs.length} ${ligs.length === 1 ? "ligação" : "ligações"}</div></div>
           ${ligs.length ? `<div class="table-wrap"><table>
-            <thead><tr><th>Data</th><th>Resultado</th><th>Contato e observação</th><th>Próximo</th></tr></thead>
+            <thead><tr><th>Data</th><th>Resultado</th><th>Contato e observação</th><th class="num">Cotações</th><th>Próximo</th><th></th></tr></thead>
             <tbody>${ligs.map(l => `
               <tr>
                 <td><span class="mono">${formatDateBR(crmDiaLocal(l.createdAt))}</span> <span class="muted sv-sub">${crmHoraLocal(l.createdAt)}</span><div class="muted sv-sub">${escapeHtml(l.executivoNome)}</div></td>
                 <td>${crmPill(l.resultado)}${l.etapaPara ? `<div class="muted sv-sub">etapa: ${escapeHtml(l.etapaPara)}</div>` : ""}</td>
-                <td>${l.contatoNome ? `<b>${escapeHtml(l.contatoNome)}</b>` : '<span class="muted">—</span>'}<div class="muted sv-sub crm-obs">${escapeHtml(l.observacao)}</div></td>
+                <td>${l.contatoNome ? `<b>${escapeHtml(l.contatoNome)}</b>` : '<span class="muted">—</span>'}<div class="muted sv-sub crm-obs">${escapeHtml(l.observacao)}</div>${l.editadaEm ? `<div class="muted sv-sub">editada${l.editadaPorNome ? " por " + escapeHtml(l.editadaPorNome) : ""} em ${formatDateBR(crmDiaLocal(l.editadaEm))}</div>` : ""}</td>
+                <td class="num mono">${l.cotacoesEnviadas || 0}</td>
                 <td>${l.proximoFollowup ? `<span class="mono">${crmDataCurta(l.proximoFollowup)}</span>` : '<span class="muted">—</span>'}</td>
+                <td class="crm-acoes">${crmPodeEditarLigacao(c) ? `<button type="button" class="btn small outline" data-crmeditlig="${escapeAttr(l.id)}">Editar</button>` : ""}</td>
               </tr>`).join("")}</tbody></table></div>` : `<div class="empty-state">Nenhuma ligação registrada ainda.</div>`}
         </div>
         ${kanban && hist.length ? `
@@ -1290,7 +1295,7 @@ async function crmCopiarTexto(texto, rotulo) {
 }
 
 function crmClickDelegado(e) {
-  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmlevar],[data-crmeditarcli],[data-crmtrocarexec],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar]");
+  const t = e.target.closest("[data-crmficha],[data-crmligar],[data-crmvoltar],[data-crmnovoviarep],[data-crmlevar],[data-crmeditarcli],[data-crmtrocarexec],[data-crmcontatonovo],[data-crmcontatoedit],[data-crmcontatodel],[data-crmcopiar],[data-crmeditlig]");
   if (!t) return;
   if (t.dataset.crmcopiar) {
     // só copia no computador (mouse); no celular o toque segue para o link de ligação
@@ -1307,6 +1312,7 @@ function crmClickDelegado(e) {
   else if (t.dataset.crmcontatonovo) crmAbrirContato(t.dataset.crmcontatonovo, null);
   else if (t.dataset.crmcontatoedit) crmAbrirContato(crmUi.fichaId, t.dataset.crmcontatoedit);
   else if (t.dataset.crmcontatodel) crmExcluirContato(t.dataset.crmcontatodel);
+  else if (t.dataset.crmeditlig) crmLgAbrirEditarLigacao(t.dataset.crmeditlig);
 }
 
 function initCrmTelas() {
