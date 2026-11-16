@@ -50,6 +50,7 @@
     if (select.id) wrap.dataset.paraSelect = select.id;
 
     let foco = -1;
+    let filtrando = false; // só filtra a lista depois que a pessoa digita; ao abrir, mostra todas as opções (o texto do campo é o valor atual, não uma busca)
 
     // texto da opção em branco ("Selecione…", "Todos os estados"): vira o texto de fundo do campo
     const opcaoVazia = () => Array.from(select.options).find(o => o.value === "");
@@ -82,7 +83,7 @@
     sincronizar();
 
     function itens() {
-      const termo = busca.value.trim().toLowerCase();
+      const termo = filtrando ? busca.value.trim().toLowerCase() : "";
       // a opção em branco entra como "limpar" nos filtros; em campo obrigatório ou "Selecione…" não
       let todas = Array.from(select.options).filter(o => !o.hidden);
       todas = todas.filter(o => o.value !== "" || (!obrigatorio && !/^selecione/i.test(o.textContent.trim()) && o.textContent.trim() !== ""));
@@ -91,7 +92,7 @@
     }
     function desenhar() {
       const achados = itens();
-      const termo = busca.value.trim();
+      const termo = filtrando ? busca.value.trim() : "";
       lista.innerHTML = !achados.length ? '<div class="produto-combo-empty">Nada encontrado.</div>'
         : achados.slice(0, LIMITE).map((o, i) =>
           '<div class="produto-combo-item' + (o.selected && o.value !== "" ? " atual" : "") + '" role="option" data-i="' + i + '"><span class="med">' + destacar(o.textContent, o.value === "" ? "" : termo) + '</span></div>').join("")
@@ -104,6 +105,7 @@
       if (atual && !termo) atual.scrollIntoView({ block: "nearest" });
     }
     function fechar() {
+      filtrando = false;
       lista.classList.remove("show");
       busca.setAttribute("aria-expanded", "false");
       if (nativoValue.get.call(select) === "" ) busca.value = "";
@@ -124,15 +126,16 @@
       els[foco].scrollIntoView({ block: "nearest" });
     }
 
-    busca.addEventListener("focus", () => { busca.select(); busca._abriuAgora = true; desenhar(); setTimeout(() => { busca._abriuAgora = false; }, 0); });
-    busca.addEventListener("click", () => { if (!lista.classList.contains("show")) desenhar(); });
+    busca.addEventListener("focus", () => { filtrando = false; busca.select(); busca._abriuAgora = true; desenhar(); setTimeout(() => { busca._abriuAgora = false; }, 0); });
+    busca.addEventListener("click", () => { if (!lista.classList.contains("show")) { filtrando = false; desenhar(); } });
     busca.addEventListener("input", () => {
+      filtrando = true;
       desenhar();
     });
     busca.addEventListener("blur", () => setTimeout(fechar, 150));
     busca.addEventListener("keydown", e => {
       if (e.key === "Escape") { fechar(); }
-      else if (e.key === "ArrowDown") { e.preventDefault(); if (!lista.classList.contains("show")) desenhar(); moverFoco(1); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); if (!lista.classList.contains("show")) { filtrando = false; desenhar(); } moverFoco(1); }
       else if (e.key === "ArrowUp") { e.preventDefault(); moverFoco(-1); }
       else if (e.key === "Enter" && lista.classList.contains("show")) {
         const els = lista.querySelectorAll(".produto-combo-item");
