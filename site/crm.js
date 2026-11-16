@@ -594,8 +594,12 @@ function crmAtualizarFiltroRepresentante() {
   if (!ativo) return;
   const atual = sel.value;
   const nomes = crmRepresentantesDoSistema(crmSistemaAtual()).map(c => c.cliente).sort((a, b) => a.localeCompare(b));
-  sel.innerHTML = '<option value="">Todos</option>' + nomes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("") + '<option value="__sem">Sem representante</option>';
-  sel.value = atual === "__sem" || nomes.includes(atual) ? atual : "";
+  const html = '<option value="">Todos</option>' + nomes.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("") + '<option value="__sem">Sem representante</option>';
+  if (sel.dataset.opcoes !== html) {
+    sel.innerHTML = html;
+    sel.dataset.opcoes = html;
+    sel.value = atual === "__sem" || nomes.includes(atual) ? atual : "";
+  }
 }
 
 function crmRenderClientes() {
