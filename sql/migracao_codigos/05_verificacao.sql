@@ -7,7 +7,10 @@
 
 -- ---------------------------------------------------------------- BLOCO 1
 -- ESPERADO: todas as linhas com 0. Se alguma tiver número, sobrou código antigo.
-with h as (select antigo from migracao_codigos_historico where sistema = 'torun')
+-- Olha só a ÚLTIMA rodada aplicada (todas as linhas de uma rodada têm o mesmo aplicado_em). Na troca em
+-- rodadas, o código novo de uma rodada pode ser o antigo da anterior: olhar o histórico todo daria falso alarme.
+with h as (select antigo from migracao_codigos_historico where sistema = 'torun'
+           and aplicado_em = (select max(aplicado_em) from migracao_codigos_historico where sistema = 'torun'))
 select 'produtos' as tabela, count(*) as sobrou_codigo_antigo from produtos p join h on p.codigo = h.antigo
 union all select 'produtos_precos', count(*) from produtos_precos pp join h on pp.codigo = h.antigo
 union all select 'movimentos', count(*) from movimentos mv join h on mv.codigo = h.antigo

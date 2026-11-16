@@ -77,8 +77,26 @@ que o saldo de cada produto ficou idêntico.
   from migracao_codigos_historico
   where sistema = 'torun' and aplicado_em::date = date 'AAAA-MM-DD';  -- o dia da migração
   ```
+
+  **Se a troca foi feita em RODADAS** (06_mapa_rodada1/2/3.sql, trocas encadeadas), desfaça UMA rodada por vez,
+  da última para a primeira, filtrando pelo horário exato daquela rodada (o filtro por dia pegaria todas e o motor
+  abortaria com "novo já existe"). Veja os horários com
+  `select aplicado_em, count(*) from migracao_codigos_historico where sistema = 'torun' group by 1 order by 1;`
+  e use `aplicado_em = '<horário da rodada>'` no lugar do filtro por dia. As cópias bkp_migcod_* só guardam o
+  estado de ANTES da rodada 1.
 - **Último recurso:** as cópias `bkp_migcod_*` guardam o estado de antes. Não improvise a restauração
   manual: me chame.
+
+## Troca em rodadas (como foi feita em 16/11/2026)
+
+Quando o código novo de um produto é o código atual de outro (troca encadeada), o motor recusa ("novo já existe").
+A solução é dividir em rodadas (`06_mapa_rodada1.sql`, `2`, `3`): cada rodada só roda depois da anterior estar em REAL.
+- Rode as rodadas na MESMA janela, seguidas, e só então o F5 da equipe.
+- Antes de CADA ensaio, confirme que a linha 48 do 04 diz 'ENSAIO' (edite só essa linha, à mão; não use "substituir
+  tudo"). Se o ensaio terminar SEM o erro "ENSAIO CONCLUÍDO", ele gravou de verdade: pare e avise.
+- O `05_verificacao.sql` bloco 1 olha só a última rodada; os blocos 2 e 3 são cumulativos (bloco 2: 84, depois 89, depois 90).
+- Códigos reaproveitados por outros produtos (ex.: 200270, 200272, 200020, 200257, 200259, 200273): documentos e
+  backups anteriores à troca não valem como referência de código.
 
 ## Depois
 
