@@ -1,0 +1,42 @@
+<title>Empresa desde</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: duas telas lado a lado (formulário de cadastro e ficha do cliente), no visual do sistema */
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--orange-deep:#C64F0C;--blue-pale:#DBEAFE;--blue-deep:#1D4ED8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#f2f1ec;--soft:#a5a399;--paper:#141413;--surface:#1d1d1b;--line:#33322e;--orange-pale:#4a2a14;--orange-deep:#ffa066;--blue-pale:#1c2a4a;--blue-deep:#9db8ff;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#f2f1ec;--soft:#a5a399;--paper:#141413;--surface:#1d1d1b;--line:#33322e;--orange-pale:#4a2a14;--orange-deep:#ffa066;--blue-pale:#1c2a4a;--blue-deep:#9db8ff;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font-family:Inter,system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:18px;margin:0 0 4px}.lead{color:var(--soft);margin:0 0 20px;max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:900px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.card h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft);margin:0 0 12px}
+label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:100%;box-sizing:border-box}
+.hint{font-size:12px;color:var(--soft);margin-top:6px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}dt{color:var(--soft)}dd{margin:0}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--blue-pale);color:var(--blue-deep);margin-top:4px}
+.pill.hoje{background:var(--orange-pale);color:var(--orange-deep)}
+.sub{font-size:12px;color:var(--soft)}
+.nota{margin-top:20px;max-width:70ch;font-size:13px;color:var(--soft)}
+</style>
+<h1>Empresa desde: data exata e aniversário</h1>
+<p class="lead">Troca "Tempo de mercado (anos)" por uma data completa. A ficha calcula a idade e o próximo aniversário sozinha, todo dia.</p>
+<div class="grid">
+  <div class="card">
+    <h2>Cadastro, passo Perfil</h2>
+    <label for="d">Empresa desde (dia/mês/ano)</label>
+    <input id="d" type="date" value="2010-03-15">
+    <div class="hint">Data de abertura da empresa. Aparece abaixo da data como "16 anos".</div>
+  </div>
+  <div class="card">
+    <h2>Ficha, aba Perfil do cliente</h2>
+    <dl>
+      <dt>Segmento</dt><dd>Transportadora</dd>
+      <dt>Porte</dt><dd>Médio</dd>
+      <dt>Empresa desde</dt><dd>15/03/2010<div class="sub">16 anos de empresa</div><span class="pill">Faz 17 anos em 15/03/2027 · em 118 dias</span></dd>
+      <dt>Cliente desde</dt><dd>jun/2024</dd>
+    </dl>
+    <p class="hint" style="margin-top:16px">No dia 15/03/2027 a idade passa para 17 e o aviso muda para o aniversário seguinte. No próprio dia aparece: <span class="pill hoje">Aniversário hoje · 17 anos</span></p>
+  </div>
+</div>
+<p class="nota">Clientes que já têm o número de anos preenchido ficam sem data até alguém informar. Sem data, a linha mostra "—".</p>

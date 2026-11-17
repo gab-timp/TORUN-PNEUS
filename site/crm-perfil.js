@@ -38,7 +38,7 @@ function crmPerfilFromRow(r) {
     razaoSocial: r.razao_social || "", nomeFantasia: r.nome_fantasia || "", cnpj: r.cnpj || "",
     inscricaoEstadual: r.inscricao_estadual || "", cnae: r.cnae || "", regime: r.regime_tributario || "",
     cep: r.cep || "", cidadeUf: r.cidade_uf || "", endereco: r.endereco || "",
-    segmento: r.segmento || "", tempoMercado: r.tempo_mercado_anos != null ? String(r.tempo_mercado_anos) : "",
+    segmento: r.segmento || "", dataFundacao: r.data_fundacao ? String(r.data_fundacao).slice(0, 10) : "",
     porte: r.porte || "", funcionarios: r.funcionarios != null ? String(r.funcionarios) : "",
     possuiTtd: r.possui_ttd === true ? "sim" : r.possui_ttd === false ? "nao" : "",
     ttdNumero: r.ttd_numero || "", ttdVencimento: r.ttd_vencimento || "",
@@ -70,7 +70,7 @@ function crmPerfilToRow(cliente, d) {
     razao_social: crmTxt(d.razaoSocial), nome_fantasia: crmTxt(d.nomeFantasia), cnpj: crmTxt(d.cnpj),
     inscricao_estadual: crmTxt(d.inscricaoEstadual), cnae: crmTxt(d.cnae), regime_tributario: crmTxt(d.regime),
     cep: crmTxt(d.cep), cidade_uf: crmTxt(d.cidadeUf), endereco: crmTxt(d.endereco),
-    segmento: crmTxt(d.segmento), tempo_mercado_anos: crmInt(d.tempoMercado), porte: crmTxt(d.porte), funcionarios: crmInt(d.funcionarios),
+    segmento: crmTxt(d.segmento), data_fundacao: d.dataFundacao || null, porte: crmTxt(d.porte), funcionarios: crmInt(d.funcionarios),
     possui_ttd: crmSimNao(d.possuiTtd), ttd_numero: d.possuiTtd === "sim" ? crmTxt(d.ttdNumero) : null,
     ttd_vencimento: d.possuiTtd === "sim" && d.ttdVencimento ? d.ttdVencimento : null,
     fatura_sem_st: crmSimNao(d.faturaSemSt), estados_beneficio: d.estados || [], obs_fiscal: crmTxt(d.obsFiscal),
@@ -171,7 +171,7 @@ const crmWiz = {
 
 const crmWizPerfilVazio = () => ({
   razaoSocial: "", nomeFantasia: "", cnpj: "", inscricaoEstadual: "", cnae: "", regime: "", cep: "", cidadeUf: "", endereco: "",
-  segmento: "", tempoMercado: "", porte: "", funcionarios: "", possuiTtd: "", ttdNumero: "", ttdVencimento: "", faturaSemSt: "",
+  segmento: "", dataFundacao: "", porte: "", funcionarios: "", possuiTtd: "", ttdNumero: "", ttdVencimento: "", faturaSemSt: "",
   estados: [], obsFiscal: "", obsCrescimento: "", clienteDesde: "", condicao: "", limite: "", inadimplencia: "", obsFinanceiro: "",
   concorrentes: "", ficarNoPe: ""
 });
@@ -449,7 +449,7 @@ function crmWizPassoHtml(chave) {
       <div class="field"><label>Segmento <span class="muted">(pode marcar mais de um)</span></label>
         <div class="crm-chips" role="group" aria-label="Segmento">${CRM_SEGMENTOS.map(sg => `<button type="button" class="crm-chip ${crmSegLista(d.segmento).includes(sg) ? "on" : ""}" role="checkbox" aria-checked="${crmSegLista(d.segmento).includes(sg)}" data-wseg="${escapeAttr(sg)}">${escapeHtml(sg)}</button>`).join("")}</div></div>
       <div class="crm-wiz-grade">
-        <div class="field"><label>Tempo de mercado (anos)</label><input type="number" min="0" data-w="tempoMercado" value="${escapeAttr(d.tempoMercado)}"></div>
+        <div class="field"><label>Empresa desde</label><input type="date" max="${todayISO()}" data-w="dataFundacao" value="${escapeAttr(d.dataFundacao)}"></div>
         ${crmWizSelect("Porte da empresa", "porte", CRM_PORTES)}      </div>`;
   }
   if (chave === "fiscal") {
@@ -1076,6 +1076,36 @@ function crmSimNaoTxt(v) { return v === "sim" ? "Sim" : v === "nao" ? "Não" : "
 
 function crmMesAno(ym) { return ym ? ym.slice(5, 7) + "/" + ym.slice(0, 4) : ""; }
 
+// Idade e próximo aniversário da empresa a partir da data de abertura (ISO) e de "hoje" (ISO).
+// 29/02 faz aniversário em 28/02 nos anos não bissextos.
+function crmEmpresaAniversario(iso, hoje) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  if (!m) return null;
+  const ano = +m[1], mes = +m[2], dia = +m[3];
+  const [hy, hm, hd] = String(hoje).split("-").map(Number);
+  const bissexto = y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const diaEm = y => (mes === 2 && dia === 29 && !bissexto(y) ? 28 : dia);
+  const iso2 = (y) => `${y}-${String(mes).padStart(2, "0")}-${String(diaEm(y)).padStart(2, "0")}`;
+  let anos = hy - ano;
+  if (hm < mes || (hm === mes && hd < diaEm(hy))) anos--;
+  if (anos < 0) return null; // data no futuro
+  const hojeEhAniv = hm === mes && hd === diaEm(hy);
+  let proximo = iso2(hy);
+  if (!hojeEhAniv && proximo < hoje) proximo = iso2(hy + 1);
+  const dias = Math.round((Date.parse(proximo) - Date.parse(hoje)) / 86400000);
+  return { anos, hojeEhAniv, proximo, dias, proximaIdade: parseInt(proximo.slice(0, 4), 10) - ano };
+}
+
+function crmEmpresaDesdeHtml(iso) {
+  const a = crmEmpresaAniversario(iso, todayISO());
+  if (!a) return iso ? escapeHtml(formatDateBR(iso)) : "";
+  const idade = `${a.anos} ${a.anos === 1 ? "ano" : "anos"}`;
+  const aviso = a.hojeEhAniv
+    ? `Aniversário hoje · ${idade}`
+    : `Faz ${a.proximaIdade} ${a.proximaIdade === 1 ? "ano" : "anos"} em ${formatDateBR(a.proximo)} · ${a.dias === 1 ? "amanhã" : `em ${a.dias} dias`}`;
+  return `${escapeHtml(formatDateBR(iso))}<div class="muted sv-sub">${a.anos === 0 && !a.hojeEhAniv ? "menos de 1 ano de empresa" : idade + " de empresa"}</div><div class="muted sv-sub">${escapeHtml(aviso)}</div>`;
+}
+
 function crmTtdAviso(p) {
   if (p.possuiTtd !== "sim" || !p.ttdVencimento) return "";
   const dias = Math.round((new Date(p.ttdVencimento + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000);
@@ -1113,7 +1143,7 @@ function crmFichaPerfilHtml(c, aba) {
           <div class="card-head"><h2>Perfil do cliente</h2>${crmEditarLink("perfil", "perfil do cliente")}</div>
           ${crmDl([
             ["Segmento", escapeHtml(crmSegLista(p.segmento).join(", "))], ["Porte", escapeHtml(p.porte)],
-            ["Tempo de mercado", p.tempoMercado !== "" ? escapeHtml(p.tempoMercado) + " anos" : ""],
+            ["Empresa desde", crmEmpresaDesdeHtml(p.dataFundacao)],
             ["Cliente desde", escapeHtml(crmMesAno(p.clienteDesde))]
           ])}
         </div>
