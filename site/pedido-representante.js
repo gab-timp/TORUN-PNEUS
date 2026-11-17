@@ -668,9 +668,6 @@ function renderProdutoComboLista(lista, termo) {
   let achados = t
     ? produtos.filter(p => p.codigo.toLowerCase().includes(t) || p.medida.toLowerCase().includes(t))
     : produtos;
-  // Agrícola/Florestal é restrito ao Caetano -- não pode nem aparecer pra selecionar num
-  // pedido novo (só filtrar do Catálogo não bastava, essa busca não passava por lá).
-  if (!souCaetano()) achados = achados.filter(p => p.categoria !== "AGRICOLA_FLORESTAL");
   if (achados.length === 0) {
     lista.innerHTML = `<div class="produto-combo-empty">Nenhum produto encontrado.</div>`;
     lista.classList.add("show");
@@ -858,7 +855,7 @@ function populateRepCatalogoFiltros() {
   const selCategoria = document.getElementById("repCatFiltroCategoria");
   const atual = selCategoria.value;
   const categorias = [...new Set(
-    produtos.filter(p => souCaetano() || p.categoria !== "AGRICOLA_FLORESTAL").map(p => p.categoria).filter(Boolean)
+    produtos.map(p => p.categoria).filter(Boolean)
   )].sort();
   // valor da option continua o bruto (comparado direto contra p.categoria) -- só o texto
   // mostrado passa pela normalização, senão o dropdown mostrava "CARGAS_TBR" em vez de "Cargas/TBR"
@@ -908,19 +905,11 @@ function buildPrecoMatrixHtmlRep(codigo, tipoCliente) {
   </table></div>`;
 }
 
-// Agrícola/Florestal é categoria restrita -- só o Caetano pode ver/selecionar esses pneus no
-// portal (pedido do usuário). Comparação por nome (mesmo critério de identidade usado em todo
-// o resto do portal, ex.: minhasVendas()) -- não tem uma flag própria pra isso ainda.
-function souCaetano() {
-  return (currentUserNome || "").trim().toLowerCase() === "caetano";
-}
-
 // Pneus que o Catálogo considera antes dos filtros de preço -- mesma regra do Catálogo interno
 // (app.js catalogoProdutosVisiveis()), exceto que aqui o representante SEMPRE só vê o que tem
 // estoque (essa parte já era assim antes e continua igual -- é a regra intencional do portal).
 function catalogoProdutosVisiveisRep(search, categoria) {
   let rows = produtos.filter(p => p.situacao !== "DESCONTINUADO" && computeSaldoProduto(p.codigo) > 0);
-  if (!souCaetano()) rows = rows.filter(p => p.categoria !== "AGRICOLA_FLORESTAL");
   if (search) {
     rows = rows.filter(p =>
       p.codigo.toLowerCase().includes(search) ||
@@ -1797,7 +1786,7 @@ function gerarRelatorioPrecoRep() {
   const regiao = document.getElementById("repRelPrecoRegiao").value;
   if (!regiao) { toast("Escolha uma região pra gerar o relatório."); return; }
 
-  // mesma base do Catálogo (situação/estoque/restrição agrícola já aplicadas) -- só
+  // mesma base do Catálogo (situação/estoque já aplicadas) -- só
   // fica quem tem preço cadastrado pra essa combinação exata.
   const rows = catalogoProdutosVisiveisRep("", "")
     .map(p => ({ codigo: p.codigo, medida: p.medida, saldo: computeSaldoProduto(p.codigo), preco: getPrecoProdutoRep(p.codigo, regiao, tipo, cond) }))
