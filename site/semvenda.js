@@ -106,7 +106,7 @@ function initSistemas() {
    statusBadgeClass, SV_PREVISTO_STATUS, CATEGORIA_LABEL, CONFLITO_MSG). Sem log de histórico:
    o log do sistema é legível por quem não tem acesso ao Sem Venda. */
 
-const SV_ARMAZENS = ["Nguedes", "RF", "ZR", "Multilog"];
+const SV_ARMAZENS = ["Nguedes", "RF", "ZF", "Multilog"];
 // nome que o servidor põe no lugar do cliente, nas reservas de clientes de outro executivo (sql/executivo_carteira_propria_sem_venda.sql)
 const SV_CLIENTE_MASCARADO = "Outro executivo";
 const svReservaMascarada = (r) => r.cliente === SV_CLIENTE_MASCARADO;
