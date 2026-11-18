@@ -10852,21 +10852,32 @@ const REPORT_DEFS = {
         }
         return a.codigo.localeCompare(b.codigo);
       });
+      // sem célula mesclada (rowspan): marca grande faz o Chromium jogar o bloco inteiro pra página seguinte.
+      // No PDF cada marca abre com uma linha-título (nome + total); no Excel/CSV a coluna Marca se repete em cada linha.
       const columns = [
-        { key: "marca", label: "Marca", merge: true },
-        { key: "codigo", label: "Código" },
-        { key: "medida", label: "Medida" },
-        { key: "saldo", label: "Saldo disponível", numeric: true }
+        { key: "marca", label: "Marca", soExcel: true },
+        { key: "codigo", label: "Código", width: 28 },
+        { key: "medida", label: "Medida", width: 47 },
+        { key: "saldo", label: "Saldo disponível", numeric: true, width: 25 }
       ];
-      const rows = produtos.map(p => ({ grupo: marcaDe(p), marca: marcaDe(p), codigo: p.codigo, medida: p.medida, saldo: p.saldo }));
+      const rows = [];
+      produtos.forEach((p, i) => {
+        const marca = marcaDe(p);
+        if (i === 0 || marca !== marcaDe(produtos[i - 1])) {
+          const totalMarca = produtos.filter(x => marcaDe(x) === marca).reduce((a, x) => a + x.saldo, 0);
+          rows.push({ grupo: marca, _soPdf: true, _titulo: marca, _tituloValor: fmt(totalMarca) + " un." });
+        }
+        rows.push({ grupo: marca, marca, codigo: p.codigo, medida: p.medida, saldo: p.saldo });
+      });
       const nMarcas = new Set(rows.map(r => r.grupo)).size;
+      // (rows tem as linhas-título; "Produtos incluídos" continua sendo produtos.length)
       const summaryLines = [
         ...summaryBase,
         { label: "Quantidade de marcas", value: fmt(nMarcas) },
         { label: "Produtos incluídos", value: fmt(produtos.length) },
         { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
       ];
-      return { columns, rows, summaryLines, grupoBorda: true, grupoLongo: true };
+      return { columns, rows, summaryLines };
     }
   },
   movimentacoes: {
