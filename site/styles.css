@@ -1867,8 +1867,10 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
    ao meio entre duas páginas na hora de imprimir/gerar PDF */
 .print-report-table tr{page-break-inside:avoid; break-inside:avoid;}
 .print-report-table td.neg{font-weight:800;}
-/* continuação de um bloco (tipo/total só na 1ª linha): sem linha horizontal, parece célula mesclada */
-.print-report-table td.vazio{border-top-color:transparent; border-bottom-color:transparent;}
+/* linha-título de um grupo (ex.: tipo de pneu + total): faixa cinza em negrito; não fica sozinha no fim da página */
+.print-report-table tr.tipo-titulo td{background:#e4e4e4; font-weight:800; font-size:10.5px; border-top:2px solid #555; padding:6px 7px;}
+.print-report-table tr.tipo-titulo td.num{font-family:inherit;}
+.print-report-table tr.tipo-titulo{break-after:avoid; page-break-after:avoid;}
 .print-report-summary{margin-top:18px; font-size:12px; max-width:360px;}
 .print-report-summary.wide{max-width:470px;} /* linhas com valor longo ("5 · em aberto R$ 60.205,00") */
 .print-report-summary-row{gap:16px;}

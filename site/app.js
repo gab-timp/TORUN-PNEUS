@@ -10802,18 +10802,20 @@ const REPORT_DEFS = {
               const m = agruparChaveEstoque(p, "medida");
               porMedida[m] = (porMedida[m] || 0) + p.saldo;
             });
-            return Object.entries(porMedida)
+            const linhas = Object.entries(porMedida)
               .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
-              .map(([medida, saldo], i) => ({ grupo: g.grupo, _primeira: i === 0, tipo: g.grupo, totalTipo: g.saldo, medida, saldo }));
+              .map(([medida, saldo]) => ({ grupo: g.grupo, tipo: g.grupo, totalTipo: g.saldo, medida, saldo }));
+            // sem célula mesclada (rowspan): um bloco enorme com rowspan o Chromium joga inteiro pra página seguinte
+            // e a 1ª página do PDF sai em branco. No PDF cada tipo abre com uma linha-título (nome + total) e as
+            // medidas vêm embaixo; no Excel/CSV não há linha-título: o tipo se repete em cada linha (dá pra filtrar)
+            // e o total só na 1ª (pra não dobrar a soma).
+            return [{ grupo: g.grupo, _soPdf: true, _titulo: g.grupo, _tituloValor: fmt(g.saldo) + " un." }, ...linhas];
           });
-          // sem célula mesclada (rowspan): um bloco enorme com rowspan o Chromium joga inteiro pra página seguinte
-          // e a 1ª página do PDF sai em branco. No PDF o tipo e o total aparecem só na 1ª linha do bloco;
-          // no Excel/CSV o tipo se repete (dá pra filtrar) e o total só na 1ª linha (pra não dobrar a soma).
           const columns = [
-            { key: "tipo", label: "Tipo de pneu", soPrimeiraPdf: true, width: 30 },
-            { key: "totalTipo", label: "Total do tipo", numeric: true, soPrimeiraPdf: true, excelFirstOnly: true, width: 20 },
-            { key: "medida", label: "Medida", width: 28 },
-            { key: "saldo", label: "Saldo da medida", numeric: true, width: 22 }
+            { key: "tipo", label: "Tipo de pneu", soExcel: true },
+            { key: "totalTipo", label: "Total do tipo", numeric: true, soExcel: true, excelFirstOnly: true },
+            { key: "medida", label: "Medida", width: 70 },
+            { key: "saldo", label: "Saldo da medida", numeric: true, width: 30 }
           ];
           const summaryLines = [
             { label: "Agrupado por", value: "Tipo de pneu e medida" },
@@ -11188,7 +11190,10 @@ const REPORT_DEFS = {
 };
 
 function buildReportPrintHtml(def, de, ate, data) {
-  const { columns, rows, summaryLines } = data;
+  const { rows, summaryLines } = data;
+  // colunas "soExcel" não entram no PDF (o Excel/CSV usa todas)
+  const columns = data.columns.filter(c => !c.soExcel);
+  const colsPdf = columns;
   // o relatório pode trazer o próprio subtítulo (ex.: Estoque previsto, cujo período é de chegada)
   const periodoTxt = data.subtitulo || (def.hasDateRange
     ? `Período: ${de ? formatDateBR(de) : "início"} até ${ate ? formatDateBR(ate) : "hoje"}`
@@ -11206,7 +11211,6 @@ function buildReportPrintHtml(def, de, ate, data) {
   const celulaHtml = (c, r, rowspan) => {
     let val = r[c.key];
     const span = rowspan > 1 ? ` rowspan="${rowspan}"` : "";
-    if (c.soPrimeiraPdf && !r._primeira) return `<td class="vazio"></td>`;
     if (c.list) {
       const conteudo = Array.isArray(val) && val.length ? val.map(escapeHtml).join("<br>") : "—";
       return `<td class="list-cell"${span}>${conteudo}</td>`;
@@ -11238,7 +11242,10 @@ function buildReportPrintHtml(def, de, ate, data) {
       ).join("")}</tr>`
     ).join("")}</tbody>`).join("");
   } else {
-    tbodyHtml = `<tbody>${rows.map(r => `<tr${r._primeira && data.grupoBorda ? ' class="gi"' : ""}>${columns.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
+    // linha-título de grupo (só no PDF): nome do grupo à esquerda e o total à direita, ocupando a largura toda
+    tbodyHtml = `<tbody>${rows.map(r => r._titulo !== undefined
+      ? `<tr class="tipo-titulo"><td colspan="${colsPdf.length - 1}">${escapeHtml(r._titulo)}</td><td class="num">${escapeHtml(r._tituloValor || "")}</td></tr>`
+      : `<tr>${colsPdf.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
   }
 
   const summaryHtml = summaryLines.map(s => `
@@ -11286,7 +11293,8 @@ function gerarRelatorioPDF(reportKey, de, ate, filtro, codigo, agrupar, filtro2,
 
 function gerarRelatorioExcel(reportKey, de, ate, filtro, codigo, agrupar, filtro2, filtro3) {
   const def = REPORT_DEFS[reportKey];
-  const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
+  const { columns, rows: todas } = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
+  const rows = todas.filter(r => !r._soPdf); // linhas-título de grupo existem só no PDF
 
   // A versão livre do SheetJS não escreve estilo de célula (sem isso, "Wrap Text"
   // não dá pra ligar via código -- confirmado testando: o estilo simplesmente não
@@ -11324,7 +11332,7 @@ function gerarRelatorioCSV(reportKey, de, ate, filtro, codigo, agrupar, filtro2,
   const def = REPORT_DEFS[reportKey];
   const { columns, rows } = def.build(de, ate, filtro, codigo, agrupar, filtro2, filtro3);
   const linhas = [columns.map(c => csvEscape(c.label)).join(";")];
-  rows.forEach(r => {
+  rows.filter(r => !r._soPdf).forEach(r => {
     linhas.push(columns.map(c => {
       let val = r[c.key];
       if (c.list) val = Array.isArray(val) ? val.join(" | ") : "";
