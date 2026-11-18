@@ -10810,10 +10810,10 @@ const REPORT_DEFS = {
           // e a 1ª página do PDF sai em branco. No PDF o tipo e o total aparecem só na 1ª linha do bloco;
           // no Excel/CSV o tipo se repete (dá pra filtrar) e o total só na 1ª linha (pra não dobrar a soma).
           const columns = [
-            { key: "tipo", label: "Tipo de pneu", soPrimeiraPdf: true },
-            { key: "totalTipo", label: "Total do tipo", numeric: true, soPrimeiraPdf: true, excelFirstOnly: true },
-            { key: "medida", label: "Medida" },
-            { key: "saldo", label: "Saldo da medida", numeric: true }
+            { key: "tipo", label: "Tipo de pneu", soPrimeiraPdf: true, width: 30 },
+            { key: "totalTipo", label: "Total do tipo", numeric: true, soPrimeiraPdf: true, excelFirstOnly: true, width: 20 },
+            { key: "medida", label: "Medida", width: 28 },
+            { key: "saldo", label: "Saldo da medida", numeric: true, width: 22 }
           ];
           const summaryLines = [
             { label: "Agrupado por", value: "Tipo de pneu e medida" },
