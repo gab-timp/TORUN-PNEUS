@@ -1867,6 +1867,8 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
    ao meio entre duas páginas na hora de imprimir/gerar PDF */
 .print-report-table tr{page-break-inside:avoid; break-inside:avoid;}
 .print-report-table td.neg{font-weight:800;}
+/* continuação de um bloco (tipo/total só na 1ª linha): sem linha horizontal, parece célula mesclada */
+.print-report-table td.vazio{border-top-color:transparent; border-bottom-color:transparent;}
 .print-report-summary{margin-top:18px; font-size:12px; max-width:360px;}
 .print-report-summary.wide{max-width:470px;} /* linhas com valor longo ("5 · em aberto R$ 60.205,00") */
 .print-report-summary-row{gap:16px;}

@@ -10804,11 +10804,14 @@ const REPORT_DEFS = {
             });
             return Object.entries(porMedida)
               .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
-              .map(([medida, saldo]) => ({ grupo: g.grupo, tipo: g.grupo, totalTipo: g.saldo, medida, saldo }));
+              .map(([medida, saldo], i) => ({ grupo: g.grupo, _primeira: i === 0, tipo: g.grupo, totalTipo: g.saldo, medida, saldo }));
           });
+          // sem célula mesclada (rowspan): um bloco enorme com rowspan o Chromium joga inteiro pra página seguinte
+          // e a 1ª página do PDF sai em branco. No PDF o tipo e o total aparecem só na 1ª linha do bloco;
+          // no Excel/CSV o tipo se repete (dá pra filtrar) e o total só na 1ª linha (pra não dobrar a soma).
           const columns = [
-            { key: "tipo", label: "Tipo de pneu", merge: true },
-            { key: "totalTipo", label: "Total do tipo", numeric: true, merge: true, excelFirstOnly: true },
+            { key: "tipo", label: "Tipo de pneu", soPrimeiraPdf: true },
+            { key: "totalTipo", label: "Total do tipo", numeric: true, soPrimeiraPdf: true, excelFirstOnly: true },
             { key: "medida", label: "Medida" },
             { key: "saldo", label: "Saldo da medida", numeric: true }
           ];
@@ -11203,6 +11206,7 @@ function buildReportPrintHtml(def, de, ate, data) {
   const celulaHtml = (c, r, rowspan) => {
     let val = r[c.key];
     const span = rowspan > 1 ? ` rowspan="${rowspan}"` : "";
+    if (c.soPrimeiraPdf && !r._primeira) return `<td class="vazio"></td>`;
     if (c.list) {
       const conteudo = Array.isArray(val) && val.length ? val.map(escapeHtml).join("<br>") : "—";
       return `<td class="list-cell"${span}>${conteudo}</td>`;
@@ -11234,7 +11238,7 @@ function buildReportPrintHtml(def, de, ate, data) {
       ).join("")}</tr>`
     ).join("")}</tbody>`).join("");
   } else {
-    tbodyHtml = `<tbody>${rows.map(r => `<tr>${columns.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
+    tbodyHtml = `<tbody>${rows.map(r => `<tr${r._primeira && data.grupoBorda ? ' class="gi"' : ""}>${columns.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
   }
 
   const summaryHtml = summaryLines.map(s => `
