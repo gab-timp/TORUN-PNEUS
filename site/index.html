@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=187">
+<link rel="stylesheet" href="styles.css?v=188">
 <link rel="stylesheet" href="semvenda.css?v=39">
 <link rel="stylesheet" href="crm.css?v=43">
 <link rel="stylesheet" href="usuarios.css?v=6">
@@ -313,6 +313,9 @@
         <button class="nav-item" data-view="sv-dashboard" data-label="Dashboard">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-dashboard"/></svg> Dashboard
         </button>
+        <button class="nav-item" data-view="sv-estoque" data-label="Estoque">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-box"/></svg> Estoque
+        </button>
         <button class="nav-item" data-view="sv-previsto" data-label="Estoque Previsto">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-calendar"/></svg> Estoque Previsto
         </button>
@@ -504,6 +507,83 @@
         </div>
       </div>
     </section>
+    <section id="view-sv-estoque" class="view">
+      <div class="page-head">
+        <div>
+          <h1>Controle de Estoque</h1>
+          <div class="sub">Saldo atual por produto: o que chegou, o que saiu (reservado e vendido) e o que está disponível. Estoque baixo é menos de 300 un.</div>
+        </div>
+      </div>
+
+      <div class="kpis" id="svEstKpis"></div>
+
+      <div class="sv-est-layout">
+        <div class="card">
+          <div class="card-head">
+            <h2>Produtos em estoque</h2>
+            <div class="note" id="svEstCount"></div>
+          </div>
+          <div class="form-row">
+            <div class="field grow">
+              <label>Buscar</label>
+              <input type="text" id="svEstSearch" placeholder="Código, medida ou processo…" autocomplete="off">
+            </div>
+            <div class="field">
+              <label>Saldo</label>
+              <select id="svEstFiltro">
+                <option value="todos">Todos</option>
+                <option value="disponivel">Com saldo disponível</option>
+                <option value="baixo">Saldo baixo ou zerado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Armazém</label>
+              <select id="svEstFiltroArmazem"></select>
+            </div>
+            <div class="field">
+              <label>Tipo do pneu</label>
+              <select id="svEstFiltroTipo"></select>
+            </div>
+            <div class="field">
+              <label>Marca</label>
+              <select id="svEstFiltroMarca"></select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Medida</th>
+                  <th>Armazém</th>
+                  <th class="num">Chegou</th>
+                  <th class="num">Reservado/vendido</th>
+                  <th class="num">Saldo disponível</th>
+                  <th class="num">A caminho</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="svEstTbody"></tbody>
+            </table>
+            <div class="empty-state" id="svEstEmpty" style="display:none;"></div>
+          </div>
+          <div class="note sv-est-rodape">A barra mostra o saldo em relação ao que chegou. "A caminho" soma os processos que ainda não foram finalizados e não entra no status.</div>
+        </div>
+
+        <div class="estoque-side">
+          <div class="card">
+            <div class="card-head"><h2>Estoque por medida</h2></div>
+            <div class="dash-canvas-wrap dash-canvas-wrap-donut"><canvas id="svChartEstoqueMedida"></canvas></div>
+            <div class="empty-state" id="svEstDonutEmpty" style="display:none;">Sem produtos com saldo disponível.</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Saldo baixo <span class="alerta-badge" id="svEstBaixoCount">0</span></h2></div>
+            <div class="alerta-lista" id="svEstBaixoLista"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="view-sv-previsto" class="view">
       <div class="page-head">
         <div>
@@ -4791,7 +4871,7 @@
 
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
-<script src="semvenda.js?v=55"></script>
+<script src="semvenda.js?v=56"></script>
 <script src="crm.js?v=47"></script>
 <script src="crm-ligacoes.js?v=7"></script>
 <script src="crm-perfil.js?v=11"></script>

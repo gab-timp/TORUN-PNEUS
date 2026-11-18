@@ -244,7 +244,7 @@ function svCarregarDados(forcar) {
 
 // chamado pelo setView() do app.js sempre que uma tela sv-* abre
 async function svAoAbrirView(view) {
-  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-armazenagem", "sv-relatoriopreco", "sv-clientes"].includes(view)) return;
+  if (!["sv-produtos", "sv-previsto", "sv-catalogo", "sv-reserva", "sv-dashboard", "sv-estoque", "sv-armazenagem", "sv-relatoriopreco", "sv-clientes"].includes(view)) return;
   if (!(await svCarregarDados())) return;
   // o cadastro de clientes tem carga própria (tabela sv_clientes): só as telas que o usam dependem dele
   if (["sv-clientes", "sv-reserva", "sv-relatoriopreco"].includes(view) && !(await svCarregarClientes(view === "sv-clientes"))) return;
@@ -254,6 +254,7 @@ async function svAoAbrirView(view) {
   else if (view === "sv-previsto") svRenderPrevistos();
   else if (view === "sv-catalogo") svRenderCatalogo();
   else if (view === "sv-dashboard") svRenderDashboard();
+  else if (view === "sv-estoque") svRenderEstoque();
   else if (view === "sv-armazenagem") svRenderArmazenagem();
   else if (view === "sv-relatoriopreco") svAbrirProposta();
   else if (view === "sv-clientes") svRenderClientes();
@@ -2562,6 +2563,153 @@ function svRenderArmazenagem() {
     : "Nenhum pneu nesse armazém.";
 }
 
+/* ---------- Controle de Estoque (saldo por produto, com alerta de estoque baixo) ---------- */
+
+// Mesma tela do Estoque do Varejo. Estoque baixo = menos de 300 un. por produto (soma dos armazéns).
+// Esgotado: 0 ou menos. Atenção: de 300 a 399 (perto de ficar baixo). Normal: 400 ou mais.
+const SV_ESTOQUE_BAIXO_LIMITE = 300;
+const SV_ESTOQUE_ATENCAO_ATE = 400;
+
+function svStatusEstoque(saldo) {
+  if (saldo <= 0) return "esgotado";
+  if (saldo < SV_ESTOQUE_BAIXO_LIMITE) return "baixo";
+  if (saldo < SV_ESTOQUE_ATENCAO_ATE) return "atencao";
+  return "normal";
+}
+
+// uma linha por produto cadastrado. chegou = processos FINALIZADO/FATURADO; saidas = reservado + vendido;
+// saldo = chegou - saidas (soma de todos os armazéns); aCaminho = quantidade dos processos que ainda não chegaram.
+// Produto que nunca recebeu nada (chegou = 0) não conta como "baixo/esgotado": só tem status quando já teve entrada.
+function svListaEstoque() {
+  const { linhas, aChegar } = svCalcularEstoque();
+  const porCodigo = new Map();
+  const novo = () => ({ chegou: 0, reservado: 0, vendido: 0, aCaminho: 0, armazens: new Set(), processos: new Set() });
+  const dado = (codigo) => {
+    if (!porCodigo.has(codigo)) porCodigo.set(codigo, novo());
+    return porCodigo.get(codigo);
+  };
+  linhas.forEach(l => {
+    const d = dado(l.codigo);
+    d.chegou += l.chegou; d.reservado += l.reservado; d.vendido += l.vendido;
+    if (l.chegou > 0 && l.armazem) d.armazens.add(l.armazem);
+  });
+  aChegar.forEach(a => { dado(a.codigo).aCaminho += a.total; });
+  svState.previsoes.forEach(p => p.itens.forEach(it => { if (it.codigo) dado(it.codigo).processos.add(p.numeroProcesso); }));
+  return svState.produtos.map(p => {
+    const d = porCodigo.get(p.codigo) || novo();
+    const saidas = d.reservado + d.vendido;
+    const saldo = d.chegou - saidas;
+    return { ...p, chegou: d.chegou, saidas, saldo, aCaminho: d.aCaminho, armazens: [...d.armazens].sort(), processos: [...d.processos],
+      status: d.chegou > 0 ? svStatusEstoque(saldo) : "sementrada" };
+  });
+}
+
+function svEstoqueBaixos(rows) {
+  return rows.filter(r => r.chegou > 0 && r.saldo < SV_ESTOQUE_BAIXO_LIMITE).sort((a, b) => a.saldo - b.saldo || a.codigo.localeCompare(b.codigo));
+}
+
+function svRenderEstoque() {
+  const todos = svListaEstoque();
+  const comEntrada = todos.filter(r => r.chegou > 0);
+  const baixos = svEstoqueBaixos(todos);
+
+  // filtros de marca, tipo e armazém: montados a cada abertura (pega cadastro e dados novos), mantendo a escolha
+  const preencher = (id, primeira, opcoes) => {
+    const sel = document.getElementById(id);
+    const atual = sel.value;
+    sel.innerHTML = `<option value="">${primeira}</option>` + opcoes.map(([v, t]) => `<option value="${escapeAttr(v)}">${escapeHtml(t)}</option>`).join("");
+    if (opcoes.some(([v]) => v === atual)) sel.value = atual;
+  };
+  preencher("svEstFiltroMarca", "Todas", [...new Set(svState.produtos.map(p => p.marca).filter(Boolean))].sort().map(m => [m, m]));
+  preencher("svEstFiltroTipo", "Todos", [...Object.entries(CATEGORIA_LABEL), ["__sem", "Sem categoria"]]);
+  preencher("svEstFiltroArmazem", "Todos", svArmazensDoEstoque(svEstoqueFisico()).filter(a => a).map(a => [a, a]));
+
+  const soma = (arr, campo) => arr.reduce((s, r) => s + r[campo], 0);
+  const kpis = [
+    { lbl: "Pneus em estoque (saldo)", val: fmt(soma(comEntrada, "saldo")), accent: true },
+    { lbl: "Total que chegou", val: fmt(soma(comEntrada, "chegou")) },
+    { lbl: "Reservado e vendido", val: fmt(soma(comEntrada, "saidas")) },
+    { lbl: "Produtos com saldo zerado", val: fmt(comEntrada.filter(r => r.saldo <= 0).length) },
+    { lbl: "Produtos com saldo baixo", val: fmt(baixos.filter(r => r.saldo > 0).length) },
+    { lbl: "A caminho (previsto)", val: fmt(soma(todos, "aCaminho")) }
+  ];
+  document.getElementById("svEstKpis").innerHTML = kpis.map(k =>
+    `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div></div>`).join("");
+
+  // rosca por medida (só o que tem saldo)
+  const porMedida = {};
+  comEntrada.filter(r => r.saldo > 0).forEach(r => {
+    const base = extractMedidaBase(r.medida);
+    porMedida[base] = (porMedida[base] || 0) + r.saldo;
+  });
+  const entradas = Object.entries(porMedida).sort((a, b) => b[1] - a[1]);
+  const vazioRosca = document.getElementById("svEstDonutEmpty");
+  if (entradas.length === 0) {
+    if (dashCharts["svChartEstoqueMedida"]) { dashCharts["svChartEstoqueMedida"].destroy(); delete dashCharts["svChartEstoqueMedida"]; }
+    vazioRosca.style.display = "block";
+  } else {
+    vazioRosca.style.display = "none";
+    const dobrado = foldTopN(entradas.map(([m]) => m), entradas.map(([, q]) => q), 6);
+    dashChart("svChartEstoqueMedida",
+      dashDonutConfig(dobrado.labels, dobrado.data, { valueIsMoney: false }),
+      { type: "donut", title: "Estoque por Medida", labels: dobrado.labels, data: dobrado.data, opts: { valueIsMoney: false } });
+  }
+
+  // cartão "Saldo baixo"
+  document.getElementById("svEstBaixoCount").textContent = baixos.length;
+  document.getElementById("svEstBaixoLista").innerHTML = baixos.length === 0
+    ? `<div class="empty-state">Nenhum produto com saldo baixo.</div>`
+    : baixos.map(p => `
+      <div class="alerta-item">
+        <span class="codigo">${escapeHtml(p.codigo)}</span>
+        <span class="medida">${escapeHtml(p.medida)}</span>
+        <span class="saldo ${p.saldo <= 0 ? "saldo-zero" : "saldo-baixo"}">${fmt(p.saldo)} un.</span>
+      </div>`).join("");
+
+  // lista
+  const search = (document.getElementById("svEstSearch").value || "").trim().toLowerCase();
+  const fSaldo = document.getElementById("svEstFiltro").value;
+  const fArm = document.getElementById("svEstFiltroArmazem").value;
+  const fTipo = document.getElementById("svEstFiltroTipo").value;
+  const fMarca = document.getElementById("svEstFiltroMarca").value;
+  let rows = todos;
+  if (search) rows = rows.filter(r => r.codigo.toLowerCase().includes(search) || r.medida.toLowerCase().includes(search) || r.processos.some(p => String(p).toLowerCase().includes(search)));
+  if (fSaldo === "disponivel") rows = rows.filter(r => r.saldo > 0);
+  if (fSaldo === "baixo") rows = rows.filter(r => r.chegou > 0 && r.saldo < SV_ESTOQUE_BAIXO_LIMITE);
+  if (fArm) rows = rows.filter(r => r.armazens.includes(fArm));
+  if (fTipo === "__sem") rows = rows.filter(r => !r.categoria);
+  else if (fTipo) rows = rows.filter(r => normalizarCategoria(r.categoria || "") === normalizarCategoria(fTipo));
+  if (fMarca) rows = rows.filter(r => r.marca === fMarca);
+  rows = rows.slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+  document.getElementById("svEstCount").textContent = `${rows.length} de ${todos.length} produto(s)`;
+  const vazio = document.getElementById("svEstEmpty");
+  vazio.style.display = rows.length === 0 ? "block" : "none";
+  vazio.textContent = todos.length === 0 ? "Nenhum produto cadastrado ainda." : "Nenhum produto encontrado.";
+  const rotulo = { esgotado: "Esgotado", baixo: "Baixo", atencao: "Atenção", normal: "Normal", sementrada: "Sem entrada" };
+  document.getElementById("svEstTbody").innerHTML = rows.map(r => {
+    const pct = r.chegou > 0 ? Math.max(0, Math.min(100, (r.saldo / r.chegou) * 100)) : 0;
+    const semEntrada = r.status === "sementrada";
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(r.codigo)}</td>
+        <td>${escapeHtml(r.medida)}</td>
+        <td class="muted">${r.armazens.length ? escapeHtml(r.armazens.join(", ")) : "—"}</td>
+        <td class="num">${fmt(r.chegou)}</td>
+        <td class="num">${fmt(r.saidas)}</td>
+        <td class="num">
+          <div class="saldo-cell">
+            <span class="saldo-bar"><span class="saldo-bar-fill fill-${semEntrada ? "normal" : r.status}" style="width:${pct}%"></span></span>
+            <span class="saldo-val">${fmt(r.saldo)}</span>
+            <span class="status-pill pill-${semEntrada ? "neutro" : r.status}">${rotulo[r.status]}</span>
+          </div>
+        </td>
+        <td class="num">${r.aCaminho > 0 ? fmt(r.aCaminho) : "—"}</td>
+        <td><button type="button" class="btn small outline" data-svest-res="${escapeAttr(r.codigo)}">Reservas</button></td>
+      </tr>`;
+  }).join("");
+}
+
 /* ---------- Vendedores internos (lista que a Reserva usa; cadastro na Administração) ---------- */
 
 // carga própria (fora do svState): a tabela sv_vendedores é da etapa de vendedor/representante
@@ -3175,6 +3323,17 @@ function initSemVendaTelas() {
       campo.value = "";
       campo.dispatchEvent(new Event("input", { bubbles: true }));
     }
+  });
+
+  ["svEstSearch", "svEstFiltro", "svEstFiltroArmazem", "svEstFiltroTipo", "svEstFiltroMarca"].forEach(id => {
+    document.getElementById(id).addEventListener("input", svRenderEstoque);
+  });
+  // "Reservas": abre a tela de Reserva já buscando pelo código do produto
+  document.getElementById("svEstTbody").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-svest-res]");
+    if (!btn) return;
+    document.getElementById("svResSearch").value = btn.dataset.svestRes;
+    setView("sv-reserva");
   });
 
   document.getElementById("svArmFiltro").addEventListener("change", (e) => {

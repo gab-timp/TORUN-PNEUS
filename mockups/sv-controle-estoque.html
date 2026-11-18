@@ -1,0 +1,103 @@
+<title>Controle de Estoque Sem Venda</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--paper2:#EFEEEA;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-deep:#C64F0C;--orange-pale:#FFE7D6;--good:#15803D;--good-pale:#DFF3E6;--good-b:#22C55E;--warn:#B45309;--warn-pale:#FEF3C7;--warn-b:#F59E0B;--danger:#B91C1C;--danger-pale:#FDE6E6;--danger-b:#EF4444;--note:#FFF8DC;--noteln:#E0C96A;--notetx:#3b3410;
+--mono:"Space Mono",ui-monospace,Consolas,monospace;--f:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#EDEDED;--soft:#A0A0A0;--paper:#141414;--paper2:#242424;--surface:#1c1c1c;--line:#333;--orange-pale:#3a2414;--orange-deep:#FF9A5C;--good:#4ADE80;--good-pale:#12301d;--warn:#FBBF24;--warn-pale:#33270b;--danger:#F87171;--danger-pale:#3a1616;--note:#3a3412;--noteln:#8a7a2a;--notetx:#f3ecc4;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#EDEDED;--soft:#A0A0A0;--paper:#141414;--paper2:#242424;--surface:#1c1c1c;--line:#333;--orange-pale:#3a2414;--orange-deep:#FF9A5C;--good:#4ADE80;--good-pale:#12301d;--warn:#FBBF24;--warn-pale:#33270b;--danger:#F87171;--danger-pale:#3a1616;--note:#3a3412;--noteln:#8a7a2a;--notetx:#f3ecc4;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f);font-size:14px;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+.note{background:var(--note);border:1px solid var(--noteln);color:var(--notetx);border-radius:6px;padding:10px 14px;font-size:13px}
+h1{font-size:24px;font-weight:800;margin:0}.sub{color:var(--soft);font-size:13px;margin-top:4px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:13px 15px;min-width:0}
+.kpi .lbl{font-size:12px;color:var(--soft)}.kpi .val{font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi.accent{border-color:var(--ink)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.card-head h2{font-size:15px;margin:0}.card-head .n{font-size:12px;color:var(--soft)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.field{display:grid;gap:3px;min-width:0}.field.grow{flex:1 1 200px}
+label{font-size:11px;color:var(--soft);font-weight:600;letter-spacing:.03em}
+input,select{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);padding:8px 8px;border-bottom:1px solid var(--ink)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.num{text-align:right;font-variant-numeric:tabular-nums}.mono{font-family:var(--mono);font-weight:700}
+.muted{color:var(--soft)}
+.saldo-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.bar{position:relative;width:52px;height:6px;border-radius:3px;background:var(--paper2);overflow:hidden;flex:0 0 auto}
+.bar i{position:absolute;left:0;top:0;height:100%;border-radius:3px}
+.f-normal{background:var(--good-b)}.f-atencao{background:var(--warn-b)}.f-baixo{background:var(--orange)}.f-esgotado{background:var(--danger-b)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-normal{background:var(--good-pale);color:var(--good)}.p-atencao{background:var(--warn-pale);color:var(--warn)}.p-baixo{background:var(--orange-pale);color:var(--orange-deep)}.p-esgotado{background:var(--danger-pale);color:var(--danger)}
+.btn{font:inherit;font-size:12px;padding:4px 10px;border:1px solid var(--ink);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+.side{display:grid;gap:16px}
+.donut{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.donut svg{width:130px;height:130px;flex:0 0 auto}
+.leg{display:grid;gap:5px;font-size:12px;min-width:0;flex:1}
+.leg div{display:flex;gap:6px;align-items:center}.leg i{width:10px;height:10px;border-radius:2px;flex:0 0 auto}.leg b{margin-left:auto;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;background:var(--orange);color:#fff;border-radius:10px;font-size:11px;padding:1px 8px;margin-left:6px}
+.al{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.al:last-child{border:0}.al .m{color:var(--soft);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.al .s{font-family:var(--mono);font-weight:700}.s.z{color:var(--danger)}.s.b{color:var(--orange-deep)}
+.leg2{font-size:12px;color:var(--soft);margin-top:10px}
+</style>
+<div class="wrap">
+<div class="note"><b>Mockup (números inventados).</b> Tela nova "Estoque" no menu do Sem Venda, só leitura. Estoque baixo = menos de 300 un. por produto, somando os armazéns. Status: Esgotado (0 ou menos), Baixo (abaixo de 300), Atenção (300 a 399) e Normal (400 ou mais). O saldo é o que já chegou (Finalizado ou Faturado) menos o reservado e o vendido; o que ainda está a caminho fica numa coluna à parte e não entra no status. O botão "Reservas" abre a Reserva filtrada pelo código. Sem pop-up nem notificação.</div>
+
+<div><h1>Controle de Estoque</h1><div class="sub">Saldo atual por produto: o que chegou, o que saiu (reservado e vendido) e o que está disponível.</div></div>
+
+<div class="kpis">
+<div class="kpi accent"><div class="lbl">Pneus em estoque (saldo)</div><div class="val">6.480</div></div>
+<div class="kpi"><div class="lbl">Total que chegou</div><div class="val">9.120</div></div>
+<div class="kpi"><div class="lbl">Reservado e vendido</div><div class="val">2.640</div></div>
+<div class="kpi"><div class="lbl">Produtos com saldo zerado</div><div class="val">2</div></div>
+<div class="kpi"><div class="lbl">Produtos com saldo baixo</div><div class="val">5</div></div>
+<div class="kpi"><div class="lbl">A caminho (previsto)</div><div class="val">3.200</div></div>
+</div>
+
+<div class="layout">
+<div class="card">
+<div class="card-head"><h2>Produtos em estoque</h2><div class="n">9 de 41 produtos (exemplo)</div></div>
+<div class="filters">
+<div class="field grow"><label>Buscar</label><input type="text" value="" placeholder="Código, medida ou processo…" id="q"></div>
+<div class="field"><label>Saldo</label><select><option>Todos</option><option>Com saldo disponível</option><option>Saldo baixo ou zerado</option></select></div>
+<div class="field"><label>Armazém</label><select><option>Todos</option><option>Nguedes</option><option>RF</option><option>ZF</option><option>Multilog</option></select></div>
+<div class="field"><label>Tipo do pneu</label><select><option>Todos</option><option>Passeio</option><option>Cargas/TBR</option><option>Agrícola/Florestal</option></select></div>
+<div class="field"><label>Marca</label><select><option>Todas</option></select></div>
+</div>
+<div class="tw"><table>
+<thead><tr><th>Código</th><th>Medida</th><th class="num">Chegou</th><th class="num">Reservado/vendido</th><th class="num">Saldo disponível</th><th class="num">A caminho</th><th>Ações</th></tr></thead>
+<tbody>
+<tr><td class="mono">ROAD295</td><td>295/80R22.5</td><td class="num">2.400</td><td class="num">1.150</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-normal" style="width:52%"></i></span><b>1.250</b><span class="pill p-normal">Normal</span></div></td><td class="num">800</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD11R</td><td>11R22.5</td><td class="num">1.800</td><td class="num">700</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-normal" style="width:61%"></i></span><b>1.100</b><span class="pill p-normal">Normal</span></div></td><td class="num">—</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD205</td><td>205/55R16</td><td class="num">900</td><td class="num">480</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-normal" style="width:47%"></i></span><b>420</b><span class="pill p-normal">Normal</span></div></td><td class="num">1.200</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD185</td><td>185/65R15</td><td class="num">600</td><td class="num">230</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-atencao" style="width:62%"></i></span><b>370</b><span class="pill p-atencao">Atenção</span></div></td><td class="num">—</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD275</td><td>275/80R22.5</td><td class="num">500</td><td class="num">190</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-atencao" style="width:62%"></i></span><b>310</b><span class="pill p-atencao">Atenção</span></div></td><td class="num">600</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD184</td><td>18.4-34</td><td class="num">400</td><td class="num">180</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-baixo" style="width:55%"></i></span><b>220</b><span class="pill p-baixo">Baixo</span></div></td><td class="num">—</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD175</td><td>175/70R13</td><td class="num">300</td><td class="num">210</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-baixo" style="width:30%"></i></span><b>90</b><span class="pill p-baixo">Baixo</span></div></td><td class="num">600</td><td><button class="btn">Reservas</button></td></tr>
+<tr><td class="mono">ROAD149</td><td>14.9-24</td><td class="num">120</td><td class="num">120</td><td class="num"><div class="saldo-cell"><span class="bar"><i class="f-esgotado" style="width:0%"></i></span><b>0</b><span class="pill p-esgotado">Esgotado</span></div></td><td class="num">—</td><td><button class="btn">Reservas</button></td></tr>
+</tbody></table></div>
+<div class="leg2">A barra mostra o saldo em relação ao que chegou. "A caminho" soma os processos que ainda não foram finalizados e não entra no status.</div>
+</div>
+
+<div class="side">
+<div class="card"><div class="card-head"><h2>Estoque por medida</h2></div>
+<div class="donut">
+<svg viewBox="0 0 42 42" role="img" aria-label="Estoque por medida"><circle cx="21" cy="21" r="15.9" fill="none" stroke="#FF6A13" stroke-width="7" stroke-dasharray="39 61" stroke-dashoffset="25"/><circle cx="21" cy="21" r="15.9" fill="none" stroke="#2563EB" stroke-width="7" stroke-dasharray="26 74" stroke-dashoffset="-14"/><circle cx="21" cy="21" r="15.9" fill="none" stroke="#22C55E" stroke-width="7" stroke-dasharray="19 81" stroke-dashoffset="-40"/><circle cx="21" cy="21" r="15.9" fill="none" stroke="#8B5CF6" stroke-width="7" stroke-dasharray="16 84" stroke-dashoffset="-59"/></svg>
+<div class="leg"><div><i style="background:#FF6A13"></i>295/80R22.5<b>2.530</b></div><div><i style="background:#2563EB"></i>11R22.5<b>1.690</b></div><div><i style="background:#22C55E"></i>205/55R16<b>1.230</b></div><div><i style="background:#8B5CF6"></i>Outras<b>1.030</b></div></div>
+</div></div>
+<div class="card"><div class="card-head"><h2>Saldo baixo <span class="badge">3</span></h2></div>
+<div class="al"><span class="mono">ROAD149</span><span class="m">14.9-24</span><span class="s z">0 un.</span></div>
+<div class="al"><span class="mono">ROAD175</span><span class="m">175/70R13</span><span class="s b">90 un.</span></div>
+<div class="al"><span class="mono">ROAD184</span><span class="m">18.4-34</span><span class="s b">220 un.</span></div>
+<div class="leg2">Produtos com menos de 300 un. disponíveis, somando os armazéns.</div></div>
+</div>
+</div>
+</div>

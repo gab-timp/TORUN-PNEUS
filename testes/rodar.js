@@ -384,6 +384,35 @@ grupo('sub-representantes da venda', () => {
   iguais(run('valorSubDe(1000, 0.333)'), 3.33, 'sub: arredonda em centavos');
 });
 
+grupo('Sem Venda: Controle de Estoque (estoque baixo abaixo de 300)', () => {
+  const { run } = contexto();
+  run('const svState = { produtos: [], previsoes: [], reservas: [] };\n' + ['svStatusChegou', 'svCalcularEstoque', 'svStatusEstoque', 'svListaEstoque', 'svEstoqueBaixos']
+    .map(n => funcao('semvenda.js', n)).join('\n') + '\nconst SV_ESTOQUE_BAIXO_LIMITE = 300; const SV_ESTOQUE_ATENCAO_ATE = 400;');
+  const status = (n) => run('svStatusEstoque(' + n + ')');
+  iguais([0, -5, 1, 299, 300, 399, 400].map(status), ['esgotado', 'esgotado', 'baixo', 'baixo', 'atencao', 'atencao', 'normal'],
+    'status: 0 ou menos = esgotado; abaixo de 300 = baixo; 300 a 399 = atenção; 400 ou mais = normal');
+
+  const lista = (dados) => { run('Object.assign(svState, ' + JSON.stringify(dados) + ')'); return run('svListaEstoque()'); };
+  const prev = (id, status, armazem, itens) => ({ id, numeroProcesso: 'P' + id, status, armazem, itens });
+  const prod = (codigo) => ({ codigo, medida: '295/80R22.5', marca: 'X', categoria: 'CARGAS_TBR' });
+  const r1 = lista({
+    produtos: [prod('A'), prod('B'), prod('C')],
+    previsoes: [prev('1', 'FINALIZADO', 'Nguedes', [{ codigo: 'A', quantidade: 200 }, { codigo: 'B', quantidade: 500 }]),
+      prev('2', 'FATURADO', 'ZF', [{ codigo: 'A', quantidade: 150 }]),
+      prev('3', 'PROCESSO EM AGUA', '', [{ codigo: 'C', quantidade: 800 }])],
+    reservas: [{ codigo: 'A', situacao: 'ATIVA', previsaoId: null, armazem: 'Nguedes', quantidade: 20 },
+      { codigo: 'A', situacao: 'VENDIDA', previsaoId: null, armazem: 'ZF', quantidade: 10 },
+      { codigo: 'A', situacao: 'CANCELADA', previsaoId: null, armazem: 'ZF', quantidade: 999 }]
+  });
+  const a = r1.find(r => r.codigo === 'A'), b = r1.find(r => r.codigo === 'B'), c = r1.find(r => r.codigo === 'C');
+  iguais([a.chegou, a.saidas, a.saldo], [350, 30, 320], 'estoque: soma os armazéns, reservado + vendido saem, cancelada não conta');
+  iguais(a.armazens, ['Nguedes', 'ZF'], 'estoque: lista os armazéns onde o produto chegou');
+  iguais(a.status, 'atencao', 'estoque: 320 un. no total (200 em um armazém e 150 em outro) não é baixo');
+  iguais([b.saldo, b.status], [500, 'normal'], 'estoque: 500 un. = normal');
+  iguais([c.chegou, c.aCaminho, c.status], [0, 800, 'sementrada'], 'estoque: produto sem entrada mostra o que está a caminho e não vira "esgotado"');
+  iguais(run('svEstoqueBaixos(svListaEstoque())').map(r => r.codigo), [], 'estoque baixo: só produtos que já tiveram entrada e estão abaixo de 300');
+});
+
 /* ---------------- resultado ---------------- */
 console.log('\n' + (total - falhas) + ' de ' + total + ' conferências passaram.');
 if (falhas) {
