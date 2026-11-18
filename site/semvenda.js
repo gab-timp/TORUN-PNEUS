@@ -597,12 +597,16 @@ let svPrevSortables = [];
 // AGUARDANDO RETIRADA DO PORTO virou NACIONALIZADO, AG RETIRADA DO PORTO e entraram PRESENCIADO e FATURADO.
 const SV_PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "AGUARDANDO PRESENÇA", "PRESENCIADO",
   "NACIONALIZADO, AG RETIRADA DO PORTO", "FINALIZADO", "FATURADO"];
-const SV_PREVISTO_COR = {
-  ...PREVISTO_COR,
-  "PRESENCIADO": { accent: "#8B5CF6", deep: "#5B21B6", pale: "#EDE7FD" },
-  "NACIONALIZADO, AG RETIRADA DO PORTO": PREVISTO_COR["AGUARDANDO RETIRADA DO PORTO"],
-  "FATURADO": { accent: "#0D9488", deep: "#115E59", pale: "#D5F5F0" }
-};
+// Função (não constante): este arquivo carrega ANTES do app.js, então PREVISTO_COR ainda não existe aqui no
+// topo do arquivo -- só na hora de desenhar.
+function svCorPrevisto(status) {
+  const extras = {
+    "PRESENCIADO": { accent: "#8B5CF6", deep: "#5B21B6", pale: "#EDE7FD" },
+    "NACIONALIZADO, AG RETIRADA DO PORTO": PREVISTO_COR["AGUARDANDO RETIRADA DO PORTO"],
+    "FATURADO": { accent: "#0D9488", deep: "#115E59", pale: "#D5F5F0" }
+  };
+  return extras[status] || PREVISTO_COR[status];
+}
 // o pneu já chegou (entra no estoque do Sem Venda): FINALIZADO e continua valendo depois de FATURADO
 function svStatusChegou(status) { return status === "FINALIZADO" || status === "FATURADO"; }
 function svStatusBadgeClass(status) {
@@ -612,11 +616,11 @@ function svStatusBadgeClass(status) {
   return statusBadgeClass(status);
 }
 
-// Monta as colunas uma vez só (no 1º render). A lista vem de SV_PREVISTO_STATUS e as cores de SV_PREVISTO_COR.
+// Monta as colunas uma vez só (no 1º render). A lista vem de SV_PREVISTO_STATUS e as cores de svCorPrevisto.
 function svMontarKanbanPrevisto() {
   const board = document.getElementById("svPrevBoard");
   board.innerHTML = SV_PREVISTO_STATUS.map((status, i) => {
-    const cor = SV_PREVISTO_COR[status] || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
+    const cor = svCorPrevisto(status) || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
     return `
       <div class="kanban-col" style="--col-accent:${cor.accent}; --col-deep:${cor.deep}; --col-pale:${cor.pale};">
         <div class="kanban-col-head"><span>${escapeHtml(status)}</span><span class="kanban-count" id="svPrevCount${i}">0</span><span class="kanban-col-toggle">⌄</span></div>
@@ -727,7 +731,7 @@ function svAbrirPrevistoDetalhe(id) {
   if (!p) return;
   svPrevDetalheId = id;
 
-  const cor = SV_PREVISTO_COR[p.status];
+  const cor = svCorPrevisto(p.status);
   document.querySelector("#svPrevDetalheOverlay .modal").style.setProperty("--col-accent", cor ? cor.accent : "var(--orange)");
   document.getElementById("svPrevDetalheTitulo").textContent = p.numeroProcesso;
   const badge = document.getElementById("svPrevDetalheStatus");
