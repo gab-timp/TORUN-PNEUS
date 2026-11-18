@@ -11204,7 +11204,6 @@ function buildReportPrintHtml(def, de, ate, data) {
   const { rows, summaryLines } = data;
   // colunas "soExcel" não entram no PDF (o Excel/CSV usa todas)
   const columns = data.columns.filter(c => !c.soExcel);
-  const colsPdf = columns;
   // o relatório pode trazer o próprio subtítulo (ex.: Estoque previsto, cujo período é de chegada)
   const periodoTxt = data.subtitulo || (def.hasDateRange
     ? `Período: ${de ? formatDateBR(de) : "início"} até ${ate ? formatDateBR(ate) : "hoje"}`
@@ -11255,8 +11254,8 @@ function buildReportPrintHtml(def, de, ate, data) {
   } else {
     // linha-título de grupo (só no PDF): nome do grupo à esquerda e o total à direita, ocupando a largura toda
     tbodyHtml = `<tbody>${rows.map(r => r._titulo !== undefined
-      ? `<tr class="tipo-titulo"><td colspan="${colsPdf.length - 1}">${escapeHtml(r._titulo)}</td><td class="num">${escapeHtml(r._tituloValor || "")}</td></tr>`
-      : `<tr>${colsPdf.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
+      ? `<tr class="tipo-titulo"><td colspan="${columns.length - 1}">${escapeHtml(r._titulo)}</td><td class="num">${escapeHtml(r._tituloValor || "")}</td></tr>`
+      : `<tr>${columns.map(c => celulaHtml(c, r, 1)).join("")}</tr>`).join("")}</tbody>`;
   }
 
   const summaryHtml = summaryLines.map(s => `
