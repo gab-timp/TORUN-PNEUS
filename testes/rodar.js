@@ -302,7 +302,7 @@ grupo('igualdade Atacado x Encomenda', () => {
 
 grupo('Sem Venda: custo unitário por item e valor investido', () => {
   const { run } = contexto();
-  run('const svState = { previsoes: [] };\n' + funcao('semvenda.js', 'svCustoDoProcesso') + '\n' + funcao('semvenda.js', 'svResumoValor') + '\n' + funcao('semvenda.js', 'svNotaSemCusto'));
+  run('const svState = { previsoes: [] };\n' + funcao('semvenda.js', 'svStatusChegou') + '\n' + funcao('semvenda.js', 'svCustoDoProcesso') + '\n' + funcao('semvenda.js', 'svResumoValor') + '\n' + funcao('semvenda.js', 'svNotaSemCusto'));
   const custo = (p) => run('svCustoDoProcesso(' + JSON.stringify(p) + ')');
   iguais(custo({ itens: [{ codigo: 'A', quantidade: 400, custoUnitario: 1180 }, { codigo: 'B', quantidade: 240, custoUnitario: 1000 }], custoTotal: null }),
     { total: 712000, temCusto: true, itensSemCusto: 0, antigo: false }, 'custo do processo: soma quantidade x custo unitário de cada item');

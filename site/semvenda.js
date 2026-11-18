@@ -103,7 +103,7 @@ function initSistemas() {
 /* ---------------- Sem Venda, etapa 2: Produtos e Estoque Previsto ---------------- */
 /* Dados próprios (tabelas sv_produtos e sv_previsoes), carregados ao abrir a tela. Usa os
    helpers do app.js (sb, toast, confirmModal, escapeHtml, fmt, uid, updateWithConflictCheck,
-   statusBadgeClass, PREVISTO_STATUS, CATEGORIA_LABEL, CONFLITO_MSG). Sem log de histórico:
+   statusBadgeClass, SV_PREVISTO_STATUS, CATEGORIA_LABEL, CONFLITO_MSG). Sem log de histórico:
    o log do sistema é legível por quem não tem acesso ao Sem Venda. */
 
 const SV_ARMAZENS = ["Nguedes", "RF", "ZR", "Multilog"];
@@ -593,12 +593,30 @@ function svPodeEditarPrevisto() {
 
 let svPrevSortables = [];
 
-// Monta as colunas uma vez só (no 1º render). A lista vem de PREVISTO_STATUS e as cores de PREVISTO_COR
-// (os dois definidos no app.js, compartilhados com o Estoque Previsto do Torun).
+// Colunas do Estoque Previsto do Sem Venda. NÃO são as do Torun (PREVISTO_STATUS no app.js): aqui não há ATRACADO,
+// AGUARDANDO RETIRADA DO PORTO virou NACIONALIZADO, AG RETIRADA DO PORTO e entraram PRESENCIADO e FATURADO.
+const SV_PREVISTO_STATUS = ["AGUARDANDO PRONTIDÃO", "AGUARDANDO EMBARQUE", "PROCESSO EM AGUA", "AGUARDANDO PRESENÇA", "PRESENCIADO",
+  "NACIONALIZADO, AG RETIRADA DO PORTO", "FINALIZADO", "FATURADO"];
+const SV_PREVISTO_COR = {
+  ...PREVISTO_COR,
+  "PRESENCIADO": { accent: "#8B5CF6", deep: "#5B21B6", pale: "#EDE7FD" },
+  "NACIONALIZADO, AG RETIRADA DO PORTO": PREVISTO_COR["AGUARDANDO RETIRADA DO PORTO"],
+  "FATURADO": { accent: "#0D9488", deep: "#115E59", pale: "#D5F5F0" }
+};
+// o pneu já chegou (entra no estoque do Sem Venda): FINALIZADO e continua valendo depois de FATURADO
+function svStatusChegou(status) { return status === "FINALIZADO" || status === "FATURADO"; }
+function svStatusBadgeClass(status) {
+  if (status === "NACIONALIZADO, AG RETIRADA DO PORTO") return "st-porto";
+  if (status === "PRESENCIADO") return "st-presenca";
+  if (status === "FATURADO") return "st-chegou";
+  return statusBadgeClass(status);
+}
+
+// Monta as colunas uma vez só (no 1º render). A lista vem de SV_PREVISTO_STATUS e as cores de SV_PREVISTO_COR.
 function svMontarKanbanPrevisto() {
   const board = document.getElementById("svPrevBoard");
-  board.innerHTML = PREVISTO_STATUS.map((status, i) => {
-    const cor = PREVISTO_COR[status] || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
+  board.innerHTML = SV_PREVISTO_STATUS.map((status, i) => {
+    const cor = SV_PREVISTO_COR[status] || { accent: "#78716C", deep: "#44403C", pale: "#EFECEA" };
     return `
       <div class="kanban-col" style="--col-accent:${cor.accent}; --col-deep:${cor.deep}; --col-pale:${cor.pale};">
         <div class="kanban-col-head"><span>${escapeHtml(status)}</span><span class="kanban-count" id="svPrevCount${i}">0</span><span class="kanban-col-toggle">⌄</span></div>
@@ -615,7 +633,7 @@ function svMontarKanbanPrevisto() {
   });
   initKanbanBoardDragScroll("svPrevBoard");
 
-  svPrevSortables = PREVISTO_STATUS.map((_, i) => Sortable.create(document.getElementById("svPrevCol" + i), {
+  svPrevSortables = SV_PREVISTO_STATUS.map((_, i) => Sortable.create(document.getElementById("svPrevCol" + i), {
     group: "sv-prev-kanban",
     animation: 150,
     disabled: !svPodeEditarPrevisto(),
@@ -634,7 +652,7 @@ async function svMoverPrevistoDeColuna(evt) {
   const alvo = svState.previsoes.find(x => x.id === id);
   if (!alvo) return;
   // sem armazém os pneus não têm onde ficar na Armazenagem: o processo só finaliza com o armazém escolhido
-  if (novoStatus === "FINALIZADO" && !alvo.armazem) {
+  if (svStatusChegou(novoStatus) && !alvo.armazem) {
     toast("Escolha o armazém de destino para finalizar o processo. Abra o processo, escolha o armazém e salve.");
     svRenderPrevistos();
     return;
@@ -665,7 +683,7 @@ function svRenderPrevistos() {
 
   document.getElementById("svPrevEmpty").style.display = svState.previsoes.length === 0 ? "block" : "none";
 
-  PREVISTO_STATUS.forEach((status, i) => {
+  SV_PREVISTO_STATUS.forEach((status, i) => {
     const doStatus = rows.filter(p => p.status === status);
     document.getElementById("svPrevCount" + i).textContent = doStatus.length;
     document.getElementById("svPrevCol" + i).innerHTML = doStatus.map(p => {
@@ -687,7 +705,7 @@ function svRenderPrevistos() {
               ? `<span class="kanban-card-tag containers" title="Armazém onde o processo vai entrar">${escapeHtml(svPrevTextoArmazem(p))}</span>`
               : `<span class="kanban-card-tag sem-data">Sem armazém</span>`}
             ${p.dataChegada
-              ? `<span class="kanban-card-tag ${status === "FINALIZADO" ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
+              ? `<span class="kanban-card-tag ${svStatusChegou(status) ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
               : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
             ${p.dtc ? `<span class="kanban-card-tag dtc" title="Processo com DTC">DTC</span>` : ""}
           </div>
@@ -709,11 +727,11 @@ function svAbrirPrevistoDetalhe(id) {
   if (!p) return;
   svPrevDetalheId = id;
 
-  const cor = PREVISTO_COR[p.status];
+  const cor = SV_PREVISTO_COR[p.status];
   document.querySelector("#svPrevDetalheOverlay .modal").style.setProperty("--col-accent", cor ? cor.accent : "var(--orange)");
   document.getElementById("svPrevDetalheTitulo").textContent = p.numeroProcesso;
   const badge = document.getElementById("svPrevDetalheStatus");
-  badge.className = "prev-status-badge " + statusBadgeClass(p.status);
+  badge.className = "prev-status-badge " + svStatusBadgeClass(p.status);
   badge.textContent = p.status;
   svAtualizarDtcDaJanela(p);
 
@@ -822,7 +840,7 @@ async function svAtualizarCampoPrevisto(id, campos, mensagem) {
   // um processo finalizado precisa de armazém (é onde os pneus aparecem na Armazenagem)
   const statusFinal = "status" in campos ? campos.status : existente.status;
   const armazemFinal = "armazem" in campos ? (campos.armazem || "") : existente.armazem;
-  if (statusFinal === "FINALIZADO" && !armazemFinal) { toast("Escolha o armazém de destino para finalizar o processo."); return; }
+  if (svStatusChegou(statusFinal) && !armazemFinal) { toast("Escolha o armazém de destino para finalizar o processo."); return; }
   // trocar status ou armazém de um processo que já chegou mexe no saldo: confere antes, com dados atualizados
   // (os chamadores redesenham a lista depois, então o seletor volta pro valor que valia)
   if ("status" in campos || "armazem" in campos) {
@@ -901,7 +919,7 @@ function svCancelarEdicaoPrevisto() {
   svEditandoPrevistoId = null;
   svEditandoPrevistoUpdatedAt = null;
   document.getElementById("svFormPrevisto").reset();
-  document.getElementById("svPrevStatus").value = PREVISTO_STATUS[0];
+  document.getElementById("svPrevStatus").value = SV_PREVISTO_STATUS[0];
   svResetItens();
   svAtualizarCustoForm();
   document.getElementById("svPrevFormTitle").textContent = "Novo processo previsto";
@@ -925,7 +943,7 @@ async function svSalvarPrevistoDados(e) {
   const armazem = document.getElementById("svPrevArmazem").value;
   const obs = document.getElementById("svPrevObs").value.trim();
   if (!numeroProcesso) { toast("Informe o número do processo."); return; }
-  if (status === "FINALIZADO" && !armazem) { toast("Escolha o armazém de destino para finalizar o processo."); return; }
+  if (svStatusChegou(status) && !armazem) { toast("Escolha o armazém de destino para finalizar o processo."); return; }
 
   const itens = [];
   for (const row of document.querySelectorAll("#svPrevItens .item-row")) {
@@ -1019,7 +1037,7 @@ function svCalcularEstoque() {
     p.itens.forEach(it => {
       const qtd = Number(it.quantidade) || 0;
       if (!it.codigo || qtd <= 0) return;
-      if (p.status === "FINALIZADO") {
+      if (svStatusChegou(p.status)) {
         const l = linha(it.codigo, p.armazem);
         l.chegou += qtd;
         // desde: a chegada mais antiga entre os processos desse produto nesse armazém (base do "parado há")
@@ -1036,7 +1054,7 @@ function svCalcularEstoque() {
     if (r.situacao === "CANCELADA") return;
     const campo = r.situacao === "VENDIDA" ? "vendido" : "reservado";
     const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
-    if (r.previsaoId && (!prev || prev.status !== "FINALIZADO")) {
+    if (r.previsaoId && (!prev || !svStatusChegou(prev.status))) {
       const a = aChegar.get(r.previsaoId + "|" + r.codigo);
       if (a) a[campo] += r.quantidade;
       return;
@@ -1076,7 +1094,7 @@ function svProblemaDeSaldo(novas, alterado) {
 
   // reservas ligadas ao próprio processo (ainda a caminho): o total do produto não pode cair abaixo do comprometido
   const novo = alterado ? novas.find(p => p.id === alterado.id) : null;
-  if (novo && novo.status !== "FINALIZADO") {
+  if (novo && !svStatusChegou(novo.status)) {
     const comprometido = {};
     svState.reservas.filter(r => r.previsaoId === novo.id && r.situacao !== "CANCELADA")
       .forEach(r => { comprometido[r.codigo] = (comprometido[r.codigo] || 0) + r.quantidade; });
@@ -1186,7 +1204,7 @@ function svSituacaoReserva(r) {
   if (r.situacao === "CANCELADA") return { chave: "CANCELADA", rotulo: "Cancelada", pill: "pill-neutro" };
   if (r.situacao === "VENDIDA") return { chave: "VENDIDA", rotulo: "Vendido", pill: "pill-normal" };
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
-  if (prev && prev.status !== "FINALIZADO") return { chave: "AGUARDANDO", rotulo: "Aguardando chegada", pill: "pill-azul" };
+  if (prev && !svStatusChegou(prev.status)) return { chave: "AGUARDANDO", rotulo: "Aguardando chegada", pill: "pill-azul" };
   return { chave: "RESERVADO", rotulo: "Reservado", pill: "pill-baixo" };
 }
 
@@ -1215,14 +1233,14 @@ function svPedidoCelula(r) {
 function svOrigemReserva(r) {
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
   if (!prev) return r.previsaoId ? "processo removido" : svNomeArmazem(r.armazem);
-  if (prev.status === "FINALIZADO") return `Processo ${prev.numeroProcesso} · ${svNomeArmazem(prev.armazem)}`;
+  if (svStatusChegou(prev.status)) return `Processo ${prev.numeroProcesso} · ${svNomeArmazem(prev.armazem)}`;
   return `A caminho · processo ${prev.numeroProcesso}`;
 }
 
 // "chega 08/11" ou "sem data prevista" (só enquanto a reserva espera o processo)
 function svChegadaReserva(r) {
   const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
-  if (!prev || prev.status === "FINALIZADO") return "";
+  if (!prev || svStatusChegou(prev.status)) return "";
   return prev.dataChegada ? `chega ${formatDateBR(prev.dataChegada).slice(0, 5)}` : "sem data prevista";
 }
 
@@ -2200,7 +2218,7 @@ async function svSalvarReservaDados() {
       return l ? l.disp : 0;
     }
     const prev = svState.previsoes.find(x => x.id === op.previsaoId);
-    if (!prev || prev.status === "FINALIZADO") return null;
+    if (!prev || svStatusChegou(prev.status)) return null;
     const a = aChegar.find(x => x.previsaoId === op.previsaoId && x.codigo === op.codigo);
     return a ? a.livres : 0;
   };
@@ -2326,7 +2344,7 @@ function svAtualizarCustoForm() {
 }
 
 function svResumoValor(armazem) {
-  const chegados = svState.previsoes.filter(p => p.status === "FINALIZADO" && !p.custoForaDoInvestido && (armazem === undefined || (p.armazem || "") === armazem));
+  const chegados = svState.previsoes.filter(p => svStatusChegou(p.status) && !p.custoForaDoInvestido && (armazem === undefined || (p.armazem || "") === armazem));
   const custos = chegados.map(svCustoDoProcesso);
   return {
     total: custos.reduce((s, c) => s + (c.temCusto ? c.total : 0), 0),
@@ -3073,7 +3091,7 @@ async function svGerarProposta(e) {
 }
 
 function initSemVendaTelas() {
-  const statusHtml = PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
+  const statusHtml = SV_PREVISTO_STATUS.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
   document.getElementById("svPrevStatus").innerHTML = statusHtml;
   document.getElementById("svPrevArmazem").innerHTML = `<option value="">—</option>` +
     SV_ARMAZENS.map(a => `<option value="${escapeAttr(a)}">${escapeHtml(a)}</option>`).join("");
