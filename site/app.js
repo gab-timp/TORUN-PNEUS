@@ -10793,6 +10793,33 @@ const REPORT_DEFS = {
 
       if (agrupar && AGRUPAR_ESTOQUE_LABEL[agrupar]) {
         const grupos = agruparEstoque(produtos, agrupar);
+        // por tipo de pneu: cada tipo vira um bloco (célula mesclada no PDF) com o total do tipo
+        // e, dentro dele, o total de cada medida
+        if (agrupar === "categoria") {
+          const rows = grupos.flatMap(g => {
+            const porMedida = {};
+            produtos.filter(p => agruparChaveEstoque(p, "categoria") === g.grupo).forEach(p => {
+              const m = agruparChaveEstoque(p, "medida");
+              porMedida[m] = (porMedida[m] || 0) + p.saldo;
+            });
+            return Object.entries(porMedida)
+              .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
+              .map(([medida, saldo]) => ({ grupo: g.grupo, tipo: g.grupo, totalTipo: g.saldo, medida, saldo }));
+          });
+          const columns = [
+            { key: "tipo", label: "Tipo de pneu", merge: true },
+            { key: "totalTipo", label: "Total do tipo", numeric: true, merge: true, excelFirstOnly: true },
+            { key: "medida", label: "Medida" },
+            { key: "saldo", label: "Saldo da medida", numeric: true }
+          ];
+          const summaryLines = [
+            { label: "Agrupado por", value: "Tipo de pneu e medida" },
+            ...summaryBase,
+            { label: "Tipos de pneu incluídos", value: fmt(grupos.length) },
+            { label: "Saldo total em estoque", value: fmt(totalSaldo) + " un.", total: true }
+          ];
+          return { columns, rows, summaryLines, grupoBorda: true, grupoLongo: true };
+        }
         const columns = [
           { key: "grupo", label: AGRUPAR_ESTOQUE_LABEL[agrupar] },
           { key: "saldo", label: "Saldo disponível", numeric: true },
