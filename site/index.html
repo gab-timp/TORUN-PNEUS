@@ -4078,6 +4078,42 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="crmRepEdOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmRepEdTitulo">
+    <h3 id="crmRepEdTitulo">Editar representante</h3>
+    <div class="muted sv-sub">Os clientes dele não mudam. Trocar o nome atualiza o painel, as comissões e os clientes dele.</div>
+    <div class="field"><label for="crmRepEdNome">Nome</label><input type="text" id="crmRepEdNome" autocomplete="off"></div>
+    <div class="form-row">
+      <div class="field"><label for="crmRepEdDoc">CNPJ / CPF</label><input type="text" id="crmRepEdDoc" autocomplete="off"></div>
+      <div class="field"><label for="crmRepEdTel">Telefone</label><input type="text" id="crmRepEdTel" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="crmRepEdContato">Contato de referência</label><input type="text" id="crmRepEdContato" autocomplete="off"></div>
+    <div class="form-row">
+      <div class="field"><label for="crmRepEdCidade">Cidade</label><input type="text" id="crmRepEdCidade" autocomplete="off"></div>
+      <div class="field"><label for="crmRepEdUF">UF</label><input type="text" id="crmRepEdUF" maxlength="2" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="crmRepEdObs">Observação</label><input type="text" id="crmRepEdObs" autocomplete="off"></div>
+    <div class="note crm-erro" id="crmRepEdErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmRepEdCancelar">Cancelar</button>
+      <button type="button" class="btn primary" id="crmRepEdSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmExcOverlay">
+  <div class="modal" role="dialog" aria-labelledby="crmExcTitulo">
+    <h3 id="crmExcTitulo">Excluir</h3>
+    <div id="crmExcCorpo"></div>
+    <div class="field" id="crmExcConfCampo"><label for="crmExcConf" id="crmExcConfLbl">Digite o nome para confirmar</label><input type="text" id="crmExcConf" autocomplete="off"></div>
+    <div class="note crm-erro" id="crmExcErro" style="display:none;"></div>
+    <div class="form-actions">
+      <button type="button" class="btn outline" id="crmExcCancelar">Cancelar</button>
+      <button type="button" class="btn danger" id="crmExcConfirmar" disabled>Excluir</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="crmTrocOverlay">
   <div class="modal" role="dialog" aria-labelledby="crmTrocTitulo">
     <h3 id="crmTrocTitulo">Trocar executivo</h3>
@@ -4899,7 +4935,7 @@
 <script src="crm-metas-visual.js?v=3"></script>
 <script src="crm-metas-mes.js?v=6"></script>
 <script src="crm-relatorio.js?v=3"></script>
-<script src="crm-editar.js?v=2"></script>
+<script src="crm-editar.js?v=3"></script>
 <script src="usuarios.js?v=9"></script>
 <script src="app.js?v=304"></script>
 </body>

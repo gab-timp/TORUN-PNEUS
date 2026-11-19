@@ -184,4 +184,147 @@ function crmEditarInit() {
   g("crmEdTipoPros").addEventListener("click", () => crmEdMostrarTipo("prospect"));
   g("crmTrocCancelar").addEventListener("click", crmFecharTrocarExecutivo);
   g("crmTrocSalvar").addEventListener("click", crmSalvarTrocarExecutivo);
+  crmEditarExcluirInit();
+}
+
+/* ---------------- editar representante e excluir cadastro (cliente ou representante) ---------------- */
+/* Pela função crm_editar_representante / crm_excluir_cliente / crm_excluir_representante (sql/crm_editar_excluir.sql).
+   Excluir é só da gestão e do administrador. O banco confere tudo de novo e recusa cliente com faturamento ou reserva. */
+
+let crmRepEdCarteiraId = null;
+let crmExcCarteiraId = null;
+let crmExcBloqueado = false;
+
+function crmPodeExcluirCadastro(c) {
+  return crmPapelEfetivo() === "gestao" && crmPodeEscrever() && !!c;
+}
+
+function crmAbrirEditarRepresentante(carteiraId) {
+  const c = crmCarteiraPorId(carteiraId);
+  if (!c || crmTipoDe(c.cliente) !== "representante" || !crmPodeGerirCarteira() || (crmEhExecutivo() && c.executivoId !== crmMeuId())) return;
+  crmRepEdCarteiraId = carteiraId;
+  const info = crmInfoCliente(c.cliente);
+  const set = (id, v) => { document.getElementById(id).value = v || ""; };
+  set("crmRepEdNome", c.cliente); set("crmRepEdDoc", info.documento); set("crmRepEdTel", info.telefone); set("crmRepEdContato", info.contato);
+  set("crmRepEdCidade", info.cidade); set("crmRepEdUF", info.estado); set("crmRepEdObs", info.observacao);
+  document.getElementById("crmRepEdErro").style.display = "none";
+  document.getElementById("crmRepEdOverlay").classList.add("show");
+  document.getElementById("crmRepEdNome").focus();
+}
+
+function crmFecharEditarRepresentante() {
+  document.getElementById("crmRepEdOverlay").classList.remove("show");
+  crmRepEdCarteiraId = null;
+}
+
+async function crmSalvarEditarRepresentante() {
+  const c = crmCarteiraPorId(crmRepEdCarteiraId);
+  if (!c) return;
+  const erro = document.getElementById("crmRepEdErro");
+  const v = (id) => document.getElementById(id).value.replace(/\s+/g, " ").trim();
+  const nome = v("crmRepEdNome");
+  if (!nome) { erro.textContent = "Informe o nome do representante."; erro.style.display = "block"; return; }
+  const botao = document.getElementById("crmRepEdSalvar");
+  botao.disabled = true;
+  const { error } = await sb.rpc("crm_editar_representante", {
+    p_nome_atual: c.cliente, p_nome: nome, p_documento: v("crmRepEdDoc"), p_contato: v("crmRepEdContato"),
+    p_telefone: v("crmRepEdTel"), p_cidade: v("crmRepEdCidade"), p_estado: v("crmRepEdUF"), p_observacao: v("crmRepEdObs")
+  });
+  botao.disabled = false;
+  if (error) { erro.textContent = "Não foi possível salvar: " + error.message; erro.style.display = "block"; return; }
+  crmFecharEditarRepresentante();
+  await crmEdDepoisDeMudar();
+  toast("Representante atualizado.");
+}
+
+async function crmEdContar(tabela, coluna, valor) {
+  const r = await sb.from(tabela).select("*", { count: "exact", head: true }).eq(coluna, valor);
+  return r.error ? null : (r.count || 0);
+}
+
+async function crmAbrirExcluir(carteiraId) {
+  const c = crmCarteiraPorId(carteiraId);
+  if (!c || !crmPodeExcluirCadastro(c)) return;
+  crmExcCarteiraId = carteiraId;
+  crmExcBloqueado = false;
+  const rep = crmTipoDe(c.cliente) === "representante";
+  const g = (id) => document.getElementById(id);
+  g("crmExcTitulo").textContent = `Excluir ${c.cliente}?`;
+  g("crmExcCorpo").innerHTML = `<div class="muted sv-sub">Conferindo o que está ligado a este cadastro…</div>`;
+  g("crmExcConfCampo").style.display = "none";
+  g("crmExcConf").value = "";
+  g("crmExcErro").style.display = "none";
+  g("crmExcConfirmar").disabled = true;
+  g("crmExcConfirmar").style.display = "";
+  g("crmExcConfirmar").textContent = rep ? "Excluir representante" : "Excluir cliente";
+  g("crmExcCancelar").textContent = "Cancelar";
+  g("crmExcOverlay").classList.add("show");
+
+  const [fat, res] = await Promise.all([crmEdContar("crm_faturamento_itens", "cliente", c.cliente), crmEdContar("sv_reservas", "cliente", c.cliente)]);
+  if (crmExcCarteiraId !== carteiraId) return;
+  if ((fat || 0) > 0 || (res || 0) > 0) {
+    crmExcBloqueado = true;
+    g("crmExcTitulo").textContent = "Não dá para excluir";
+    g("crmExcCorpo").innerHTML = `<div class="note crm-erro" style="display:block;">${escapeHtml(c.cliente)} tem <b>${fat || 0} lançamento(s) de faturamento</b> e <b>${res || 0} reserva(s) no Sem Venda</b>. Excluir mudaria os totais e a comissão já calculados.</div>
+      <div class="muted sv-sub" style="margin-top:10px;">${rep ? "" : "Se ele deixou de comprar, mova a negociação para Arquivados em Ligações. "}Se foi cadastrado em duplicidade, fale com quem cuida do sistema antes de excluir.</div>`;
+    g("crmExcConfirmar").style.display = "none";
+    g("crmExcCancelar").textContent = "Entendi";
+    return;
+  }
+  let itens;
+  let alerta = "Não tem como desfazer.";
+  if (rep) {
+    const filhos = crmState.carteira.filter(x => crmRepresentanteDe(x.cliente) === c.cliente).length;
+    const com = await crmEdContar("crm_representante_comissao", "representante", c.cliente);
+    if (crmExcCarteiraId !== carteiraId) return;
+    itens = [filhos ? `<b>${fmt(filhos)} ${filhos === 1 ? "cliente continua" : "clientes continuam"}</b> na carteira, só ${filhos === 1 ? "fica" : "ficam"} sem representante.` : "Nenhum cliente está ligado a ele.",
+      "O link e o login do painel dele deixam de funcionar.", "Os percentuais e as comissões lançadas dele são apagados."];
+    if (com) alerta = `Há ${fmt(com)} lançamento(s) de comissão dele. Isso não tem como desfazer.`;
+  } else {
+    const lig = crmState.ligacoes.filter(l => l.cliente === c.cliente).length;
+    const cont = crmState.contatos.filter(x => x.cliente === c.cliente).length;
+    const sistemas = crmState.carteira.filter(x => x.cliente === c.cliente).map(x => CRM_SISTEMAS[x.sistema]).join(" e ");
+    itens = [`Apaga <b>${fmt(lig)} ${lig === 1 ? "ligação" : "ligações"}</b>, ${fmt(cont)} ${cont === 1 ? "contato" : "contatos"}, o perfil, as filiais e os pneus.`,
+      `Sai da carteira: ${sistemas}.`, "O cadastro do Torun (Varejo) não muda."];
+  }
+  g("crmExcCorpo").innerHTML = `<ul style="margin:8px 0 0;padding-left:18px;">${itens.map(t => `<li>${t}</li>`).join("")}</ul><div class="note crm-erro" style="display:block;margin-top:10px;">${escapeHtml(alerta)}</div>`;
+  g("crmExcConfCampo").style.display = "";
+  g("crmExcConf").placeholder = c.cliente;
+  g("crmExcConf").focus();
+}
+
+function crmFecharExcluir() {
+  document.getElementById("crmExcOverlay").classList.remove("show");
+  crmExcCarteiraId = null;
+}
+
+async function crmConfirmarExcluir() {
+  const c = crmCarteiraPorId(crmExcCarteiraId);
+  if (!c || crmExcBloqueado) return;
+  const rep = crmTipoDe(c.cliente) === "representante";
+  const erro = document.getElementById("crmExcErro");
+  const botao = document.getElementById("crmExcConfirmar");
+  botao.disabled = true;
+  const { error } = rep
+    ? await sb.rpc("crm_excluir_representante", { p_representante: c.cliente })
+    : await sb.rpc("crm_excluir_cliente", { p_cliente: c.cliente });
+  if (error) { botao.disabled = false; erro.textContent = "Não foi possível excluir: " + error.message; erro.style.display = "block"; return; }
+  const nome = c.cliente;
+  crmFecharExcluir();
+  await crmEdDepoisDeMudar();
+  setView("crm-clientes");
+  toast(`${nome} excluído.`);
+}
+
+function crmEditarExcluirInit() {
+  const g = (id) => document.getElementById(id);
+  if (!g("crmRepEdOverlay")) return;
+  g("crmRepEdCancelar").addEventListener("click", crmFecharEditarRepresentante);
+  g("crmRepEdSalvar").addEventListener("click", crmSalvarEditarRepresentante);
+  g("crmExcCancelar").addEventListener("click", crmFecharExcluir);
+  g("crmExcConfirmar").addEventListener("click", crmConfirmarExcluir);
+  g("crmExcConf").addEventListener("input", () => {
+    const c = crmCarteiraPorId(crmExcCarteiraId);
+    g("crmExcConfirmar").disabled = !c || crmExcBloqueado || g("crmExcConf").value.replace(/\s+/g, " ").trim().toLowerCase() !== c.cliente.toLowerCase();
+  });
 }

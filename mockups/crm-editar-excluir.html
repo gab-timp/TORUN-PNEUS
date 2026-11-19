@@ -1,0 +1,74 @@
+<title>CRM Editar e Excluir</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f3efe9;--card:#fff;--ink:#2a2622;--soft:#7a7068;--line:#ddd5cb;--acc:#e8660d;--accpale:#fdeedd;--warn:#9a5b00;--warnbg:#fff3d6;--bad:#b3261e;--badbg:#fde7e5;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--warn:#ffcf70;--warnbg:#3d3118;--bad:#ff8f87;--badbg:#45211e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--warn:#ffcf70;--warnbg:#3d3118;--bad:#ff8f87;--badbg:#45211e;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:14px;margin:32px 0 10px}
+.sub{color:var(--soft);font-size:13px;margin:0 0 8px;max-width:75ch}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.col{flex:1 1 340px;max-width:460px;min-width:0}
+.lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);margin-bottom:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.modal h3{margin:0 0 4px;font-size:16px}
+.mut{color:var(--soft);font-size:12px}
+.head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.head b{font-size:16px}
+.chip{font-size:10.5px;background:var(--accpale);color:var(--acc);padding:2px 7px;border-radius:99px;font-weight:700;margin-left:6px}
+.field{display:flex;flex-direction:column;gap:4px;margin-top:12px}
+.field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.field input{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.btn{font:inherit;font-size:13px;padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--ink)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.btn.d{border-color:var(--bad);color:var(--bad)}
+.btn.dp{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:700}
+.btn[disabled]{opacity:.45}
+.alert{margin-top:12px;font-size:12.5px;padding:8px 10px;border-radius:6px;background:var(--warnbg);color:var(--warn)}
+.alert.bad{background:var(--badbg);color:var(--bad)}
+ul{margin:8px 0 0;padding-left:18px;font-size:13px}li{margin:3px 0}
+</style>
+<h1>Editar e excluir: representante e cliente</h1>
+<p class="sub">Botões ao lado dos que já existem na ficha. Excluir só para gestão e administrador; o executivo continua só editando os clientes da própria carteira. Tudo passa por função no banco, que confere permissão e regras.</p>
+
+<h2>Representante</h2>
+<div class="row">
+  <div class="col"><div class="lbl">1. Ficha do representante</div>
+    <div class="card"><div class="head"><div><b>REPRESENTANTE EXEMPLO</b><span class="chip">Representante</span><div class="mut">Chapecó/SC · Atacado · Executivo: Maria</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn p">+ Cliente via este representante</button><button class="btn">Editar</button><button class="btn d">Excluir</button></div></div></div></div>
+  <div class="col"><div class="lbl">2. Editar representante</div>
+    <div class="modal"><h3>Editar representante</h3><div class="mut">Mesmos dados da ficha. Os clientes dele não mudam.</div>
+      <div class="field"><label>Nome</label><input value="REPRESENTANTE EXEMPLO"></div>
+      <div class="two"><div class="field"><label>CNPJ / CPF</label><input value="12.345.678/0001-90"></div><div class="field"><label>Telefone</label><input value="(49) 99999-0000"></div></div>
+      <div class="two"><div class="field"><label>Contato de referência</label><input value="João"></div><div class="field"><label>Cidade / UF</label><input value="Chapecó / SC"></div></div>
+      <div class="field"><label>Observação</label><input value=""></div>
+      <div class="alert">Trocar o nome atualiza o faturamento, a comissão e o link do painel dele junto.</div>
+      <div class="acts"><button class="btn">Cancelar</button><button class="btn p">Salvar</button></div></div></div>
+  <div class="col"><div class="lbl">3. Excluir representante</div>
+    <div class="modal"><h3>Excluir REPRESENTANTE EXEMPLO?</h3>
+      <ul><li><b>8 clientes</b> continuam na carteira, só ficam "sem representante".</li><li>O link e o login do painel dele deixam de funcionar.</li><li>Os lançamentos de comissão dele são apagados.</li></ul>
+      <div class="alert bad">Há 5 lançamentos de faturamento com comissão. Isso não tem como desfazer.</div>
+      <div class="field"><label>Digite o nome para confirmar</label><input placeholder="REPRESENTANTE EXEMPLO"></div>
+      <div class="acts"><button class="btn">Cancelar</button><button class="btn dp" disabled>Excluir representante</button></div></div></div>
+</div>
+
+<h2>Cliente</h2>
+<div class="row">
+  <div class="col"><div class="lbl">4. Ficha do cliente (botão novo)</div>
+    <div class="card"><div class="head"><div><b>TRANSPORTADORA EXEMPLO LTDA</b><div class="mut">Joinville/SC · Atacado · Executivo: Maria</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn">Editar cliente</button><button class="btn">Trocar executivo</button><button class="btn d">Excluir</button></div></div></div></div>
+  <div class="col"><div class="lbl">5. Cliente sem faturamento nem reserva</div>
+    <div class="modal"><h3>Excluir TRANSPORTADORA EXEMPLO LTDA?</h3>
+      <ul><li>Apaga <b>12 ligações</b>, 3 contatos, o perfil e as filiais.</li><li>Sai da carteira de Atacado e de Encomenda, se estiver nas duas.</li></ul>
+      <div class="alert bad">Não tem como desfazer.</div>
+      <div class="field"><label>Digite o nome para confirmar</label><input placeholder="TRANSPORTADORA EXEMPLO LTDA"></div>
+      <div class="acts"><button class="btn">Cancelar</button><button class="btn dp" disabled>Excluir cliente</button></div></div></div>
+  <div class="col"><div class="lbl">6. Cliente com faturamento ou reserva</div>
+    <div class="modal"><h3>Não dá para excluir</h3>
+      <div class="alert bad">Este cliente tem <b>4 lançamentos de faturamento</b> e <b>2 reservas no Sem Venda</b>. Excluir mudaria os totais e a comissão já calculados.</div>
+      <p class="mut" style="margin-top:12px">Se ele não é mais cliente, use "Mover para Arquivados" nas ligações. Se foi cadastrado em duplicidade, peça para unir antes.</p>
+      <div class="acts"><button class="btn p">Entendi</button></div></div></div>
+</div>
