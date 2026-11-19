@@ -822,9 +822,9 @@ function crmLgInit() {
   g("crmEdLigCotMais").addEventListener("click", () => { crmEdLigCot++; crmEdLigCotAtualizar(); });
   g("crmEdLigCancelar").addEventListener("click", () => g("crmEdLigOverlay").classList.remove("show"));
   g("crmEdLigSalvar").addEventListener("click", crmLgSalvarEdicaoLigacao);
-  g("crmEdLigExcluir").addEventListener("click", crmLgAbrirExcluirLigacao);
-  g("crmExcLigCancelar").addEventListener("click", () => g("crmExcLigOverlay").classList.remove("show"));
-  g("crmExcLigConfirmar").addEventListener("click", crmLgConfirmarExcluirLigacao);
+  g("crmEdLigExcluir")?.addEventListener("click", crmLgAbrirExcluirLigacao);
+  g("crmExcLigCancelar")?.addEventListener("click", () => g("crmExcLigOverlay").classList.remove("show"));
+  g("crmExcLigConfirmar")?.addEventListener("click", crmLgConfirmarExcluirLigacao);
   // modal de obs do cartão
   g("crmObsCancelar").addEventListener("click", () => g("crmObsOverlay").classList.remove("show"));
   g("crmObsSalvar").addEventListener("click", crmLgSalvarObs);

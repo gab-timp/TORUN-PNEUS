@@ -3326,10 +3326,10 @@ function initSemVendaTelas() {
   });
 
   ["svEstSearch", "svEstFiltro", "svEstFiltroArmazem", "svEstFiltroTipo", "svEstFiltroMarca"].forEach(id => {
-    document.getElementById(id).addEventListener("input", svRenderEstoque);
+    document.getElementById(id)?.addEventListener("input", svRenderEstoque); // ?. : se o HTML em cache for antigo, não derruba o sistema
   });
   // "Reservas": abre a tela de Reserva já buscando pelo código do produto
-  document.getElementById("svEstTbody").addEventListener("click", (e) => {
+  document.getElementById("svEstTbody")?.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-svest-res]");
     if (!btn) return;
     document.getElementById("svResSearch").value = btn.dataset.svestRes;
