@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=189">
+<link rel="stylesheet" href="styles.css?v=190">
 <link rel="stylesheet" href="semvenda.css?v=39">
 <link rel="stylesheet" href="crm.css?v=43">
 <link rel="stylesheet" href="usuarios.css?v=6">
@@ -4009,11 +4009,11 @@
 </div>
 
 <div class="modal-overlay" id="crmExcLigOverlay">
-  <div class="modal" style="max-width:430px;" role="dialog" aria-labelledby="crmExcLigTitulo">
-    <h3 id="crmExcLigTitulo">Excluir esta ligação?</h3>
-    <div class="muted sv-sub">Isso não pode ser desfeito.</div>
+  <div class="modal crm-exc-modal" style="max-width:430px;" role="dialog" aria-labelledby="crmExcLigTitulo">
+    <div><h3 id="crmExcLigTitulo">Excluir esta ligação?</h3>
+    <div class="muted sv-sub">Isso não pode ser desfeito.</div></div>
     <div class="crm-exc-resumo" id="crmExcLigResumo"></div>
-    <div class="note">As cotações enviadas nesta ligação (se houver) saem do total do contato. A etapa do cartão no kanban não muda.</div>
+    <div class="note crm-exc-aviso">As cotações enviadas nesta ligação (se houver) saem do total do contato. A etapa do cartão no kanban não muda.</div>
     <div class="note crm-erro" id="crmExcLigErro" style="display:none;"></div>
     <div class="crm-modal-rodape">
       <span></span>
@@ -4890,7 +4890,7 @@
 <script src="seletores-dash.js?v=2"></script>
 <script src="semvenda.js?v=57"></script>
 <script src="crm.js?v=47"></script>
-<script src="crm-ligacoes.js?v=9"></script>
+<script src="crm-ligacoes.js?v=10"></script>
 <script src="crm-perfil.js?v=11"></script>
 <script src="crm-faturamento.js?v=6"></script>
 <script src="crm-representante.js?v=2"></script>

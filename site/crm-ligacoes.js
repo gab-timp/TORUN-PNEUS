@@ -537,9 +537,9 @@ function crmLgAbrirExcluirLigacao() {
   const l = crmState.ligacoes.find(x => x.id === crmEdLigId);
   if (!l || crmPapelEfetivo() !== "gestao") return;
   document.getElementById("crmExcLigResumo").innerHTML =
-    `<b>${escapeHtml(l.cliente)}</b> · ${formatDateBR(crmDiaLocal(l.createdAt))} às ${escapeHtml(crmHoraLocal(l.createdAt))}<br>` +
-    `<span class="muted">${escapeHtml(l.resultado)} · ${escapeHtml(l.executivoNome || "—")} · ${l.cotacoesEnviadas || 0} cotações</span>` +
-    (l.observacao ? `<br>"${escapeHtml(l.observacao)}"` : "");
+    `<div><b>${escapeHtml(l.cliente)}</b> · ${formatDateBR(crmDiaLocal(l.createdAt))} às ${escapeHtml(crmHoraLocal(l.createdAt))}</div>` +
+    `<div class="muted">${escapeHtml(l.resultado)} · ${escapeHtml(l.executivoNome || "—")} · ${l.cotacoesEnviadas || 0} cotações</div>` +
+    (l.observacao ? `<div>"${escapeHtml(l.observacao)}"</div>` : "");
   document.getElementById("crmExcLigErro").style.display = "none";
   document.getElementById("crmExcLigOverlay").classList.add("show");
 }

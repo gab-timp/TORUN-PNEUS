@@ -2809,5 +2809,9 @@ body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{d
 
 /* Excluir ligação do CRM (só gestão): botão no rodapé do Editar e resumo da confirmação */
 .crm-btn-excluir{border-color:var(--danger); color:var(--danger);}
-.crm-exc-resumo{border:1px solid var(--line); border-radius:6px; padding:10px 12px; font-size:13px; line-height:1.5; background:var(--paper);}
+.crm-exc-modal{display:grid; gap:14px;}
+.crm-exc-modal h3, .crm-exc-modal .note{margin:0;}
+.crm-exc-modal .crm-modal-rodape{margin-top:2px;}
+.crm-exc-resumo{border:1px solid var(--line); border-radius:6px; padding:12px 14px; font-size:13px; line-height:1.55; background:var(--paper); display:grid; gap:4px;}
+.crm-exc-aviso{font-size:12.5px; line-height:1.5; padding:0 2px;}
 .crm-exc-resumo .muted{color:var(--ink-soft);}
