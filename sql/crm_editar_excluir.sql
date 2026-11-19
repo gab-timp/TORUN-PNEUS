@@ -145,6 +145,9 @@ grant execute on function crm_excluir_cliente(text) to authenticated;
 revoke all on function crm_excluir_representante(text) from public;
 grant execute on function crm_excluir_representante(text) to authenticated;
 
+-- o Supabase só enxerga função nova depois de recarregar o cache da API
+notify pgrst, 'reload schema';
+
 -- ---------------------------------------------------------------- confere
 select
   (select count(*) = 4 from pg_proc where proname in ('crm_editar_representante', 'crm_excluir_cliente', 'crm_excluir_representante', 'crm_apagar_cadastro')) as funcoes,
