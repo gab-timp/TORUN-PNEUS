@@ -4082,19 +4082,21 @@
   <div class="modal" role="dialog" aria-labelledby="crmRepEdTitulo">
     <h3 id="crmRepEdTitulo">Editar representante</h3>
     <div class="muted sv-sub">Os clientes dele não mudam. Trocar o nome atualiza o painel, as comissões e os clientes dele.</div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;">
     <div class="field"><label for="crmRepEdNome">Nome</label><input type="text" id="crmRepEdNome" autocomplete="off"></div>
-    <div class="form-row">
+    <div class="form-row" style="margin:0;">
       <div class="field"><label for="crmRepEdDoc">CNPJ / CPF</label><input type="text" id="crmRepEdDoc" autocomplete="off"></div>
       <div class="field"><label for="crmRepEdTel">Telefone</label><input type="text" id="crmRepEdTel" autocomplete="off"></div>
     </div>
     <div class="field"><label for="crmRepEdContato">Contato de referência</label><input type="text" id="crmRepEdContato" autocomplete="off"></div>
-    <div class="form-row">
+    <div class="form-row" style="margin:0;">
       <div class="field"><label for="crmRepEdCidade">Cidade</label><input type="text" id="crmRepEdCidade" autocomplete="off"></div>
       <div class="field"><label for="crmRepEdUF">UF</label><input type="text" id="crmRepEdUF" maxlength="2" autocomplete="off"></div>
     </div>
     <div class="field"><label for="crmRepEdObs">Observação</label><input type="text" id="crmRepEdObs" autocomplete="off"></div>
+    </div>
     <div class="note crm-erro" id="crmRepEdErro" style="display:none;"></div>
-    <div class="form-actions">
+    <div class="form-actions" style="margin-top:18px;">
       <button type="button" class="btn outline" id="crmRepEdCancelar">Cancelar</button>
       <button type="button" class="btn primary" id="crmRepEdSalvar">Salvar</button>
     </div>
@@ -4105,9 +4107,9 @@
   <div class="modal" role="dialog" aria-labelledby="crmExcTitulo">
     <h3 id="crmExcTitulo">Excluir</h3>
     <div id="crmExcCorpo"></div>
-    <div class="field" id="crmExcConfCampo"><label for="crmExcConf" id="crmExcConfLbl">Digite o nome para confirmar</label><input type="text" id="crmExcConf" autocomplete="off"></div>
+    <div class="field" id="crmExcConfCampo" style="margin-top:14px;"><label for="crmExcConf" id="crmExcConfLbl">Digite o nome para confirmar</label><input type="text" id="crmExcConf" autocomplete="off"></div>
     <div class="note crm-erro" id="crmExcErro" style="display:none;"></div>
-    <div class="form-actions">
+    <div class="form-actions" style="margin-top:18px;">
       <button type="button" class="btn outline" id="crmExcCancelar">Cancelar</button>
       <button type="button" class="btn danger" id="crmExcConfirmar" disabled>Excluir</button>
     </div>
