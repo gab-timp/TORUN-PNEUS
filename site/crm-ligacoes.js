@@ -525,7 +525,38 @@ function crmLgAbrirEditarLigacao(id) {
   document.getElementById("crmEdLigErro").style.display = "none";
   crmEdLigChips();
   crmEdLigCotAtualizar();
+  // só a gestão do CRM exclui (a função crm_excluir_ligacao confere de novo no banco)
+  document.getElementById("crmEdLigExcluir").style.display = crmPapelEfetivo() === "gestao" ? "" : "none";
   document.getElementById("crmEdLigOverlay").classList.add("show");
+}
+
+/* ---------------- excluir uma ligação (só gestão) ---------------- */
+// Chama crm_excluir_ligacao (sql/crm_excluir_ligacao.sql): apaga a ligação e tira as cotações dela do total do contato.
+
+function crmLgAbrirExcluirLigacao() {
+  const l = crmState.ligacoes.find(x => x.id === crmEdLigId);
+  if (!l || crmPapelEfetivo() !== "gestao") return;
+  document.getElementById("crmExcLigResumo").innerHTML =
+    `<b>${escapeHtml(l.cliente)}</b> · ${formatDateBR(crmDiaLocal(l.createdAt))} às ${escapeHtml(crmHoraLocal(l.createdAt))}<br>` +
+    `<span class="muted">${escapeHtml(l.resultado)} · ${escapeHtml(l.executivoNome || "—")} · ${l.cotacoesEnviadas || 0} cotações</span>` +
+    (l.observacao ? `<br>"${escapeHtml(l.observacao)}"` : "");
+  document.getElementById("crmExcLigErro").style.display = "none";
+  document.getElementById("crmExcLigOverlay").classList.add("show");
+}
+
+async function crmLgConfirmarExcluirLigacao() {
+  const l = crmState.ligacoes.find(x => x.id === crmEdLigId);
+  if (!l) return;
+  const botao = document.getElementById("crmExcLigConfirmar");
+  botao.disabled = true;
+  const { error } = await sb.rpc("crm_excluir_ligacao", { p_id: l.id });
+  botao.disabled = false;
+  if (error) { const el = document.getElementById("crmExcLigErro"); el.textContent = "Não foi possível excluir: " + error.message; el.style.display = "block"; return; }
+  document.getElementById("crmExcLigOverlay").classList.remove("show");
+  document.getElementById("crmEdLigOverlay").classList.remove("show");
+  crmEdLigId = null;
+  toast("Ligação excluída.");
+  await crmRecarregarLigacoes();
 }
 
 async function crmLgSalvarEdicaoLigacao() {
@@ -791,6 +822,9 @@ function crmLgInit() {
   g("crmEdLigCotMais").addEventListener("click", () => { crmEdLigCot++; crmEdLigCotAtualizar(); });
   g("crmEdLigCancelar").addEventListener("click", () => g("crmEdLigOverlay").classList.remove("show"));
   g("crmEdLigSalvar").addEventListener("click", crmLgSalvarEdicaoLigacao);
+  g("crmEdLigExcluir").addEventListener("click", crmLgAbrirExcluirLigacao);
+  g("crmExcLigCancelar").addEventListener("click", () => g("crmExcLigOverlay").classList.remove("show"));
+  g("crmExcLigConfirmar").addEventListener("click", crmLgConfirmarExcluirLigacao);
   // modal de obs do cartão
   g("crmObsCancelar").addEventListener("click", () => g("crmObsOverlay").classList.remove("show"));
   g("crmObsSalvar").addEventListener("click", crmLgSalvarObs);

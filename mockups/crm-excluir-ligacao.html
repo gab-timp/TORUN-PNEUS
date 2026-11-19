@@ -1,0 +1,53 @@
+<title>Excluir Ligação do CRM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--ink:#161616;--soft:#6B6B6B;--paper:#F7F7F5;--surface:#fff;--line:#E2E0D8;--orange:#FF6A13;--orange-pale:#FFE7D6;--black:#111;--danger:#B91C1C;--danger-pale:#FDE6E6;--danger-b:#EF4444;--note:#FFF8DC;--noteln:#E0C96A;--notetx:#3b3410;--chip:#EFEEEA;--f:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:"Space Mono",ui-monospace,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#EDEDED;--soft:#A0A0A0;--paper:#141414;--surface:#1c1c1c;--line:#333;--orange-pale:#3a2414;--danger:#F87171;--danger-pale:#3a1616;--note:#3a3412;--noteln:#8a7a2a;--notetx:#f3ecc4;--chip:#2a2a2a;--black:#EDEDED;color-scheme:dark}}
+:root[data-theme="dark"]{--ink:#EDEDED;--soft:#A0A0A0;--paper:#141414;--surface:#1c1c1c;--line:#333;--orange-pale:#3a2414;--danger:#F87171;--danger-pale:#3a1616;--note:#3a3412;--noteln:#8a7a2a;--notetx:#f3ecc4;--chip:#2a2a2a;--black:#EDEDED;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f);font-size:14px;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1100px;margin:0 auto;display:grid;gap:16px}
+.note{background:var(--note);border:1px solid var(--noteln);color:var(--notetx);border-radius:6px;padding:10px 14px;font-size:13px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px;align-items:start}
+h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);margin:0 0 8px}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;box-shadow:0 20px 50px -24px rgba(0,0,0,.4);display:grid;gap:12px}
+.modal h3{margin:0;font-size:18px}.sub{color:var(--soft);font-size:12px;margin-top:2px}
+label{font-size:11px;color:var(--soft);font-weight:600;letter-spacing:.03em;display:block;margin-bottom:4px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--chip);border-radius:14px;padding:4px 11px;font-size:12px}
+.chip.on{background:var(--black);color:var(--paper);border-color:var(--black)}
+input,textarea{font:inherit;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.rodape{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.btn{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:6px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--paper)}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.danger-solid{background:var(--danger);border-color:var(--danger);color:#fff}
+.acts{display:flex;gap:8px}
+.conf{max-width:430px}
+.conf .icone{width:38px;height:38px;border-radius:50%;background:var(--danger-pale);color:var(--danger);display:grid;place-items:center;font-weight:800}
+.resumo{border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:13px;background:var(--paper)}
+.resumo b{font-weight:700}.muted{color:var(--soft)}
+.aviso{font-size:12.5px;color:var(--soft)}
+</style>
+<div class="wrap">
+<div class="note"><b>Mockup (exemplo).</b> Na janela "Editar ligação" aparece, no canto esquerdo do rodapé, o botão <b>Excluir ligação</b>, só para a gestão do CRM (o executivo não vê). Ao clicar, abre uma confirmação com o resumo da ligação. A exclusão é definitiva.</div>
+<div class="cols">
+<div><h2>1. Editar ligação (gestão)</h2>
+<div class="modal">
+<div><h3>Editar ligação</h3><div class="sub">Bruno Henrique Kuhnen · ligação de 18/11/2026 às 15:57 · registrada por Amanda</div></div>
+<div><label>Resultado da ligação</label><div class="chips"><span class="chip on">Não atendeu</span><span class="chip">Pediu retorno</span><span class="chip">Interesse</span><span class="chip">Estimativa enviada</span><span class="chip">Fechou negócio</span><span class="chip">Sem interesse</span></div></div>
+<div><label>Contato com quem falou</label><input value="Bruno Henrique Kuhnen"></div>
+<div><label>Observação</label><textarea rows="2">Cobrei novamente, aguardando retorno.</textarea></div>
+<div class="rodape"><button class="btn danger">Excluir ligação</button><div class="acts"><button class="btn">Cancelar</button><button class="btn primary">Salvar correção</button></div></div>
+</div></div>
+
+<div><h2>2. Confirmação</h2>
+<div class="modal conf">
+<div class="icone">!</div>
+<div><h3>Excluir esta ligação?</h3><div class="sub">Isso não pode ser desfeito.</div></div>
+<div class="resumo"><b>Bruno Henrique Kuhnen</b> · 18/11/2026 às 15:57<br><span class="muted">Não atendeu · Amanda · 0 cotações</span><br>"Cobrei novamente, aguardando retorno."</div>
+<div class="aviso">As cotações enviadas nesta ligação (se houver) saem do total do contato. A etapa do cartão no kanban não muda.</div>
+<div class="rodape" style="justify-content:flex-end"><div class="acts"><button class="btn">Cancelar</button><button class="btn danger-solid">Excluir ligação</button></div></div>
+</div></div>
+</div>
+</div>

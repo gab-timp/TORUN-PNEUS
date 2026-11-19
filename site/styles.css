@@ -2806,3 +2806,8 @@ body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{d
 .produto-combo-item.atual::after{content:"✓"; color:var(--orange-deep); font-weight:800; font-size:12px; position:absolute; right:12px;}
 .produto-combo-item.foco{background:var(--orange-pale);}
 .produto-combo-item{position:relative;}
+
+/* Excluir ligação do CRM (só gestão): botão no rodapé do Editar e resumo da confirmação */
+.crm-btn-excluir{border-color:var(--danger); color:var(--danger);}
+.crm-exc-resumo{border:1px solid var(--line); border-radius:6px; padding:10px 12px; font-size:13px; line-height:1.5; background:var(--paper);}
+.crm-exc-resumo .muted{color:var(--ink-soft);}

@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=188">
+<link rel="stylesheet" href="styles.css?v=189">
 <link rel="stylesheet" href="semvenda.css?v=39">
 <link rel="stylesheet" href="crm.css?v=43">
 <link rel="stylesheet" href="usuarios.css?v=6">
@@ -3999,10 +3999,27 @@
     <div class="note crm-lg-aviso">Mudar o resultado não move o cartão no kanban. Para isso, arraste o cartão ou use a etapa na ficha.</div>
     <div class="note crm-erro" id="crmEdLigErro" style="display:none;"></div>
     <div class="crm-modal-rodape">
-      <span></span>
+      <button type="button" class="btn outline crm-btn-excluir" id="crmEdLigExcluir" style="display:none;">Excluir ligação</button>
       <div class="form-actions">
         <button type="button" class="btn outline" id="crmEdLigCancelar">Cancelar</button>
         <button type="button" class="btn primary" id="crmEdLigSalvar">Salvar correção</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmExcLigOverlay">
+  <div class="modal" style="max-width:430px;" role="dialog" aria-labelledby="crmExcLigTitulo">
+    <h3 id="crmExcLigTitulo">Excluir esta ligação?</h3>
+    <div class="muted sv-sub">Isso não pode ser desfeito.</div>
+    <div class="crm-exc-resumo" id="crmExcLigResumo"></div>
+    <div class="note">As cotações enviadas nesta ligação (se houver) saem do total do contato. A etapa do cartão no kanban não muda.</div>
+    <div class="note crm-erro" id="crmExcLigErro" style="display:none;"></div>
+    <div class="crm-modal-rodape">
+      <span></span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="crmExcLigCancelar">Cancelar</button>
+        <button type="button" class="btn danger" id="crmExcLigConfirmar">Excluir ligação</button>
       </div>
     </div>
   </div>
@@ -4873,7 +4890,7 @@
 <script src="seletores-dash.js?v=2"></script>
 <script src="semvenda.js?v=56"></script>
 <script src="crm.js?v=47"></script>
-<script src="crm-ligacoes.js?v=7"></script>
+<script src="crm-ligacoes.js?v=8"></script>
 <script src="crm-perfil.js?v=11"></script>
 <script src="crm-faturamento.js?v=6"></script>
 <script src="crm-representante.js?v=2"></script>
