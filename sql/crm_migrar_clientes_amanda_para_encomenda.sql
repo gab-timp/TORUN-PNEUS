@@ -10,7 +10,8 @@
 --
 -- TRAVAS (o script inteiro é uma transação só: se qualquer uma falhar, NADA é alterado):
 --   * tem que achar exatamente os 7 clientes na carteira do Atacado, com a Amanda como executiva;
---   * nenhum deles pode já estar na carteira da Encomenda (senão haveria duplicidade);
+--   * os 7 já estão na Encomenda (cópia criada por "também compra no outro sistema"): essa cópia só é apagada se estiver
+--     VAZIA (0 ligações, 0 histórico, 0 faturamento, nenhum cartão com cotação ou observação); senão o script para;
 --   * a Amanda precisa atender a Encomenda (senão os clientes sumiriam da tela dela);
 --   * se algum cliente tiver faturamento lançado, o script PARA e pede para me chamar: mover o item de um lançamento do
 --     Atacado muda o total do lançamento e a comissão, e isso precisa ser conferido olhando os números.
@@ -36,9 +37,15 @@ begin
     raise exception 'Esperava os 7 clientes na carteira do Atacado com a Amanda, mas achei %. Nada foi alterado: confira a prévia.', v_achou;
   end if;
 
+  -- Os 7 já têm uma carteira na Encomenda (criada pelo "também compra no outro sistema"). Só serve apagar essa cópia se
+  -- ela estiver VAZIA: sem ligação, sem histórico de etapa, sem faturamento e sem cartão com cotação ou observação.
   select count(*) into v_ja_enc from crm_carteira where sistema = 'encomenda' and cliente = any(v_nomes);
-  if v_ja_enc > 0 then
-    raise exception '% desses clientes já estão na carteira da Encomenda. Nada foi alterado: confira a prévia.', v_ja_enc;
+  if exists (select 1 from crm_ligacoes where sistema = 'encomenda' and cliente = any(v_nomes))
+     or exists (select 1 from crm_etapa_historico where sistema = 'encomenda' and cliente = any(v_nomes))
+     or exists (select 1 from crm_faturamento_itens where sistema = 'encomenda' and cliente = any(v_nomes))
+     or exists (select 1 from crm_negociacoes where sistema = 'encomenda' and cliente = any(v_nomes)
+                and (cot_enviadas > 0 or nullif(btrim(coalesce(obs, '')), '') is not null)) then
+    raise exception 'A cópia na Encomenda de algum desses clientes já tem registro (ligação, etapa, faturamento ou cartão preenchido). Nada foi alterado: me avise.';
   end if;
 
   select count(*) into v_fat from crm_faturamento_itens where sistema = 'atacado' and cliente = any(v_nomes);
@@ -59,6 +66,10 @@ begin
     raise exception 'A Amanda não atende a Encomenda. Libere o acesso dela antes de migrar (senão os clientes somem da tela dela). Nada foi alterado.';
   end if;
 
+  -- 1) apaga a cópia vazia da Encomenda (leva junto os contatos e cartões vazios dela; os do Atacado é que valem)
+  delete from crm_carteira where sistema = 'encomenda' and cliente = any(v_nomes);
+
+  -- 2) move a carteira do Atacado para a Encomenda (ligações, contatos, cartões e histórico vão junto, por cascata)
   update crm_carteira
      set sistema = 'encomenda', tambem_outro_sistema = false
    where sistema = 'atacado' and cliente = any(v_nomes) and executivo_nome ilike '%amanda%';
