@@ -167,10 +167,19 @@ function createParcelaRow(numero, total, valorSugerido, vencimentoSugerido) {
 // passar de 6 parcelas: ao abrir "Editar" ela ganha a opção do seu número (sem isso o select ficava
 // em branco e salvar apagava as parcelas). Sai ao cancelar/salvar, então o limite de 6 pra venda
 // nova continua.
-function ajustarOpcoesParcelas(n) {
+// No CARTÃO o limite é 12x; nas outras formas (boleto etc.) continua 6x.
+function ajustarOpcoesParcelas(n, forma) {
   const sel = document.getElementById("venParcelas");
+  const f = forma !== undefined ? forma : document.getElementById("venFormaPagamento").value;
+  const limite = f === "CARTÃO" ? 12 : 6;
   Array.from(sel.options).forEach(o => { if (Number(o.value) > 6) o.remove(); });
-  if (n > 6) {
+  for (let i = 7; i <= limite; i++) {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = `${i}x`;
+    sel.appendChild(o);
+  }
+  if (n > limite) {
     const o = document.createElement("option");
     o.value = String(n);
     o.textContent = `${n}x`;
@@ -9396,7 +9405,7 @@ function startEditVenda(vendaId) {
   // antiga de "3x" e salvar sem mexer nessa seção virava 3 parcelas "Em aberto" de
   // mentira, sobrescrevendo o status/data de pagamento reais).
   const temParcelasDetalheSalvo = Array.isArray(v.parcelasDetalhe) && v.parcelasDetalhe.length > 0;
-  ajustarOpcoesParcelas(temParcelasDetalheSalvo ? v.parcelasDetalhe.length : 0);
+  ajustarOpcoesParcelas(temParcelasDetalheSalvo ? v.parcelasDetalhe.length : 0, v.formaPagamento);
   document.getElementById("venParcelas").value = temParcelasDetalheSalvo ? String(v.parcelasDetalhe.length) : "";
   document.getElementById("venStatusPagamento").value = v.statusPagamento || "em_aberto";
   delete document.getElementById("venStatusPagamento").dataset.autoPix; // editando: vale o que está salvo
@@ -9456,7 +9465,7 @@ function cancelEditVenda() {
   document.getElementById("rowTrademaster").style.display = "none";
   document.getElementById("venValorRecebido").required = false;
   document.getElementById("venDiferencaCalc").value = "R$ 0,00 (0%)";
-  ajustarOpcoesParcelas(0); // volta o limite de 6 parcelas pra venda nova
+  ajustarOpcoesParcelas(0, ""); // volta o limite de 6 parcelas pra venda nova
   document.getElementById("venStatusPagamento").value = "em_aberto";
   delete document.getElementById("venStatusPagamento").dataset.autoPix;
   document.getElementById("venDataPagamento").value = "";
@@ -10158,6 +10167,10 @@ function initForms() {
 
     document.getElementById("rowParcelas").style.display = temParcelas ? "" : "none";
     if (!temParcelas) document.getElementById("venParcelas").value = "";
+    // troca de forma: refaz as opções (12x só no cartão); se o número escolhido não existe mais, volta pra 1x
+    const parcelasAntes = document.getElementById("venParcelas").value;
+    ajustarOpcoesParcelas(0, forma);
+    document.getElementById("venParcelas").value = parcelasAntes;
     regenerarParcelasDetalhe();
 
     // PIX é à vista: a venda já vem marcada como paga, com a data da venda como data de
