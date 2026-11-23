@@ -444,3 +444,6 @@ td.sv-num{font-family:'Space Mono',monospace;}
   .sv-seg button,.crm-seg button{min-height:38px;}
   .modal .sv-link{padding:9px 4px;}
 }
+
+/* Estoque previsto: botão Reservar processo no card */
+.kanban-card-acoes{margin-top:10px; display:flex; justify-content:flex-end;}

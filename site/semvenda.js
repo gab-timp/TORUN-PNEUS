@@ -634,6 +634,8 @@ function svMontarKanbanPrevisto() {
     head.addEventListener("click", () => head.closest(".kanban-col").classList.toggle("collapsed"));
   });
   board.addEventListener("click", (e) => {
+    const reservar = e.target.closest("[data-svreservarproc]");
+    if (reservar) { if (!reservar.disabled) svReservarProcesso(reservar.dataset.svreservarproc); return; }
     const card = e.target.closest(".kanban-card");
     if (card) svAbrirPrevistoDetalhe(card.dataset.id);
   });
@@ -677,6 +679,7 @@ function svRenderPrevistos() {
   svAtualizarSelectsProduto();
   if (!document.getElementById("svPrevCol0")) svMontarKanbanPrevisto();
   const search = (document.getElementById("svPrevSearch").value || "").trim().toLowerCase();
+  const { aChegar: aChegarCards } = svCalcularEstoque();
 
   let rows = svState.previsoes.slice();
   if (search) {
@@ -716,12 +719,57 @@ function svRenderPrevistos() {
             ${p.dtc ? `<span class="kanban-card-tag dtc" title="Processo com DTC">DTC</span>` : ""}
           </div>
           ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
+          <div class="kanban-card-acoes"><button type="button" class="btn small primary sv-write" data-svreservarproc="${escapeAttr(p.id)}"${svProcessoTemLivre(p, aChegarCards) ? "" : " disabled title=\"Nada livre neste processo\""}>Reservar processo</button></div>
         </div>`;
     }).join("");
   });
 
   // permissão pode mudar depois do 1º render (o perfil carrega junto com os dados)
   svPrevSortables.forEach(s => s.option("disabled", !svPodeEditarPrevisto()));
+}
+
+// processo que ainda não chegou: precisa ter algo livre (total menos reservado e vendido). Já chegado: vale o estoque do armazém,
+// conferido na hora de abrir a reserva.
+function svProcessoTemLivre(p, aChegar) {
+  if (svStatusChegou(p.status)) return p.itens.length > 0;
+  return aChegar.some(a => a.previsaoId === p.id && a.livres > 0);
+}
+
+// "Reservar processo": abre a Nova reserva com todos os produtos do processo, cada um com o que ainda está livre.
+// Item sem nada livre fica de fora e o aviso diz qual.
+function svReservarProcesso(id) {
+  const p = svState.previsoes.find(x => x.id === id);
+  if (!p) return;
+  svAbrirNovaReserva();
+  const caixa = document.getElementById("svResExtras");
+  const porOpcao = new Map(); // índice da opção -> quantidade
+  const fora = [];
+  p.itens.forEach(it => {
+    const qtd = Number(it.quantidade) || 0;
+    const i = svOpcoesReserva.findIndex(o => svStatusChegou(p.status)
+      ? o.tipo === "E" && o.codigo === it.codigo && (o.armazem || "") === (p.armazem || "")
+      : o.tipo === "P" && o.previsaoId === p.id && o.codigo === it.codigo);
+    if (i < 0 || qtd <= 0) { const prod = svGetProduto(it.codigo); fora.push(prod ? prod.medida : it.codigo); return; }
+    porOpcao.set(i, (porOpcao.get(i) || 0) + qtd);
+  });
+  if (!porOpcao.size) {
+    svFecharNovaReserva();
+    toast("Nada livre neste processo para reservar.");
+    return;
+  }
+  caixa.innerHTML = "";
+  let n = 0;
+  porOpcao.forEach((qtd, i) => {
+    const linha = svAdicionarItem(n > 0);
+    svEscolherOpcao(linha, i);
+    linha.querySelector(".sv-item-qtd").value = String(Math.min(qtd, svOpcoesReserva[i].disp));
+    n++;
+  });
+  svAtualizarResumoReserva();
+  const aviso = document.getElementById("svResDisp");
+  aviso.textContent = `Itens do processo ${p.numeroProcesso}, com o que ainda está livre. Tire o que não quiser ou ajuste a quantidade.`
+    + (fora.length ? ` Ficaram de fora, sem nada livre: ${fora.join(", ")}.` : "");
+  aviso.style.display = "";
 }
 
 /* ---------- janela do card (clique) ---------- */
@@ -778,6 +826,7 @@ function svAbrirPrevistoDetalhe(id) {
   const pode = svPodeEditarPrevisto();
   document.getElementById("svPrevDetalheEditar").style.display = pode ? "" : "none";
   document.getElementById("svPrevDetalheExcluir").style.display = pode ? "" : "none";
+  document.getElementById("svPrevDetalheReservar").disabled = !svProcessoTemLivre(p, svCalcularEstoque().aChegar);
   document.getElementById("svPrevDetalheOverlay").classList.add("show");
 }
 
@@ -827,6 +876,11 @@ function svInitPrevDetalhe() {
   document.getElementById("svPrevDetalheFechar").addEventListener("click", svFecharPrevistoDetalhe);
   document.getElementById("svPrevDetalheOverlay").addEventListener("click", (e) => {
     if (e.target.id === "svPrevDetalheOverlay") svFecharPrevistoDetalhe();
+  });
+  document.getElementById("svPrevDetalheReservar").addEventListener("click", () => {
+    const id = svPrevDetalheId;
+    svFecharPrevistoDetalhe();
+    if (id) svReservarProcesso(id);
   });
   document.getElementById("svPrevDetalheEditar").addEventListener("click", () => {
     const id = svPrevDetalheId;

@@ -1,0 +1,42 @@
+<title>Sem Venda Reservar Processo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f3efe9;--card:#fff;--ink:#2a2622;--soft:#7a7068;--line:#ddd5cb;--acc:#e8660d;--accpale:#fdeedd;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+h1{font-size:18px;margin:0 0 4px}.sub{color:var(--soft);font-size:13px;max-width:75ch;margin:0 0 20px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}.col{flex:1 1 340px;max-width:470px;min-width:0}
+.lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);margin-bottom:8px}
+.card,.modal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.modal{padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.nf{font-weight:700;font-size:14px}.tag{font-size:11px;background:var(--accpale);color:var(--acc);padding:2px 8px;border-radius:99px;font-weight:700}
+ul{list-style:none;margin:10px 0;padding:0;font-size:12.5px}li{display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--line)}li .m{flex:1}li b{font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-size:13px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--ink)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.note{font-size:12px;color:var(--soft)}
+.item{display:grid;grid-template-columns:1fr 70px 24px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.item input{font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
+.aviso{margin-top:10px;font-size:12px;background:var(--accpale);color:var(--acc);padding:8px 10px;border-radius:6px}
+</style>
+<h1>Reservar o processo todo</h1>
+<p class="sub">Um botão no Estoque previsto leva para a Nova reserva com todos os produtos do processo já preenchidos, cada um com a quantidade que ainda está livre. Você escolhe cliente, vendedor, pagamento e transporte e confirma.</p>
+<div class="row">
+  <div class="col"><div class="lbl">1. Card do kanban</div>
+    <div class="card"><div class="nf">PROC-2026-014</div>
+      <ul><li><span class="m">225/70R15 · 12345</span><b>400</b></li><li><span class="m">11R22.5 · 67890</span><b>250</b></li></ul>
+      <span class="tag">Chegada 12/12/2026</span>
+      <div class="acts"><button class="btn p">Reservar processo</button></div></div></div>
+  <div class="col"><div class="lbl">2. Janela do processo (mesmo botão)</div>
+    <div class="modal"><div class="nf">PROC-2026-014</div><div class="note">2 produtos · 650 un. · 100 já reservadas</div>
+      <div class="acts"><button class="btn">Editar</button><button class="btn p">Reservar processo</button></div></div></div>
+  <div class="col"><div class="lbl">3. Nova reserva, já preenchida</div>
+    <div class="modal"><div class="nf">Nova reserva</div>
+      <div class="aviso">Itens do processo PROC-2026-014 com o que ainda está livre. Tire o que não quiser ou ajuste a quantidade.</div>
+      <div class="item"><span>225/70R15 · processo PROC-2026-014</span><input value="300"><span>✕</span></div>
+      <div class="item"><span>11R22.5 · processo PROC-2026-014</span><input value="250"><span>✕</span></div>
+      <p class="note">Falta escolher: cliente, vendedor, representante, pagamento e transporte.</p>
+      <div class="acts"><button class="btn">Cancelar</button><button class="btn p">Reservar 550 un.</button></div></div>
+    <p class="note" style="margin-top:10px">Se um produto não tiver nada livre, fica de fora e o aviso diz qual. Se nada estiver livre, o botão fica desativado.</p></div>
+</div>
