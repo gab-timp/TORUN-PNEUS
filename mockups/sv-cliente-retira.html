@@ -1,0 +1,50 @@
+<title>Sem Venda Cliente Retira</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f3efe9;--card:#fff;--ink:#2a2622;--soft:#7a7068;--line:#ddd5cb;--acc:#e8660d;--accpale:#fdeedd;--ok:#2d6a3e;--okbg:#e4f2e7;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--ok:#8fd19e;--okbg:#1f3526;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1a17;--card:#292521;--ink:#f1ebe4;--soft:#a79c92;--line:#41392f;--acc:#ff8a3d;--accpale:#3a2a1c;--ok:#8fd19e;--okbg:#1f3526;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+h1{font-size:18px;margin:0 0 4px}.sub{color:var(--soft);font-size:13px;max-width:75ch;margin:0 0 20px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}.col{flex:1 1 340px;max-width:460px;min-width:0}
+.lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft);margin-bottom:8px}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.field select{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.field select:disabled{opacity:.5}
+.chk{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:10px}
+.note{font-size:11.5px;color:var(--soft)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--okbg);color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+</style>
+<h1>Cliente retira na reserva</h1>
+<p class="sub">A caixa só aparece quando o tipo de transporte é Frete do cliente (FOB). Marcada, a transportadora some e deixa de ser obrigatória. Vale também no pop-up de vender a reserva.</p>
+<div class="row">
+  <div class="col"><div class="lbl">A. Frete nosso (como hoje)</div>
+    <div class="modal"><div class="two">
+      <div class="field"><label>Tipo de transporte</label><select><option>Frete nosso</option></select></div>
+      <div class="field"><label>Transportadora</label><select><option>Selecione…</option></select></div>
+    </div></div></div>
+  <div class="col"><div class="lbl">B. Frete do cliente, caixa desmarcada</div>
+    <div class="modal"><div class="two">
+      <div class="field"><label>Tipo de transporte</label><select><option>Frete do cliente</option></select></div>
+      <div class="field"><label>Transportadora</label><select><option>Selecione…</option></select></div>
+    </div>
+    <label class="chk"><input type="checkbox"> Cliente retira (ele mesmo busca)</label>
+    <div class="note">Marque se o cliente busca a mercadoria sem transportadora.</div></div></div>
+  <div class="col"><div class="lbl">C. Frete do cliente, caixa marcada</div>
+    <div class="modal"><div class="two">
+      <div class="field"><label>Tipo de transporte</label><select><option>Frete do cliente</option></select></div>
+      <div class="field"><label>Transportadora</label><select disabled><option>Não se aplica</option></select></div>
+    </div>
+    <label class="chk"><input type="checkbox" checked> Cliente retira (ele mesmo busca)</label></div></div>
+  <div class="col"><div class="lbl">D. Como aparece na lista de reservas</div>
+    <div class="modal"><table><thead><tr><th>Cliente</th><th>Transporte</th></tr></thead><tbody>
+      <tr><td>CLIENTE EXEMPLO</td><td><span class="tag">Cliente retira</span></td></tr>
+      <tr><td>OUTRO CLIENTE</td><td>Frete do cliente<div class="note">TRANSP. EXEMPLO</div></td></tr>
+      <tr><td>MAIS UM</td><td>Frete nosso<div class="note">TRANSP. EXEMPLO</div></td></tr></tbody></table>
+      <p class="note" style="margin-top:10px">Mesma troca na lista do administrador, no pop-up de vender e na coluna de transporte das exportações.</p></div></div>
+</div>

@@ -4252,6 +4252,13 @@
           <div class="sv-erro-msg" id="svResErro_transportadora" role="alert"></div>
         </div>
       </div>
+      <div class="field" id="svResRetiraCampo" style="display:none;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
+          <input type="checkbox" id="svResClienteRetira" style="width:auto;">
+          Cliente retira (ele mesmo busca)
+        </label>
+        <div class="note">Marque se o cliente busca a mercadoria sem transportadora.</div>
+      </div>
       <div class="field">
         <label for="svResObs">Observação (opcional)</label>
         <input type="text" id="svResObs" placeholder="Ex: aguardando confirmação de pagamento">
@@ -4326,10 +4333,16 @@
         <label for="svVendaTipoTransp">Tipo de transporte</label>
         <select id="svVendaTipoTransp"></select>
       </div>
-      <div class="field">
+      <div class="field" id="svVendaTranspCampo">
         <label for="svVendaTransportadora">Transportadora</label>
         <select id="svVendaTransportadora"></select>
       </div>
+    </div>
+    <div class="field" id="svVendaRetiraCampo" style="display:none;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
+        <input type="checkbox" id="svVendaClienteRetira" style="width:auto;">
+        Cliente retira (ele mesmo busca)
+      </label>
     </div>
     <div class="note" id="svVendaTranspDica">O transporte veio da reserva. Mude se combinaram outra coisa na hora de vender.</div>
     <div class="note sv-venda-erro" id="svVendaErro" style="display:none;"></div>
@@ -4926,7 +4939,7 @@
 
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
-<script src="semvenda.js?v=57"></script>
+<script src="semvenda.js?v=58"></script>
 <script src="crm.js?v=47"></script>
 <script src="crm-ligacoes.js?v=10"></script>
 <script src="crm-perfil.js?v=11"></script>

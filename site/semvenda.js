@@ -146,7 +146,7 @@ function svReservaFromRow(r) {
     unidadeNegocio: r.unidade_negocio || "",
     divisaoPagamento: Array.isArray(r.divisao_pagamento) ? r.divisao_pagamento : null,
     valorRecebido: r.valor_recebido === null || r.valor_recebido === undefined ? null : Number(r.valor_recebido),
-    tipoTransporte: r.tipo_transporte || "", transportadora: r.transportadora || "",
+    tipoTransporte: r.tipo_transporte || "", transportadora: r.transportadora || "", clienteRetira: r.cliente_retira === true,
     // sql/sem_venda_pedido_parcial.sql: pedido total (padrão) ou parcial; a venda parcial divide a reserva em duas linhas
     tipoPedido: r.tipo_pedido === "PARCIAL" ? "PARCIAL" : "TOTAL",
     pedidoTotal: r.pedido_total === null || r.pedido_total === undefined ? null : Number(r.pedido_total),
@@ -167,6 +167,7 @@ function svReservaToRow(r) {
     armazem: r.previsaoId ? null : (r.armazem || ""), previsao_id: r.previsaoId || null,
     situacao: r.situacao, data: r.data, obs: r.obs || null, forma_pagamento: r.formaPagamento || null, unidade_negocio: r.unidadeNegocio || null,
     tipo_transporte: r.tipoTransporte || null, transportadora: r.transportadora || null,
+    ...(r.clienteRetira ? { cliente_retira: true } : {}), // só vai quando marcado: reserva comum não depende do SQL novo
     tipo_pedido: r.tipoPedido === "PARCIAL" ? "PARCIAL" : "TOTAL"
   };
 }
@@ -1547,6 +1548,17 @@ function svRenderReservaForm() {
   if (svTransportadoras.some(t => t.nome === transpAnterior)) selTransp.value = transpAnterior;
   selTransp.disabled = svTransportadoras.length === 0;
   document.getElementById("svResTransportadoraAviso").style.display = svTransportadoras.length === 0 ? "" : "none";
+  svAtualizarRetiraReserva();
+}
+
+// "Cliente retira" só aparece com Frete do cliente; marcado, a transportadora some e deixa de ser obrigatória
+function svAtualizarRetiraReserva() {
+  const tipo = document.getElementById("svResTipoTransporte").value;
+  const caixa = document.getElementById("svResClienteRetira");
+  document.getElementById("svResRetiraCampo").style.display = tipo === "CLIENTE" ? "" : "none";
+  if (tipo !== "CLIENTE") caixa.checked = false;
+  const retira = caixa.checked;
+  document.getElementById("svResCampo_transportadora").style.display = retira ? "none" : "";
 }
 
 // Pedido da reserva: Total (cliente leva tudo de uma vez, o padrão) ou Parcial (leva em partes)
@@ -1648,7 +1660,7 @@ function svCelulasComunsReserva(r) {
         <td>${escapeHtml(r.vendedorInterno)}</td>
         <td>${r.representante ? escapeHtml(r.representante) : '<span class="sv-sem-rep">Sem representante</span>'}</td>
         <td>${svFormaCelula(r)}</td>
-        <td>${r.tipoTransporte ? `<span class="sv-tt ${r.tipoTransporte === "NOSSO" ? "nosso" : "cli"}">${escapeHtml(SV_TIPOS_TRANSPORTE[r.tipoTransporte] || r.tipoTransporte)}</span>${r.transportadora ? `<div class="sv-transp">${escapeHtml(r.transportadora)}</div>` : ""}` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
+        <td>${r.clienteRetira ? '<span class="sv-tt cli">Cliente retira</span>' : r.tipoTransporte ? `<span class="sv-tt ${r.tipoTransporte === "NOSSO" ? "nosso" : "cli"}">${escapeHtml(SV_TIPOS_TRANSPORTE[r.tipoTransporte] || r.tipoTransporte)}</span>${r.transportadora ? `<div class="sv-transp">${escapeHtml(r.transportadora)}</div>` : ""}` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>
         <td>${r.unidadeNegocio ? `<span class="sv-un ${r.unidadeNegocio === "ATACADO" ? "atacado" : "encomenda"}">${escapeHtml(SV_UNIDADES[r.unidadeNegocio] || r.unidadeNegocio)}</span>` : '<span class="muted">—</span><div class="muted sv-sub">reserva antiga</div>'}</td>`;
 }
 
@@ -1715,7 +1727,7 @@ function svRenderReservaTabela() {
   if (busca) {
     rows = rows.filter(r => {
       const p = svGetProduto(r.codigo);
-      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.formaPagamento, r.condicaoPagamento, r.transportadora, SV_UNIDADES[r.unidadeNegocio] || "", r.obs].join(" ").toLowerCase().includes(busca);
+      return [r.cliente, r.vendedorInterno, r.representante || "", r.codigo, p ? p.medida : "", r.formaPagamento, r.condicaoPagamento, r.transportadora, r.clienteRetira ? "cliente retira" : "", SV_UNIDADES[r.unidadeNegocio] || "", r.obs].join(" ").toLowerCase().includes(busca);
     });
   }
   rows.sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -1876,7 +1888,17 @@ function svVendaModal(r) {
       nomesT.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
     selTransp.value = r.transportadora || "";
     selTransp.disabled = nomesT.length === 0;
-    $("svVendaTranspDica").textContent = r.tipoTransporte && r.transportadora
+    const caixaRetira = $("svVendaClienteRetira");
+    caixaRetira.checked = !!r.clienteRetira;
+    const atualizarRetira = () => {
+      $("svVendaRetiraCampo").style.display = selTipo.value === "CLIENTE" ? "" : "none";
+      if (selTipo.value !== "CLIENTE") caixaRetira.checked = false;
+      $("svVendaTranspCampo").style.display = caixaRetira.checked ? "none" : "";
+    };
+    selTipo.onchange = atualizarRetira;
+    caixaRetira.onchange = atualizarRetira;
+    atualizarRetira();
+    $("svVendaTranspDica").textContent = r.tipoTransporte && (r.transportadora || r.clienteRetira)
       ? "O transporte veio da reserva. Mude se combinaram outra coisa na hora de vender."
       : "Essa reserva é de antes do campo existir e veio sem transporte. Escolha para confirmar a venda.";
 
@@ -2004,14 +2026,14 @@ function svVendaModal(r) {
         }
       }
       if (!selTipo.value) return falha("Escolha o tipo de transporte para confirmar a venda.");
-      if (!selTransp.value) {
+      if (!selTransp.value && !caixaRetira.checked) {
         return falha(nomesT.length
           ? "Escolha a transportadora para confirmar a venda."
           : "Cadastre as transportadoras em Administração, Transportadoras, antes de confirmar a venda.");
       }
       cleanup({
         preco: p, forma: selForma.value, valorRecebido: ehTm ? Math.round(parseFloat(recebido.value) * 100) / 100 : null,
-        divisao, tipo: selTipo.value, transportadora: selTransp.value,
+        divisao, tipo: selTipo.value, clienteRetira: caixaRetira.checked, transportadora: caixaRetira.checked ? null : selTransp.value,
         parcial: modo === "PARCIAL", quantidade: qtd,
         sobra: modo === "PARCIAL" ? document.querySelector('input[name="svVendaSobra"]:checked').value : null
       });
@@ -2047,7 +2069,8 @@ async function svVenderParcial(r, venda) {
   const { data, error } = await sb.rpc("sv_vender_parcial", {
     p_id: r.id, p_novo_id: uid("svres"), p_quantidade: venda.quantidade, p_sobra: venda.sobra, p_preco: venda.preco,
     p_forma: venda.forma, p_valor_recebido: venda.valorRecebido, p_divisao: venda.divisao,
-    p_tipo_transporte: venda.tipo, p_transportadora: venda.transportadora, p_vendido_em: todayISO()
+    p_tipo_transporte: venda.tipo, p_transportadora: venda.transportadora, p_vendido_em: todayISO(),
+    ...(venda.clienteRetira ? { p_cliente_retira: true } : {})
   });
   if (error) {
     if (/já foi alterada|não encontrada/i.test(error.message)) {
@@ -2088,7 +2111,8 @@ async function svMudarSituacaoReserva(id, nova) {
     campos = {
       situacao: nova, preco_unitario: venda.preco, forma_pagamento: venda.forma,
       valor_recebido: venda.valorRecebido, divisao_pagamento: venda.divisao,
-      tipo_transporte: venda.tipo, transportadora: venda.transportadora, vendido_em: todayISO()
+      tipo_transporte: venda.tipo, transportadora: venda.transportadora, vendido_em: todayISO(),
+      ...(venda.clienteRetira || r.clienteRetira ? { cliente_retira: !!venda.clienteRetira } : {})
     };
   } else if (!(await confirmModal("Cancelar reserva?", `Libera as ${r.quantidade} un. de ${r.codigo} reservadas para ${r.cliente}.`))) {
     return;
@@ -2150,6 +2174,8 @@ function svLigarReserva() {
   });
   $("svFormReserva").addEventListener("input", svAoMudarFormReserva);
   $("svFormReserva").addEventListener("change", svAoMudarFormReserva);
+  $("svFormReserva").addEventListener("change", e => { if (e.target.id === "svResTipoTransporte" || e.target.id === "svResClienteRetira") svAtualizarRetiraReserva(); });
+  $("svFormReserva").addEventListener("reset", () => setTimeout(svAtualizarRetiraReserva, 0));
 }
 
 async function svSalvarReserva(e) {
@@ -2171,7 +2197,8 @@ async function svSalvarReservaDados() {
   const forma = document.getElementById("svResForma").value;
   const unidade = document.getElementById("svResUnidade").value;
   const tipoTransporte = document.getElementById("svResTipoTransporte").value;
-  const transportadora = document.getElementById("svResTransportadora").value;
+  const clienteRetira = tipoTransporte === "CLIENTE" && document.getElementById("svResClienteRetira").checked;
+  const transportadora = clienteRetira ? "" : document.getElementById("svResTransportadora").value;
   const data = document.getElementById("svResData").value;
   const obs = document.getElementById("svResObs").value.trim();
   const cliente = svClientes.find(c => c.nome.toLowerCase() === clienteDigitado.toLowerCase());
@@ -2185,7 +2212,7 @@ async function svSalvarReservaDados() {
   if (!unidade) erros.push(["unidade", "Escolha a unidade de negócio."]);
   if (!forma) erros.push(["forma", "Escolha a forma de pagamento."]);
   if (!tipoTransporte) erros.push(["tipotransp", "Escolha o tipo de transporte."]);
-  if (!transportadora) erros.push(["transportadora", svTransportadoras.length ? "Escolha a transportadora." : "Cadastre as transportadoras em Administração antes de reservar."]);
+  if (!transportadora && !clienteRetira) erros.push(["transportadora", svTransportadoras.length ? "Escolha a transportadora." : "Cadastre as transportadoras em Administração antes de reservar."]);
   if (!data) erros.push(["data", "Informe a data."]);
   // produtos do pedido: cada linha com produto e quantidade; o mesmo lote repetido soma contra o disponível
   const itensTela = svLerItens();
@@ -2251,7 +2278,7 @@ async function svSalvarReservaDados() {
     id: uid("svres"), codigo: it.opcao.codigo, quantidade: it.quantidade, cliente: cliente.nome, vendedorInterno, representante,
     armazem: it.opcao.tipo === "E" ? it.opcao.armazem : null,
     previsaoId: it.opcao.tipo === "P" ? it.opcao.previsaoId : null,
-    formaPagamento: forma, unidadeNegocio: unidade, tipoTransporte, transportadora,
+    formaPagamento: forma, unidadeNegocio: unidade, tipoTransporte, transportadora, clienteRetira,
     tipoPedido: svTipoPedidoReserva(), pedidoId,
     situacao: "ATIVA", data, obs
   }));
