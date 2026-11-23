@@ -107,6 +107,9 @@ $$;
 revoke all on function sv_vender_parcial(text, text, integer, text, numeric, text, numeric, jsonb, text, text, date) from public;
 grant execute on function sv_vender_parcial(text, text, integer, text, numeric, text, numeric, jsonb, text, text, date) to authenticated;
 
+-- o Supabase só enxerga coluna e função novas depois de recarregar o cache da API
+notify pgrst, 'reload schema';
+
 -- ---------------------------------------------------------------- confere
 select
   (select count(*) = 4 from information_schema.columns where table_name = 'sv_reservas' and column_name in ('tipo_pedido', 'pedido_total', 'reserva_origem_id', 'liberada')) as colunas,
