@@ -5516,6 +5516,13 @@ function nomesSemDuplicados(nomes, preferidos) {
   }).sort((a, b) => a.localeCompare(b));
 }
 
+// Devolve uma função que leva qualquer grafia ("CAETANO", "Caetano", "Fran") à grafia única da lista. As telas que
+// SOMAM por representante (Comissões, Faturamento, Dashboard) usam isso como chave, senão o mesmo nome aparece 2 vezes.
+function criarCanonicoVendedor() {
+  const mapa = new Map(vendedoresDasVendas().map(n => [chaveNomeVendedor(n), n]));
+  return n => (n && mapa.get(chaveNomeVendedor(n))) || n;
+}
+
 // Texto de um vendedor/representante em QUALQUER seletor do sistema: quem tem login cadastrado aparece como está no
 // cadastro; os demais, com a primeira letra de cada nome maiúscula. Só o texto muda: o valor gravado/filtrado continua
 // o original, pros relatórios não separarem "AGNALDO" de "Agnaldo".
@@ -6215,9 +6222,10 @@ function renderDashboard() {
 
   // por vendedor / estado / transportadora / forma / cliente
   const porVendedor = {}, porEstado = {}, porTransp = {}, porForma = {}, porCliente = {};
+  const canonVend = criarCanonicoVendedor();
   vendas.forEach(v => {
     participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
-      const vend = p.nome || "(sem representante)";
+      const vend = canonVend(p.nome) || "(sem representante)";
       if (!porVendedor[vend]) porVendedor[vend] = { faturamento: 0, comissao: 0, qtd: 0 };
       porVendedor[vend].faturamento += v.valorVenda; // a venda conta inteira pra cada representante dela
       porVendedor[vend].comissao += p.comissao;
@@ -6518,9 +6526,10 @@ function renderFaturamento() {
 
   // por vendedor
   const porVendedor = {};
+  const canonVend = criarCanonicoVendedor();
   vendas.forEach(v => {
     participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
-      const key = p.nome || "(sem representante)";
+      const key = canonVend(p.nome) || "(sem representante)";
       if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
       porVendedor[key].faturamento += v.valorVenda;
       porVendedor[key].comissao += p.comissao;
@@ -8817,9 +8826,10 @@ function renderComissoes() {
 
   const vendas = getVendasFiltradasComissoes();
   const porVendedor = {};
+  const canonVend = criarCanonicoVendedor();
   vendas.forEach(v => {
     participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
-      const key = p.nome || "(sem representante)";
+      const key = canonVend(p.nome) || "(sem representante)";
       if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
       porVendedor[key].faturamento += v.valorVenda;
       porVendedor[key].comissao += p.comissao;
@@ -8852,9 +8862,10 @@ function renderComissoes() {
 // só faz sentido comparar quando há mais de um vendedor com venda no período.
 function rankingVendedorNoPeriodo(vendasPeriodo, nomeVendedor) {
   const porVendedor = {};
+  const canonVend = criarCanonicoVendedor();
   vendasPeriodo.forEach(v => {
     participantesVenda(v).filter(p => p.principal || p.nome).forEach(p => {
-      const key = p.nome || "(sem representante)";
+      const key = canonVend(p.nome) || "(sem representante)";
       if (!porVendedor[key]) porVendedor[key] = { faturamento: 0, comissao: 0 };
       porVendedor[key].faturamento += v.valorVenda;
       porVendedor[key].comissao += p.comissao;
@@ -8863,8 +8874,8 @@ function rankingVendedorNoPeriodo(vendasPeriodo, nomeVendedor) {
   const porFaturamento = Object.entries(porVendedor).sort((a, b) => b[1].faturamento - a[1].faturamento).map(([n]) => n);
   const porComissao = Object.entries(porVendedor).sort((a, b) => b[1].comissao - a[1].comissao).map(([n]) => n);
   return {
-    posFaturamento: porFaturamento.indexOf(nomeVendedor) + 1,
-    posComissao: porComissao.indexOf(nomeVendedor) + 1,
+    posFaturamento: porFaturamento.indexOf(canonVend(nomeVendedor)) + 1,
+    posComissao: porComissao.indexOf(canonVend(nomeVendedor)) + 1,
     total: porFaturamento.length
   };
 }
