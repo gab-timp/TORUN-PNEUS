@@ -95,6 +95,9 @@ body.sistema-crm .sidebar-divider{display:none;}
 .crm-chip:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
 .crm-fu-linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .crm-fu-linha input[type="date"]{max-width:170px;}
+.crm-quando{border:1px solid var(--orange);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+.crm-quando > label{color:var(--orange);font-weight:800;letter-spacing:.06em;}
+.crm-quando input[type="datetime-local"]{font-size:16px;font-weight:700;padding:9px 12px;min-width:210px;max-width:260px;}
 .crm-erro{color:var(--danger);font-weight:600;margin-bottom:10px;}
 .crm-modal-rodape{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
 .crm-modal-rodape .form-actions{margin-top:0;}

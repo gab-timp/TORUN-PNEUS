@@ -283,6 +283,24 @@ function crmDiaLocal(ts) {
   const d = new Date(ts);
   return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
+// campo "Data e hora da ligação" (datetime-local): preenche, lê e valida (hoje ou passado, nunca futuro)
+function crmQuandoValor(ts) {
+  const d = new Date(ts);
+  return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+function crmQuandoPreencher(campo, ts) {
+  campo.value = crmQuandoValor(ts);
+  campo.max = crmQuandoValor(new Date());
+  campo.dataset.orig = campo.value; // só manda a data para o banco quando a pessoa mudou
+}
+// devolve { erro } ou { mudou, iso }
+function crmQuandoLer(campo) {
+  if (!campo.value) return { erro: "Informe a data e a hora da ligação." };
+  const d = new Date(campo.value);
+  if (isNaN(d)) return { erro: "Data da ligação inválida." };
+  if (d.getTime() > Date.now() + 60000) return { erro: "A data da ligação não pode ser no futuro." };
+  return { mudou: campo.value !== campo.dataset.orig, iso: d.toISOString() };
+}
 function crmHoraLocal(ts) {
   return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
@@ -1036,6 +1054,7 @@ function crmLigPreencher(c) {
   }
 
   document.getElementById("crmLigObs").value = "";
+  crmQuandoPreencher(document.getElementById("crmLigQuando"), new Date());
   document.getElementById("crmLigFu").value = "";
   document.getElementById("crmLigFu").min = todayISO();
   document.getElementById("crmLigFuAtalhos").innerHTML = CRM_ATALHOS_FU.map(([rot, n]) =>
@@ -1095,6 +1114,8 @@ async function crmSalvarLigacao() {
   const c = crmCarteiraPorId(crmLigCarteiraId);
   if (!c) return;
   if (!crmLigResultado) { crmErroLigacao("Escolha o resultado da ligação."); return; }
+  const quando = crmQuandoLer(document.getElementById("crmLigQuando"));
+  if (quando.erro) { crmErroLigacao(quando.erro); return; }
   const fu = document.getElementById("crmLigFu").value || null;
   if (CRM_EXIGE_RETORNO.includes(crmLigResultado) && !fu) { crmErroLigacao(`Informe a data do próximo follow-up (obrigatória para ${crmLigResultado}).`); return; }
   if (fu && fu < todayISO()) { crmErroLigacao("A data do próximo follow-up não pode ser no passado."); return; }
@@ -1127,6 +1148,7 @@ async function crmSalvarLigacao() {
       etapa_para: mudouEtapa ? etapaEscolhida : null, executivo_user_id: currentUser.id, executivo_nome: currentUserNome
     };
     if (comNeg) { linha.negociacao_id = neg.id; linha.cotacoes_enviadas = crmLigCot; }
+    if (quando.mudou) linha.created_at = quando.iso; // sem mudança, o banco grava o momento do registro
     const { data, error } = await sb.from("crm_ligacoes").insert(linha).select();
     if (error) { crmErroLigacao("Erro ao salvar a ligação: " + error.message); return; }
     if (!data || !data[0]) { crmErroLigacao("Não foi possível salvar a ligação (sem permissão)."); return; }
@@ -1389,6 +1411,13 @@ function initCrmTelas() {
     document.getElementById("crmLigErro").style.display = "none";
   });
   document.getElementById("crmLigFu").addEventListener("input", crmMarcarAtalhoFu);
+  document.getElementById("crmLigQuandoAtalhos").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-crmquando]");
+    if (!b) return;
+    const d = new Date();
+    d.setDate(d.getDate() - Number(b.dataset.crmquando));
+    document.getElementById("crmLigQuando").value = crmQuandoValor(d);
+  });
   document.getElementById("crmLigCancelar").addEventListener("click", crmFecharLigacao);
   document.getElementById("crmLigFechar").addEventListener("click", crmFecharLigacao);
   document.getElementById("crmLigSalvar").addEventListener("click", crmSalvarLigacao);

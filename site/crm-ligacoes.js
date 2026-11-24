@@ -496,7 +496,7 @@ async function crmLgSalvarObs() {
 
 /* ---------------- editar uma ligação já registrada (ficha do cliente > Histórico de ligações) ---------------- */
 // Corrige resultado, contato, observação, próximo follow-up e cotações enviadas pela função crm_editar_ligacao
-// (sql/crm_editar_ligacoes.sql). Não muda data, hora, quem registrou nem a etapa do cartão.
+// (sql/crm_editar_ligacoes.sql). A data e a hora também podem ser corrigidas (crm_data_ligacao.sql). Quem registrou e a etapa do cartão não mudam.
 
 let crmEdLigId = null, crmEdLigRes = "", crmEdLigCot = 0;
 
@@ -518,6 +518,7 @@ function crmLgAbrirEditarLigacao(id) {
   crmEdLigRes = l.resultado;
   crmEdLigCot = l.cotacoesEnviadas || 0;
   document.getElementById("crmEdLigSub").textContent = `${l.cliente} · ligação de ${formatDateBR(crmDiaLocal(l.createdAt))} às ${crmHoraLocal(l.createdAt)} · registrada por ${l.executivoNome || "—"}`;
+  crmQuandoPreencher(document.getElementById("crmEdLigQuando"), l.createdAt);
   document.getElementById("crmEdLigContato").value = l.contatoNome;
   document.getElementById("crmEdLigContatos").innerHTML = crmContatosDe(c).map(k => `<option value="${escapeAttr(k.nome)}"></option>`).join("");
   document.getElementById("crmEdLigObs").value = l.observacao;
@@ -566,11 +567,15 @@ async function crmLgSalvarEdicaoLigacao() {
   const erro = (msg) => { erroEl.textContent = msg; erroEl.style.display = "block"; };
   const fu = document.getElementById("crmEdLigFu").value || null;
   if (CRM_EXIGE_RETORNO.includes(crmEdLigRes) && !fu) { erro("A data do próximo follow-up é obrigatória para " + crmEdLigRes + "."); return; }
+  const quando = crmQuandoLer(document.getElementById("crmEdLigQuando"));
+  if (quando.erro) { erro(quando.erro); return; }
   const botao = document.getElementById("crmEdLigSalvar");
   botao.disabled = true;
   const { error } = await sb.rpc("crm_editar_ligacao", {
     p_id: l.id, p_resultado: crmEdLigRes, p_contato: document.getElementById("crmEdLigContato").value.trim(),
-    p_observacao: document.getElementById("crmEdLigObs").value.trim(), p_followup: fu, p_cotacoes: crmEdLigCot
+    p_observacao: document.getElementById("crmEdLigObs").value.trim(), p_followup: fu, p_cotacoes: crmEdLigCot,
+    // só manda a data quando mudou: assim a edição segue valendo mesmo antes do SQL crm_data_ligacao.sql rodar
+    ...(quando.mudou ? { p_quando: quando.iso } : {})
   });
   botao.disabled = false;
   if (error) { erro("Não foi possível salvar: " + error.message); return; }
