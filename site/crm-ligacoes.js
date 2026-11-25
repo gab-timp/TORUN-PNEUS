@@ -541,6 +541,14 @@ function crmLgAbrirExcluirLigacao() {
     `<div><b>${escapeHtml(l.cliente)}</b> · ${formatDateBR(crmDiaLocal(l.createdAt))} às ${escapeHtml(crmHoraLocal(l.createdAt))}</div>` +
     `<div class="muted">${escapeHtml(l.resultado)} · ${escapeHtml(l.executivoNome || "—")} · ${l.cotacoesEnviadas || 0} cotações</div>` +
     (l.observacao ? `<div>"${escapeHtml(l.observacao)}"</div>` : "");
+  // se as aprovadas ficariam acima das enviadas, elas descem junto: avisa antes de confirmar
+  const neg = l.negociacaoId ? crmNegPorId(l.negociacaoId) : null;
+  if (neg && (l.cotacoesEnviadas || 0) > 0) {
+    const novoEnv = neg.cotEnviadas - l.cotacoesEnviadas;
+    document.getElementById("crmExcLigResumo").innerHTML +=
+      `<div class="muted">Cotações do contato: ${neg.cotEnviadas} enviadas → ${novoEnv}` +
+      (neg.cotAprovadas > novoEnv ? `; aprovadas ${neg.cotAprovadas} → ${novoEnv}` : "") + `.</div>`;
+  }
   document.getElementById("crmExcLigErro").style.display = "none";
   document.getElementById("crmExcLigOverlay").classList.add("show");
 }

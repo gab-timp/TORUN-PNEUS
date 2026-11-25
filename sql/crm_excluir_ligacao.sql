@@ -4,7 +4,7 @@
 -- (a tabela continua sem política de delete), no mesmo padrão de crm_editar_ligacao.
 --
 -- As cotações enviadas nessa ligação saem do total do contato (crm_negociacoes.cot_enviadas). Se o novo total ficar
--- abaixo das cotações aprovadas do contato, a função recusa e pede para reduzir as aprovadas antes. A etapa do
+-- abaixo das cotações aprovadas do contato, as aprovadas descem junto (a gestão não é barrada). A etapa do
 -- cartão no kanban NÃO muda. Não há outra tabela ligada à ligação (só o cartão, pela contagem de cotações).
 --
 -- ORDEM: rode ANTES de publicar o site novo (o botão chama esta função). Pré-requisitos: crm_nucleo.sql,
@@ -33,10 +33,12 @@ begin
   if l.negociacao_id is not null and coalesce(l.cotacoes_enviadas, 0) > 0 then
     select cot_enviadas, cot_aprovadas into v_env, v_apr from crm_negociacoes where id = l.negociacao_id;
     if v_env is not null then
-      if v_env - l.cotacoes_enviadas < v_apr then
-        raise exception 'Este contato já tem % cotações aprovadas. Reduza as aprovadas antes de excluir uma ligação com cotações enviadas.', v_apr;
-      end if;
-      update crm_negociacoes set cot_enviadas = cot_enviadas - l.cotacoes_enviadas where id = l.negociacao_id;
+      -- a gestão passa por cima: se as aprovadas ficariam acima das enviadas, elas descem junto
+      -- (os dois campos no mesmo update, por causa da regra aprovadas <= enviadas)
+      update crm_negociacoes
+         set cot_enviadas = cot_enviadas - l.cotacoes_enviadas,
+             cot_aprovadas = least(cot_aprovadas, cot_enviadas - l.cotacoes_enviadas)
+       where id = l.negociacao_id;
     end if;
   end if;
 
