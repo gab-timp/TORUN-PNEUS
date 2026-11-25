@@ -620,11 +620,27 @@ async function buscarClienteRep() {
     encontrado = (data || []).find(c => normalizarDocumento(c.documento) === docNormalizado);
   }
   if (!encontrado) {
-    erroEl.textContent = "Cliente não encontrado — solicite o cadastro antes de continuar.";
-    erroEl.style.display = "block";
+    erroEl.innerHTML = `<span>Cliente não encontrado — solicite o cadastro antes de continuar.</span>
+      <button type="button" class="btn primary" id="btnIrPreCadastro">Fazer pré-cadastro →</button>`;
+    erroEl.style.display = "flex";
+    document.getElementById("btnIrPreCadastro").addEventListener("click", () => irParaPreCadastro(docInput.trim()));
     return;
   }
   selecionarClienteRep(encontrado);
+}
+
+// Atalho do novo pedido: abre a aba Pré-cadastro com o que foi digitado.
+function irParaPreCadastro(termo) {
+  document.getElementById("formPreCadastroCliente").reset();
+  const campoNome = document.getElementById("preCadNome");
+  const campoDoc = document.getElementById("preCadDocumento");
+  if (termo) {
+    if (termoEhNome(termo)) campoNome.value = termo;
+    else campoDoc.value = termo;
+  }
+  document.getElementById("repPreCadAviso").style.display = "";
+  document.querySelector('#repSidebar [data-reptab="precadastro"]').click();
+  (campoNome.value ? document.getElementById("preCadRazaoSocial") : campoNome).focus();
 }
 
 function selecionarClienteRep(encontrado) {
@@ -2862,6 +2878,7 @@ function initPreCadastroForm() {
 
     meusPreCadastros.unshift(inserido[0]);
     e.target.reset();
+    document.getElementById("repPreCadAviso").style.display = "none";
     renderMeusPreCadastros();
     toast("Pré-cadastro enviado. Aguarde a aprovação do escritório.");
   });

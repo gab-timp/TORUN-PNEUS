@@ -101,6 +101,9 @@
   margin-top:10px; background:var(--orange-pale); color:var(--orange-deep);
   border-radius:7px; padding:8px 10px; font-size:12.5px; font-weight:600;
 }
+.rep-cliente-erro .btn{white-space:nowrap; padding:6px 12px; font-size:12.5px;}
+.rep-cliente-erro{align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.rep-precad-aviso{border-left:3px solid var(--orange); margin-bottom:12px;}
 .rep-doc-cliente-grid{margin-top:16px; display:flex; flex-direction:column; gap:16px;}
 .rep-doc-cliente-info{display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;}
 .rep-doc-cliente-info label, .rep-doc-cliente-condicoes label{
