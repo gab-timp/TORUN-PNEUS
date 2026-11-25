@@ -3212,7 +3212,7 @@ function areaUtilDaFoto(bmp) {
     }
   }
   if (x1 < 0) return null;
-  const folga = 1;
+  const folga = 2;
   x0 = Math.max(0, x0 - folga); y0 = Math.max(0, y0 - folga);
   x1 = Math.min(w - 1, x1 + folga); y1 = Math.min(h - 1, y1 + folga);
   if ((x1 - x0 + 1) * (y1 - y0 + 1) > w * h * 0.9) return null;
@@ -3274,7 +3274,7 @@ function fotoAbre(url) {
 // null se nenhuma abriu (o card sai sem essa foto).
 async function carregarFotoParaPdf(fotoPath) {
   const { data } = sb.storage.from(CATALOGO_BUCKET).getPublicUrl(fotoPath, {
-    transform: { width: CATALOGO_PDF_FOTO_LARGURA, quality: 70 }
+    transform: { width: CATALOGO_PDF_FOTO_LARGURA, quality: 70, resize: "contain" }
   });
   const candidatas = [data ? data.publicUrl : null, fotoProdutoUrl(fotoPath)];
   for (const url of candidatas) {
