@@ -1377,6 +1377,37 @@ const CATALOGO_PDF_FOTO_TIMEOUT_MS = 25000;
 const CATALOGO_PDF_FOTOS_EM_PARALELO = 4;
 let catalogoPdfBlobUrls = [];
 
+// Corta o branco em volta do pneu (fotos quadradas com pneu estreito no meio viravam um "filete" na
+// moldura larga do PDF). Mesma função do app.js do escritório.
+function areaUtilDaFoto(bmp) {
+  const lado = 200, e = lado / Math.max(bmp.width, bmp.height);
+  const w = Math.max(1, Math.round(bmp.width * e)), h = Math.max(1, Math.round(bmp.height * e));
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+  x.drawImage(bmp, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const k = (j * w + i) * 4;
+      if (d[k] < 240 || d[k + 1] < 240 || d[k + 2] < 240) {
+        if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j;
+      }
+    }
+  }
+  if (x1 < 0) return null;
+  const folga = 4;
+  x0 = Math.max(0, x0 - folga); y0 = Math.max(0, y0 - folga);
+  x1 = Math.min(w - 1, x1 + folga); y1 = Math.min(h - 1, y1 + folga);
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) > w * h * 0.9) return null;
+  return {
+    sx: Math.round(x0 / e), sy: Math.round(y0 / e),
+    sw: Math.min(bmp.width, Math.round((x1 - x0 + 1) / e)), sh: Math.min(bmp.height, Math.round((y1 - y0 + 1) / e))
+  };
+}
+
 async function reduzirFotoParaPdf(url) {
   if (!url) return null;
   const controle = new AbortController();
@@ -1386,15 +1417,16 @@ async function reduzirFotoParaPdf(url) {
     if (!resp.ok) return null;
     const bmp = await createImageBitmap(await resp.blob());
     try {
-      const escala = Math.min(1, CATALOGO_PDF_FOTO_LADO_MAX / Math.max(bmp.width, bmp.height));
+      const a = areaUtilDaFoto(bmp) || { sx: 0, sy: 0, sw: bmp.width, sh: bmp.height };
+      const escala = Math.min(1, CATALOGO_PDF_FOTO_LADO_MAX / Math.max(a.sw, a.sh));
       const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(bmp.width * escala));
-      canvas.height = Math.max(1, Math.round(bmp.height * escala));
+      canvas.width = Math.max(1, Math.round(a.sw * escala));
+      canvas.height = Math.max(1, Math.round(a.sh * escala));
       const ctx = canvas.getContext("2d");
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bmp, a.sx, a.sy, a.sw, a.sh, 0, 0, canvas.width, canvas.height);
       const jpeg = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", CATALOGO_PDF_FOTO_QUALIDADE));
       if (!jpeg) return null;
       const blobUrl = URL.createObjectURL(jpeg);
