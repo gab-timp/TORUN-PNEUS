@@ -1398,7 +1398,7 @@ function areaUtilDaFoto(bmp) {
     }
   }
   if (x1 < 0) return null;
-  const folga = 4;
+  const folga = 1;
   x0 = Math.max(0, x0 - folga); y0 = Math.max(0, y0 - folga);
   x1 = Math.min(w - 1, x1 + folga); y1 = Math.min(h - 1, y1 + folga);
   if ((x1 - x0 + 1) * (y1 - y0 + 1) > w * h * 0.9) return null;
@@ -1551,7 +1551,7 @@ const CATALOGO_PDF_LARGURA = 703;
 const CATALOGO_PDF_COLUNAS = 3;
 const CATALOGO_PDF_VAO_LINHAS = 12;
 const CATALOGO_PDF_FOTO_EXTRA_MAX = 50;
-const CATALOGO_PDF_FOTO_ALTURA = 210;
+const CATALOGO_PDF_FOTO_ALTURA = 225;
 
 async function paginarCatalogoPdf(area) {
   const raiz = area.querySelector(".print-catalogo");
