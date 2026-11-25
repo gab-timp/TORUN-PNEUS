@@ -1926,9 +1926,10 @@ tbody tr:hover td.col-acoes{background:var(--paper-2);}
    ~285px = 2/3 da largura; aqui 226px de card -> 150px), então o PDF enquadra e corta igual à tela */
 .pc-foto{position:relative; height:150px; background:#efeee9; display:flex; gap:2px;}
 .pc-slot{flex:1; min-width:0; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#efeee9;}
-/* a foto preenche a moldura e fica centralizada (cover), igual ao card da tela, sem faixa cinza.
-   Com "contain" as fotos em pé (muito altas e estreitas) ficavam com faixas cinza grandes dos lados */
-.pc-slot img{width:100%; height:100%; object-fit:cover; object-position:center; display:block;}
+/* a foto aparece INTEIRA na moldura (contain). Com "cover" a moldura baixa e larga (226x150) cortava
+   as fotos mais altas e sobrava só um pedaço ampliado do pneu. Sobra faixa clara nas laterais. */
+.pc-slot{background:#fff;}
+.pc-slot img{width:100%; height:100%; object-fit:contain; object-position:center; display:block;}
 .pc-slot .ic{width:44px; height:44px; color:#b9b7ae;}
 .pc-chip{
   position:absolute; top:6px; right:6px; font-size:8.5px; font-weight:800; letter-spacing:.03em;
