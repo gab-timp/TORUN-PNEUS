@@ -3384,7 +3384,7 @@ const CATALOGO_PDF_LARGURA = 703;        // px úteis da página A4 (210mm - 2 x
 const CATALOGO_PDF_COLUNAS = 3;
 const CATALOGO_PDF_VAO_LINHAS = 12;      // igual ao gap do .pc-grade em styles.css
 const CATALOGO_PDF_FOTO_EXTRA_MAX = 50;
-const CATALOGO_PDF_FOTO_ALTURA = 150;    // igual ao .pc-foto em styles.css
+const CATALOGO_PDF_FOTO_ALTURA = 210;   // igual ao .pc-foto em styles.css
 
 async function paginarCatalogoPdf(area) {
   const raiz = area.querySelector(".print-catalogo");

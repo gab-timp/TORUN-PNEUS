@@ -1551,7 +1551,7 @@ const CATALOGO_PDF_LARGURA = 703;
 const CATALOGO_PDF_COLUNAS = 3;
 const CATALOGO_PDF_VAO_LINHAS = 12;
 const CATALOGO_PDF_FOTO_EXTRA_MAX = 50;
-const CATALOGO_PDF_FOTO_ALTURA = 150;
+const CATALOGO_PDF_FOTO_ALTURA = 210;
 
 async function paginarCatalogoPdf(area) {
   const raiz = area.querySelector(".print-catalogo");
