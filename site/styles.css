@@ -2816,3 +2816,6 @@ body.etapas-restritas #btnNovoPedido, body.etapas-restritas #btnCancelarPedido{d
 .crm-exc-resumo{border:1px solid var(--line); border-radius:6px; padding:12px 14px; font-size:13px; line-height:1.55; background:var(--paper); display:grid; gap:4px;}
 .crm-exc-aviso{font-size:12.5px; line-height:1.5; padding:0 2px;}
 .crm-exc-resumo .muted{color:var(--ink-soft);}
+
+.crm-arq-linha{cursor:pointer;}
+.crm-arq-linha:hover td{background:var(--paper);}

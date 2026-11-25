@@ -408,14 +408,14 @@ function crmLgRenderArquivados(arquivados) {
     <thead><tr><th>Cliente</th><th>Contato</th><th>Terminou em</th><th>Cotações</th><th>Obs. do cartão</th><th class="num">Ligações</th><th></th></tr></thead>
     <tbody>${linhas.map(({ c, n, ligs }) => {
       const temAberto = !!crmNegAberta(c);
-      return `<tr>
+      return `<tr class="crm-arq-linha" data-crmlgabrir="${escapeAttr(n.id)}" tabindex="0" title="Abrir o cartão deste contato">
         <td><button type="button" class="sv-link crm-nome" data-crmficha="${escapeAttr(c.id)}">${escapeHtml(c.cliente)}</button><div class="muted sv-sub">${escapeHtml(crmCidadeUF(c.cliente))}</div></td>
         <td>${n.numero}º contato</td>
         <td><span class="mono">${formatDateBR(crmDiaLocal(n.finalizadaEm))}</span> <span class="status-pill ${n.etapa === "Fechado" ? "pill-normal" : "pill-esgotado"}">${escapeHtml(n.etapa || "")}</span></td>
         <td><b class="mono">${n.cotEnviadas}</b> enviadas · <b class="mono crm-cot-ok">${n.cotAprovadas}</b> aprovadas</td>
         <td>${n.obs ? escapeHtml(n.obs) : '<span class="muted">—</span>'}</td>
         <td class="num mono">${ligs.length}</td>
-        <td class="crm-acoes">${crmLgEditavel(c) ? `<button type="button" class="btn small outline" data-crmlgnovo="${escapeAttr(c.id)}" ${temAberto ? 'disabled title="Este cliente já tem um contato aberto"' : ""}>Iniciar novo contato</button>` : ""}</td>
+        <td class="crm-acoes">${crmLgEditavel(c) ? `<button type="button" class="btn small outline" data-crmlgcot="${escapeAttr(n.id)}">Marcar aprovadas</button> <button type="button" class="btn small outline" data-crmlgnovo="${escapeAttr(c.id)}" ${temAberto ? 'disabled title="Este cliente já tem um contato aberto"' : ""}>Iniciar novo contato</button>` : ""}</td>
       </tr>`;
     }).join("")}</tbody></table></div>`;
 }
@@ -684,8 +684,11 @@ function crmLgAbrirCartao(negId) {
   document.getElementById("crmCgChips").innerHTML = `${crmTipoSelo(c.cliente)}${crmLgTagContato(n)}${crmLgDonoHtml(c)}`;
   document.getElementById("crmCgSub").textContent = crmCidadeUF(c.cliente);
   const aviso = document.getElementById("crmCgLeitura");
-  aviso.style.display = editavel ? "none" : "";
-  aviso.textContent = `Só leitura: este contato é da carteira de ${c.executivoNome || "outro executivo"}. Você acompanha, mas não edita.`;
+  const finalizado = !!n.finalizadaEm;
+  aviso.style.display = editavel && !finalizado ? "none" : "";
+  aviso.textContent = editavel
+    ? `Contato finalizado (${n.etapa || "—"}). A etapa fica travada; para voltar a negociar, use "Iniciar novo contato" em Arquivados. Cotações aprovadas e observação continuam editáveis.`
+    : `Só leitura: este contato é da carteira de ${c.executivoNome || "outro executivo"}. Você acompanha, mas não edita.`;
 
   const etapas = CRM_ETAPAS.map(e => `<option value="${escapeAttr(e.nome)}" ${e.nome === n.etapa ? "selected" : ""}>${escapeHtml(e.nome)}</option>`).join("");
   document.getElementById("crmCgEsq").innerHTML = `
@@ -696,7 +699,7 @@ function crmLgAbrirCartao(negId) {
       <div class="crm-cartao-acoes">${crmAtalhosHtml(ct)}</div>
     </div>
     <div class="crm-cg-grupo"><div class="crm-cg-tit">Andamento</div>
-      ${crmCgKv("Etapa", `<select id="crmCgEtapa" aria-label="Etapa do contato" ${editavel ? "" : "disabled"}>${n.etapa ? "" : '<option value="" selected>Sem etapa</option>'}${etapas}</select>`)}
+      ${crmCgKv("Etapa", `<select id="crmCgEtapa" aria-label="Etapa do contato" ${editavel && !finalizado ? "" : "disabled"}>${n.etapa ? "" : '<option value="" selected>Sem etapa</option>'}${etapas}</select>`)}
       ${crmCgKv("Última ligação", crmUltimaHtml({ ultima: ult }))}
       ${crmCgKv("Próx. follow-up", crmFollowupHtml(fu))}
       ${crmCgKv("Neste contato", `<span class="muted">${ligs.length} ${ligs.length === 1 ? "ligação" : "ligações"}${dias !== null ? ` · há ${dias} ${dias === 1 ? "dia" : "dias"} nesta etapa` : ""}</span>`)}
