@@ -13,10 +13,24 @@ function temAcessoSemVenda() {
 const SISTEMAS_CRM = ["atacado", "encomenda"];
 
 // sistemas que este usuário pode abrir (o varejo é de todos, menos de quem está com a chave do Torun desligada), na ordem dos cartões da tela de escolha
+// Portal de pedidos do representante (pedido-representante.html): é outra página, então aqui ele aparece como um "sistema" que só leva até lá.
+// Login de papel Representante usa o portal no lugar do Torun (Varejo); login do escritório com a caixa "Portal do representante" só ganha
+// o cartão quando está com o Torun (Varejo) desligado (quem usa o Varejo continua entrando nele como sempre).
+function portalNoLugarDoVarejo() {
+  if (currentUserIsAdmin) return false;
+  if (currentUserRole === "representante") return true;
+  return typeof crmPodePortal !== "undefined" && crmPodePortal && typeof temAcessoVarejo === "function" && !temAcessoVarejo();
+}
+
+function irParaPortalRepresentante(substituir) {
+  const destino = "pedido-representante.html";
+  if (substituir) window.location.replace(destino); else window.location.href = destino;
+}
+
 function sistemasDisponiveis() {
   // login de representante (sem papel no CRM): só o sistema dele, com o painel dele; nada do varejo nem do Sem Venda
   if (typeof crmRepresentante !== "undefined" && crmRepresentante && !currentUserIsAdmin) return crmSistemasVisiveis();
-  const lista = typeof temAcessoVarejo === "function" && !temAcessoVarejo() ? [] : ["varejo"];
+  const lista = portalNoLugarDoVarejo() ? ["portal"] : (typeof temAcessoVarejo === "function" && !temAcessoVarejo() ? [] : ["varejo"]);
   if (temAcessoSemVenda()) lista.push("semvenda");
   const crm = crmSistemasVisiveis();
   ["encomenda", "atacado"].forEach(s => { if (crm.includes(s)) lista.push(s); });
@@ -68,6 +82,7 @@ function mostrarEscolhaSistema() {
 }
 
 function escolherSistema(sistema) {
+  if (sistema === "portal") { irParaPortalRepresentante(false); return; }
   document.getElementById("sistemaScreen").style.display = "none";
   document.getElementById("appShell").style.display = "flex";
   aplicarSistema(sistema);
@@ -77,7 +92,16 @@ function escolherSistema(sistema) {
 function entrarNoSistema() {
   const shell = document.getElementById("appShell");
   const disponiveis = sistemasDisponiveis();
+  // vindo do botão "Trocar de sistema" do portal: mostra a escolha em vez de reabrir o último sistema
+  try {
+    if (new URLSearchParams(window.location.search).get("escolher")) {
+      esquecerSistema();
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  } catch (e) { /* sem URLSearchParams/history: segue o fluxo normal */ }
   if (disponiveis.length <= 1) {
+    // só o portal liberado (representante comum): o link normal leva direto à tela de pedido
+    if (disponiveis[0] === "portal") { irParaPortalRepresentante(true); return; }
     shell.style.display = "flex";
     if (disponiveis[0] && disponiveis[0] !== "varejo") aplicarSistema(disponiveis[0]); // representante: abre direto o sistema dele
     return;

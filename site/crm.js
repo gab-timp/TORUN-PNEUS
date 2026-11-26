@@ -29,6 +29,7 @@ const CRM_ATALHOS_FU = [["Amanhã", 1], ["Em 3 dias", 3], ["Em 1 semana", 7], ["
 let crmPapel = null;    // 'executivo' | 'financeiro' | 'gestao' | null (cadastro do usuário)
 let crmTemCarteira = false; // gestão com carteira própria (user_roles.crm_tem_carteira)
 let crmPodeVarejo = true; // user_roles.pode_acessar_varejo (sql/acesso_varejo_chave.sql); sem a coluna ou sem o perfil, vale ligado
+let crmPodePortal = false; // user_roles.pode_acessar_portal_representante (sql/acesso_portal_representante.sql): login do escritório que também abre o portal de pedidos
 let crmRepresentante = null; // login de representante: nome do cadastro tipo representante (user_roles.crm_representante); sem papel no CRM
 let crmSistemas = [];   // ['atacado', 'encomenda'] (só do executivo: pode ter um ou os dois)
 
@@ -46,6 +47,7 @@ function crmDefinirPerfil(r) {
   crmTemCarteira = !!(r && r.crm_tem_carteira);
   crmRepresentante = (r && r.crm_representante) || null;
   crmPodeVarejo = !(r && r.pode_acessar_varejo === false);
+  crmPodePortal = !!(r && r.pode_acessar_portal_representante === true);
   // a lista nova (user_roles.crm_sistemas); sem ela vale o sistema único de antes
   const lista = r && Array.isArray(r.crm_sistemas) ? r.crm_sistemas : (r && r.crm_sistema ? [r.crm_sistema] : []);
   crmSistemas = Object.keys(CRM_SISTEMAS).filter(k => lista.includes(k));

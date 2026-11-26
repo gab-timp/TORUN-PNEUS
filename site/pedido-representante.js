@@ -624,10 +624,13 @@ async function afterLogin() {
   currentUserNome = roleData.nome || currentUser.email;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
   // telefone e foto do perfil: consulta à parte e tolerante (se falhar, só fica sem foto)
-  const { data: perfilExtra } = await sb.from("user_roles").select("telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle();
+  const { data: perfilExtra } = await sb.from("user_roles").select("telefone, avatar_path, pode_acessar_sem_venda").eq("user_id", currentUser.id).maybeSingle();
   currentUserTelefone = (perfilExtra && perfilExtra.telefone) || "";
   currentUserAvatarPath = (perfilExtra && perfilExtra.avatar_path) || null;
   renderAvatarRep();
+  // botão "Trocar de sistema": só para quem tem outro sistema (login do escritório com portal, ou representante com o Sem Venda liberado)
+  const temOutroSistema = roleData.role !== "representante" || !!(perfilExtra && perfilExtra.pode_acessar_sem_venda);
+  document.getElementById("btnTrocarSistemaRep").style.display = temOutroSistema ? "" : "none";
 
   const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, clientesRes, previsoesRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, marca, carcaca, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, ncm, situacao, foto_path, foto_path_2").order("codigo"),
