@@ -675,11 +675,38 @@ function svPrevTextoArmazem(p) {
   return p.armazem ? svNomeArmazem(p.armazem) : "";
 }
 
+// Uma linha por medida do processo, com o que ainda está livre.
+// A caminho: livre = total - reservado - vendido, das reservas ligadas ao próprio processo.
+// Já chegou: a reserva é do armazém, não do processo; então o livre é o saldo do produto no armazém do processo (noArmazem).
+// `calc` = resultado de svCalcularEstoque() (passe o mesmo para todos os cards: a conta é cara).
+function svLivrePorMedida(p, calc) {
+  const chegou = svStatusChegou(p.status);
+  const porCodigo = new Map();
+  p.itens.forEach(it => {
+    if (!it.codigo) return;
+    if (!porCodigo.has(it.codigo)) porCodigo.set(it.codigo, { codigo: it.codigo, total: 0, reservado: 0, vendido: 0, livre: 0, noArmazem: chegou });
+    porCodigo.get(it.codigo).total += Number(it.quantidade) || 0;
+  });
+  porCodigo.forEach(m => {
+    if (chegou) {
+      const l = calc.linhas.find(x => x.codigo === m.codigo && x.armazem === (p.armazem || ""));
+      m.livre = l ? Math.max(0, l.disp) : 0;
+    } else {
+      const a = calc.aChegar.find(x => x.previsaoId === p.id && x.codigo === m.codigo);
+      m.reservado = a ? a.reservado : 0;
+      m.vendido = a ? a.vendido : 0;
+      m.livre = Math.max(0, m.total - m.reservado - m.vendido);
+    }
+  });
+  return [...porCodigo.values()];
+}
+
 function svRenderPrevistos() {
   svAtualizarSelectsProduto();
   if (!document.getElementById("svPrevCol0")) svMontarKanbanPrevisto();
   const search = (document.getElementById("svPrevSearch").value || "").trim().toLowerCase();
-  const { aChegar: aChegarCards } = svCalcularEstoque();
+  const calcCards = svCalcularEstoque();
+  const aChegarCards = calcCards.aChegar;
 
   let rows = svState.previsoes.slice();
   if (search) {
@@ -696,19 +723,25 @@ function svRenderPrevistos() {
     const doStatus = rows.filter(p => p.status === status);
     document.getElementById("svPrevCount" + i).textContent = doStatus.length;
     document.getElementById("svPrevCol" + i).innerHTML = doStatus.map(p => {
-      const itensHtml = p.itens.map(it => {
-        const prod = svGetProduto(it.codigo);
+      const medidas = svLivrePorMedida(p, calcCards);
+      const itensHtml = medidas.map(m => {
+        const prod = svGetProduto(m.codigo);
+        const pctRes = m.total > 0 ? Math.min(100, (m.reservado / m.total) * 100) : 0;
+        const pctVen = m.total > 0 ? Math.min(100 - pctRes, (m.vendido / m.total) * 100) : 0;
+        const legenda = m.noArmazem ? "livres no armazém" : (m.livre <= 0 ? "sem nada livre" : `livres de ${fmt(m.total)}`);
         return `
           <li>
-            <span class="mono">${escapeHtml(it.codigo)}</span>
+            <span class="mono">${escapeHtml(m.codigo)}</span>
             <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
-            <span class="num mono">${fmt(it.quantidade)}</span>
+            <span class="sv-prev-q${m.livre <= 0 ? " zero" : ""}"><b>${fmt(m.livre)}</b><small>${legenda}</small></span>
+            ${!m.noArmazem && (pctRes > 0 || pctVen > 0) ? `<span class="sv-prev-barra" title="Reservado e vendido deste processo"><i class="res" style="width:${pctRes}%"></i><i class="ven" style="width:${pctVen}%"></i></span>` : ""}
           </li>`;
       }).join("");
+      const comprometido = svStatusChegou(status) ? 0 : medidas.reduce((s, m) => s + m.reservado + m.vendido, 0);
       return `
         <div class="kanban-card" data-id="${escapeAttr(p.id)}">
           <div class="kanban-card-nf">${escapeHtml(p.numeroProcesso)}</div>
-          ${p.itens.length ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
+          ${medidas.length ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
           <div class="kanban-card-meta">
             ${p.armazem
               ? `<span class="kanban-card-tag containers" title="Armazém onde o processo vai entrar">${escapeHtml(svPrevTextoArmazem(p))}</span>`
@@ -717,6 +750,7 @@ function svRenderPrevistos() {
               ? `<span class="kanban-card-tag ${svStatusChegou(status) ? "entregue" : ""}">Chegada ${formatDateBR(p.dataChegada)}</span>`
               : `<span class="kanban-card-tag sem-data">Sem data de chegada</span>`}
             ${p.dtc ? `<span class="kanban-card-tag dtc" title="Processo com DTC">DTC</span>` : ""}
+            ${comprometido > 0 ? `<span class="kanban-card-tag reservadas" title="Soma do reservado e do vendido deste processo">${fmt(comprometido)} reservadas ou vendidas</span>` : ""}
           </div>
           ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
           <div class="kanban-card-acoes"><button type="button" class="btn small primary sv-write" data-svreservarproc="${escapeAttr(p.id)}"${svProcessoTemLivre(p, aChegarCards) ? "" : " disabled title=\"Nada livre neste processo\""}>Reservar processo</button></div>
@@ -804,20 +838,36 @@ function svAbrirPrevistoDetalhe(id) {
       ativas.length ? valor(`<span class="mono">${fmt(qtdReservada)}</span> un. em ${ativas.length} reserva${ativas.length > 1 ? "s" : ""}`) : valor("Nenhuma", true)}</div>`;
 
   const total = p.itens.reduce((a, it) => a + (Number(it.quantidade) || 0), 0);
+  // reservado, vendido e livre por medida (mesma conta do card do kanban e da coluna "A caminho" do Estoque)
+  const chegouP = svStatusChegou(p.status);
+  const livreMedidas = svLivrePorMedida(p, svCalcularEstoque());
+  const livreDe = (codigo) => livreMedidas.find(m => m.codigo === codigo);
+  const somaM = (campo) => livreMedidas.reduce((s, m) => s + m[campo], 0);
   document.getElementById("svPrevDetalheMedidas").innerHTML = p.itens.length ? `
     <table class="prev-detalhe-tabela">
-      <thead><tr><th style="width:16%;">Código</th><th>Medida</th><th class="num" style="width:11%;">Qtd.</th><th class="num" style="width:17%;">Custo unit.</th><th class="num" style="width:19%;">Subtotal</th></tr></thead>
+      <thead><tr><th style="width:11%;">Código</th><th>Medida</th><th class="num">Total</th><th class="num">Reserv.</th><th class="num">Vend.</th><th class="num">Livre${chegouP ? "*" : ""}</th><th class="num" style="width:14%;">Custo unit.</th><th class="num" style="width:15%;">Subtotal</th></tr></thead>
       <tbody>
         ${p.itens.map(it => {
           const prod = svGetProduto(it.codigo);
+          const lm = livreDe(it.codigo);
+          const colsLivre = lm
+            ? (chegouP
+              ? `<td class="num">—</td><td class="num">—</td><td class="num mono prev-livre">${fmt(lm.livre)}</td>`
+              : `<td class="num mono">${fmt(lm.reservado)}</td><td class="num mono">${fmt(lm.vendido)}</td><td class="num mono prev-livre${lm.livre <= 0 ? " zero" : ""}">${fmt(lm.livre)}</td>`)
+            : `<td class="num">—</td><td class="num">—</td><td class="num">—</td>`;
           const temUnit = it.custoUnitario !== null && it.custoUnitario !== undefined;
           const celulas = temUnit
             ? `<td class="num mono">${escapeHtml(formatMoney(it.custoUnitario))}</td><td class="num mono">${escapeHtml(formatMoney((Number(it.quantidade) || 0) * Number(it.custoUnitario)))}</td>`
             : `<td class="num">${custoProc.antigo ? "—" : '<span class="muted">Custo não informado</span>'}</td><td class="num">—</td>`;
-          return `<tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td>${celulas}</tr>`; }).join("")}
-        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td><td></td><td class="num mono">${custoProc.temCusto ? escapeHtml(formatMoney(custoProc.total)) : "—"}</td></tr>
+          return `<tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td>${colsLivre}${celulas}</tr>`; }).join("")}
+        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td>${chegouP
+          ? `<td class="num">—</td><td class="num">—</td><td class="num">—</td>`
+          : `<td class="num mono">${fmt(somaM("reservado"))}</td><td class="num mono">${fmt(somaM("vendido"))}</td><td class="num mono">${fmt(somaM("livre"))}</td>`}<td></td><td class="num mono">${custoProc.temCusto ? escapeHtml(formatMoney(custoProc.total)) : "—"}</td></tr>
       </tbody>
     </table>
+    <div class="prev-detalhe-obs">${chegouP
+      ? "*Livre = saldo do produto no armazém deste processo (a reserva é do armazém, não do processo)."
+      : "Livre = total − reservado − vendido neste processo."}</div>
     ${custoProc.antigo ? `<div class="prev-detalhe-obs">Este processo foi lançado com o custo total. Ele segue contando no valor investido até você informar o custo unitário dos itens (em Editar).</div>`
       : custoProc.temCusto && custoProc.itensSemCusto > 0 ? `<div class="prev-detalhe-obs">${custoProc.itensSemCusto} ${custoProc.itensSemCusto === 1 ? "item sem custo informado" : "itens sem custo informado"}. Edite o processo para preencher o custo unitário.</div>` : ""}` : `<div class="prev-detalhe-obs">Nenhuma medida cadastrada.</div>`;
 
@@ -2664,7 +2714,7 @@ function svStatusEstoque(saldo) {
 function svListaEstoque() {
   const { linhas, aChegar } = svCalcularEstoque();
   const porCodigo = new Map();
-  const novo = () => ({ chegou: 0, reservado: 0, vendido: 0, aCaminho: 0, armazens: new Set(), processos: new Set() });
+  const novo = () => ({ chegou: 0, reservado: 0, vendido: 0, aCaminho: 0, aCaminhoLivre: 0, armazens: new Set(), processos: new Set() });
   const dado = (codigo) => {
     if (!porCodigo.has(codigo)) porCodigo.set(codigo, novo());
     return porCodigo.get(codigo);
@@ -2674,13 +2724,13 @@ function svListaEstoque() {
     d.chegou += l.chegou; d.reservado += l.reservado; d.vendido += l.vendido;
     if (l.chegou > 0 && l.armazem) d.armazens.add(l.armazem);
   });
-  aChegar.forEach(a => { dado(a.codigo).aCaminho += a.total; });
+  aChegar.forEach(a => { const d = dado(a.codigo); d.aCaminho += a.total; d.aCaminhoLivre += Math.max(0, a.livres); });
   svState.previsoes.forEach(p => p.itens.forEach(it => { if (it.codigo) dado(it.codigo).processos.add(p.numeroProcesso); }));
   return svState.produtos.map(p => {
     const d = porCodigo.get(p.codigo) || novo();
     const saidas = d.reservado + d.vendido;
     const saldo = d.chegou - saidas;
-    return { ...p, chegou: d.chegou, saidas, saldo, aCaminho: d.aCaminho, armazens: [...d.armazens].sort(), processos: [...d.processos],
+    return { ...p, chegou: d.chegou, saidas, saldo, aCaminho: d.aCaminho, aCaminhoLivre: d.aCaminhoLivre, armazens: [...d.armazens].sort(), processos: [...d.processos],
       status: d.chegou > 0 ? svStatusEstoque(saldo) : "sementrada" };
   });
 }
@@ -2712,10 +2762,10 @@ function svRenderEstoque() {
     { lbl: "Reservado e vendido", val: fmt(soma(comEntrada, "saidas")) },
     { lbl: "Produtos com saldo zerado", val: fmt(comEntrada.filter(r => r.saldo <= 0).length) },
     { lbl: "Produtos com saldo baixo", val: fmt(baixos.filter(r => r.saldo > 0).length) },
-    { lbl: "A caminho (previsto)", val: fmt(soma(todos, "aCaminho")) }
+    { lbl: "A caminho (livre)", val: fmt(soma(todos, "aCaminhoLivre")), sub: `de ${fmt(soma(todos, "aCaminho"))} previstos` }
   ];
   document.getElementById("svEstKpis").innerHTML = kpis.map(k =>
-    `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div></div>`).join("");
+    `<div class="kpi ${k.accent ? "accent" : ""}"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div>${k.sub ? `<div class="note kpi-sub">${k.sub}</div>` : ""}</div>`).join("");
 
   // rosca por medida (só o que tem saldo)
   const porMedida = {};
@@ -2785,7 +2835,7 @@ function svRenderEstoque() {
             <span class="status-pill pill-${semEntrada ? "neutro" : r.status}">${rotulo[r.status]}</span>
           </div>
         </td>
-        <td class="num">${r.aCaminho > 0 ? fmt(r.aCaminho) : "—"}</td>
+        <td class="num">${r.aCaminho > 0 ? `<span class="sv-est-caminho${r.aCaminhoLivre <= 0 ? " zero" : ""}"><b>${fmt(r.aCaminhoLivre)}</b><small>de ${fmt(r.aCaminho)}</small></span>` : "—"}</td>
         <td><button type="button" class="btn small outline" data-svest-res="${escapeAttr(r.codigo)}">Reservas</button></td>
       </tr>`;
   }).join("");

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=190">
-<link rel="stylesheet" href="semvenda.css?v=40">
+<link rel="stylesheet" href="semvenda.css?v=41">
 <link rel="stylesheet" href="crm.css?v=44">
 <link rel="stylesheet" href="usuarios.css?v=6">
 <link rel="stylesheet" href="seletores-dash.css?v=2">
@@ -559,7 +559,7 @@
                   <th class="num">Chegou</th>
                   <th class="num">Reservado/vendido</th>
                   <th class="num">Saldo disponível</th>
-                  <th class="num">A caminho</th>
+                  <th class="num">A caminho (livre)</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -567,7 +567,7 @@
             </table>
             <div class="empty-state" id="svEstEmpty" style="display:none;"></div>
           </div>
-          <div class="note sv-est-rodape">A barra mostra o saldo em relação ao que chegou. "A caminho" soma os processos que ainda não foram finalizados e não entra no status.</div>
+          <div class="note sv-est-rodape">A barra mostra o saldo em relação ao que chegou. "A caminho (livre)" é o que ainda pode ser reservado dos processos que não foram finalizados (embaixo, o total do processo). Não entra no status.</div>
         </div>
 
         <div class="estoque-side">
@@ -4974,7 +4974,7 @@
 
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
-<script src="semvenda.js?v=59"></script>
+<script src="semvenda.js?v=60"></script>
 <script src="crm.js?v=48"></script>
 <script src="crm-ligacoes.js?v=11"></script>
 <script src="crm-perfil.js?v=11"></script>
