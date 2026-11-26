@@ -12456,9 +12456,10 @@ async function showApp() {
   updateSidebarUserChip();
   if (!appInitialized) {
     appInitialized = true;
-    await init();
-    subscribeRealtime();
-    iniciarFallbackRefresh();
+    const carregarTudo = async () => { await init(); subscribeRealtime(); iniciarFallbackRefresh(); };
+    // quem só vai ao portal ou à tela de escolha não espera o carregamento completo (ver entradaRapida em semvenda.js)
+    if (typeof entradaRapida === "function" && await entradaRapida(carregarTudo)) return;
+    await carregarTudo();
   }
   document.getElementById("loadingScreen").style.display = "none";
   entrarNoSistema();

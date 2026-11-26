@@ -88,17 +88,83 @@ function escolherSistema(sistema) {
   aplicarSistema(sistema);
 }
 
-// Quem só tem o varejo (sem Sem Venda, Atacado ou Encomenda) entra direto nele, como sempre foi.
-function entrarNoSistema() {
-  const shell = document.getElementById("appShell");
-  const disponiveis = sistemasDisponiveis();
-  // vindo do botão "Trocar de sistema" do portal: mostra a escolha em vez de reabrir o último sistema
+// vindo do botão "Trocar de sistema" do portal (?escolher=1): mostra a escolha em vez de reabrir o último sistema
+function tratarParametroEscolher() {
   try {
     if (new URLSearchParams(window.location.search).get("escolher")) {
       esquecerSistema();
       window.history.replaceState(null, "", window.location.pathname);
     }
   } catch (e) { /* sem URLSearchParams/history: segue o fluxo normal */ }
+}
+
+/* ---- entrada rápida ----
+   O carregamento de tudo (estoque, vendas, clientes...) é o que demora depois do login. Quem só vai para o portal e quem vai ver a
+   tela de escolha não precisa esperar por isso: basta o perfil (uma consulta só). Aqui o perfil é lido primeiro e então:
+   - só o portal liberado: vai direto para ele, sem carregar mais nada;
+   - mais de um sistema (e nenhum lembrado nesta aba): mostra a tela de escolha na hora e carrega o resto por trás; quem clicar num
+     cartão antes de terminar de carregar vê a tela de carregando e entra assim que acabar (o portal abre na hora, não depende dos dados);
+   - qualquer outro caso (ou se o perfil não carregar): devolve false e o fluxo de sempre segue.
+   `carregarResto` é a função que faz o carregamento completo. */
+async function carregarPerfilParaEntrada() {
+  const { data, error } = await sb.from("user_roles").select("*").eq("user_id", currentUser.id).maybeSingle();
+  if (error || !data) return false;
+  currentUserRole = data.role || "editor";
+  currentUserIsAdmin = !!data.is_admin;
+  currentUserPodeAcessarSemVenda = !!data.pode_acessar_sem_venda;
+  currentUserNome = data.nome || currentUser.email;
+  crmDefinirPerfil(data);
+  return true;
+}
+
+async function entradaRapida(carregarResto) {
+  try {
+    if (!(await carregarPerfilParaEntrada())) return false;
+  } catch (e) { return false; }
+  tratarParametroEscolher();
+  const disp = sistemasDisponiveis();
+  if (disp.length === 1 && disp[0] === "portal") { irParaPortalRepresentante(true); return true; }
+  const lembrado = sistemaLembrado();
+  if (disp.length < 2 || (lembrado && disp.includes(lembrado))) return false;
+
+  let pronto = false;
+  let pendente = null;
+  const cards = document.getElementById("sistemaCards");
+  const cliqueCedo = (e) => {
+    const btn = e.target.closest("[data-sistema]");
+    if (!btn || pronto) return; // depois de pronto quem responde são os cliques normais (initSistemas)
+    if (btn.dataset.sistema === "portal") { irParaPortalRepresentante(false); return; }
+    pendente = btn.dataset.sistema;
+    document.getElementById("sistemaScreen").style.display = "none";
+    document.getElementById("loadingScreen").style.display = "flex";
+  };
+  cards.addEventListener("click", cliqueCedo);
+  document.getElementById("loadingScreen").style.display = "none";
+  mostrarEscolhaSistema();
+
+  Promise.resolve().then(carregarResto).then(() => {
+    pronto = true;
+    cards.removeEventListener("click", cliqueCedo);
+    if (pendente) {
+      document.getElementById("loadingScreen").style.display = "none";
+      escolherSistema(pendente);
+    }
+  }, (err) => {
+    console.error("Erro ao carregar o sistema:", err);
+    pronto = true;
+    cards.removeEventListener("click", cliqueCedo);
+    document.getElementById("loadingScreen").style.display = "none";
+    mostrarEscolhaSistema();
+    toast("Não foi possível carregar os dados. Recarregue a página.");
+  });
+  return true;
+}
+
+// Quem só tem o varejo (sem Sem Venda, Atacado ou Encomenda) entra direto nele, como sempre foi.
+function entrarNoSistema() {
+  const shell = document.getElementById("appShell");
+  const disponiveis = sistemasDisponiveis();
+  tratarParametroEscolher();
   if (disponiveis.length <= 1) {
     // só o portal liberado (representante comum): o link normal leva direto à tela de pedido
     if (disponiveis[0] === "portal") { irParaPortalRepresentante(true); return; }
