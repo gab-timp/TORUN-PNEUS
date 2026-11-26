@@ -3971,6 +3971,7 @@
     </div>
     <div class="note crm-erro" id="crmCgErro" style="display:none;"></div>
     <div class="form-actions crm-cg-rodape">
+      <button type="button" class="btn danger" id="crmCgExcluir" style="display:none;margin-right:auto;">Excluir contato</button>
       <button type="button" class="btn outline" id="crmCgFicha">Abrir ficha do cliente</button>
       <button type="button" class="btn outline" id="crmCgCancelar">Cancelar</button>
       <button type="button" class="btn outline" id="crmCgSalvar">Salvar alterações</button>
@@ -4036,6 +4037,23 @@
       <div class="form-actions">
         <button type="button" class="btn outline" id="crmExcLigCancelar">Cancelar</button>
         <button type="button" class="btn danger" id="crmExcLigConfirmar">Excluir ligação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="crmExcContOverlay">
+  <div class="modal crm-exc-modal" style="max-width:430px;" role="dialog" aria-labelledby="crmExcContTitulo">
+    <div><h3 id="crmExcContTitulo">Excluir este contato?</h3>
+    <div class="muted sv-sub">Isso não pode ser desfeito.</div></div>
+    <div class="crm-exc-resumo" id="crmExcContResumo"></div>
+    <div class="note crm-exc-aviso">O cliente, a carteira e os outros contatos dele continuam como estão.</div>
+    <div class="note crm-erro" id="crmExcContErro" style="display:none;"></div>
+    <div class="crm-modal-rodape">
+      <span></span>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="crmExcContCancelar">Cancelar</button>
+        <button type="button" class="btn danger" id="crmExcContConfirmar">Excluir contato</button>
       </div>
     </div>
   </div>

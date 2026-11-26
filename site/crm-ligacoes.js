@@ -531,6 +531,35 @@ function crmLgAbrirEditarLigacao(id) {
   document.getElementById("crmEdLigOverlay").classList.add("show");
 }
 
+/* ---------------- excluir um contato (só gestão) ---------------- */
+// Chama crm_excluir_contato (sql/crm_excluir_contato.sql): apaga o cartão, as ligações e o histórico de etapas dele.
+
+function crmLgAbrirExcluirContato() {
+  const n = crmNegPorId(crmCg.negId);
+  if (!n || crmPapelEfetivo() !== "gestao") return;
+  const ligs = crmLgLigsPorNeg().get(n.id) || [];
+  document.getElementById("crmExcContResumo").innerHTML =
+    `<div><b>${escapeHtml(n.cliente)}</b> · ${n.numero}º contato${n.etapa ? " · " + escapeHtml(n.etapa) : ""}</div>` +
+    `<div class="muted">Serão apagadas ${ligs.length} ${ligs.length === 1 ? "ligação" : "ligações"}, ${n.cotEnviadas} cotações enviadas e ${n.cotAprovadas} aprovadas.</div>`;
+  document.getElementById("crmExcContErro").style.display = "none";
+  document.getElementById("crmExcContOverlay").classList.add("show");
+}
+
+async function crmLgConfirmarExcluirContato() {
+  const n = crmNegPorId(crmCg.negId);
+  if (!n) return;
+  const botao = document.getElementById("crmExcContConfirmar");
+  botao.disabled = true;
+  const { error } = await sb.rpc("crm_excluir_contato", { p_id: n.id });
+  botao.disabled = false;
+  if (error) { const el = document.getElementById("crmExcContErro"); el.textContent = "Não foi possível excluir: " + error.message; el.style.display = "block"; return; }
+  document.getElementById("crmExcContOverlay").classList.remove("show");
+  crmCgFechar();
+  toast("Contato excluído.");
+  await crmCarregar(true);
+  crmRenderLigacoes();
+}
+
 /* ---------------- excluir uma ligação (só gestão) ---------------- */
 // Chama crm_excluir_ligacao (sql/crm_excluir_ligacao.sql): apaga a ligação e tira as cotações dela do total do contato.
 
@@ -727,6 +756,7 @@ function crmLgAbrirCartao(negId) {
 
   document.getElementById("crmCgSalvar").style.display = editavel ? "" : "none";
   document.getElementById("crmCgLigar").style.display = crmPodeLigarPara(c) ? "" : "none";
+  document.getElementById("crmCgExcluir").style.display = crmPapelEfetivo() === "gestao" ? "" : "none";
   document.getElementById("crmCgCancelar").textContent = editavel ? "Cancelar" : "Fechar";
   document.getElementById("crmCgErro").style.display = "none";
   document.getElementById("crmCgFicha").dataset.crmcgficha = c.id;
@@ -816,6 +846,9 @@ function crmLgInit() {
   g("crmCgFechar").addEventListener("click", crmCgFechar);
   g("crmCgCancelar").addEventListener("click", crmCgFechar);
   g("crmCgSalvar").addEventListener("click", crmCgSalvar);
+  g("crmCgExcluir")?.addEventListener("click", crmLgAbrirExcluirContato);
+  g("crmExcContCancelar")?.addEventListener("click", () => g("crmExcContOverlay").classList.remove("show"));
+  g("crmExcContConfirmar")?.addEventListener("click", crmLgConfirmarExcluirContato);
   g("crmCgFicha").addEventListener("click", (e) => { const id = e.currentTarget.dataset.crmcgficha; crmCgFechar(); if (id) crmAbrirFicha(id); });
   g("crmCgLigar").addEventListener("click", (e) => { const id = e.currentTarget.dataset.crmcgligar; crmCgFechar(); if (id) crmAbrirLigacao(id); });
   g("crmCartaoOverlay").addEventListener("click", (e) => { if (e.target.id === "crmCartaoOverlay") crmCgFechar(); });
