@@ -3337,8 +3337,9 @@ function initSemVendaTelas() {
     e.stopPropagation();
     svCancelarEdicaoProduto();
   });
-  ["svProdSearch", "svProdFiltroCategoria", "svProdFiltroMarca", "svProdFiltroCarcaca", "svProdFiltroSituacao"].forEach(id => {
-    document.getElementById(id).addEventListener("input", svRenderProdutos);
+  document.getElementById("svProdSearch").addEventListener("input", svRenderProdutos);
+  ["svProdFiltroCategoria", "svProdFiltroMarca", "svProdFiltroCarcaca", "svProdFiltroSituacao"].forEach(id => {
+    document.getElementById(id).addEventListener("change", svRenderProdutos); // select = "change" (ver seletor-padrao.js)
   });
 
   document.getElementById("svFormPrevisto").addEventListener("submit", svSalvarPrevisto);
@@ -3357,8 +3358,9 @@ function initSemVendaTelas() {
   document.getElementById("svProdFotoInput").addEventListener("change", (e) => svEscolherFoto(e.target.files[0]));
   document.getElementById("svBtnProdRemoverFoto").addEventListener("click", svRemoverFoto);
 
-  ["svCatSearch", "svCatFiltroArmazem", "svCatFiltroMarca"].forEach(id => {
-    document.getElementById(id).addEventListener("input", svRenderCatalogo);
+  document.getElementById("svCatSearch").addEventListener("input", svRenderCatalogo);
+  ["svCatFiltroArmazem", "svCatFiltroMarca"].forEach(id => {
+    document.getElementById(id).addEventListener("change", svRenderCatalogo); // select = "change" (ver seletor-padrao.js)
   });
 
   svDashPeriodo.criar();
@@ -3406,8 +3408,11 @@ function initSemVendaTelas() {
     }
   });
 
-  ["svEstSearch", "svEstFiltro", "svEstFiltroArmazem", "svEstFiltroTipo", "svEstFiltroMarca"].forEach(id => {
-    document.getElementById(id)?.addEventListener("input", svRenderEstoque); // ?. : se o HTML em cache for antigo, não derruba o sistema
+  // Os <select> viram o campo de busca padrão (seletor-padrao.js), que só avisa com "change": filtro de lista tem que ouvir "change"
+  // (com "input" a lista só atualizava ao trocar de tela e voltar). Só a caixa de texto segue em "input".
+  document.getElementById("svEstSearch")?.addEventListener("input", svRenderEstoque); // ?. : se o HTML em cache for antigo, não derruba o sistema
+  ["svEstFiltro", "svEstFiltroArmazem", "svEstFiltroTipo", "svEstFiltroMarca"].forEach(id => {
+    document.getElementById(id)?.addEventListener("change", svRenderEstoque);
   });
   // "Reservas": abre a tela de Reserva já buscando pelo código do produto
   document.getElementById("svEstTbody")?.addEventListener("click", (e) => {
