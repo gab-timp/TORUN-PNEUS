@@ -475,3 +475,28 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .sv-ped-preco-qtd{font-size:12.5px; color:var(--ink-soft); white-space:nowrap;}
 .sv-ped-preco{text-align:right; font-family:'Space Mono',monospace; font-weight:700;}
 @media (max-width:560px){ .sv-ped-preco-linha{grid-template-columns:minmax(0,1fr) 110px;} .sv-ped-preco-qtd{grid-column:1;} }
+
+/* Editar reserva: janela com os produtos do pedido (quantidade por produto), os dados do cliente e a lista do que vai mudar */
+.sv-edit-modal{max-width:780px;}
+.sv-edit-corpo{display:flex; flex-direction:column; gap:14px;}
+.sv-edit-corpo > .field{flex:0 0 auto; margin:0;}
+.sv-edit-corpo .sv-res-linha{margin:0;}
+.sv-edit-prods{display:flex; flex-direction:column; border:1px solid var(--line); border-radius:12px;}
+.sv-edit-linha{display:grid; grid-template-columns:minmax(0,1fr) 150px 34px; gap:12px; align-items:center; padding:10px 12px; border-top:1px solid var(--line);}
+.sv-edit-linha:first-child{border-top:0;}
+.sv-edit-prod{min-width:0;}
+.sv-edit-prod .sv-sub{display:block;}
+.sv-edit-novo{font-size:10.5px; font-weight:800; background:var(--status-good-pale); color:var(--status-good); border-radius:6px; padding:1px 6px; margin-left:6px;}
+.sv-edit-qtdbox{min-width:0;}
+.sv-edit-qtd{width:100%; min-width:0; box-sizing:border-box; text-align:right; font-family:'Space Mono',monospace; font-weight:700;}
+.sv-edit-qtd.ruim{border-color:var(--danger); background:var(--danger-pale);}
+.sv-edit-max{display:block; text-align:right; font-size:11px; color:var(--ink-soft); margin-top:3px;}
+.sv-edit-max.ruim{color:var(--danger); font-weight:700;}
+.sv-edit-rm{border:0; background:var(--paper-2); color:var(--ink-soft); width:34px; height:34px; border-radius:10px; cursor:pointer; font-size:16px;}
+.sv-edit-rm:hover:not([disabled]){background:var(--danger-pale); color:var(--danger);}
+.sv-edit-rm[disabled]{opacity:.4; cursor:not-allowed;}
+.sv-edit-add{display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;}
+.sv-edit-add select{flex:1 1 280px; max-width:480px;}
+.sv-edit-mud{flex:1 1 260px; min-width:0; line-height:1.5;}
+.sv-edit-mud b{color:var(--ink);}
+@media (max-width:560px){ .sv-edit-linha{grid-template-columns:minmax(0,1fr) 110px 34px;} }

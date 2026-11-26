@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=190">
-<link rel="stylesheet" href="semvenda.css?v=42">
+<link rel="stylesheet" href="semvenda.css?v=44">
 <link rel="stylesheet" href="crm.css?v=44">
 <link rel="stylesheet" href="usuarios.css?v=6">
 <link rel="stylesheet" href="seletores-dash.css?v=2">
@@ -4399,6 +4399,85 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="svEditResOverlay">
+  <div class="modal sv-res-modal sv-edit-modal" role="dialog" aria-modal="true" aria-labelledby="svEditResTitulo">
+    <div class="sv-res-modal-topo">
+      <div>
+        <h3 id="svEditResTitulo">Editar reserva</h3>
+        <div class="muted sv-sub" id="svEditResSub"></div>
+      </div>
+      <button type="button" class="sv-fechar" id="svEditResFechar" aria-label="Fechar">✕</button>
+    </div>
+    <div class="sv-edit-corpo">
+    <div class="field">
+      <label>Produtos</label>
+      <div class="sv-edit-prods" id="svEditResProds"></div>
+      <div class="sv-edit-add" id="svEditResAddBox">
+        <select id="svEditResNovoProd" aria-label="Produto a acrescentar" data-sem-combo="1"></select>
+        <button type="button" class="btn small outline" id="svEditResAdd">+ Adicionar produto</button>
+      </div>
+      <div class="note" id="svEditResDica">Para liberar o pedido inteiro, use "Cancelar".</div>
+    </div>
+    <div class="sv-res-linha">
+      <div class="field sv-f-cliente">
+        <label for="svEditResCliente">Cliente</label>
+        <input type="text" id="svEditResCliente" list="svEditResListaClientes" placeholder="Buscar cliente cadastrado no CRM…" autocomplete="off">
+        <datalist id="svEditResListaClientes"></datalist>
+        <div class="note">Cliente não aparece? Cadastre no CRM primeiro.</div>
+      </div>
+      <div class="field">
+        <label for="svEditResUnidade">Unidade de negócio</label>
+        <select id="svEditResUnidade"></select>
+      </div>
+    </div>
+    <div class="sv-res-linha">
+      <div class="field">
+        <label for="svEditResVendedor">Vendedor interno</label>
+        <select id="svEditResVendedor"></select>
+      </div>
+      <div class="field">
+        <label for="svEditResRepresentante">Representante</label>
+        <select id="svEditResRepresentante"></select>
+      </div>
+    </div>
+    <div class="sv-res-linha">
+      <div class="field">
+        <label for="svEditResForma">Forma de pagamento</label>
+        <select id="svEditResForma"></select>
+      </div>
+      <div class="field">
+        <label for="svEditResTipo">Tipo de transporte</label>
+        <select id="svEditResTipo"></select>
+      </div>
+    </div>
+    <div class="field" id="svEditResTranspCampo">
+      <label for="svEditResTransp">Transportadora</label>
+      <select id="svEditResTransp"></select>
+    </div>
+    <div class="field" id="svEditResRetiraCampo" style="display:none;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);">
+        <input type="checkbox" id="svEditResRetira" style="width:auto;">
+        Cliente retira (ele mesmo busca)
+      </label>
+      <div class="note">Marque se o cliente busca a mercadoria sem transportadora.</div>
+    </div>
+    <div class="field">
+      <label for="svEditResObs">Observação (opcional)</label>
+      <input type="text" id="svEditResObs" placeholder="Ex: aguardando confirmação de pagamento">
+      <div class="note">Aparece na lista, embaixo do nome do cliente.</div>
+    </div>
+    <div class="note sv-venda-erro" id="svEditResErro" style="display:none;"></div>
+    <div class="sv-res-rodape">
+      <div class="muted sv-sub sv-edit-mud" id="svEditResMud"></div>
+      <div class="form-actions">
+        <button type="button" class="btn outline" id="svEditResCancelar">Cancelar</button>
+        <button type="button" class="btn primary" id="svEditResSalvar" disabled>Salvar alterações</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pagamentoOverlay">
   <div class="modal">
     <h3 id="pagamentoTitle">Confirmar pagamento</h3>
@@ -4981,7 +5060,7 @@
 
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
-<script src="semvenda.js?v=61"></script>
+<script src="semvenda.js?v=62"></script>
 <script src="crm.js?v=48"></script>
 <script src="crm-ligacoes.js?v=11"></script>
 <script src="crm-perfil.js?v=11"></script>

@@ -1754,7 +1754,8 @@ function svPartesReserva(r) {
   // produto de um pedido com 2 ou mais ativos: a venda é do pedido inteiro (botão na linha do pedido), então aqui só Cancelar
   const vendaDoPedido = svPedidoAtivas(r).length > 1;
   const acoes = r.situacao === "ATIVA" && !svReservaMascarada(r)
-    ? `${vendaDoPedido ? "" : `<button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
+    ? `${vendaDoPedido ? "" : `<button type="button" class="btn small outline sv-write" data-svresedit="${escapeAttr(r.id)}">Editar</button>
+       <button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
        `}<button type="button" class="sv-link sv-cancelar sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
     : `<span class="muted">—</span>`;
   return { sit, sitExtra, dataExtra, acoes };
@@ -1816,7 +1817,8 @@ function svLinhaPedido(membros) {
         <td><span class="status-pill ${pill}">${escapeHtml(partes.join(" · "))}</span></td>
         <td><span class="mono">${r0.data ? formatDateBR(r0.data) : "—"}</span></td>
         <td class="sv-acoes">${svPedidoAtivas(r0).length > 1
-          ? `<button type="button" class="btn small outline sv-vender sv-write" data-svpedvender="${escapeAttr(id)}">Confirmar venda do pedido</button>
+          ? `<button type="button" class="btn small outline sv-write" data-svpededit="${escapeAttr(id)}">Editar pedido</button>
+             <button type="button" class="btn small outline sv-vender sv-write" data-svpedvender="${escapeAttr(id)}">Confirmar venda do pedido</button>
              <button type="button" class="sv-link sv-cancelar sv-write" data-svpedcancelar="${escapeAttr(id)}">Cancelar pedido</button>`
           : `<span class="muted">abrir</span>`}</td>
       </tr>`;
@@ -1886,6 +1888,12 @@ function svRenderReservaTabela() {
   });
   tbody.querySelectorAll("[data-svresvender]").forEach(btn => {
     btn.addEventListener("click", () => svMudarSituacaoReserva(btn.dataset.svresvender, "VENDIDA"));
+  });
+  tbody.querySelectorAll("[data-svresedit]").forEach(btn => {
+    btn.addEventListener("click", () => svAbrirEdicaoReserva(btn.dataset.svresedit));
+  });
+  tbody.querySelectorAll("[data-svpededit]").forEach(btn => {
+    btn.addEventListener("click", () => { const ativas = svState.reservas.filter(x => x.pedidoId === btn.dataset.svpededit && x.situacao === "ATIVA" && !svReservaMascarada(x)); if (ativas.length) svAbrirEdicaoReserva(ativas[0].id); });
   });
   tbody.querySelectorAll("[data-svpedvender]").forEach(btn => {
     btn.addEventListener("click", () => svVenderPedido(btn.dataset.svpedvender));
@@ -2328,6 +2336,321 @@ async function svCancelarPedido(pedidoId) {
   data.forEach(l => { const r = svState.reservas.find(x => x.id === l.id); if (r) Object.assign(r, svReservaFromRow(l)); });
   svRenderReserva();
   toast("Pedido cancelado.");
+}
+
+/* ---------- Editar reserva ---------- */
+/* Edita uma reserva ativa, ou o pedido inteiro quando ele tem 2 ou mais produtos ativos: cliente, unidade, vendedor,
+   representante, pagamento, transporte, observação, a quantidade de cada produto, tirar produto (a linha vira CANCELADA e a
+   quantidade volta ao estoque) e acrescentar produto. Venda confirmada ou cancelada não se edita; a data da reserva não muda.
+   Mockup: https://claude.ai/artifact/5DHmBqxmJrzJ9DNEcPdBAm */
+
+let svEdit = null; // { ids, pedidoId, data, tipoPedido, itens: [...], orig: {...}, salvando }
+
+// identifica o lote de uma reserva do mesmo jeito que svChaveOpcao identifica uma opção da Nova reserva
+function svChaveLoteReserva(r) {
+  const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
+  if (r.previsaoId && (!prev || !svStatusChegou(prev.status))) return ["P", r.codigo, "", r.previsaoId].join("|");
+  return ["E", r.codigo, (prev ? prev.armazem : r.armazem) || "", ""].join("|");
+}
+
+// quanto está livre no lote da reserva (já contando o que ela mesma reserva: some a quantidade dela para saber o máximo)
+function svLivreDoLote(r, calc) {
+  const prev = r.previsaoId ? svState.previsoes.find(p => p.id === r.previsaoId) : null;
+  if (r.previsaoId && (!prev || !svStatusChegou(prev.status))) {
+    const a = calc.aChegar.find(x => x.previsaoId === r.previsaoId && x.codigo === r.codigo);
+    return a ? a.livres : 0;
+  }
+  const l = calc.linhas.find(x => x.codigo === r.codigo && x.armazem === ((prev ? prev.armazem : r.armazem) || ""));
+  return l ? l.disp : 0;
+}
+
+function svAbrirEdicaoReserva(id) {
+  const r0 = svState.reservas.find(x => x.id === id);
+  if (!r0 || r0.situacao !== "ATIVA" || svReservaMascarada(r0)) return;
+  const membros = r0.pedidoId ? svPedidoAtivas(r0) : [r0];
+  const base = membros[0];
+  const calc = svCalcularEstoque();
+  svEdit = {
+    ids: membros.map(m => m.id), pedidoId: r0.pedidoId || null, data: base.data, tipoPedido: base.tipoPedido, salvando: false,
+    itens: membros.map(m => ({
+      id: m.id, codigo: m.codigo, previsaoId: m.previsaoId, armazem: m.armazem, novo: false, qOrig: m.quantidade, q: m.quantidade,
+      max: svLivreDoLote(m, calc) + m.quantidade, chave: svChaveLoteReserva(m), origem: svOrigemReserva(m)
+    })),
+    orig: {
+      cliente: base.cliente, unidade: base.unidadeNegocio, vendedor: base.vendedorInterno,
+      representante: base.representante || SV_SEM_REPRESENTANTE, forma: base.formaPagamento, tipo: base.tipoTransporte,
+      transp: base.transportadora, retira: !!base.clienteRetira, obs: base.obs
+    }
+  };
+  const $ = (i) => document.getElementById(i);
+  $("svEditResTitulo").textContent = membros.length > 1 ? "Editar pedido" : "Editar reserva";
+  $("svEditResSub").textContent = `Reserva de ${formatDateBR(base.data)}. Mude o que precisar; a data da reserva não muda.`;
+  $("svEditResListaClientes").innerHTML = svClientes.map(c => `<option value="${escapeAttr(c.nome)}"></option>`).join("");
+
+  const o = svEdit.orig;
+  const comAtual = (lista, atual, rotulo) => (atual && !lista.some(([v]) => v === atual) ? [[atual, rotulo ? rotulo(atual) : atual], ...lista] : lista);
+  const opcoes = (sel, lista, atual) => {
+    sel.innerHTML = lista.map(([v, t]) => `<option value="${escapeAttr(v)}">${escapeHtml(t)}</option>`).join("");
+    sel.value = atual;
+  };
+  opcoes($("svEditResUnidade"), [["", "Selecione…"], ...comAtual(Object.entries(SV_UNIDADES), o.unidade)], o.unidade);
+  opcoes($("svEditResVendedor"), [["", "Selecione…"], ...comAtual(svVendedores.map(v => [v.nome, rotuloVendedor(v.nome)]), o.vendedor, rotuloVendedor)], o.vendedor);
+  const reps = nomesSemDuplicados([...(state.representantes || []), ...svRepresentantes.map(r => r.nome)].filter(Boolean), state.representantes || []);
+  opcoes($("svEditResRepresentante"), [[SV_SEM_REPRESENTANTE, "Sem representante"], ...comAtual(reps.map(n => [n, rotuloVendedor(n)]), o.representante === SV_SEM_REPRESENTANTE ? "" : o.representante, rotuloVendedor)], o.representante);
+  opcoes($("svEditResForma"), [["", "Selecione…"], ...comAtual(SV_FORMAS_PAGAMENTO.map(f => [f, f]), o.forma)], o.forma);
+  opcoes($("svEditResTipo"), [["", "Selecione…"], ...Object.entries(SV_TIPOS_TRANSPORTE)], o.tipo);
+  opcoes($("svEditResTransp"), [["", "Selecione…"], ...comAtual(svTransportadoras.map(t => [t.nome, t.nome]), o.transp)], o.transp);
+  $("svEditResCliente").value = o.cliente;
+  $("svEditResRetira").checked = o.retira;
+  $("svEditResObs").value = o.obs;
+  $("svEditResErro").style.display = "none";
+  svDesenharEdicaoProdutos();
+  svAtualizarRetiraEdicao();
+  document.getElementById("svEditResOverlay").classList.add("show");
+  svAtualizarEdicao();
+  const primeiro = document.querySelector("#svEditResProds .sv-edit-qtd");
+  if (primeiro) primeiro.focus();
+}
+
+function svFecharEdicaoReserva() {
+  document.getElementById("svEditResOverlay").classList.remove("show");
+  svEdit = null;
+}
+
+function svAtualizarRetiraEdicao() {
+  const cliente = document.getElementById("svEditResTipo").value === "CLIENTE";
+  document.getElementById("svEditResRetiraCampo").style.display = cliente ? "" : "none";
+  if (!cliente) document.getElementById("svEditResRetira").checked = false;
+  document.getElementById("svEditResTranspCampo").style.display = document.getElementById("svEditResRetira").checked ? "none" : "";
+}
+
+function svDesenharEdicaoProdutos() {
+  const itens = svEdit.itens;
+  document.getElementById("svEditResProds").innerHTML = itens.map((it, n) => {
+    const prod = svGetProduto(it.codigo);
+    return `<div class="sv-edit-linha${it.novo ? " novo" : ""}">
+        <div class="sv-edit-prod"><b class="mono">${escapeHtml(it.codigo)}</b> ${escapeHtml(prod ? prod.medida : "(produto removido)")}${it.novo ? ' <span class="sv-edit-novo">novo</span>' : ""}<span class="muted sv-sub">${escapeHtml(it.origem)}</span></div>
+        <div class="sv-edit-qtdbox"><input type="number" class="sv-edit-qtd" min="1" step="1" value="${Number.isFinite(it.q) ? it.q : ""}" data-svedn="${n}" aria-label="Quantidade de ${escapeAttr(it.codigo)}"><span class="sv-edit-max" id="svEditMax${n}"></span></div>
+        <button type="button" class="sv-edit-rm" data-svedrm="${n}" aria-label="Tirar ${escapeAttr(it.codigo)} do pedido"${itens.length < 2 ? ' disabled title="Para liberar tudo, use Cancelar."' : ""}>×</button>
+      </div>`;
+  }).join("");
+  // produtos que ainda dá para acrescentar: lotes com saldo e que ainda não estão no pedido
+  const usados = itens.map(i => i.chave);
+  svEdit.opcoes = svMontarOpcoesReserva().filter(op => !usados.includes(svChaveOpcao(op)));
+  const sel = document.getElementById("svEditResNovoProd");
+  sel.innerHTML = svEdit.opcoes.length
+    ? svEdit.opcoes.map((op, i) => `<option value="${i}">${escapeHtml(`${op.codigo} — ${op.medida} (${op.chip} · ${op.origem})`)}</option>`).join("")
+    : `<option value="">Nada mais disponível para acrescentar</option>`;
+  document.getElementById("svEditResAdd").disabled = !svEdit.opcoes.length;
+}
+
+function svLerEdicaoQtds() {
+  document.querySelectorAll("#svEditResProds .sv-edit-qtd").forEach(el => {
+    svEdit.itens[Number(el.dataset.svedn)].q = el.value.trim() === "" ? NaN : Number(el.value);
+  });
+}
+
+// quantidade válida: de 1 ao máximo do lote (quem já passava do máximo pode manter o que tinha)
+const svQtdEdicaoOk = (it) => Number.isInteger(it.q) && it.q >= 1 && (it.q <= it.max || it.q === it.qOrig);
+
+// monta o que a pessoa digitou; { erros: [...], c: campos comuns } (o erro é uma frase pronta para a tela)
+function svLerEdicaoCampos() {
+  const $ = (i) => document.getElementById(i);
+  const o = svEdit.orig;
+  const nomeCliente = $("svEditResCliente").value.trim();
+  const cliente = svClientes.find(c => c.nome.toLowerCase() === nomeCliente.toLowerCase());
+  const tipo = $("svEditResTipo").value;
+  const retira = tipo === "CLIENTE" && $("svEditResRetira").checked;
+  const c = {
+    cliente: cliente ? cliente.nome : nomeCliente, unidade: $("svEditResUnidade").value, vendedor: $("svEditResVendedor").value,
+    representante: $("svEditResRepresentante").value, forma: $("svEditResForma").value, tipo, retira,
+    transp: retira ? "" : $("svEditResTransp").value, obs: $("svEditResObs").value.trim()
+  };
+  const erros = [];
+  if (!nomeCliente) erros.push("escolher o cliente");
+  else if (!cliente && nomeCliente !== o.cliente) erros.push("escolher um cliente da lista (ou cadastrar no CRM)");
+  if (!c.vendedor) erros.push("escolher o vendedor interno");
+  // o que a reserva já tinha preenchido não pode ficar em branco; reserva antiga que veio sem o campo pode continuar sem ele
+  if (o.unidade && !c.unidade) erros.push("escolher a unidade");
+  if (o.forma && !c.forma) erros.push("escolher a forma de pagamento");
+  if (o.tipo && !c.tipo) erros.push("escolher o tipo de transporte");
+  if (c.tipo && !c.retira && !c.transp) erros.push("escolher a transportadora");
+  return { erros, c };
+}
+
+// confere tudo e mostra o que vai mudar; liga ou desliga o Salvar
+function svAtualizarEdicao() {
+  if (!svEdit) return;
+  svLerEdicaoQtds();
+  const o = svEdit.orig;
+  const { erros, c } = svLerEdicaoCampos();
+  let qtdRuim = false;
+  svEdit.itens.forEach((it, n) => {
+    const ok = svQtdEdicaoOk(it);
+    qtdRuim = qtdRuim || !ok;
+    const max = document.getElementById("svEditMax" + n);
+    if (max) {
+      max.className = "sv-edit-max" + (ok ? "" : " ruim");
+      max.textContent = ok ? `máx. ${fmt(it.max)}` : (it.q > it.max ? `passou: máx. ${fmt(it.max)}` : `informe de 1 a ${fmt(it.max)}`);
+    }
+    const campo = document.querySelector(`#svEditResProds .sv-edit-qtd[data-svedn="${n}"]`);
+    if (campo) campo.classList.toggle("ruim", !ok);
+  });
+
+  const mud = [];
+  const dif = (rotulo, de, para) => { if ((de || "") !== (para || "")) mud.push(`${rotulo}: ${escapeHtml(de || "—")} → <b>${escapeHtml(para || "—")}</b>`); };
+  dif("Cliente", o.cliente, c.cliente);
+  dif("Unidade", SV_UNIDADES[o.unidade] || o.unidade, SV_UNIDADES[c.unidade] || c.unidade);
+  dif("Vendedor", o.vendedor, c.vendedor);
+  dif("Representante", o.representante === SV_SEM_REPRESENTANTE ? "Sem representante" : o.representante, c.representante === SV_SEM_REPRESENTANTE ? "Sem representante" : c.representante);
+  dif("Pagamento", o.forma, c.forma);
+  dif("Transporte", SV_TIPOS_TRANSPORTE[o.tipo] || o.tipo, SV_TIPOS_TRANSPORTE[c.tipo] || c.tipo);
+  if (!c.retira) dif("Transportadora", o.transp, c.transp);
+  if (c.retira !== o.retira) mud.push(c.retira ? "Cliente <b>retira</b>" : "Cliente <b>não retira</b> mais");
+  if (c.obs !== (o.obs || "")) mud.push("Observação alterada");
+  svEdit.itens.forEach(it => {
+    if (it.novo) mud.push(`<b>+ ${escapeHtml(it.codigo)}</b> ${Number.isFinite(it.q) ? fmt(it.q) : "?"} un.`);
+    else if (Number.isFinite(it.q) && it.q !== it.qOrig && it.q >= 1) mud.push(`${escapeHtml(it.codigo)}: ${fmt(it.qOrig)} → <b>${fmt(it.q)}</b> un.`);
+  });
+  svEdit.ids.forEach(idOrig => {
+    if (!svEdit.itens.some(i => i.id === idOrig)) {
+      const r = svState.reservas.find(x => x.id === idOrig);
+      if (r) mud.push(`<b>− ${escapeHtml(r.codigo)}</b> sai do pedido (${fmt(r.quantidade)} un. voltam ao estoque)`);
+    }
+  });
+  const falta = [...erros, ...(qtdRuim ? ["corrigir a quantidade em vermelho"] : [])];
+  document.getElementById("svEditResMud").innerHTML = falta.length
+    ? `Falta ${falta.join(", ")}.${mud.length ? "<br>" : ""}${mud.length ? "<b>Vai mudar:</b> " + mud.join(" · ") : ""}`
+    : (mud.length ? "<b>Vai mudar:</b> " + mud.join(" · ") : "Nenhuma alteração ainda.");
+  document.getElementById("svEditResSalvar").disabled = !mud.length || falta.length > 0 || svEdit.salvando;
+}
+
+async function svSalvarEdicaoReserva() {
+  if (!svEdit || svEdit.salvando) return;
+  svLerEdicaoQtds();
+  const { erros, c } = svLerEdicaoCampos();
+  if (erros.length || svEdit.itens.some(it => !svQtdEdicaoOk(it))) return;
+  const erro = (msg) => { const e = document.getElementById("svEditResErro"); e.textContent = msg; e.style.display = "block"; };
+  document.getElementById("svEditResErro").style.display = "none";
+  svEdit.salvando = true;
+  document.getElementById("svEditResSalvar").disabled = true;
+  const sair = () => { if (svEdit) svEdit.salvando = false; svAtualizarEdicao(); };
+
+  // reconfere com os dados de agora: outra pessoa pode ter vendido, cancelado ou reservado o mesmo lote há pouco
+  if (!(await svCarregarDados(true))) return sair();
+  const calc = svCalcularEstoque();
+  const opcoes = svMontarOpcoesReserva();
+  const mantidos = svEdit.itens.filter(i => !i.novo);
+  const removidosIds = svEdit.ids.filter(idOrig => !svEdit.itens.some(i => i.id === idOrig));
+  for (const idOrig of svEdit.ids) {
+    const r = svState.reservas.find(x => x.id === idOrig);
+    if (!r || r.situacao !== "ATIVA") {
+      toast("Essa reserva já foi alterada por outra pessoa. Atualizando a lista.");
+      svFecharEdicaoReserva();
+      svRenderReserva();
+      return;
+    }
+  }
+  for (const it of mantidos) {
+    const r = svState.reservas.find(x => x.id === it.id);
+    const maxAgora = svLivreDoLote(r, calc) + r.quantidade;
+    if (it.q !== r.quantidade && it.q > maxAgora) { erro(`${it.codigo}: agora só dá para ter até ${fmt(maxAgora)} un. (o estoque mudou). Ajuste a quantidade.`); it.max = maxAgora; svEdit.salvando = false; svDesenharEdicaoProdutos(); svAtualizarEdicao(); return; }
+  }
+  const novos = svEdit.itens.filter(i => i.novo);
+  const opcoesNovos = [];
+  for (const it of novos) {
+    const op = opcoes.find(x => svChaveOpcao(x) === it.chave);
+    if (!op || it.q > op.disp) { erro(`${it.codigo}: ${op ? `agora só há ${fmt(op.disp)} un. livres` : "não há mais saldo livre"} neste produto. Ajuste ou tire o produto.`); svEdit.salvando = false; svAtualizarEdicao(); return; }
+    opcoesNovos.push(op);
+  }
+
+  const pedidoId = svEdit.pedidoId || (novos.length ? uid("svped") : null);
+  const comuns = {
+    cliente: c.cliente, unidade_negocio: c.unidade || null, vendedor_interno: c.vendedor,
+    representante: c.representante === SV_SEM_REPRESENTANTE ? null : c.representante,
+    forma_pagamento: c.forma || null, tipo_transporte: c.tipo || null, transportadora: c.retira ? null : (c.transp || null), obs: c.obs || null,
+    ...(c.retira || svEdit.orig.retira ? { cliente_retira: c.retira } : {}) // só vai quando preciso: reserva comum não depende do SQL novo
+  };
+  const atualizar = async (id, campos) => {
+    const { data, error } = await sb.from("sv_reservas").update(campos).eq("id", id).eq("situacao", "ATIVA").select();
+    if (error) return error.message;
+    if (!data || data.length === 0) return "essa reserva já foi alterada por outra pessoa";
+    return "";
+  };
+  // ordem que não trava no saldo: primeiro o que libera estoque (tirar produto, diminuir quantidade), depois o que consome
+  let falha = "";
+  const feitas = [];
+  for (const id of removidosIds) {
+    falha = await atualizar(id, { situacao: "CANCELADA" });
+    if (falha) break;
+    feitas.push("tirar produto");
+  }
+  const reducoes = mantidos.filter(it => it.q <= it.qOrig), aumentos = mantidos.filter(it => it.q > it.qOrig);
+  for (const it of [...reducoes, ...aumentos]) {
+    if (falha) break;
+    falha = await atualizar(it.id, { ...comuns, quantidade: it.q, ...(!svEdit.pedidoId && novos.length ? { pedido_id: pedidoId } : {}) });
+    if (!falha) feitas.push(it.codigo);
+  }
+  if (!falha && novos.length) {
+    const linhas = novos.map((it, i) => ({
+      id: uid("svres"), codigo: it.codigo, quantidade: it.q, cliente: c.cliente, vendedorInterno: c.vendedor,
+      representante: c.representante === SV_SEM_REPRESENTANTE ? null : c.representante,
+      armazem: opcoesNovos[i].tipo === "E" ? opcoesNovos[i].armazem : null, previsaoId: opcoesNovos[i].tipo === "P" ? opcoesNovos[i].previsaoId : null,
+      formaPagamento: c.forma, unidadeNegocio: c.unidade, tipoTransporte: c.tipo, transportadora: c.retira ? "" : c.transp, clienteRetira: c.retira,
+      tipoPedido: svEdit.tipoPedido, pedidoId, situacao: "ATIVA", data: svEdit.data, obs: c.obs
+    }));
+    const { data, error } = await sb.from("sv_reservas").insert(linhas.map(n => ({ ...svReservaToRow(n), created_by: currentUser ? currentUser.id : null }))).select();
+    if (error) falha = error.message;
+    else if (!data || data.length !== linhas.length) falha = "sem permissão para acrescentar o produto";
+  }
+
+  await svCarregarDados(true);
+  svFecharEdicaoReserva();
+  svRenderReserva();
+  if (falha) {
+    toast(/Sem saldo dispon/.test(falha)
+      ? "O estoque mudou e não deu para salvar tudo. Confira o pedido na lista e edite de novo."
+      : `Não foi possível salvar tudo: ${falha}.${feitas.length ? " Parte das alterações já foi salva; confira o pedido na lista." : " Nada foi alterado."}`);
+    return;
+  }
+  toast(mantidos.length + novos.length > 1 ? "Pedido atualizado." : "Reserva atualizada.");
+}
+
+function svLigarEdicaoReserva() {
+  const $ = (i) => document.getElementById(i);
+  $("svEditResFechar").addEventListener("click", svFecharEdicaoReserva);
+  $("svEditResCancelar").addEventListener("click", svFecharEdicaoReserva);
+  $("svEditResSalvar").addEventListener("click", svSalvarEdicaoReserva);
+  const aoMudar = (e) => {
+    if (e.target.id === "svEditResTipo" || e.target.id === "svEditResRetira") svAtualizarRetiraEdicao();
+    $("svEditResErro").style.display = "none";
+    svAtualizarEdicao();
+  };
+  $("svEditResOverlay").addEventListener("input", aoMudar);
+  $("svEditResOverlay").addEventListener("change", aoMudar);
+  $("svEditResOverlay").addEventListener("click", (e) => {
+    if (!svEdit) return;
+    const rm = e.target.closest("[data-svedrm]");
+    if (rm && !rm.disabled) {
+      svLerEdicaoQtds();
+      svEdit.itens.splice(Number(rm.dataset.svedrm), 1);
+      svDesenharEdicaoProdutos();
+      svAtualizarEdicao();
+      return;
+    }
+    if (e.target.closest("#svEditResAdd")) {
+      const op = svEdit.opcoes[Number($("svEditResNovoProd").value)];
+      if (!op) return;
+      svLerEdicaoQtds();
+      svEdit.itens.push({ id: null, codigo: op.codigo, previsaoId: op.previsaoId || null, armazem: op.armazem || null, novo: true,
+        qOrig: 0, q: 1, max: op.disp, chave: svChaveOpcao(op), origem: op.origem });
+      svDesenharEdicaoProdutos();
+      svAtualizarEdicao();
+      const campos = document.querySelectorAll("#svEditResProds .sv-edit-qtd");
+      campos[campos.length - 1].focus();
+      campos[campos.length - 1].select();
+    }
+  });
 }
 
 // Venda parcial: a função sv_vender_parcial divide a reserva de uma vez só (a parte vendida vira uma linha VENDIDA nova e
@@ -3584,6 +3907,7 @@ function initSemVendaTelas() {
   document.getElementById("svFormRepresentante").addEventListener("submit", svAdicionarRepresentante);
   document.getElementById("svFormTransportadora").addEventListener("submit", svAdicionarTransportadora);
   svLigarReserva();
+  if (document.getElementById("svEditResOverlay")) svLigarEdicaoReserva(); // se o HTML em cache for antigo, não derruba o sistema
   svLigarClientes();
   document.getElementById("svResData").value = todayISO();
 
