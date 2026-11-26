@@ -155,6 +155,7 @@ function svReservaFromRow(r) {
     precoUnitario: r.preco_unitario === null || r.preco_unitario === undefined ? null : Number(r.preco_unitario),
     vendidoEm: r.vendido_em || "",
     pedidoId: r.pedido_id || null, // liga os produtos de um mesmo pedido (sql/sem_venda_pedido_varios_produtos.sql)
+    numeroPedido: r.numero_pedido === null || r.numero_pedido === undefined ? null : Number(r.numero_pedido), // sql/sem_venda_pedido_documento.sql
     createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
@@ -1757,7 +1758,9 @@ function svPartesReserva(r) {
     ? `${vendaDoPedido ? "" : `<button type="button" class="btn small outline sv-write" data-svresedit="${escapeAttr(r.id)}">Editar</button>
        <button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
        `}<button type="button" class="sv-link sv-cancelar sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
-    : `<span class="muted">—</span>`;
+    : vendido && !svReservaMascarada(r)
+      ? `<button type="button" class="btn small outline" data-svpedpdf="${escapeAttr(r.id)}">Pedido (PDF)</button>`
+      : `<span class="muted">—</span>`;
   return { sit, sitExtra, dataExtra, acoes };
 }
 
@@ -1820,7 +1823,9 @@ function svLinhaPedido(membros) {
           ? `<button type="button" class="btn small outline sv-write" data-svpededit="${escapeAttr(id)}">Editar pedido</button>
              <button type="button" class="btn small outline sv-vender sv-write" data-svpedvender="${escapeAttr(id)}">Confirmar venda do pedido</button>
              <button type="button" class="sv-link sv-cancelar sv-write" data-svpedcancelar="${escapeAttr(id)}">Cancelar pedido</button>`
-          : `<span class="muted">abrir</span>`}</td>
+          : svDocUnicoDoPedido(membros)
+            ? `<button type="button" class="btn small outline" data-svpedpdf="${escapeAttr(svDocUnicoDoPedido(membros).id)}">Pedido (PDF)</button>`
+            : `<span class="muted">abrir</span>`}</td>
       </tr>`;
   if (!aberto) return linha;
   const itens = membros.map(r => {
@@ -1897,6 +1902,9 @@ function svRenderReservaTabela() {
   });
   tbody.querySelectorAll("[data-svpedvender]").forEach(btn => {
     btn.addEventListener("click", () => svVenderPedido(btn.dataset.svpedvender));
+  });
+  tbody.querySelectorAll("[data-svpedpdf]").forEach(btn => {
+    btn.addEventListener("click", () => svGerarPedido(btn.dataset.svpedpdf, btn));
   });
   tbody.querySelectorAll("[data-svpedcancelar]").forEach(btn => {
     btn.addEventListener("click", () => svCancelarPedido(btn.dataset.svpedcancelar));
@@ -3856,6 +3864,154 @@ async function svGerarProposta(e) {
     toast("Não foi possível gerar o PDF da proposta: " + (err.message || err));
   } finally {
     botao.disabled = false;
+  }
+}
+
+/* ---- Pedido de venda em PDF (para o faturamento) ----
+   Um documento por venda: os produtos de um pedido vendidos juntos (mesmo pedido_id e mesmo dia) saem juntos; uma venda parcial
+   ou o restante vendido em outro dia é outro documento. O número é sequencial e fica gravado (sql/sem_venda_pedido_documento.sql). */
+function svDocVenda(r) {
+  if (!r || r.situacao !== "VENDIDA") return [];
+  if (!r.pedidoId) return [r];
+  return svState.reservas.filter(x => x.pedidoId === r.pedidoId && x.situacao === "VENDIDA" && x.vendidoEm === r.vendidoEm && !svReservaMascarada(x));
+}
+
+// pedido com 2+ produtos cujos vendidos formam um documento só (e com 2+ produtos nele): devolve uma linha dele; senão null
+function svDocUnicoDoPedido(membros) {
+  const vendidas = membros.filter(x => x.situacao === "VENDIDA" && !svReservaMascarada(x));
+  if (vendidas.length < 2) return null;
+  const doc = svDocVenda(vendidas[0]);
+  return doc.length === vendidas.length ? vendidas[0] : null;
+}
+
+// o que falta no cadastro do cliente para o faturamento: [] = completo
+function svFaltasCadastro(c) {
+  if (!c) return ["cadastro do cliente (não achei esse nome em Clientes)"];
+  const faltas = [];
+  if (!c.documento) faltas.push(c.tipoPessoa === "PF" ? "CPF" : "CNPJ");
+  if (!c.endereco) faltas.push("endereço");
+  if (!c.cidade || !c.estado) faltas.push("cidade e UF");
+  return faltas;
+}
+
+function svDadosPedidoDoc(linhas, cliente, numero) {
+  const r0 = linhas[0];
+  const agora = new Date();
+  const total = linhas.reduce((s, r) => s + (r.precoUnitario !== null ? Math.round(r.precoUnitario * r.quantidade * 100) / 100 : 0), 0);
+  // pagamento: soma de cada forma nas linhas; sem divisão, a forma única com o total
+  const porForma = new Map();
+  linhas.forEach(r => {
+    if (Array.isArray(r.divisaoPagamento) && r.divisaoPagamento.length) {
+      r.divisaoPagamento.forEach(p => porForma.set(p.forma_pagamento, Math.round(((porForma.get(p.forma_pagamento) || 0) + Number(p.valor)) * 100) / 100));
+    }
+  });
+  const pagamento = porForma.size
+    ? [...porForma].map(([forma, valor]) => ({ forma, valor }))
+    : (r0.formaPagamento ? [{ forma: r0.formaPagamento, valor: total }] : []);
+  const obs = [...new Set(linhas.map(r => (r.obs || "").trim()).filter(Boolean))].join(" · ");
+  const c = cliente;
+  return {
+    numero, dataVenda: r0.vendidoEm, dataReserva: r0.data,
+    cliente: r0.cliente, razao: c ? (c.razaoSocial || c.nome) : "", documento: c ? c.documento : "", docRotulo: c && c.tipoPessoa === "PF" ? "CPF" : "CNPJ",
+    endereco: c && c.endereco ? [c.endereco, [c.cidade, c.estado].filter(Boolean).join("/"), c.cep ? `CEP ${c.cep}` : ""].filter(Boolean).join(" · ") : "",
+    contato: c ? [c.contato, c.telefone].filter(Boolean).join(" · ") : "", email: c ? c.email : "",
+    vendedor: r0.vendedorInterno, representante: r0.representante || "Sem representante",
+    unidade: SV_UNIDADES[r0.unidadeNegocio] || "", frete: r0.clienteRetira ? "Cliente retira" : (SV_TIPOS_TRANSPORTE[r0.tipoTransporte] || ""),
+    transportadora: r0.clienteRetira ? "" : r0.transportadora,
+    forma: pagamento.map(p => p.forma).join(" + "), pagamento, obs, total,
+    itens: linhas.map(r => {
+      const p = svGetProduto(r.codigo);
+      return { codigo: r.codigo, produto: [p ? p.medida : "(produto removido)", p && p.marca].filter(Boolean).join(" · "), origem: svOrigemReserva(r),
+        quantidade: r.quantidade, preco: r.precoUnitario,
+        subtotal: r.precoUnitario !== null ? Math.round(r.precoUnitario * r.quantidade * 100) / 100 : null };
+    }),
+    geradoPor: [currentUserNome, currentUser && currentUser.email ? `(${currentUser.email})` : ""].filter(Boolean).join(" "),
+    geradoEm: `${agora.toLocaleDateString("pt-BR")} às ${agora.toLocaleTimeString("pt-BR")}`
+  };
+}
+
+function svBuildPedidoHtml(d) {
+  const ni = (v) => v && String(v).trim() ? escapeHtml(v) : `<span class="pv-ni">não informado</span>`;
+  const dinheiro = (v) => v === null || v === undefined ? "—" : `<i>R$</i><span>${escapeHtml(formatMoney(v).replace(/^R\$\s*/, ""))}</span>`;
+  const trs = d.itens.map(i => `<tr>
+        <td class="c mono">${escapeHtml(i.codigo)}</td><td>${escapeHtml(i.produto)}</td><td>${escapeHtml(i.origem)}</td>
+        <td class="c">${fmt(i.quantidade)}</td><td class="m"><div class="rs">${dinheiro(i.preco)}</div></td><td class="m"><div class="rs">${dinheiro(i.subtotal)}</div></td>
+      </tr>`).join("");
+  const unidades = d.itens.reduce((s, i) => s + i.quantidade, 0);
+  const pag = d.pagamento.length
+    ? d.pagamento.map(p => `<b>${escapeHtml(p.forma)} ${escapeHtml(formatMoney(p.valor))}</b>`).join("")
+    : `<b>${ni("")}</b>`;
+  return `
+    <div class="print-pedido">
+      <div class="pv-faixa">
+        <div class="pv-meio"><small>PEDIDO DE VENDA</small><b>Nº ${String(d.numero).padStart(4, "0")}</b></div>
+        <div class="pv-dt"><small>DATA DA VENDA</small><b>${d.dataVenda ? formatDateBR(d.dataVenda) : "—"}</b>${d.dataReserva ? `<i>reserva de ${formatDateBR(d.dataReserva)}</i>` : ""}</div>
+      </div>
+      <div class="pv-dados">
+        <span>Cliente</span><b>${ni(d.cliente)}</b><span class="sep">Frete</span><b class="d">${ni(d.frete)}</b>
+        <span>Razão social</span><b>${ni(d.razao)}</b><span class="sep">Transportadora</span><b class="d">${d.transportadora ? escapeHtml(d.transportadora) : "—"}</b>
+        <span>${d.docRotulo}</span><b>${ni(d.documento)}</b><span class="sep">Unidade</span><b class="d">${ni(d.unidade)}</b>
+        <span>Endereço entrega</span><b>${ni(d.endereco)}</b><span class="sep">Representante</span><b class="d">${ni(d.representante)}</b>
+        <span>Contato</span><b>${ni(d.contato)}</b><span class="sep">Forma de pagamento</span><b class="d">${ni(d.forma)}</b>
+        <span>Vendedor</span><b>${ni(d.vendedor)}</b><span class="sep">E-mail</span><b class="d pv-mail">${ni(d.email)}</b>
+      </div>
+      <div class="pv-sec">ITENS DO PEDIDO</div>
+      <table class="pv-tabela"><thead><tr><th class="pv-c-cod">CÓDIGO</th><th>PRODUTO</th><th>ORIGEM DO ESTOQUE</th><th class="pv-c-qtd">QUANTIDADE</th><th class="pv-c-val">VALOR UNITÁRIO</th><th class="pv-c-tot">VALOR TOTAL</th></tr></thead>
+        <tbody>${trs}</tbody></table>
+      <div class="pv-pag"><span>Divisão do pagamento</span>${pag}</div>
+      <div class="pv-tot">
+        <div class="pv-obs"><span>Observações para o pedido</span>${d.obs ? escapeHtml(d.obs) : ""}</div>
+        <div class="pv-qt">${fmt(unidades)} un.</div>
+        <div class="pv-tt"><span>TOTAL</span><b>${escapeHtml(formatMoney(d.total))}</b></div>
+      </div>
+      <div class="pv-pe"><span><b>Documento gerado por</b> ${escapeHtml(d.geradoPor)} <b>em</b> ${escapeHtml(d.geradoEm)}</span><span>Pedido nº ${String(d.numero).padStart(4, "0")}</span></div>
+    </div>`;
+}
+
+function svLimparImpressaoPedido() {
+  document.body.classList.remove("imprimindo-doc");
+  document.getElementById("reportPrintArea").innerHTML = "";
+}
+
+let svGerandoPedido = false;
+async function svGerarPedido(id, botao) {
+  if (svGerandoPedido) return;
+  svGerandoPedido = true;
+  if (botao) botao.disabled = true;
+  try {
+    // dados do banco de agora: o cadastro do cliente e o preço podem ter mudado depois da venda
+    if (!(await svCarregarDados(true))) return;
+    await svCarregarClientes(true);
+    const r = svState.reservas.find(x => x.id === id);
+    if (!r || r.situacao !== "VENDIDA") { toast("Essa reserva não está mais vendida. Atualizei a lista."); svRenderReserva(); return; }
+    const linhas = svDocVenda(r);
+    if (linhas.length === 0) return;
+    const cliente = svClientes.find(c => c.nome.toLowerCase() === r.cliente.toLowerCase()) || null;
+    const faltas = svFaltasCadastro(cliente);
+    if (faltas.length && !(await confirmModal("Cadastro do cliente incompleto", `Em ${r.cliente} faltam: ${faltas.join(", ")}. O pedido sai com "não informado" nesses campos e o faturamento vai precisar completar. Gerar mesmo assim?`, "Gerar mesmo assim", "Cancelar"))) return;
+
+    const { data: numero, error } = await sb.rpc("sv_numero_pedido", { p_ids: linhas.map(x => x.id) });
+    if (error) {
+      toast(/Could not find|does not exist|schema cache/i.test(error.message)
+        ? "Falta rodar o SQL sem_venda_pedido_documento.sql no Supabase para numerar o pedido."
+        : "Não foi possível numerar o pedido: " + error.message);
+      return;
+    }
+    linhas.forEach(x => { x.numeroPedido = numero; });
+
+    const area = document.getElementById("reportPrintArea");
+    document.body.classList.remove("imprimindo-doc"); // caso uma impressão anterior tenha sido interrompida
+    document.body.classList.add("imprimindo-doc");
+    area.innerHTML = svBuildPedidoHtml(svDadosPedidoDoc(linhas, cliente, numero));
+    window.addEventListener("afterprint", svLimparImpressaoPedido, { once: true });
+    window.print();
+  } catch (err) {
+    console.error("Erro ao gerar o pedido:", err);
+    svLimparImpressaoPedido();
+    toast("Não foi possível gerar o pedido em PDF: " + (err.message || err));
+  } finally {
+    svGerandoPedido = false;
+    if (botao) botao.disabled = false;
   }
 }
 
