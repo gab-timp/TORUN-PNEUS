@@ -12465,7 +12465,57 @@ async function showApp() {
   entrarNoSistema();
 }
 
+/* Lembrar a senha neste aparelho (caixa do login, desligada por padrão): guarda e-mail e senha no navegador e preenche na próxima vez.
+   Desmarcar a caixa apaga o que foi guardado. É guardado como texto: quem usa o computador consegue ler (a tela avisa). */
+const LOGIN_LEMBRADO_KEY = "torun_login_lembrado_v1";
+
+function loginLerLembrado() {
+  try {
+    const bruto = localStorage.getItem(LOGIN_LEMBRADO_KEY);
+    const d = bruto ? JSON.parse(bruto) : null;
+    return d && typeof d.email === "string" && typeof d.senha === "string" ? d : null;
+  } catch (e) { return null; }
+}
+
+function loginGuardarLembrado(email, senha) {
+  try { localStorage.setItem(LOGIN_LEMBRADO_KEY, JSON.stringify({ email, senha })); } catch (e) { /* sem armazenamento: só não lembra */ }
+}
+
+function loginApagarLembrado() {
+  try { localStorage.removeItem(LOGIN_LEMBRADO_KEY); } catch (e) { /* idem */ }
+}
+
+function initLoginExtras() {
+  const campoSenha = document.getElementById("loginSenha");
+  const olho = document.getElementById("loginSenhaOlho");
+  const caixa = document.getElementById("loginLembrar");
+  const aviso = document.getElementById("loginAviso");
+  if (!campoSenha || !olho || !caixa || !aviso) return; // HTML antigo em cache: o login segue como era
+  const OLHO = '<path d="M1.8 10S5 4.5 10 4.5 18.2 10 18.2 10 15 15.5 10 15.5 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.6"/>';
+  const OLHO_CORTADO = '<path d="M3 3l14 14"/><path d="M8.2 4.8A8.4 8.4 0 0 1 10 4.5c5 0 8.2 5.5 8.2 5.5a14 14 0 0 1-2.6 3.2M5.6 6.3A14 14 0 0 0 1.8 10S5 15.5 10 15.5a8.6 8.6 0 0 0 3.2-.6"/><path d="M8.3 8.4a2.6 2.6 0 0 0 3.3 3.3"/>';
+  olho.addEventListener("click", () => {
+    const mostrar = campoSenha.type === "password";
+    campoSenha.type = mostrar ? "text" : "password";
+    document.getElementById("loginSenhaIco").innerHTML = mostrar ? OLHO_CORTADO : OLHO;
+    olho.setAttribute("aria-pressed", String(mostrar));
+    olho.setAttribute("aria-label", mostrar ? "Esconder a senha" : "Mostrar a senha");
+    olho.title = mostrar ? "Esconder a senha" : "Mostrar a senha";
+  });
+  caixa.addEventListener("change", () => {
+    aviso.style.display = caixa.checked ? "" : "none";
+    if (!caixa.checked) loginApagarLembrado(); // desmarcou: apaga o que estava guardado
+  });
+  const lembrado = loginLerLembrado();
+  if (lembrado) {
+    document.getElementById("loginEmail").value = lembrado.email;
+    campoSenha.value = lembrado.senha;
+    caixa.checked = true;
+    aviso.style.display = "";
+  }
+}
+
 function initAuthUI() {
+  initLoginExtras();
   document.getElementById("formLogin").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("loginEmail").value.trim();
@@ -12481,6 +12531,9 @@ function initAuthUI() {
       return;
     }
     currentUser = data.user;
+    // lembrar neste aparelho: guarda (ou apaga) só depois de entrar com sucesso, para não guardar senha errada
+    const caixaLembrar = document.getElementById("loginLembrar");
+    if (caixaLembrar) { if (caixaLembrar.checked) loginGuardarLembrado(email, senha); else loginApagarLembrado(); }
     esquecerSistema();
     await showApp();
   });
