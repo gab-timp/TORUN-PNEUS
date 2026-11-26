@@ -1732,6 +1732,12 @@ function svRenderReservaChips() {
 }
 
 // situação, detalhe da situação, dia e botões de uma reserva (usado na linha normal e dentro do pedido aberto)
+// produtos de um pedido que ainda estão ativos (e que quem vê pode mexer: reserva mascarada não entra)
+function svPedidoAtivas(r) {
+  if (!r.pedidoId) return [];
+  return svState.reservas.filter(x => x.pedidoId === r.pedidoId && x.situacao === "ATIVA" && !svReservaMascarada(x));
+}
+
 function svPartesReserva(r) {
   const sit = svSituacaoReserva(r);
   const vendido = r.situacao === "VENDIDA";
@@ -1745,9 +1751,11 @@ function svPartesReserva(r) {
       : "";
   const dataExtra = r.situacao === "ATIVA" ? svDiasTexto(r.data)
     : (vendido && r.vendidoEm ? `vendido em ${formatDateBR(r.vendidoEm).slice(0, 5)}` : "");
+  // produto de um pedido com 2 ou mais ativos: a venda é do pedido inteiro (botão na linha do pedido), então aqui só Cancelar
+  const vendaDoPedido = svPedidoAtivas(r).length > 1;
   const acoes = r.situacao === "ATIVA" && !svReservaMascarada(r)
-    ? `<button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
-       <button type="button" class="sv-link sv-cancelar sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
+    ? `${vendaDoPedido ? "" : `<button type="button" class="btn small outline sv-vender sv-write" data-svresvender="${escapeAttr(r.id)}">Confirmar venda</button>
+       `}<button type="button" class="sv-link sv-cancelar sv-write" data-svrescancelar="${escapeAttr(r.id)}">Cancelar</button>`
     : `<span class="muted">—</span>`;
   return { sit, sitExtra, dataExtra, acoes };
 }
@@ -1807,7 +1815,10 @@ function svLinhaPedido(membros) {
         <td>${svPedidoCelula(r0)}</td>
         <td><span class="status-pill ${pill}">${escapeHtml(partes.join(" · "))}</span></td>
         <td><span class="mono">${r0.data ? formatDateBR(r0.data) : "—"}</span></td>
-        <td class="sv-acoes"><span class="muted">abrir</span></td>
+        <td class="sv-acoes">${svPedidoAtivas(r0).length > 1
+          ? `<button type="button" class="btn small outline sv-vender sv-write" data-svpedvender="${escapeAttr(id)}">Confirmar venda do pedido</button>
+             <button type="button" class="sv-link sv-cancelar sv-write" data-svpedcancelar="${escapeAttr(id)}">Cancelar pedido</button>`
+          : `<span class="muted">abrir</span>`}</td>
       </tr>`;
   if (!aberto) return linha;
   const itens = membros.map(r => {
@@ -1876,6 +1887,12 @@ function svRenderReservaTabela() {
   tbody.querySelectorAll("[data-svresvender]").forEach(btn => {
     btn.addEventListener("click", () => svMudarSituacaoReserva(btn.dataset.svresvender, "VENDIDA"));
   });
+  tbody.querySelectorAll("[data-svpedvender]").forEach(btn => {
+    btn.addEventListener("click", () => svVenderPedido(btn.dataset.svpedvender));
+  });
+  tbody.querySelectorAll("[data-svpedcancelar]").forEach(btn => {
+    btn.addEventListener("click", () => svCancelarPedido(btn.dataset.svpedcancelar));
+  });
   tbody.querySelectorAll("[data-svrescancelar]").forEach(btn => {
     btn.addEventListener("click", () => svMudarSituacaoReserva(btn.dataset.svrescancelar, "CANCELADA"));
   });
@@ -1923,7 +1940,11 @@ function svCriarLinhaDivisao() {
 // de pagamento (já preenchida com a da reserva), o valor recebido (só Boleto Trademaster), a divisão do pagamento
 // (opcional, como no Varejo) e o transporte, e mostra o total ao vivo. Devolve
 // { preco, forma, valorRecebido, divisao, tipo, transportadora } ou null se a pessoa cancelou.
-function svVendaModal(r) {
+// `membros`: os produtos ativos de um pedido (2 ou mais). Com ele a janela vende o pedido inteiro, com um preço por produto;
+// forma de pagamento, divisão e transporte são uma vez só (iguais em todos os produtos do pedido). `r` = o primeiro deles.
+// Resultado do pedido: { precos: { [idDaReserva]: preço }, forma, valorRecebido, divisao, tipo, clienteRetira, transportadora }.
+function svVendaModal(r, membros) {
+  const pedido = Array.isArray(membros) && membros.length > 1;
   return new Promise(resolve => {
     const $ = (id) => document.getElementById(id);
     const overlay = $("svVendaOverlay");
@@ -1955,14 +1976,33 @@ function svVendaModal(r) {
     const qtdNota = $("svVendaQtdNota");
     const restoEl = $("svVendaResto");
     const podeParcial = r.quantidade >= 2;
-    let modo = podeParcial && (r.tipoPedido === "PARCIAL" || r.pedidoTotal !== null) ? "PARCIAL" : "TOTAL";
+    let modo = !pedido && podeParcial && (r.tipoPedido === "PARCIAL" || r.pedidoTotal !== null) ? "PARCIAL" : "TOTAL";
     btnModoTotal.textContent = `Total · ${fmt(r.quantidade)} un.`;
     btnModoParcial.disabled = !podeParcial;
     btnModoParcial.title = podeParcial ? "" : "Só tem 1 unidade reservada: não dá pra dividir.";
     qtdInput.max = String(r.quantidade - 1);
     qtdInput.value = "";
     document.querySelector('input[name="svVendaSobra"][value="MANTER"]').checked = true;
-    $("svVendaTexto").textContent = `Reserva de ${r.quantidade} un. de ${r.codigo} para ${r.cliente}.`;
+    const qtdPedido = pedido ? membros.reduce((s, m) => s + m.quantidade, 0) : r.quantidade;
+    $("svVendaTitulo").textContent = pedido ? "Confirmar venda do pedido?" : "Confirmar venda?";
+    $("svVendaOk").textContent = pedido ? "Confirmar venda do pedido" : "Confirmar venda";
+    $("svVendaTexto").textContent = pedido
+      ? `Pedido de ${r.cliente}: ${membros.length} produtos, ${fmt(qtdPedido)} un. Informe o preço por unidade de cada produto.`
+      : `Reserva de ${r.quantidade} un. de ${r.codigo} para ${r.cliente}.`;
+    // pedido: sem Total/Parcial e sem o campo de preço único; entra uma linha de preço para cada produto
+    $("svVendaModoCampo").style.display = pedido ? "none" : "";
+    $("svVendaPrecoCampo").style.display = pedido ? "none" : "";
+    $("svVendaPedidoBox").style.display = pedido ? "" : "none";
+    const listaPrecos = $("svVendaPedidoLinhas");
+    listaPrecos.innerHTML = pedido ? membros.map(m => {
+      const prod = svGetProduto(m.codigo);
+      const preco = prod && prod.preco !== null ? prod.preco : "";
+      return `<div class="sv-ped-preco-linha">
+          <div class="sv-ped-preco-prod"><span class="mono">${escapeHtml(m.codigo)}</span><span class="muted sv-sub">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span></div>
+          <div class="mono sv-ped-preco-qtd">${fmt(m.quantidade)} un.</div>
+          <input type="number" class="sv-ped-preco" data-svpedid="${escapeAttr(m.id)}" min="0" step="0.01" placeholder="0,00" value="${escapeAttr(String(preco))}" aria-label="Preço por unidade de ${escapeAttr(m.codigo)}">
+        </div>`;
+    }).join("") : "";
     $("svVendaDica").textContent = temPreco
       ? "Já vem com o preço registrado do produto. Mude se vendeu por outro valor."
       : "Digite o preço da venda.";
@@ -2014,8 +2054,23 @@ function svVendaModal(r) {
       const n = parseInt(qtdInput.value, 10);
       return n >= 1 && n < r.quantidade ? n : NaN;
     };
-    const totalVenda = () => { const p = lerPreco(); const q = lerQtd(); return p >= 0 && q > 0 ? Math.round(p * q * 100) / 100 : 0; };
+    // venda do pedido: um preço por produto (cada campo traz o id da reserva dele)
+    const linhasPreco = () => Array.from(listaPrecos.querySelectorAll(".sv-ped-preco"));
+    const lerPrecoLinha = (el) => (el.value.trim() === "" ? NaN : Math.round(Number(el.value) * 100) / 100);
+    const qtdDaLinha = (el) => (membros.find(m => m.id === el.dataset.svpedid) || { quantidade: 0 }).quantidade;
+    const totalPedido = () => Math.round(linhasPreco().reduce((s, el) => { const p = lerPrecoLinha(el); return s + (p >= 0 ? p * qtdDaLinha(el) : 0); }, 0) * 100) / 100;
+    const pedidoCompleto = () => linhasPreco().every(el => lerPrecoLinha(el) >= 0);
+    const totalVenda = () => {
+      if (pedido) return totalPedido();
+      const p = lerPreco(); const q = lerQtd(); return p >= 0 && q > 0 ? Math.round(p * q * 100) / 100 : 0;
+    };
     const atualizarTotal = () => {
+      if (pedido) {
+        const ok = pedidoCompleto();
+        totalEl.textContent = ok ? formatMoney(totalPedido()) : "—";
+        contaEl.textContent = ok ? `${membros.length} produtos · ${fmt(qtdPedido)} un.` : "Informe o preço de todos os produtos.";
+        return;
+      }
       const p = lerPreco();
       const q = lerQtd();
       const valido = p >= 0 && q > 0;
@@ -2088,6 +2143,8 @@ function svVendaModal(r) {
       cancelBtn.removeEventListener("click", onCancel);
       input.removeEventListener("input", onInput);
       input.removeEventListener("keydown", onTecla);
+      listaPrecos.removeEventListener("input", onInput);
+      listaPrecos.removeEventListener("keydown", onTecla);
       selForma.removeEventListener("change", onInput);
       recebido.removeEventListener("input", onInput);
       chkDividir.removeEventListener("change", onDividir);
@@ -2104,11 +2161,20 @@ function svVendaModal(r) {
     };
     const falha = (msg) => { erro.textContent = msg; erro.style.display = "block"; };
     const onOk = () => {
-      const qtd = lerQtd();
-      if (Number.isNaN(qtd)) return falha(`Informe quantas unidades foram vendidas, de 1 a ${fmt(r.quantidade - 1)}. Para vender todas, escolha Total.`);
-      const p = lerPreco();
-      if (Number.isNaN(p)) return falha("Informe o preço por unidade.");
-      if (p < 0) return falha("O preço não pode ser negativo.");
+      let qtd = null, p = null, precos = null;
+      if (pedido) {
+        const semPreco = linhasPreco().filter(el => Number.isNaN(lerPrecoLinha(el)));
+        if (semPreco.length) return falha(`Informe o preço por unidade de: ${semPreco.map(el => (membros.find(m => m.id === el.dataset.svpedid) || {}).codigo).join(", ")}.`);
+        if (linhasPreco().some(el => lerPrecoLinha(el) < 0)) return falha("O preço não pode ser negativo.");
+        precos = {};
+        linhasPreco().forEach(el => { precos[el.dataset.svpedid] = lerPrecoLinha(el); });
+      } else {
+        qtd = lerQtd();
+        if (Number.isNaN(qtd)) return falha(`Informe quantas unidades foram vendidas, de 1 a ${fmt(r.quantidade - 1)}. Para vender todas, escolha Total.`);
+        p = lerPreco();
+        if (Number.isNaN(p)) return falha("Informe o preço por unidade.");
+        if (p < 0) return falha("O preço não pode ser negativo.");
+      }
       if (!selForma.value) return falha("Escolha a forma de pagamento para confirmar a venda.");
       const ehTm = selForma.value === "BOLETO TRADEMASTER";
       if (ehTm && recebido.value.trim() === "") return falha("Informe o valor recebido para Boleto Trademaster.");
@@ -2136,10 +2202,10 @@ function svVendaModal(r) {
           : "Cadastre as transportadoras em Administração, Transportadoras, antes de confirmar a venda.");
       }
       cleanup({
-        preco: p, forma: selForma.value, valorRecebido: ehTm ? Math.round(parseFloat(recebido.value) * 100) / 100 : null,
+        precos, preco: p, forma: selForma.value, valorRecebido: ehTm ? Math.round(parseFloat(recebido.value) * 100) / 100 : null,
         divisao, tipo: selTipo.value, clienteRetira: caixaRetira.checked, transportadora: caixaRetira.checked ? null : selTransp.value,
-        parcial: modo === "PARCIAL", quantidade: qtd,
-        sobra: modo === "PARCIAL" ? document.querySelector('input[name="svVendaSobra"]:checked').value : null
+        parcial: !pedido && modo === "PARCIAL", quantidade: qtd,
+        sobra: !pedido && modo === "PARCIAL" ? document.querySelector('input[name="svVendaSobra"]:checked').value : null
       });
     };
     const onCancel = () => cleanup(null);
@@ -2148,6 +2214,8 @@ function svVendaModal(r) {
     cancelBtn.addEventListener("click", onCancel);
     input.addEventListener("input", onInput);
     input.addEventListener("keydown", onTecla);
+    listaPrecos.addEventListener("input", onInput);
+    listaPrecos.addEventListener("keydown", onTecla);
     selForma.addEventListener("change", onInput);
     recebido.addEventListener("input", onInput);
     chkDividir.addEventListener("change", onDividir);
@@ -2162,9 +2230,104 @@ function svVendaModal(r) {
     qtdInput.addEventListener("keydown", onTecla);
     atualizarTudo();
     overlay.classList.add("show");
-    input.focus();
-    input.select();
+    const primeiroVazio = pedido ? (linhasPreco().find(el => el.value === "") || linhasPreco()[0]) : input;
+    primeiroVazio.focus();
+    primeiroVazio.select();
   });
+}
+
+// Rateia um valor em partes proporcionais aos pesos, em centavos, e a última parte fica com a diferença: a soma das partes
+// é sempre exatamente o valor (sem sobrar nem faltar centavo).
+function svRatear(valor, pesos) {
+  const totalPeso = pesos.reduce((s, p) => s + p, 0);
+  const centavos = Math.round(valor * 100);
+  let acumulado = 0;
+  return pesos.map((p, i) => {
+    const parte = i === pesos.length - 1 ? centavos - acumulado : Math.round(centavos * (totalPeso > 0 ? p / totalPeso : 1 / pesos.length));
+    acumulado += parte;
+    return parte / 100;
+  });
+}
+
+// Venda do pedido inteiro: todos os produtos ativos do pedido viram VENDIDA de uma vez, cada um com o seu preço. O valor recebido
+// (Boleto Trademaster) e a divisão do pagamento são do pedido; cada produto guarda a sua parte, proporcional ao valor dele, de modo que
+// somando os produtos dá o que foi digitado.
+// Atualiza um produto por vez (como o resto da tela); se algum falhar, os que já tinham sido vendidos voltam a ATIVA.
+async function svVenderPedido(pedidoId) {
+  const membros = svState.reservas.filter(x => x.pedidoId === pedidoId && x.situacao === "ATIVA" && !svReservaMascarada(x));
+  if (membros.length === 0) return;
+  if (membros.length === 1) { await svMudarSituacaoReserva(membros[0].id, "VENDIDA"); return; }
+  const venda = await svVendaModal(membros[0], membros);
+  if (venda === null) return;
+
+  const valores = membros.map(m => Math.round(venda.precos[m.id] * m.quantidade * 100) / 100);
+  const recebidoPartes = venda.valorRecebido !== null ? svRatear(venda.valorRecebido, valores) : null;
+  const divisaoPartes = venda.divisao ? venda.divisao.map(d => svRatear(d.valor, valores)) : null; // [forma][produto]
+  const feitas = [];
+  let falha = "";
+  for (let i = 0; i < membros.length; i++) {
+    const m = membros[i];
+    const campos = {
+      situacao: "VENDIDA", preco_unitario: venda.precos[m.id], forma_pagamento: venda.forma,
+      valor_recebido: recebidoPartes ? recebidoPartes[i] : null,
+      divisao_pagamento: venda.divisao ? venda.divisao.map((d, k) => ({ forma_pagamento: d.forma_pagamento, valor: divisaoPartes[k][i] })) : null,
+      tipo_transporte: venda.tipo, transportadora: venda.transportadora, vendido_em: todayISO(),
+      ...(venda.clienteRetira || m.clienteRetira ? { cliente_retira: !!venda.clienteRetira } : {})
+    };
+    const { data, error } = await sb.from("sv_reservas").update(campos).eq("id", m.id).eq("situacao", "ATIVA").select();
+    if (error || !data || data.length === 0) {
+      falha = error ? error.message : "uma das reservas já foi alterada por outra pessoa";
+      break;
+    }
+    feitas.push({ antes: { ...m }, linha: data[0] });
+  }
+
+  if (falha) {
+    // desfaz os que já tinham sido vendidos, para o pedido não ficar meio vendido
+    let desfeitos = 0;
+    for (const f of feitas) {
+      const { error } = await sb.from("sv_reservas").update({
+        situacao: "ATIVA", preco_unitario: null, vendido_em: null, valor_recebido: null, divisao_pagamento: null,
+        forma_pagamento: f.antes.formaPagamento || null, tipo_transporte: f.antes.tipoTransporte || null, transportadora: f.antes.transportadora || null,
+        cliente_retira: !!f.antes.clienteRetira
+      }).eq("id", f.antes.id);
+      if (!error) desfeitos++;
+    }
+    await svCarregarDados(true);
+    svRenderReserva();
+    toast(feitas.length === 0
+      ? `Não foi possível confirmar a venda do pedido: ${falha}. Nada foi vendido.`
+      : desfeitos === feitas.length
+        ? `Não foi possível confirmar a venda do pedido: ${falha}. As vendas já feitas foram desfeitas; confira a lista e tente de novo.`
+        : `A venda do pedido falhou no meio (${falha}) e ${feitas.length - desfeitos} produto(s) ficaram vendidos. Confira o pedido na lista.`);
+    return;
+  }
+
+  feitas.forEach(f => {
+    const r = svState.reservas.find(x => x.id === f.antes.id);
+    if (r) Object.assign(r, svReservaFromRow(f.linha));
+  });
+  svRenderReserva();
+  toast(`Venda confirmada: ${membros.length} produtos, ${formatMoney(valores.reduce((s, v) => s + v, 0))}.`);
+}
+
+// Cancelar o pedido: libera de uma vez todos os produtos que ainda estão ativos.
+async function svCancelarPedido(pedidoId) {
+  const membros = svState.reservas.filter(x => x.pedidoId === pedidoId && x.situacao === "ATIVA" && !svReservaMascarada(x));
+  if (membros.length === 0) return;
+  const un = membros.reduce((s, m) => s + m.quantidade, 0);
+  if (!(await confirmModal("Cancelar o pedido?", `Libera as ${fmt(un)} un. dos ${membros.length} produtos reservados para ${membros[0].cliente}.`))) return;
+  const { data, error } = await sb.from("sv_reservas").update({ situacao: "CANCELADA" }).in("id", membros.map(m => m.id)).eq("situacao", "ATIVA").select();
+  if (error) { toast("Erro ao salvar: " + error.message); return; }
+  if (!data || data.length !== membros.length) {
+    toast("Alguma reserva do pedido já foi alterada por outra pessoa. Atualizando a lista.");
+    await svCarregarDados(true);
+    svRenderReserva();
+    return;
+  }
+  data.forEach(l => { const r = svState.reservas.find(x => x.id === l.id); if (r) Object.assign(r, svReservaFromRow(l)); });
+  svRenderReserva();
+  toast("Pedido cancelado.");
 }
 
 // Venda parcial: a função sv_vender_parcial divide a reserva de uma vez só (a parte vendida vira uma linha VENDIDA nova e

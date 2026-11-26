@@ -466,3 +466,12 @@ td.sv-num{font-family:'Space Mono',monospace;}
 .sv-est-caminho small{font-size:10.5px; color:var(--ink-soft); font-weight:600;}
 .sv-est-caminho.zero b{color:var(--danger);}
 .kpi .kpi-sub{margin-top:2px; font-size:11px;}
+
+/* Venda do pedido inteiro: uma linha de preço por produto */
+.sv-ped-precos{display:flex; flex-direction:column; border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+.sv-ped-preco-linha{display:grid; grid-template-columns:minmax(0,1fr) auto 130px; gap:10px; align-items:center; padding:9px 12px; border-top:1px solid var(--line);}
+.sv-ped-preco-linha:first-child{border-top:0;}
+.sv-ped-preco-prod{display:flex; flex-direction:column; min-width:0;}
+.sv-ped-preco-qtd{font-size:12.5px; color:var(--ink-soft); white-space:nowrap;}
+.sv-ped-preco{text-align:right; font-family:'Space Mono',monospace; font-weight:700;}
+@media (max-width:560px){ .sv-ped-preco-linha{grid-template-columns:minmax(0,1fr) 110px;} .sv-ped-preco-qtd{grid-column:1;} }

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=190">
-<link rel="stylesheet" href="semvenda.css?v=41">
+<link rel="stylesheet" href="semvenda.css?v=42">
 <link rel="stylesheet" href="crm.css?v=44">
 <link rel="stylesheet" href="usuarios.css?v=6">
 <link rel="stylesheet" href="seletores-dash.css?v=2">
@@ -4313,7 +4313,7 @@
   <div class="modal" role="dialog" aria-labelledby="svVendaTitulo">
     <h3 id="svVendaTitulo">Confirmar venda?</h3>
     <p id="svVendaTexto"></p>
-    <div class="field">
+    <div class="field" id="svVendaModoCampo">
       <label id="svVendaModoRotulo">Esta venda</label>
       <div class="sv-seg" id="svVendaModo" role="group" aria-labelledby="svVendaModoRotulo">
         <button type="button" id="svVendaModoTotal" data-svmodo="TOTAL" class="on" aria-pressed="true">Total</button>
@@ -4334,7 +4334,14 @@
         </div>
       </div>
     </div>
-    <div class="field">
+    <div id="svVendaPedidoBox" style="display:none;">
+      <div class="field">
+        <label id="svVendaPedidoRotulo">Preço por unidade de cada produto (R$)</label>
+        <div id="svVendaPedidoLinhas" class="sv-ped-precos" role="group" aria-labelledby="svVendaPedidoRotulo"></div>
+        <div class="note">Já vem com o preço registrado de cada produto. Mude o que vendeu por outro valor. Produto sem preço registrado fica em branco.</div>
+      </div>
+    </div>
+    <div class="field" id="svVendaPrecoCampo">
       <label for="svVendaPreco">Preço por unidade (R$)</label>
       <input type="number" id="svVendaPreco" min="0" step="0.01" placeholder="0,00">
       <div class="note" id="svVendaDica">Já vem com o preço registrado do produto. Mude se vendeu por outro valor.</div>
@@ -4974,7 +4981,7 @@
 
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
-<script src="semvenda.js?v=60"></script>
+<script src="semvenda.js?v=61"></script>
 <script src="crm.js?v=48"></script>
 <script src="crm-ligacoes.js?v=11"></script>
 <script src="crm-perfil.js?v=11"></script>
