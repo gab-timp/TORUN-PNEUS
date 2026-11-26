@@ -1,0 +1,183 @@
+<title>CRM Arquivados</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap">
+<style>
+/* Ligações > Arquivados: corrigir cotações aprovadas depois que o contato foi finalizado.
+   Linha clicável (abre o cartão grande, etapa travada) + botão "Marcar aprovadas" na linha. Visual do sistema. */
+:root{
+  --ink:#161616; --ink-soft:#6B6B6B; --surface:#fff; --paper:#F7F7F5; --paper-2:#EFEEEA; --line:#E2E0D8;
+  --orange:#FF6A13; --orange-pale:#FFE7D6; --tint-orange:#FFF4EC;
+  --good:#15803D; --good-pale:#DFF3E6; --danger:#B91C1C; --danger-pale:#FDE6E6; --warning:#B45309; --warning-pale:#FEF3C7;
+  --side:#000; --side-ink:#d8d8d8;
+  --shadow-card:0 1px 2px rgba(0,0,0,.04),0 10px 24px -14px rgba(0,0,0,.14);
+  --shadow-modal:0 20px 60px -20px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ink:#EDEDED; --ink-soft:#A0A0A0; --surface:#1C1C1C; --paper:#101010; --paper-2:#1A1A1A; --line:#2C2C2C;
+  --orange-pale:#3a2415; --tint-orange:#2A1F16; --good-pale:#10301c; --good:#6fdc98; --danger-pale:#3a1616; --danger:#ff8a8a;
+  --warning-pale:#38280a; --warning:#f2b35a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ink:#EDEDED; --ink-soft:#A0A0A0; --surface:#1C1C1C; --paper:#101010; --paper-2:#1A1A1A; --line:#2C2C2C;
+  --orange-pale:#3a2415; --tint-orange:#2A1F16; --good-pale:#10301c; --good:#6fdc98; --danger-pale:#3a1616; --danger:#ff8a8a;
+  --warning-pale:#38280a; --warning:#f2b35a; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,system-ui,sans-serif;font-size:14px}
+.mono{font-family:'Space Mono',monospace}
+.shell{display:flex;min-height:100vh}
+.side{width:224px;flex:0 0 224px;background:var(--side);color:var(--side-ink);padding:20px 12px;display:flex;flex-direction:column;gap:18px}
+.brand{font-weight:800;letter-spacing:.04em;color:#fff;padding:0 10px}
+.brand small{display:block;font-weight:600;font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav div{padding:9px 10px;border-radius:9px;font-weight:600;font-size:13px}
+.nav div.on{background:var(--orange);color:#000}
+main{flex:1;min-width:0;padding:24px 28px 60px}
+h1{margin:0;font-size:24px;letter-spacing:-.01em}
+.sub{color:var(--ink-soft);margin:4px 0 16px;max-width:64ch;line-height:1.45}
+.abas{display:inline-flex;background:var(--paper-2);border-radius:10px;padding:3px;margin-bottom:14px}
+.abas span{padding:7px 14px;border-radius:8px;font-weight:600;color:var(--ink-soft)}
+.abas span.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-card)}
+.novo{background:var(--tint-orange);border:1px solid var(--orange-pale);border-radius:12px;padding:12px 14px;margin-bottom:14px;line-height:1.5;max-width:92ch}
+.novo b{color:var(--orange)}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;min-width:900px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr.lin{cursor:pointer} tbody tr.lin:hover td{background:var(--paper)}
+th.num,td.num{text-align:right}
+.nome{font-weight:700}
+.muted{color:var(--ink-soft)} .sv-sub{font-size:12px;margin-top:2px}
+.pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700}
+.p-ok{background:var(--good-pale);color:var(--good)} .p-no{background:var(--danger-pale);color:var(--danger)}
+.ok{color:var(--good);font-weight:700}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--ink-soft)}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:#000}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.acoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.barra{height:6px;border-radius:99px;background:var(--paper-2);margin-top:6px;overflow:hidden;min-width:110px}
+.barra span{display:block;height:100%;background:var(--good)}
+.veu{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+.veu.on{display:flex}
+.modal{background:var(--surface);border-radius:20px;box-shadow:var(--shadow-modal);width:min(720px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:24px}
+.modal.peq{width:min(420px,100%)}
+.mtop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.mtop h2{margin:0;font-size:22px}
+.x{border:0;background:var(--paper-2);color:var(--ink);width:34px;height:34px;border-radius:10px;font-size:18px;cursor:pointer;flex:none}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.selo{border-radius:7px;padding:2px 8px;font-size:11.5px;font-weight:700;background:var(--paper-2);color:var(--ink-soft)}
+.trava{display:flex;gap:10px;align-items:flex-start;background:var(--warning-pale);color:var(--warning);border-radius:12px;padding:11px 13px;margin-top:14px;font-weight:600;line-height:1.4}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:16px}
+.grupo{display:flex;flex-direction:column;gap:9px;min-width:0}
+.tit{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-soft);font-weight:700;border-bottom:1px solid var(--line);padding-bottom:6px}
+.kv{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.kv>span:first-child{color:var(--ink-soft);font-size:12.5px}
+select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+select:disabled{background:var(--paper-2);color:var(--ink-soft);cursor:not-allowed}
+.passo{display:inline-flex;align-items:center;gap:10px}
+.passo button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:18px;font-weight:700;cursor:pointer}
+.passo button:disabled{opacity:.4;cursor:not-allowed}
+.passo .n{min-width:28px;text-align:center;font-size:20px;font-weight:700}
+.hist div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.rod{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:18px}
+.erro{display:none;color:var(--danger);font-weight:600;margin-top:10px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:10px;font-weight:600;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+.toast.on{opacity:1}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+@media(max-width:760px){.side{display:none} main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}}
+</style>
+
+<div class="shell">
+<aside class="side">
+  <div class="brand">TORUN<small>CRM Atacado</small></div>
+  <div class="nav"><div>Hoje</div><div>Clientes</div><div class="on">Ligações</div><div>Faturamento</div><div>Desempenho</div></div>
+</aside>
+<main>
+  <h1>Ligações</h1>
+  <div class="sub">Cada contato do cliente tem seu cartão. Quando ele termina em Fechado ou Declinou, vai para Arquivados.</div>
+  <div class="abas"><span>Kanban</span><span>Lista</span><span class="on">Arquivados</span></div>
+  <div class="novo"><b>Novo:</b> clique numa linha para abrir o cartão do contato, ou use <b>Marcar aprovadas</b> para corrigir as cotações sem abrir nada. A etapa fica travada, então o contato não volta ao kanban sem querer. Teste: mude as aprovadas e salve.</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Cliente</th><th>Contato</th><th>Terminou em</th><th>Cotações</th><th>Obs. do cartão</th><th class="num">Ligações</th><th></th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div>
+</main>
+</div>
+
+<div class="veu" id="vCart"><div class="modal" role="dialog" aria-modal="true" aria-label="Cartão do contato" id="mCart"></div></div>
+<div class="veu" id="vCot"><div class="modal peq" role="dialog" aria-modal="true" aria-label="Cotações aprovadas" id="mCot"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const D=[
+ {id:1,cli:'AUTO CENTER BOA VISTA',loc:'Londrina/PR',num:2,fim:'12/11/2026',et:'Fechado',env:5,apr:3,obs:'Pedido fechado em 2 cargas. Cliente quer 1 cotação nova em janeiro.',lig:[['12/11 às 15:20','Fechou negócio'],['09/11 às 10:05','Enviou cotação'],['03/11 às 16:40','Falou com o decisor']],meu:true},
+ {id:2,cli:'PNEUS DO VALE LTDA',loc:'Joinville/SC',num:1,fim:'05/11/2026',et:'Declinou',env:2,apr:0,obs:'',lig:[['05/11 às 09:12','Sem interesse'],['29/10 às 14:30','Enviou cotação']],meu:true},
+ {id:3,cli:'MOTO PEÇAS CENTRAL',loc:'Curitiba/PR',num:1,fim:'28/10/2026',et:'Fechado',env:4,apr:4,obs:'Todas aprovadas.',lig:[['28/10 às 11:00','Fechou negócio']],meu:true},
+ {id:4,cli:'RODAGEM SUL',loc:'Porto Alegre/RS',num:3,fim:'21/10/2026',et:'Fechado',env:3,apr:1,obs:'',lig:[['21/10 às 17:45','Fechou negócio']],meu:false,dono:'Ana'}
+];
+const pct=(a,e)=>e?Math.round(a/e*100)+'%':'—';
+const tb=$('#tb');
+function lista(){
+  tb.innerHTML=D.map(n=>`<tr class="lin" data-id="${n.id}">
+   <td><div class="nome">${n.cli}</div><div class="muted sv-sub">${n.loc}</div></td>
+   <td>${n.num}º contato</td>
+   <td><span class="mono">${n.fim}</span> <span class="pill ${n.et==='Fechado'?'p-ok':'p-no'}">${n.et}</span></td>
+   <td><b class="mono">${n.env}</b> enviadas · <b class="mono ok">${n.apr}</b> aprovadas<div class="barra"><span style="width:${n.env?n.apr/n.env*100:0}%"></span></div></td>
+   <td>${n.obs?n.obs:'<span class="muted">—</span>'}</td>
+   <td class="num mono">${n.lig.length}</td>
+   <td><div class="acoes">${n.meu?`<button class="btn" data-cot="${n.id}">Marcar aprovadas</button><button class="btn" data-novo="${n.id}">Iniciar novo contato</button>`:`<span class="muted sv-sub">Só leitura: carteira de ${n.dono}</span>`}</div></td></tr>`).join('');
+}
+let cur=null,val=0;
+const passo=(id,menosId,maisId)=>`<span class="passo"><button type="button" id="${menosId}" aria-label="Menos uma aprovada">−</button><span class="n mono" id="${id}">0</span><button type="button" id="${maisId}" aria-label="Mais uma aprovada">+</button></span>`;
+function abreCart(id){
+  cur=D.find(x=>x.id===id);val=cur.apr;const ed=cur.meu;
+  $('#mCart').innerHTML=`<div class="mtop"><div><h2>${cur.cli}</h2><div class="chips"><span class="selo">${cur.num}º contato</span><span class="selo">${cur.loc}</span>${ed?'':`<span class="selo">${cur.dono}</span>`}</div></div><button class="x" data-fecha aria-label="Fechar">×</button></div>
+  ${ed?'':`<div class="trava">Só leitura: este contato é da carteira de ${cur.dono}. Você acompanha, mas não edita.</div>`}
+  <div class="trava" ${ed?'':'hidden'}><span>🔒</span><span>Contato finalizado em ${cur.fim} (${cur.et}). A etapa fica travada. Para voltar a negociar, use “Iniciar novo contato” na lista.</span></div>
+  <div class="grade">
+   <div class="grupo"><div class="tit">Andamento</div>
+    <div class="kv"><span>Etapa</span><select disabled aria-label="Etapa do contato"><option>${cur.et}</option></select></div>
+    <div class="kv"><span>Terminou em</span><span class="mono">${cur.fim}</span></div>
+    <div class="kv"><span>Neste contato</span><span class="muted">${cur.lig.length} ligações</span></div>
+    <div class="tit" style="margin-top:6px">Ligações deste contato</div>
+    <div class="hist">${cur.lig.map(l=>`<div><span class="mono">${l[0]}</span><span class="pill ${l[1]==='Fechou negócio'?'p-ok':l[1]==='Sem interesse'?'p-no':''}" style="${/Fechou|Sem/.test(l[1])?'':'background:var(--paper-2);color:var(--ink-soft)'}">${l[1]}</span></div>`).join('')}</div>
+   </div>
+   <div class="grupo"><div class="tit">Cotações</div>
+    <div class="kv"><span>Enviadas</span><b class="mono">${cur.env}</b></div>
+    <div class="kv"><span>Aprovadas</span>${passo('cN','cMenos','cMais')}</div>
+    <div class="muted sv-sub" id="cPct"></div><div class="barra"><span id="cBarra"></span></div>
+    <div class="tit" style="margin-top:6px">Observação do cartão</div>
+    <textarea id="cObs" rows="3" aria-label="Observação do cartão" ${ed?'':'readonly'}>${cur.obs}</textarea>
+   </div></div>
+  <div class="erro" id="cErro"></div>
+  <div class="rod"><button class="btn" data-fecha>${ed?'Cancelar':'Fechar'}</button>${ed?'<button class="btn primary" id="cSalvar">Salvar</button>':''}</div>`;
+  attCart();$('#vCart').classList.add('on');
+  if(ed){$('#cMenos').onclick=()=>{if(val>0){val--;attCart()}};$('#cMais').onclick=()=>{if(val<cur.env){val++;attCart()}};
+   $('#cSalvar').onclick=()=>{cur.apr=val;cur.obs=$('#cObs').value.trim();fecha();lista();aviso('Cartão atualizado. O contato continua em Arquivados.')}}
+  else{$('#cMenos').disabled=$('#cMais').disabled=true}
+}
+function attCart(){$('#cN').textContent=val;$('#cPct').textContent=cur.env?pct(val,cur.env)+' das enviadas':'nenhuma cotação enviada';$('#cBarra').style.width=(cur.env?val/cur.env*100:0)+'%';
+  if(cur.meu){$('#cMenos').disabled=val<=0;$('#cMais').disabled=val>=cur.env}}
+function abreCot(id){
+  cur=D.find(x=>x.id===id);val=cur.apr;
+  $('#mCot').innerHTML=`<div class="mtop"><div><h2>Cotações aprovadas</h2><div class="muted sv-sub">${cur.cli} · ${cur.num}º contato</div></div><button class="x" data-fecha aria-label="Fechar">×</button></div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin:20px 0">${passo('pN','pMenos','pMais')}<div class="muted" id="pTxt"></div></div>
+  <div class="muted sv-sub" style="text-align:center">Não pode passar das ${cur.env} enviadas. Dá para corrigir depois.</div>
+  <div class="rod"><button class="btn" data-fecha>Cancelar</button><button class="btn primary" id="pSalvar">Salvar</button></div>`;
+  const at=()=>{$('#pN').textContent=val;$('#pTxt').textContent=pct(val,cur.env)+' das enviadas';$('#pMenos').disabled=val<=0;$('#pMais').disabled=val>=cur.env};
+  at();$('#pMenos').onclick=()=>{val--;at()};$('#pMais').onclick=()=>{val++;at()};
+  $('#pSalvar').onclick=()=>{cur.apr=val;fecha();lista();aviso('Cotações aprovadas atualizadas.')};
+  $('#vCot').classList.add('on');
+}
+function fecha(){$('#vCart').classList.remove('on');$('#vCot').classList.remove('on')}
+function aviso(t){const el=$('#toast');el.textContent=t;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),2200)}
+document.addEventListener('click',e=>{
+  if(e.target.closest('[data-fecha]')||e.target.classList.contains('veu'))return fecha();
+  const c=e.target.closest('[data-cot]');if(c)return abreCot(+c.dataset.cot);
+  const n=e.target.closest('[data-novo]');if(n)return aviso('Abriria um novo contato em Sem etapa (igual ao de hoje).');
+  const r=e.target.closest('tr.lin');if(r)abreCart(+r.dataset.id);
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecha()});
+lista();
+</script>
