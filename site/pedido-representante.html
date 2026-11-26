@@ -16,13 +16,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=135">
-<link rel="stylesheet" href="pedido-representante.css?v=25">
+<link rel="stylesheet" href="usuarios.css?v=6">
+<link rel="stylesheet" href="pedido-representante.css?v=26">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
 </head>
 <body>
 
 <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
   <defs>
+      <g id="i-bell" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 2.5c-3 0-4.4 2.3-4.4 5.4 0 4.4-1.6 5-1.6 5.6 0 .5.5.9 1 .9h10c.5 0 1-.4 1-.9 0-.6-1.6-1.2-1.6-5.6 0-3.1-1.4-5.4-4.4-5.4Z"/>
+        <path d="M8.2 16.6a1.9 1.9 0 0 0 3.6 0"/>
+      </g>
+      <g id="i-close" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></g>
+      <g id="i-camera" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h2.4L7 4.5h6L14.6 7H17a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="10" cy="11" r="3"/></g>
+      <g id="i-user" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="6.7" r="3.2"/><path d="M3.3 16.5c.7-3.5 2.9-5.3 6.7-5.3s6 1.8 6.7 5.3"/></g>
+      <g id="i-lock" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></g>
+      <g id="i-palette" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a7.5 7.5 0 1 0 0 15c1 0 1.6-.7 1.6-1.5 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.5A3.3 3.3 0 0 0 17 9.3C17 5.5 13.9 2.5 10 2.5Z"/><circle cx="6" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="5.5" r=".9" fill="currentColor" stroke="none"/><circle cx="13" cy="6.5" r=".9" fill="currentColor" stroke="none"/></g>
     <g id="i-image" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
       <rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7.3" cy="8" r="1.5"/><path d="m4 15 4.3-4.3a1.5 1.5 0 0 1 2.1 0L16 16"/>
     </g>
@@ -125,7 +135,7 @@
         <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
         <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
       </div>
-      <div class="rep-sidebar-nome">Representante: <b id="repNomeVendedor" class="rep-nome-clicavel" title="Minhas configurações"></b></div>
+      <button type="button" class="rep-perfil" id="repPerfil" title="Minhas configurações" aria-label="Minhas configurações"><span class="rep-perfil-av" id="repPerfilAvatar"></span><span class="rep-perfil-txt"><b id="repNomeVendedor"></b><small>Representante</small></span></button>
       <button type="button" class="ghost-btn" id="btnLogoutRep">⎋ Sair</button>
     </div>
   </aside>
@@ -666,27 +676,100 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="minhasConfigOverlay">
-  <div class="modal">
-    <h3>Minhas configurações</h3>
-    <div class="field">
-      <label>Tema</label>
-      <div class="theme-toggle">
-        <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
-        <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
-        <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
+<div class="modal-overlay drawer-overlay" id="minhasConfigOverlay">
+  <div class="modal drawer">
+    <div class="drawer-hero">
+      <button type="button" class="drawer-close" id="minhasConfigCancelar" title="Fechar">
+        <svg class="ic" viewBox="0 0 20 20"><use href="#i-close"/></svg>
+      </button>
+      <div class="drawer-avatar-wrap">
+        <div class="drawer-avatar" id="minhasConfigAvatarPreview"></div>
+        <button type="button" class="drawer-avatar-edit" id="btnMinhasConfigAvatar" title="Alterar foto">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-camera"/></svg>
+        </button>
+        <input type="file" id="minhasConfigAvatarInput" accept="image/*" style="display:none;">
+      </div>
+      <div class="drawer-name" id="minhasConfigDrawerNome"></div>
+      <div class="drawer-role">Representante</div>
+    </div>
+
+    <div class="drawer-body">
+      <div class="drawer-section">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-user"/></svg></span><h4>Informações</h4></div>
+        <div class="drawer-field">
+          <label>Nome de exibição</label>
+          <input type="text" id="minhasConfigNome" maxlength="120">
+        </div>
+        <div class="drawer-field">
+          <label>Telefone de contato</label>
+          <input type="text" id="minhasConfigTelefone" maxlength="30" placeholder="(00) 00000-0000">
+        </div>
+        <div class="drawer-field">
+          <label>E-mail</label>
+          <div class="ro mono" id="minhasConfigEmail"></div>
+        </div>
+      </div>
+
+      <div class="drawer-section" id="minhaSenhaSecao">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-lock"/></svg></span><h4>Senha</h4></div>
+        <div class="senha-ok" id="minhaSenhaOk" role="status" style="display:none;">
+          <svg class="ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5 8.5 14.5 15.5 6"/></svg>
+          <div><b>Senha alterada.</b> Use a nova senha no próximo login.</div>
+        </div>
+        <div id="minhaSenhaFechada">
+          <div class="senha-desc">Troque a senha por uma só sua. Vale na hora, sem precisar de “Salvar alterações”.</div>
+          <button type="button" class="btn small outline" id="minhaSenhaAbrir">Trocar senha</button>
+        </div>
+        <div id="minhaSenhaAberta" style="display:none;">
+          <div class="drawer-field" id="minhaSenhaAtualCampo">
+            <label for="minhaSenhaAtual">Senha atual</label>
+            <input type="password" id="minhaSenhaAtual" autocomplete="current-password" maxlength="72">
+            <div class="senha-msg" id="minhaSenhaAtualMsg" role="alert" style="display:none;"></div>
+          </div>
+          <div class="drawer-field" id="minhaSenhaNovaCampo">
+            <label for="minhaSenhaNova">Nova senha</label>
+            <input type="password" id="minhaSenhaNova" autocomplete="new-password" maxlength="72">
+            <div class="hint">Mínimo de 8 caracteres.</div>
+            <div class="senha-msg" id="minhaSenhaNovaMsg" role="alert" style="display:none;"></div>
+          </div>
+          <div class="drawer-field" id="minhaSenhaRepetirCampo">
+            <label for="minhaSenhaRepetir">Repetir a nova senha</label>
+            <input type="password" id="minhaSenhaRepetir" autocomplete="new-password" maxlength="72">
+            <div class="senha-msg" id="minhaSenhaRepetirMsg" role="alert" style="display:none;"></div>
+          </div>
+          <label class="senha-mostrar"><input type="checkbox" id="minhaSenhaMostrar">Mostrar as senhas</label>
+          <div class="senha-acoes">
+            <button type="button" class="btn small outline" id="minhaSenhaCancelar">Cancelar</button>
+            <button type="button" class="btn small primary" id="minhaSenhaSalvar">Salvar nova senha</button>
+          </div>
+          <div class="senha-desc">Você continua logado neste aparelho.</div>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-palette"/></svg></span><h4>Aparência</h4></div>
+        <div class="drawer-field">
+          <label>Tema</label>
+          <div class="theme-toggle">
+            <button type="button" class="theme-opt" data-theme-choice="light" title="Modo claro">○</button>
+            <button type="button" class="theme-opt" data-theme-choice="dark" title="Modo escuro">●</button>
+            <button type="button" class="theme-opt" data-theme-choice="system" title="Modo do sistema">◐</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-section-head"><span class="ic-wrap"><svg class="ic" viewBox="0 0 20 20"><use href="#i-bell"/></svg></span><h4>Notificações</h4></div>
+        <div class="drawer-toggle-row">
+          <div class="txt"><b>Pedido mudou de etapa</b><span>Avisa quando um pedido meu mudar de etapa</span></div>
+          <div class="switch"><input type="checkbox" id="minhasConfigNotifEtapa"><div class="track"></div><div class="thumb"></div></div>
+        </div>
       </div>
     </div>
-    <div class="field">
-      <label>Nome de exibição</label>
-      <input type="text" id="minhasConfigNome" maxlength="120">
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="minhasConfigNotifEtapa"> Avisar quando um pedido meu mudar de etapa</label>
-    </div>
-    <div class="form-actions">
-      <button class="btn outline" id="minhasConfigCancelar">Fechar</button>
-      <button class="btn primary" id="minhasConfigSalvar">Salvar</button>
+
+    <div class="drawer-foot">
+      <button type="button" class="btn outline" id="minhasConfigCancelarFoot">Fechar</button>
+      <button type="button" class="btn primary" id="minhasConfigSalvar">Salvar alterações</button>
     </div>
   </div>
 </div>
@@ -697,6 +780,6 @@
 <div id="reportPrintArea" class="print-only"></div>
 <div id="toast"></div>
 
-<script src="pedido-representante.js?v=59"></script>
+<script src="pedido-representante.js?v=60"></script>
 </body>
 </html>

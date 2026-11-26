@@ -156,25 +156,74 @@ function initThemeToggle() {
 }
 
 /* ---------------- minhas configurações ---------------- */
+/* Mesma gaveta de perfil dos outros usuários do sistema: nome, telefone, foto, senha, tema e o aviso de etapa.
+   Nome e telefone usam a função atualizar_meu_perfil, a foto atualizar_meu_avatar e a senha o próprio login (nada de SQL novo). */
+
+const AVATAR_BUCKET = "avatares-usuarios";
+let currentUserTelefone = "";
+let currentUserAvatarPath = null;
+
+function computeUserInitials(nome) {
+  if (!nome) return "?";
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return "?";
+}
+
+function fotoAvatarUsuarioUrl(avatarPath) {
+  if (!avatarPath) return null;
+  const { data } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(avatarPath);
+  return data ? data.publicUrl : null;
+}
+
+// foto (ou iniciais) no rodapé do menu e na gaveta
+function renderAvatarRep() {
+  const nome = currentUserNome || (currentUser && currentUser.email) || "";
+  const url = fotoAvatarUsuarioUrl(currentUserAvatarPath);
+  ["repPerfilAvatar", "minhasConfigAvatarPreview"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = "";
+    if (url) {
+      const img = document.createElement("img");
+      img.alt = "";
+      img.src = url;
+      el.appendChild(img);
+    } else {
+      el.textContent = computeUserInitials(nome);
+    }
+  });
+}
 
 function abrirMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigNome").value = currentUserNome || "";
+  document.getElementById("minhasConfigTelefone").value = currentUserTelefone || "";
+  document.getElementById("minhasConfigEmail").textContent = (currentUser && currentUser.email) || "";
+  document.getElementById("minhasConfigDrawerNome").textContent = currentUserNome || (currentUser && currentUser.email) || "";
   document.getElementById("minhasConfigNotifEtapa").checked = currentUserNotifMudancaEtapa;
+  renderAvatarRep();
+  senhaResetar();
   document.getElementById("minhasConfigOverlay").classList.add("show");
 }
 
 function closeMinhasConfiguracoesModal() {
   document.getElementById("minhasConfigOverlay").classList.remove("show");
+  senhaResetar(); // a senha digitada nunca fica na tela
 }
 
-async function salvarNomeExibicao() {
+async function salvarPerfilRep() {
   const novoNome = document.getElementById("minhasConfigNome").value.trim();
-  if (!novoNome) { toast("O nome não pode ficar em branco."); return; }
-  const { error } = await sb.rpc("atualizar_meu_nome", { novo_nome: novoNome });
-  if (error) { toast("Erro ao salvar nome: " + error.message); return; }
+  const novoTelefone = document.getElementById("minhasConfigTelefone").value.trim();
+  if (!novoNome) { toast("O nome não pode ficar em branco."); return false; }
+  const { error } = await sb.rpc("atualizar_meu_perfil", { novo_nome: novoNome, novo_telefone: novoTelefone || null });
+  if (error) { toast("Erro ao salvar perfil: " + error.message); return false; }
   currentUserNome = novoNome;
+  currentUserTelefone = novoTelefone;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
-  toast("Nome atualizado.");
+  document.getElementById("minhasConfigDrawerNome").textContent = currentUserNome;
+  renderAvatarRep();
+  return true;
 }
 
 async function salvarNotificacaoEtapaPreferencia(checked) {
@@ -185,17 +234,137 @@ async function salvarNotificacaoEtapaPreferencia(checked) {
   if (error) toast("Erro ao salvar preferência: " + error.message);
 }
 
+async function uploadAvatarRep(file) {
+  if (!currentUser) return;
+  if (file.size > 5 * 1024 * 1024) { toast("Imagem muito grande (máx. 5 MB)."); return; }
+  const pathAntigo = currentUserAvatarPath;
+  const path = `${currentUser.id}/${Date.now()}-${sanitizarNomeArquivo(file.name)}`;
+  const { error: uploadError } = await sb.storage.from(AVATAR_BUCKET).upload(path, file);
+  if (uploadError) { toast("Erro ao enviar foto: " + uploadError.message); return; }
+  const { error } = await sb.rpc("atualizar_meu_avatar", { novo_avatar_path: path });
+  if (error) {
+    // o arquivo já subiu mas o caminho não foi gravado: não deixa foto órfã no bucket
+    await sb.storage.from(AVATAR_BUCKET).remove([path]);
+    toast("Erro ao salvar foto: " + error.message);
+    return;
+  }
+  currentUserAvatarPath = path;
+  if (pathAntigo) await sb.storage.from(AVATAR_BUCKET).remove([pathAntigo]);
+  renderAvatarRep();
+  toast("Foto de perfil atualizada.");
+}
+
+/* ---- trocar a própria senha: confere a senha atual entrando de novo com ela e troca com o próprio login (igual ao sistema) ---- */
+const senhaUi = { salvando: false };
+const SENHA_CAMPOS = ["Atual", "Nova", "Repetir"];
+const senhaEl = (id) => document.getElementById(id);
+
+function senhaLimparErros() {
+  SENHA_CAMPOS.forEach(k => {
+    senhaEl(`minhaSenha${k}Campo`).classList.remove("senha-campo-erro");
+    const m = senhaEl(`minhaSenha${k}Msg`);
+    m.style.display = "none";
+    m.textContent = "";
+  });
+}
+
+function senhaErro(campo, texto) {
+  senhaEl(`minhaSenha${campo}Campo`).classList.add("senha-campo-erro");
+  const m = senhaEl(`minhaSenha${campo}Msg`);
+  m.textContent = texto;
+  m.style.display = "block";
+  senhaEl(`minhaSenha${campo}`).focus();
+}
+
+function senhaMostrar(visivel) {
+  SENHA_CAMPOS.forEach(k => { senhaEl(`minhaSenha${k}`).type = visivel ? "text" : "password"; });
+}
+
+function senhaResetar() {
+  SENHA_CAMPOS.forEach(k => { senhaEl(`minhaSenha${k}`).value = ""; });
+  senhaEl("minhaSenhaMostrar").checked = false;
+  senhaMostrar(false);
+  senhaLimparErros();
+  senhaEl("minhaSenhaOk").style.display = "none";
+  senhaEl("minhaSenhaAberta").style.display = "none";
+  senhaEl("minhaSenhaFechada").style.display = "";
+  senhaEl("minhaSenhaAbrir").textContent = "Trocar senha";
+  senhaEl("minhaSenhaFechada").querySelector(".senha-desc").style.display = "";
+}
+
+function senhaAbrir() {
+  senhaEl("minhaSenhaOk").style.display = "none";
+  senhaEl("minhaSenhaFechada").style.display = "none";
+  senhaEl("minhaSenhaAberta").style.display = "";
+  senhaEl("minhaSenhaAtual").focus();
+}
+
+async function senhaSalvar() {
+  if (senhaUi.salvando) return;
+  senhaLimparErros();
+  const atual = senhaEl("minhaSenhaAtual").value;
+  const nova = senhaEl("minhaSenhaNova").value;
+  const repetir = senhaEl("minhaSenhaRepetir").value;
+  if (!atual) { senhaErro("Atual", "Digite a senha atual."); return; }
+  if (nova.length < 8) { senhaErro("Nova", "A nova senha precisa ter pelo menos 8 caracteres."); return; }
+  if (nova === atual) { senhaErro("Nova", "A nova senha precisa ser diferente da atual."); return; }
+  if (repetir !== nova) { senhaErro("Repetir", "As duas senhas novas não são iguais."); return; }
+  if (!currentUser || !currentUser.email) { toast("Entre de novo no sistema e tente outra vez."); return; }
+
+  senhaUi.salvando = true;
+  const botao = senhaEl("minhaSenhaSalvar");
+  botao.disabled = true;
+  try {
+    const conferencia = await sb.auth.signInWithPassword({ email: currentUser.email, password: atual });
+    if (conferencia.error) {
+      const msg = String(conferencia.error.message || "");
+      senhaErro("Atual", /invalid|credential/i.test(msg)
+        ? "A senha atual não confere. Se você esqueceu, peça ao administrador para redefinir."
+        : "Não foi possível conferir a senha atual: " + msg);
+      return;
+    }
+    const { error } = await sb.auth.updateUser({ password: nova });
+    if (error) {
+      const msg = String(error.message || "");
+      if (/different from the old|same_password/i.test(msg + (error.code || ""))) senhaErro("Nova", "A nova senha precisa ser diferente da atual.");
+      else if (/weak|at least|short|characters/i.test(msg)) senhaErro("Nova", "O sistema não aceitou essa senha (curta ou fraca demais). Escolha outra.");
+      else senhaErro("Nova", "Não foi possível trocar a senha: " + msg);
+      return;
+    }
+    senhaResetar();
+    senhaEl("minhaSenhaOk").style.display = "";
+    senhaEl("minhaSenhaAbrir").textContent = "Trocar senha de novo";
+    senhaEl("minhaSenhaFechada").querySelector(".senha-desc").style.display = "none";
+  } finally {
+    senhaUi.salvando = false;
+    botao.disabled = false;
+  }
+}
+
 function initMinhasConfiguracoes() {
-  document.getElementById("repNomeVendedor").addEventListener("click", abrirMinhasConfiguracoesModal);
+  document.getElementById("repPerfil").addEventListener("click", abrirMinhasConfiguracoesModal);
   document.getElementById("minhasConfigCancelar").addEventListener("click", closeMinhasConfiguracoesModal);
+  document.getElementById("minhasConfigCancelarFoot").addEventListener("click", closeMinhasConfiguracoesModal);
   document.getElementById("minhasConfigOverlay").addEventListener("click", (e) => {
     if (e.target.id === "minhasConfigOverlay") closeMinhasConfiguracoesModal();
   });
+  document.getElementById("btnMinhasConfigAvatar").addEventListener("click", () => document.getElementById("minhasConfigAvatarInput").click());
+  document.getElementById("minhasConfigAvatarInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (file) await uploadAvatarRep(file);
+  });
   document.getElementById("minhasConfigSalvar").addEventListener("click", async () => {
-    await salvarNomeExibicao();
+    if (!(await salvarPerfilRep())) return;
     await salvarNotificacaoEtapaPreferencia(document.getElementById("minhasConfigNotifEtapa").checked);
+    toast("Perfil atualizado.");
     closeMinhasConfiguracoesModal();
   });
+  senhaEl("minhaSenhaAbrir").addEventListener("click", senhaAbrir);
+  senhaEl("minhaSenhaCancelar").addEventListener("click", senhaResetar);
+  senhaEl("minhaSenhaSalvar").addEventListener("click", senhaSalvar);
+  senhaEl("minhaSenhaMostrar").addEventListener("change", (e) => senhaMostrar(e.target.checked));
+  SENHA_CAMPOS.forEach(k => senhaEl(`minhaSenha${k}`).addEventListener("keydown", (e) => { if (e.key === "Enter") senhaSalvar(); }));
 }
 
 /* ---------------- realtime (produtos / produtos_precos / movimentos / entregas) ---------------- */
@@ -454,6 +623,11 @@ async function afterLogin() {
   }
   currentUserNome = roleData.nome || currentUser.email;
   document.getElementById("repNomeVendedor").textContent = currentUserNome;
+  // telefone e foto do perfil: consulta à parte e tolerante (se falhar, só fica sem foto)
+  const { data: perfilExtra } = await sb.from("user_roles").select("telefone, avatar_path").eq("user_id", currentUser.id).maybeSingle();
+  currentUserTelefone = (perfilExtra && perfilExtra.telefone) || "";
+  currentUserAvatarPath = (perfilExtra && perfilExtra.avatar_path) || null;
+  renderAvatarRep();
 
   const [produtosRes, precosRes, movimentosRes, entregasRes, vendasRes, clientesRes, previsoesRes, preCadastrosRes, prefRes, configRes] = await Promise.all([
     sb.from("produtos").select("codigo, medida, categoria, modelo, marca, carcaca, ic_iv, pr, cintas, cap_carga, psi, sulco_mm, larg_banda_mm, peso_kg, ncm, situacao, foto_path, foto_path_2").order("codigo"),
