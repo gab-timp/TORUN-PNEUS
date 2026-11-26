@@ -688,18 +688,24 @@ function svLivrePorMedida(p, calc) {
     if (!porCodigo.has(it.codigo)) porCodigo.set(it.codigo, { codigo: it.codigo, total: 0, reservado: 0, vendido: 0, livre: 0, noArmazem: chegou });
     porCodigo.get(it.codigo).total += Number(it.quantidade) || 0;
   });
+  // reservado e vendido do processo = reservas ligadas a ele (feitas enquanto ainda vinha); vale também depois que chegou
+  const ligadas = svState.reservas.filter(r => r.previsaoId === p.id && r.situacao !== "CANCELADA");
   porCodigo.forEach(m => {
+    ligadas.filter(r => r.codigo === m.codigo).forEach(r => { if (r.situacao === "VENDIDA") m.vendido += r.quantidade; else m.reservado += r.quantidade; });
     if (chegou) {
       const l = calc.linhas.find(x => x.codigo === m.codigo && x.armazem === (p.armazem || ""));
       m.livre = l ? Math.max(0, l.disp) : 0;
     } else {
-      const a = calc.aChegar.find(x => x.previsaoId === p.id && x.codigo === m.codigo);
-      m.reservado = a ? a.reservado : 0;
-      m.vendido = a ? a.vendido : 0;
       m.livre = Math.max(0, m.total - m.reservado - m.vendido);
     }
   });
   return [...porCodigo.values()];
+}
+
+// "Processo reservado": tudo o que veio no processo (cada medida) já está reservado ou vendido. Não olha o saldo do armazém.
+function svProcessoReservadoInteiro(medidas) {
+  const com = medidas.filter(m => m.total > 0);
+  return com.length > 0 && com.every(m => m.reservado + m.vendido >= m.total);
 }
 
 function svRenderPrevistos() {
@@ -725,23 +731,29 @@ function svRenderPrevistos() {
     document.getElementById("svPrevCount" + i).textContent = doStatus.length;
     document.getElementById("svPrevCol" + i).innerHTML = doStatus.map(p => {
       const medidas = svLivrePorMedida(p, calcCards);
+      const inteiro = svProcessoReservadoInteiro(medidas);
       const itensHtml = medidas.map(m => {
         const prod = svGetProduto(m.codigo);
         const pctRes = m.total > 0 ? Math.min(100, (m.reservado / m.total) * 100) : 0;
         const pctVen = m.total > 0 ? Math.min(100 - pctRes, (m.vendido / m.total) * 100) : 0;
         const legenda = m.noArmazem ? "livres no armazém" : (m.livre <= 0 ? "sem nada livre" : `livres de ${fmt(m.total)}`);
+        // reservado inteiro: "RESERVADO" no lugar do número; já chegou e só em parte: sem número (o saldo do armazém fica na janela do card)
+        const q = inteiro ? `<span class="sv-prev-q reservado"><b>RESERVADO</b></span>`
+          : m.noArmazem ? ""
+          : `<span class="sv-prev-q${m.livre <= 0 ? " zero" : ""}"><b>${fmt(m.livre)}</b><small>${legenda}</small></span>`;
         return `
           <li>
             <span class="mono">${escapeHtml(m.codigo)}</span>
             <span class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</span>
-            <span class="sv-prev-q${m.livre <= 0 ? " zero" : ""}"><b>${fmt(m.livre)}</b><small>${legenda}</small></span>
-            ${!m.noArmazem && (pctRes > 0 || pctVen > 0) ? `<span class="sv-prev-barra" title="Reservado e vendido deste processo"><i class="res" style="width:${pctRes}%"></i><i class="ven" style="width:${pctVen}%"></i></span>` : ""}
+            ${q}
+            ${!inteiro && !m.noArmazem && (pctRes > 0 || pctVen > 0) ? `<span class="sv-prev-barra" title="Reservado e vendido deste processo"><i class="res" style="width:${pctRes}%"></i><i class="ven" style="width:${pctVen}%"></i></span>` : ""}
           </li>`;
       }).join("");
-      const comprometido = svStatusChegou(status) ? 0 : medidas.reduce((s, m) => s + m.reservado + m.vendido, 0);
+      const comprometido = svStatusChegou(status) && !inteiro ? 0 : medidas.reduce((s, m) => s + m.reservado + m.vendido, 0);
       return `
         <div class="kanban-card" data-id="${escapeAttr(p.id)}">
           <div class="kanban-card-nf">${escapeHtml(p.numeroProcesso)}</div>
+          ${inteiro ? `<span class="sv-prev-flag" title="Tudo o que veio neste processo está reservado ou vendido">PROCESSO RESERVADO</span>` : ""}
           ${medidas.length ? `<ul class="kanban-card-itens-list">${itensHtml}</ul>` : ""}
           <div class="kanban-card-meta">
             ${p.armazem
@@ -754,7 +766,7 @@ function svRenderPrevistos() {
             ${comprometido > 0 ? `<span class="kanban-card-tag reservadas" title="Soma do reservado e do vendido deste processo">${fmt(comprometido)} reservadas ou vendidas</span>` : ""}
           </div>
           ${p.obs ? `<div class="kanban-card-obs">${escapeHtml(p.obs)}</div>` : ""}
-          <div class="kanban-card-acoes"><button type="button" class="btn small primary sv-write" data-svreservarproc="${escapeAttr(p.id)}"${svProcessoTemLivre(p, aChegarCards) ? "" : " disabled title=\"Nada livre neste processo\""}>Reservar processo</button></div>
+          <div class="kanban-card-acoes"><button type="button" class="btn small primary sv-write" data-svreservarproc="${escapeAttr(p.id)}"${inteiro ? " disabled title=\"Processo já reservado inteiro\"" : svProcessoTemLivre(p, aChegarCards) ? "" : " disabled title=\"Nada livre neste processo\""}>Reservar processo</button></div>
         </div>`;
     }).join("");
   });
@@ -841,7 +853,10 @@ function svAbrirPrevistoDetalhe(id) {
   const total = p.itens.reduce((a, it) => a + (Number(it.quantidade) || 0), 0);
   // reservado, vendido e livre por medida (mesma conta do card do kanban e da coluna "A caminho" do Estoque)
   const chegouP = svStatusChegou(p.status);
-  const livreMedidas = svLivrePorMedida(p, svCalcularEstoque());
+  const calcJanela = svCalcularEstoque();
+  const livreMedidas = svLivrePorMedida(p, calcJanela);
+  const inteiro = svProcessoReservadoInteiro(livreMedidas);
+  document.getElementById("svPrevDetalheFaixa").style.display = inteiro ? "" : "none";
   const livreDe = (codigo) => livreMedidas.find(m => m.codigo === codigo);
   const somaM = (campo) => livreMedidas.reduce((s, m) => s + m[campo], 0);
   document.getElementById("svPrevDetalheMedidas").innerHTML = p.itens.length ? `
@@ -853,7 +868,7 @@ function svAbrirPrevistoDetalhe(id) {
           const lm = livreDe(it.codigo);
           const colsLivre = lm
             ? (chegouP
-              ? `<td class="num">—</td><td class="num">—</td><td class="num mono prev-livre">${fmt(lm.livre)}</td>`
+              ? `<td class="num mono">${fmt(lm.reservado)}</td><td class="num mono">${fmt(lm.vendido)}</td><td class="num mono prev-livre">${fmt(lm.livre)}</td>`
               : `<td class="num mono">${fmt(lm.reservado)}</td><td class="num mono">${fmt(lm.vendido)}</td><td class="num mono prev-livre${lm.livre <= 0 ? " zero" : ""}">${fmt(lm.livre)}</td>`)
             : `<td class="num">—</td><td class="num">—</td><td class="num">—</td>`;
           const temUnit = it.custoUnitario !== null && it.custoUnitario !== undefined;
@@ -861,9 +876,7 @@ function svAbrirPrevistoDetalhe(id) {
             ? `<td class="num mono">${escapeHtml(formatMoney(it.custoUnitario))}</td><td class="num mono">${escapeHtml(formatMoney((Number(it.quantidade) || 0) * Number(it.custoUnitario)))}</td>`
             : `<td class="num">${custoProc.antigo ? "—" : '<span class="muted">Custo não informado</span>'}</td><td class="num">—</td>`;
           return `<tr><td class="mono">${escapeHtml(it.codigo)}</td><td class="medida-txt">${escapeHtml(prod ? prod.medida : "(produto removido)")}</td><td class="num mono">${fmt(it.quantidade)}</td>${colsLivre}${celulas}</tr>`; }).join("")}
-        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td>${chegouP
-          ? `<td class="num">—</td><td class="num">—</td><td class="num">—</td>`
-          : `<td class="num mono">${fmt(somaM("reservado"))}</td><td class="num mono">${fmt(somaM("vendido"))}</td><td class="num mono">${fmt(somaM("livre"))}</td>`}<td></td><td class="num mono">${custoProc.temCusto ? escapeHtml(formatMoney(custoProc.total)) : "—"}</td></tr>
+        <tr class="total"><td colspan="2">Total do processo</td><td class="num mono">${fmt(total)}</td><td class="num mono">${fmt(somaM("reservado"))}</td><td class="num mono">${fmt(somaM("vendido"))}</td>${chegouP ? `<td class="num">—</td>` : `<td class="num mono">${fmt(somaM("livre"))}</td>`}<td></td><td class="num mono">${custoProc.temCusto ? escapeHtml(formatMoney(custoProc.total)) : "—"}</td></tr>
       </tbody>
     </table>
     <div class="prev-detalhe-obs">${chegouP
@@ -877,7 +890,7 @@ function svAbrirPrevistoDetalhe(id) {
   const pode = svPodeEditarPrevisto();
   document.getElementById("svPrevDetalheEditar").style.display = pode ? "" : "none";
   document.getElementById("svPrevDetalheExcluir").style.display = pode ? "" : "none";
-  document.getElementById("svPrevDetalheReservar").disabled = !svProcessoTemLivre(p, svCalcularEstoque().aChegar);
+  document.getElementById("svPrevDetalheReservar").disabled = inteiro || !svProcessoTemLivre(p, calcJanela.aChegar);
   document.getElementById("svPrevDetalheOverlay").classList.add("show");
 }
 

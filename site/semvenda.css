@@ -550,3 +550,11 @@ td.sv-num{font-family:'Space Mono',monospace;}
   @bottom-left{content:"Pedido de venda"; font:8pt 'Inter',sans-serif; color:#5a5a55;}
   @bottom-right{content:"Pág. " counter(page); font:8pt 'Inter',sans-serif; color:#5a5a55;}
 }
+
+/* ---- processo reservado inteiro (card e janela do Estoque Previsto) ---- */
+.sv-prev-flag{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.07em;border-radius:6px;padding:3px 9px;margin-top:5px;}
+.sv-prev-flag::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--orange);}
+.sv-prev-q.reservado b{font-family:'Inter',sans-serif;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--orange-deep);background:var(--orange-pale);border-radius:6px;padding:3px 8px;}
+.sv-prev-faixa{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--ink);color:#fff;border-radius:10px;padding:10px 12px;font-weight:800;margin:12px 0 4px;font-size:13px;}
+.sv-prev-faixa::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--orange);flex:0 0 auto;}
+.sv-prev-faixa span{font-weight:500;color:#ccc;}
