@@ -791,3 +791,6 @@ label.crm-forn-lrow{cursor:pointer;}
 @media (max-width:860px){.crm-forn-fb,.crm-forn-fg2,.crm-forn-rsl{grid-template-columns:1fr;}.crm-forn-ctl{grid-template-columns:1fr 34px;}.crm-forn-sw{margin-left:0;}}
 .crm-forn-excl{color:var(--danger);border-color:var(--danger);}
 .crm-forn-excl:hover{background:var(--danger-pale);}
+.crm-forn-lpwrap{display:inline-flex;align-items:center;gap:8px;}
+.crm-forn-desf{border:0;background:none;color:var(--orange-deep);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;}
+.crm-forn-desf:hover{color:var(--ink);}

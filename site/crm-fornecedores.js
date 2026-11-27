@@ -148,6 +148,27 @@ async function crmFornMarcarRecebida(ex, on) {
   return true;
 }
 
+// Desfaz o "pedida em dd/mm" de um exportador (pedido marcado por engano ou em teste). A data de "recebida" não muda:
+// se a lista já tinha chegado antes, o estado volta a "Recebida".
+const crmFornBtnDesfazer = (ex) => crmFornPodeEditar() && crmFornSt(ex) === "ped"
+  ? `<button type="button" class="crm-forn-desf" data-crmforndesf="${escapeAttr(ex)}" title="Tira a marca de lista pedida">Desfazer</button>` : "";
+async function crmFornDesfazerPedido(ex) {
+  const l = crmForn.lista.get(ex);
+  if (!l || !l.ped || !crmFornPodeEditar()) return false;
+  const antes = { ...l };
+  l.ped = 0;
+  crmRenderFornecedores();
+  const { error } = await sb.from("crm_fornecedores_lista").upsert({ exportador: ex, pedida_em: null, atualizado_em: new Date().toISOString(), atualizado_por: crmMeuId() }, { onConflict: "exportador" });
+  if (error) {
+    crmForn.lista.set(ex, antes);
+    crmRenderFornecedores();
+    toast("Não foi possível desfazer: " + error.message);
+    return false;
+  }
+  toast("Pedido desfeito: " + crmFornStTxt(ex) + ".");
+  return true;
+}
+
 /* ---------------- filtros e grade ---------------- */
 
 function crmFornFiltrar() {
@@ -245,7 +266,7 @@ function crmRenderFornecedores() {
     return `<div class="crm-forn-card ${cls}" tabindex="0" role="button" data-crmfornabrir="${escapeAttr(k)}">
       <div class="crm-forn-ch"><div><h3 class="peq">${escapeHtml(crmFornNome(r.exc))}</h3><div class="or">${escapeHtml(paises)}</div></div>${crmFornPill2(n)}</div>
       <div class="crm-forn-meta">${marcas.map(m => `<span class="crm-forn-tp neutro">${escapeHtml(m)}</span>`).join("")}</div>
-      ${crmFornBlocoPagamento(r)}<div class="crm-forn-lst">${check}${crmFornPill(k)}</div>
+      ${crmFornBlocoPagamento(r)}<div class="crm-forn-lst">${check}<span class="crm-forn-lpwrap">${crmFornPill(k)}${crmFornBtnDesfazer(k)}</span></div>
       <div class="crm-forn-rod"><span>${marcas.length} marca(s)</span><span>Ver ficha →</span></div></div>`;
   }).join("");
 }
@@ -291,7 +312,7 @@ function crmFornAbrirFicha(k, i) {
   }).join("") : '<div class="muted">Nenhum contato cadastrado.</div>';
   const exsFicha = [...new Set(rs.map(x => x.ex))];
   const listaHtml = exsFicha.map(e => view === "ex"
-    ? (podeEditar ? `<label class="crm-forn-lrow"><input type="checkbox" data-crmfornrec="${escapeAttr(e)}"${crmFornSt(e) === "rec" ? " checked" : ""}><span><b>Lista recebida</b></span>${crmFornPill(e)}</label>`
+    ? (podeEditar ? `<label class="crm-forn-lrow"><input type="checkbox" data-crmfornrec="${escapeAttr(e)}"${crmFornSt(e) === "rec" ? " checked" : ""}><span><b>Lista recebida</b></span>${crmFornPill(e)}${crmFornBtnDesfazer(e)}</label>`
       : `<div class="crm-forn-lrow"><span><b>Lista de preços</b></span>${crmFornPill(e)}</div>`)
     : `<div class="crm-forn-lrow"><span><b>${escapeHtml(crmFornNome(e))}</b></span>${crmFornPill(e)}<button type="button" class="btn small outline" data-crmfornirex="${escapeAttr(e)}">Abrir exportador</button></div>`).join("");
   const el = crmFornCriarOverlay("crmFornFichaOverlay", "Ficha do fornecedor");
@@ -599,6 +620,8 @@ function crmFornClickFicha(e) {
   const ab = t.closest("[data-crmfornaba]"); if (ab) return crmFornAbrirFicha(crmForn.fichaKey, +ab.dataset.crmfornaba);
   const em = t.closest("[data-crmfornemail]"); if (em) { crmFornCopiar(em.dataset.crmfornemail, "Endereço copiado — abrindo o Gmail"); return; }
   if (t.closest("[data-crmfornresumo]")) return crmFornCopiar(document.getElementById("crmFornResTxt").textContent, "Resumo copiado");
+  const df = t.closest("[data-crmforndesf]");
+  if (df) { e.preventDefault(); crmFornDesfazerPedido(df.dataset.crmforndesf).then(() => { if (crmForn.fichaKey) crmFornAbrirFicha(crmForn.fichaKey, crmForn.fichaIdx); }); return; }
   const ex = t.closest("[data-crmfornirex]");
   if (ex) { crmForn.visao = "ex"; crmFornMarcaVisao(); crmRenderFornecedores(); return crmFornAbrirFicha(ex.dataset.crmfornirex); }
   const mm = t.closest("[data-crmfornmarca]");
@@ -680,7 +703,7 @@ function initCrmFornecedores() {
     if (t.closest("#crmFornBtnNovo")) return crmFornAbrirForm();
   });
   const grade = document.getElementById("crmFornGrade");
-  grade.addEventListener("click", crmFornClickGrade);
+  grade.addEventListener("click", (e) => { const df = e.target.closest("[data-crmforndesf]"); if (df) { e.preventDefault(); crmFornDesfazerPedido(df.dataset.crmforndesf); return; } crmFornClickGrade(e); });
   grade.addEventListener("keydown", (e) => { if (e.target.closest(".crm-forn-lst")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); crmFornClickGrade(e); } });
   grade.addEventListener("change", (e) => { const c = e.target.closest("[data-crmfornrec]"); if (c) crmFornMarcarRecebida(c.dataset.crmfornrec, c.checked); });
   // as janelas nascem na primeira vez que abrem; os eventos ficam no body
