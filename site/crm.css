@@ -789,3 +789,5 @@ label.crm-forn-lrow{cursor:pointer;}
 .crm-forn-mmsg .field{margin:0;}
 .crm-forn-modal a.btn[aria-disabled="true"]{opacity:.4;pointer-events:none;}
 @media (max-width:860px){.crm-forn-fb,.crm-forn-fg2,.crm-forn-rsl{grid-template-columns:1fr;}.crm-forn-ctl{grid-template-columns:1fr 34px;}.crm-forn-sw{margin-left:0;}}
+.crm-forn-excl{color:var(--danger);border-color:var(--danger);}
+.crm-forn-excl:hover{background:var(--danger-pale);}

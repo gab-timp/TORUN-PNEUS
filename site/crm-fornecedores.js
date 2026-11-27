@@ -296,7 +296,7 @@ function crmFornAbrirFicha(k, i) {
     : `<div class="crm-forn-lrow"><span><b>${escapeHtml(crmFornNome(e))}</b></span>${crmFornPill(e)}<button type="button" class="btn small outline" data-crmfornirex="${escapeAttr(e)}">Abrir exportador</button></div>`).join("");
   const el = crmFornCriarOverlay("crmFornFichaOverlay", "Ficha do fornecedor");
   crmFornCaixa("crmFornFichaOverlay").innerHTML = `<div class="crm-forn-topo"><h2>${escapeHtml(view === "marca" ? k : crmFornNome(r.exc))}</h2>
-      <div class="crm-forn-topo-acoes">${podeEditar ? `<button type="button" class="btn small outline" data-crmfornedit="${escapeAttr(r.id)}">✎︎ Editar</button>` : ""}<button type="button" class="btn small outline" data-crmfornfechar="ficha" aria-label="Fechar">×</button></div></div>
+      <div class="crm-forn-topo-acoes">${podeEditar && view === "ex" ? `<button type="button" class="btn small outline crm-forn-excl" data-crmfornexcluirex="${escapeAttr(k)}">Excluir exportador</button>` : ""}${podeEditar ? `<button type="button" class="btn small outline" data-crmfornedit="${escapeAttr(r.id)}">✎︎ Editar</button>` : ""}<button type="button" class="btn small outline" data-crmfornfechar="ficha" aria-label="Fechar">×</button></div></div>
     ${resp}${abas}
     <div class="crm-forn-fb">
       <div><div class="crm-forn-rot">Exportador</div><div class="crm-forn-val">${escapeHtml(r.ex)}</div></div>
@@ -469,6 +469,28 @@ async function crmFornExcluirForm() {
   toast("Opção excluída.");
 }
 
+// Exclui o exportador inteiro: todas as opções de compra dele (de todas as marcas) e o estado da lista de preços.
+// A confirmação diz quantas opções e quais marcas saem; não tem como desfazer.
+async function crmFornExcluirExportador(ex) {
+  if (!crmFornPodeEditar()) return;
+  const rs = crmForn.rows.filter(r => r.ex === ex);
+  if (!rs.length) return;
+  const marcas = [...new Set(rs.map(r => r.m))];
+  const ok = await confirmModal("Excluir o exportador inteiro?",
+    `${crmFornNome(rs[0].exc)} ${rs.length > 1 ? `e todas as ${rs.length} opções` : "e a única opção"} de compra dele (marca${marcas.length > 1 ? "s" : ""}: ${marcas.join(", ")}). O estado da lista de preços dele também sai. Isso não pode ser desfeito.`,
+    "Excluir tudo", "Cancelar");
+  if (!ok) return;
+  const a = await sb.from("crm_fornecedores").delete().eq("exportador", ex).select();
+  if (a.error) { toast("Não foi possível excluir: " + a.error.message); return; }
+  if (!a.data || a.data.length < rs.length) toast("Só " + ((a.data || []).length) + " de " + rs.length + " opções foram excluídas. Confira se você tem permissão.");
+  const b = await sb.from("crm_fornecedores_lista").delete().eq("exportador", ex);
+  if (b.error) toast("Opções excluídas, mas o estado da lista não saiu: " + b.error.message);
+  crmFornFecharFicha();
+  await crmFornCarregar(true);
+  crmRenderFornecedores();
+  if (!a.data || a.data.length >= rs.length) toast(crmFornNome(rs[0].exc) + " excluído (" + rs.length + " opç" + (rs.length > 1 ? "ões" : "ão") + ").");
+}
+
 /* ---------------- e-mail para vários fornecedores (CCO) ---------------- */
 
 const crmFornMk = (ex, e) => ex + "|" + e.toLowerCase();
@@ -573,6 +595,7 @@ function crmFornClickFicha(e) {
   if (t.id === "crmFornFichaOverlay") return crmFornFecharFicha();
   if (t.closest('[data-crmfornfechar="ficha"]')) return crmFornFecharFicha();
   const ed = t.closest("[data-crmfornedit]"); if (ed) return crmFornAbrirForm(ed.dataset.crmfornedit);
+  const dx = t.closest("[data-crmfornexcluirex]"); if (dx) return crmFornExcluirExportador(dx.dataset.crmfornexcluirex);
   const ab = t.closest("[data-crmfornaba]"); if (ab) return crmFornAbrirFicha(crmForn.fichaKey, +ab.dataset.crmfornaba);
   const em = t.closest("[data-crmfornemail]"); if (em) { crmFornCopiar(em.dataset.crmfornemail, "Endereço copiado — abrindo o Gmail"); return; }
   if (t.closest("[data-crmfornresumo]")) return crmFornCopiar(document.getElementById("crmFornResTxt").textContent, "Resumo copiado");
