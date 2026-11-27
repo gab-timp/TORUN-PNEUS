@@ -874,9 +874,12 @@ function svProcessoTemLivre(p, aChegar) {
 
 // "Reservar processo": abre a Nova reserva com todos os produtos do processo, cada um com o que ainda está livre.
 // Item sem nada livre fica de fora e o aviso diz qual.
-function svReservarProcesso(id) {
+async function svReservarProcesso(id) {
   const p = svState.previsoes.find(x => x.id === id);
   if (!p) return;
+  // as listas da janela (clientes, vendedores, representantes, transportadoras) só eram carregadas ao abrir a tela
+  // Reserva: vindo do Estoque Previsto elas estavam vazias ("Nenhum vendedor cadastrado"). Carrega antes de abrir.
+  await Promise.all([svCarregarClientes(false), svCarregarVendedores(), svCarregarTransportadoras(), svCarregarRepresentantes()]);
   svAbrirNovaReserva();
   const caixa = document.getElementById("svResExtras");
   const porOpcao = new Map(); // índice da opção -> quantidade
