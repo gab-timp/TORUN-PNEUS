@@ -67,6 +67,54 @@ async function crmFornCarregar(forcar) {
   return crmForn.carregando;
 }
 
+/* ---------------- tempo real: o que uma pessoa muda aparece para as outras sem recarregar ---------------- */
+/* As duas tabelas são as mesmas no Atacado e no Encomenda (não têm coluna de sistema), então as duas telas são
+   espelhos uma da outra. Um canal por tabela (mesmo motivo do app.js: vários bindings no mesmo canal desalinham).
+   Qualquer mudança dispara uma recarga curta das duas tabelas (são poucas linhas). Precisa de sql/crm_fornecedores_realtime.sql. */
+let crmFornRtCanais = [], crmFornRtTimer = null, crmFornRtRetry = null, crmFornRtTentativas = 0;
+
+function crmFornRtIniciar() {
+  if (crmFornRtCanais.length || crmFornRtRetry || crmForn.indisponivel) return;
+  ["crm_fornecedores", "crm_fornecedores_lista"].forEach(tabela => {
+    const canal = sb.channel("rt-" + tabela);
+    canal.on("postgres_changes", { event: "*", schema: "public", table: tabela }, crmFornAoMudarRemoto);
+    crmFornRtCanais.push(canal);
+    canal.subscribe((status) => {
+      if (!crmFornRtCanais.includes(canal)) return; // canal de uma tentativa anterior
+      if (status === "SUBSCRIBED") { crmFornRtTentativas = 0; return; }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") crmFornRtReconectar();
+    });
+  });
+}
+function crmFornRtParar() {
+  crmFornRtCanais.forEach(c => { try { sb.removeChannel(c); } catch (err) { /* já saiu */ } });
+  crmFornRtCanais = [];
+}
+function crmFornRtReconectar() {
+  if (crmFornRtRetry) return;
+  crmFornRtParar();
+  if (crmFornRtTentativas >= 6) return; // desiste; a tela continua funcionando e recarrega ao abrir
+  const espera = Math.min(60000, 5000 * Math.pow(2, crmFornRtTentativas++));
+  crmFornRtRetry = setTimeout(() => { crmFornRtRetry = null; crmFornRtIniciar(); }, espera);
+}
+function crmFornAoMudarRemoto() {
+  clearTimeout(crmFornRtTimer);
+  crmFornRtTimer = setTimeout(async () => {
+    await crmFornCarregar(true);
+    if (crmForn.indisponivel) return;
+    const ativa = document.querySelector(".view.active");
+    if (ativa && ativa.id === "view-crm-fornecedores") crmRenderFornecedores();
+    const ficha = document.getElementById("crmFornFichaOverlay");
+    if (ficha && ficha.classList.contains("show")) {
+      const existe = crmForn.rows.some(r => (crmForn.visao === "marca" ? r.m : r.ex) === crmForn.fichaKey);
+      if (existe) crmFornAbrirFicha(crmForn.fichaKey, crmForn.fichaIdx);
+      else { crmFornFecharFicha(); toast("Este fornecedor foi alterado ou excluído por outra pessoa."); }
+    }
+    const mail = document.getElementById("crmFornMailOverlay");
+    if (mail && mail.classList.contains("show")) crmFornPintaMail();
+  }, 250);
+}
+
 /* ---------------- lista de preços: estado por exportador ---------------- */
 // ped = quando pedimos, rec = quando chegou. Vale o mais recente: pedir de novo depois de receber volta a "pedida".
 
@@ -163,6 +211,7 @@ function crmRenderFornecedores() {
     document.getElementById("crmFornRes").textContent = "";
     return;
   }
+  crmFornRtIniciar();
   crmFornPintaFiltros();
   const view = crmForn.visao;
   const g = new Map();
@@ -392,7 +441,8 @@ async function crmFornSalvarForm() {
   crmForn.formSalvando = false;
   if (res.error || !res.data || !res.data[0]) {
     document.getElementById("crmFornFmOk").disabled = false;
-    erro.textContent = "Não foi possível salvar: " + (res.error ? res.error.message : "sem permissão.");
+    erro.textContent = res.error ? "Não foi possível salvar: " + res.error.message
+      : fm.r ? "Não foi possível salvar: esta opção foi excluída por outra pessoa ou você não tem permissão." : "Não foi possível salvar: sem permissão.";
     erro.style.display = "block";
     return;
   }
