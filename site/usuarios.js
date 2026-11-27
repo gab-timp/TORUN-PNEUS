@@ -11,7 +11,17 @@ const USR_PAPEL_VAREJO = { editor: "Editor", viewer: "Somente leitura", represen
 const USR_PAPEL_CRM = { executivo: "Executivo", financeiro: "Financeiro", gestao: "Gestão", representante: "Representante" };
 const USR_SISTEMA = { atacado: "Atacado", encomenda: "Encomenda" };
 
+// tipos de pneu que um representante pode ver no portal (user_roles.tipos_pneu_liberados, sql/rep_tipos_pneu.sql).
+// null = todos; as chaves são as mesmas das categorias dos produtos (CATEGORIA_LABEL do app.js)
+const USR_TIPOS_PNEU = [
+  { k: "PASSEIO", n: "Passeio", d: "Carro, SUV e utilitário leve" },
+  { k: "CARGAS_TBR", n: "Cargas/TBR", d: "Caminhão e ônibus" },
+  { k: "AGRICOLA_FLORESTAL", n: "Agrícola/Florestal", d: "Trator, implemento, florestal" },
+  { k: "OUTRO", n: "Outro", d: "Moto, OTR, remold e sem classificação" }
+];
+
 const USR_BASE = {
+  tipos_pneu_liberados: null,
   role: "editor", is_admin: false, pode_autorizar_gerencia: false, pode_exportar_backup: false, pode_acessar_sem_venda: false,
   pode_acessar_portal_representante: false, pode_acessar_varejo: true, crm_papel: null, crm_representante: null, crm_sistema: null, crm_sistemas: [], crm_tem_carteira: false, visible_views: null
 };
@@ -56,6 +66,9 @@ function usrValoresDe(row) {
   // carteira própria só existe para a gestão (administrador sem papel conta como gestão)
   v.crm_tem_carteira = (v.crm_papel === "gestao" || (!v.crm_papel && v.is_admin)) && row.crm_tem_carteira === true;
   v.visible_views = Array.isArray(row.visible_views) ? row.visible_views.slice() : null;
+  // lista nula (ou com todos os tipos) = sem restrição
+  const tipos = Array.isArray(row.tipos_pneu_liberados) ? USR_TIPOS_PNEU.map(t => t.k).filter(k => row.tipos_pneu_liberados.includes(k)) : null;
+  v.tipos_pneu_liberados = tipos && tipos.length < USR_TIPOS_PNEU.length ? tipos : null;
   return v;
 }
 
@@ -86,6 +99,32 @@ function usrTextoCrm(papel, sistemas, representante) {
   if (representante && !papel) return `Representante ${representante} (${(sistemas || []).map(k => USR_SISTEMA[k]).join(" e ") || "?"})`;
   if (!papel) return "sem acesso";
   return papel === "executivo" ? `Executivo (${(sistemas || []).map(k => USR_SISTEMA[k]).join(" e ") || "?"})` : (papel === "gestao" ? "Gestão / Direção" : "Financeiro");
+}
+
+function usrTextoTipos(lista) {
+  if (lista === null || lista === undefined) return "todos os tipos";
+  if (!lista.length) return "nenhum tipo";
+  return lista.map(k => (USR_TIPOS_PNEU.find(t => t.k === k) || { n: k }).n).join(", ");
+}
+
+// cartão "Tipos de pneu liberados" (só para quem usa o portal do representante e se o banco já tem a coluna)
+function usrCartaoTiposPneu(f, colunas) {
+  if (!colunas.has("tipos_pneu_liberados") || !(f.role === "representante" || f.pode_acessar_portal_representante)) return "";
+  const marcados = f.tipos_pneu_liberados === null ? USR_TIPOS_PNEU.map(t => t.k) : f.tipos_pneu_liberados;
+  const aviso = marcados.length === 0 ? "Nenhum tipo marcado: a pessoa entra no portal e não vê nenhum pneu. Marque pelo menos um tipo ou use “Todos”."
+    : marcados.length === USR_TIPOS_PNEU.length ? "Todos os tipos liberados (sem restrição)."
+    : `${marcados.length} de ${USR_TIPOS_PNEU.length} tipos liberados. Os outros não aparecem em lugar nenhum do portal.`;
+  return `<div class="card">
+    <div class="usr-topo-card">
+      <div><h2>Tipos de pneu no portal</h2><div class="muted usr-sub">Só os tipos marcados aparecem no catálogo, na busca de medida e no pedido deste representante. Pedidos já feitos continuam aparecendo.</div></div>
+      <div class="usr-atalhos"><button type="button" class="btn small outline" data-usrtipos="todos">Todos</button>
+        <button type="button" class="btn small outline" data-usrtipos="nenhum">Nenhum</button></div>
+    </div>
+    <div class="usr-telas">
+      ${USR_TIPOS_PNEU.map(t => `<label class="usr-tela ${marcados.includes(t.k) ? "on" : ""}" title="${escapeAttr(t.d)}"><input type="checkbox" data-usrtipo="${t.k}" ${marcados.includes(t.k) ? "checked" : ""}>${escapeHtml(t.n)}</label>`).join("")}
+    </div>
+    <div class="muted usr-sub usr-sub-cima">${escapeHtml(aviso)}</div>
+  </div>`;
 }
 
 function usrSelo(classe, texto) {
@@ -480,6 +519,7 @@ function usrDiferencas() {
   if (f.pode_autorizar_gerencia !== o.pode_autorizar_gerencia) itens.push(["Autorizar Gerência", sim(o.pode_autorizar_gerencia), sim(f.pode_autorizar_gerencia)]);
   if (f.pode_exportar_backup !== o.pode_exportar_backup) itens.push(["Exportar backup", sim(o.pode_exportar_backup), sim(f.pode_exportar_backup)]);
   if (f.pode_acessar_portal_representante !== o.pode_acessar_portal_representante) itens.push(["Portal do representante", sim(o.pode_acessar_portal_representante), sim(f.pode_acessar_portal_representante)]);
+  if (!igual(f.tipos_pneu_liberados, o.tipos_pneu_liberados)) itens.push(["Tipos de pneu no portal", usrTextoTipos(o.tipos_pneu_liberados), usrTextoTipos(f.tipos_pneu_liberados)]);
   return itens;
 }
 
@@ -566,6 +606,8 @@ function usrRenderAcesso() {
             ${ADMIN_VIEW_DEFS.map(v => `<label class="usr-tela ${marcadas.includes(v.key) ? "on" : ""}"><input type="checkbox" data-usrtela="${v.key}" ${marcadas.includes(v.key) ? "checked" : ""}>${escapeHtml(v.label)}</label>`).join("")}
           </div>
         </div>
+
+        ${usrCartaoTiposPneu(f, colunas)}
 
         <div class="card usr-card-unico">${usrSwitch("pode_acessar_sem_venda", "Sem Venda", "Estoque previsto, catálogo, reservas e armazenagem dos pneus comprados a mais.", false, row.is_admin ? "(administrador sempre acessa)" : "")}</div>
 
@@ -668,6 +710,7 @@ async function usrSalvarAcesso() {
   if (f.nome.trim() !== o.nome.trim()) payload.nome = f.nome.trim();
   ["role", "visible_views", "pode_acessar_sem_venda", "is_admin", "pode_autorizar_gerencia", "pode_exportar_backup"].forEach(k => { if (mudou(k)) payload[k] = f[k]; });
   if (colunas.has("pode_acessar_portal_representante") && mudou("pode_acessar_portal_representante")) payload.pode_acessar_portal_representante = f.pode_acessar_portal_representante;
+  if (colunas.has("tipos_pneu_liberados") && mudou("tipos_pneu_liberados")) payload.tipos_pneu_liberados = f.tipos_pneu_liberados;
   if (colunas.has("crm_tem_carteira") && mudou("crm_tem_carteira")) payload.crm_tem_carteira = f.crm_tem_carteira;
   if (colunas.has("pode_acessar_varejo") && mudou("pode_acessar_varejo")) payload.pode_acessar_varejo = f.pode_acessar_varejo;
   if (colunas.has("crm_papel") && (mudou("crm_papel") || mudou("crm_sistemas") || mudou("crm_representante"))) {
@@ -708,7 +751,7 @@ async function usrDescartar() {
 /* ---------------- eventos ---------------- */
 
 function usrCliqueAcesso(e) {
-  const t = e.target.closest("[data-usrvoltar],[data-usrdescartar],[data-usrsalvar],[data-usrrole],[data-usrtelas],[data-usrcrm],[data-usrcrmsis],[data-usrcrmcart],[data-usravancado],[data-usrsenha]");
+  const t = e.target.closest("[data-usrvoltar],[data-usrdescartar],[data-usrsalvar],[data-usrrole],[data-usrtelas],[data-usrcrm],[data-usrcrmsis],[data-usrcrmcart],[data-usravancado],[data-usrsenha],[data-usrtipos]");
   if (!t || !usrUi.form) { if (t && t.dataset.usrvoltar) setView("administracao"); return; }
   if (t.dataset.usrsenha) { usrAbrirSenha(); return; }
   if (t.dataset.usrvoltar) { usrDescartar(); return; }
@@ -724,6 +767,7 @@ function usrCliqueAcesso(e) {
     f.crm_sistemas = Object.keys(USR_SISTEMA).filter(k => marcados.includes(k));
     f.crm_sistema = f.crm_sistemas[0] || null;
   }
+  else if (t.dataset.usrtipos) usrUi.form.tipos_pneu_liberados = t.dataset.usrtipos === "todos" ? null : [];
   else if (t.dataset.usrcrmcart) usrUi.form.crm_tem_carteira = !usrUi.form.crm_tem_carteira;
   else if (t.dataset.usravancado) usrUi.avancadoAberto = !usrUi.avancadoAberto;
   usrRenderAcesso();
@@ -733,6 +777,15 @@ function usrMudancaAcesso(e) {
   if (!usrUi.form) return;
   const tela = e.target.closest("[data-usrtela]");
   const sw = e.target.closest("[data-usrsw]");
+  const tipo = e.target.closest("[data-usrtipo]");
+  if (tipo) {
+    const f = usrUi.form;
+    const atuais = f.tipos_pneu_liberados === null ? USR_TIPOS_PNEU.map(t => t.k) : f.tipos_pneu_liberados;
+    const novos = USR_TIPOS_PNEU.map(t => t.k).filter(k => k === tipo.dataset.usrtipo ? tipo.checked : atuais.includes(k));
+    f.tipos_pneu_liberados = novos.length === USR_TIPOS_PNEU.length ? null : novos;
+    usrRenderAcesso();
+    return;
+  }
   if (e.target.matches && e.target.matches("[data-usrreprep]")) { usrUi.form.crm_representante = e.target.value; usrRenderAcesso(); return; }
   if (tela) { usrAlternarTela(tela.dataset.usrtela, tela.checked); usrRenderAcesso(); }
   else if (sw) { usrUi.form[sw.dataset.usrsw] = sw.checked; usrRenderAcesso(); }
