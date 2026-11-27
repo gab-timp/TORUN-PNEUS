@@ -17,7 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=191">
 <link rel="stylesheet" href="semvenda.css?v=46">
-<link rel="stylesheet" href="crm.css?v=44">
+<link rel="stylesheet" href="crm.css?v=45">
 <link rel="stylesheet" href="usuarios.css?v=6">
 <link rel="stylesheet" href="seletores-dash.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -374,6 +374,9 @@
         </button>
         <button class="nav-item" data-view="crm-clientes" data-label="Clientes">
           <svg class="ic" viewBox="0 0 20 20"><use href="#i-users"/></svg> Clientes
+        </button>
+        <button class="nav-item" data-view="crm-fornecedores" data-label="Fornecedores">
+          <svg class="ic" viewBox="0 0 20 20"><use href="#i-truck"/></svg> Fornecedores
         </button>
       </div>
       <!-- mesma tela Administração do Torun (só admin): é nela que o admin marca o papel de cada pessoa no CRM -->
@@ -1053,6 +1056,33 @@
         </div>
       </div>
       <div id="crmRepCorpo"></div>
+    </section>
+
+    <section id="view-crm-fornecedores" class="view crm-view">
+      <div class="page-head">
+        <div><h1>Fornecedores</h1><div class="sub">Consulta rápida para o atendimento: de quem vem cada marca, quanto o cliente paga de entrada, quem contatar e se há restrição.</div></div>
+        <div class="page-head-actions crm-acoes-topo">
+          <button type="button" class="btn outline" id="crmFornBtnMail">✉︎ E-mail para vários</button>
+          <button type="button" class="btn primary" id="crmFornBtnNovo" style="display:none;">+ Novo fornecedor</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="crm-forn-filtros">
+          <div class="crm-forn-l1">
+            <div class="field grow"><label for="crmFornBusca">Buscar</label><input type="search" id="crmFornBusca" placeholder="Marca, exportador, fábrica ou contato…" autocomplete="off"></div>
+            <div class="field"><label for="crmFornOrd">Ordenar por</label><select id="crmFornOrd"><option value="az">Ordem alfabética</option><option value="ent">Menor entrada primeiro</option></select></div>
+            <div class="crm-seg" id="crmFornVisao" role="group" aria-label="Agrupar por"><button type="button" class="on" data-crmfornvisao="marca">Por marca</button><button type="button" data-crmfornvisao="ex">Por exportador</button></div>
+          </div>
+          <div class="crm-forn-l2">
+            <div class="crm-forn-fg"><span class="t">Tipo</span><div class="crm-forn-chips" id="crmFornGTipo"></div></div>
+            <div class="crm-forn-fg"><span class="t">Origem</span><div class="crm-forn-chips" id="crmFornGPais"></div></div>
+            <div class="crm-forn-fg"><span class="t">Lista de preços</span><div class="crm-forn-chips" id="crmFornGLista"></div></div>
+            <label class="crm-forn-sw"><input type="checkbox" id="crmFornSemRest"> Esconder exclusividades</label>
+          </div>
+        </div>
+        <div class="note crm-forn-res" id="crmFornRes"></div>
+        <div class="crm-forn-grade" id="crmFornGrade"></div>
+      </div>
     </section>
 
     <section id="view-crm-faturamento" class="view crm-view">
@@ -5077,10 +5107,11 @@
 <script src="seletor-padrao.js?v=2"></script>
 <script src="seletores-dash.js?v=2"></script>
 <script src="semvenda.js?v=66"></script>
-<script src="crm.js?v=49"></script>
+<script src="crm.js?v=50"></script>
 <script src="crm-ligacoes.js?v=11"></script>
 <script src="crm-perfil.js?v=11"></script>
 <script src="crm-faturamento.js?v=6"></script>
+<script src="crm-fornecedores.js?v=1"></script>
 <script src="crm-representante.js?v=2"></script>
 <script src="crm-desempenho.js?v=1"></script>
 <script src="crm-dashboard.js?v=7"></script>

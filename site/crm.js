@@ -465,6 +465,7 @@ function crmRender() {
   else if (id === "view-crm-dashboard" && typeof crmRenderDashboard === "function") crmRenderDashboard();
   else if (id === "view-crm-relatorio" && typeof crmRenderRelatorio === "function") crmRenderRelatorio();
   else if (id === "view-crm-faturamento" && typeof crmRenderFaturamento === "function") crmRenderFaturamento();
+  else if (id === "view-crm-fornecedores" && typeof crmRenderFornecedores === "function") crmRenderFornecedores();
   else if (id === "view-crm-meu-painel" && typeof crmRepPainelRender === "function") crmRepPainelRender();
 }
 
@@ -1379,6 +1380,7 @@ function initCrmTelas() {
   if (typeof crmRelInit === "function") crmRelInit();
   if (typeof crmMetasMesInit === "function") crmMetasMesInit();
   if (typeof crmEditarInit === "function") crmEditarInit();
+  if (typeof initCrmFornecedores === "function") initCrmFornecedores();
 
   // metas
   document.getElementById("crmMetasAno").addEventListener("change", (e) => { crmMetas.ano = Number(e.target.value); crmRenderMetas(); });
